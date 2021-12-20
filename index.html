@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="style.css" rel="stylesheet" type="text/css" />
+    <title>Plex Intro Marker Editor</title>
+</head>
+<body>
+
+<div>
+    <form>
+        <div id="libraryList"><label for="libraries">Select a library to parse:</label><select id="libraries"></select></div>
+    </form>
+    <div id='status'></div>
+    <div id='container' class='hidden'>
+        <label for='search'>Search: <input type='text' id='search' name='search' /></label>
+        <input type='button' id='gosearch' value='Go' />
+        <br>
+        <div id="showlist"></div>
+        <div id="seasonlist"></div>
+        <div id="episodelist"></div>
+    </div>
+</div>
+</body>
+<script src="index.js"></script>
+</html>

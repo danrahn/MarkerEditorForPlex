@@ -1,0 +1,15 @@
+{
+  "name": "plexintroeditor",
+  "version": "1.0.0",
+  "description": "Edit Plex intro markers",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Daniel Rahn",
+  "license": "MIT",
+  "dependencies": {
+    "mime-types": "^2.1.34",
+    "sqlite3": "^4.2.0"
+  }
+}

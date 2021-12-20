@@ -1,0 +1,6 @@
+{
+    "host" : "localhost",
+    "port" : 32400,
+    "token" : "0123456789abcdefghij",
+    "database" : "path/to/com.plexapp.plugins.library.db"
+}
