@@ -36,3 +36,35 @@ input, select {
   background-color: #414141;
   color: #c1c1c1;
 }
+
+#episodelist table, #episodelist td, #episodelist thead {
+  border-collapse: collapse;
+  padding: 5px 10px;
+  font-size: 10pt;
+  width: auto
+}
+
+#episodelist table {
+  margin: unset;
+  overflow: auto;
+  display: block;
+  background: 0 0;
+  max-width: 100%;
+  color: #c1c1c1
+}
+
+#episodelist td,#episodelist thead {
+  border-left: 1px solid gray;
+  border-right: 1px solid gray;
+  border-bottom: 1px solid #606060
+}
+
+#episodelist thead {
+  background-color: rgba(0,40,0,.3);
+  border-top: 1px solid gray;
+  font-weight: 700
+}
+
+#episodelist th {
+  background-color: rgba(0,100,0,.2)
+}

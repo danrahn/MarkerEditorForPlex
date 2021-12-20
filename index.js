@@ -10,6 +10,7 @@ function setup()
     fetch('config.json').then(res => res.json()).then(gotConfig);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#gosearch').addEventListener('click', search);
+    $('#search').addEventListener('keyup', onSearchInput);
 }
 
 class Plex
@@ -142,6 +143,12 @@ function libraryChanged() {
     }
 }
 
+function onSearchInput(e) {
+    if (e.keyCode == 13 /*enter*/) {
+        search();
+    }
+}
+
 function search() {
     plex.search($('#search').value, parseShowResults);
 }
@@ -202,20 +209,36 @@ function showEpisodesReally(data) {
     for (const key of Object.keys(data)) {
         const markers = data[key];
         const episode = g_episodeResults[key.toString()];
-        console.log(episode);
-        let markerString = '';
-        for (const marker of markers) {
-            markerString += msToHms(marker.time_offset) + '-' + msToHms(marker.end_time_offset) + ', ';
-        }
+        console.log(markers);
 
-        if (!markerString) {
-            markerString = 'No markers found';
-        } else {
-            markerString = markerString.substring(0, markerString.length - 2);
-        }
-
-        episodelist.appendChild(buildNode('div', {}, `S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${markerString}`));
+        episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers));
     }
+}
+
+function buildMarkerTable(markers) {
+    if (markers.length == 0) {
+        return buildNode('div', {}, 'No markers found.');
+    }
+
+    let table = buildNode('table');
+    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', 'Start Time', 'End Time', 'Date Added')));
+    let rows = buildNode('tbody');
+    for (const marker of markers) {
+        rows.appendChild(tableRow(marker.index.toString(), msToHms(marker.time_offset), msToHms(marker.end_time_offset), marker.created_at));
+    }
+
+    table.appendChild(rows);
+
+    return table;
+}
+
+function tableRow(...columns) {
+    let tr = buildNode('tr');
+    for (const column of columns) {
+        tr.appendChild(buildNode('td', {}, column));
+    }
+
+    return tr;
 }
 
 function pad0(val, pad) {
@@ -234,7 +257,7 @@ function msToHms(ms)
     seconds = parseInt(seconds) % 60;
     const hundredths = parseInt(ms / 10) % 100;
     let pad2 = (time) => time < 10 ? "0" + time : time;
-    let time = pad2(minutes) + ":" + pad2(seconds) + "." + hundredths;
+    let time = pad2(minutes) + ":" + pad2(seconds) + "." + pad2(hundredths);
     if (hours > 0)
     {
         time = hours + ":" + time;
