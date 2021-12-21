@@ -327,6 +327,11 @@ function onMarkerAddConfirm() {
         addButton.removeEventListener('click', onMarkerAddCancel);
         addButton.addEventListener('click', onMarkerAdd);
         addButton.value = 'Add Marker';
+
+        // If we previously had no markers, remove the 'No marker found' row.
+        if (g_modifiedRow.parentNode.$('td[colspan="5"]').length == 2) {
+            g_modifiedRow.parentNode.removeChild(g_modifiedRow.parentNode.firstChild);
+        }
         g_modifiedRow = null;
     };
 
@@ -467,6 +472,12 @@ function onMarkerDelete() {
     const markerId = parseInt(this.getAttribute('markerId'));
     g_modifiedRow = this.parentNode.parentNode.parentNode;
     let successFunc = () => {
+
+        // If we're removing the last marker, add the 'No marker found' row.
+        if (g_modifiedRow.parentNode.children.length == 2) {
+            g_modifiedRow.parentNode.insertBefore(spanningTableRow('No markers found'), g_modifiedRow.parentNode.firstChild);
+        }
+
         g_modifiedRow.parentNode.removeChild(g_modifiedRow);
         g_modifiedRow = null;
     }
