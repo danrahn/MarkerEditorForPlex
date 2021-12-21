@@ -200,7 +200,7 @@ function showEpisodes(data) {
         queryString.push(episode.ratingKey);
     }
 
-    fetch('query?keys=' + queryString.join(','), { method : 'POST', headers : { accept : 'application/json' }}).then(r => r.json()).then(showEpisodesReally);
+    jsonRequest('query', { keys : queryString.join(',') }, showEpisodesReally);
 }
 
 function showEpisodesReally(data) {
@@ -211,11 +211,11 @@ function showEpisodesReally(data) {
         const episode = g_episodeResults[key.toString()];
         console.log(markers);
 
-        episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers));
+        episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
     }
 }
 
-function buildMarkerTable(markers) {
+function buildMarkerTable(markers, episode) {
     let table = buildNode('table');
     table.appendChild(buildNode('thead').appendChildren(tableRow('Index', 'Start Time', 'End Time', 'Date Added', 'Options')));
     let rows = buildNode('tbody');
@@ -224,10 +224,10 @@ function buildMarkerTable(markers) {
     }
 
     for (const marker of markers) {
-        rows.appendChild(tableRow(marker.index.toString(), timeData(marker.time_offset), timeData(marker.end_time_offset), marker.created_at, optionButtons()));
+        rows.appendChild(tableRow(marker.index.toString(), timeData(marker.time_offset), timeData(marker.end_time_offset), marker.created_at, optionButtons(marker.id)));
     }
 
-    rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker' }, '', { click : onMarkerAdd })));
+    rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker', metadataId :  episode.ratingKey }, '', { click : onMarkerAdd })));
 
     table.appendChild(rows);
 
@@ -251,23 +251,44 @@ function timeData(offset) {
     return buildNode('span', { title : offset }, msToHms(offset));
 }
 
-function optionButtons() {
+function optionButtons(markerId) {
     return buildNode('div').appendChildren(
-        buildNode('input', { type : 'button', value : 'Edit' }, '', { click : onMarkerEdit }),
-        buildNode('input', { type : 'button', value : 'Delete' }, '', { click : onMarkerDelete })
+        buildNode('input', { type : 'button', value : 'Edit', markerId : markerId }, '', { click : onMarkerEdit }),
+        buildNode('input', { type : 'button', value : 'Delete', markerId : markerId }, '', { click : onMarkerDelete })
     );
 }
 
 function onMarkerAdd() {
-    console.log('Add Click!');
+    const metadataId = parseInt(this.getAttribute('metadataId'));
+    console.log(`Add Click or ${metadataId}!`);
 }
 
+let g_modifiedRow = null;
 function onMarkerEdit() {
-    console.log('Edit Click!');
+    const markerId = parseInt(this.getAttribute('markerId'));
+    console.log(`Edit Click for ${markerId}!`);
 }
 
 function onMarkerDelete() {
-    console.log('Delete Click!');
+    // TODO: 'Are you sure?'
+    // TODO: Additional (or any) indication that we failed/succeeded
+    if (g_modifiedRow) {
+        console.log('Waiting for a previous operation to complete...');
+        return;
+    }
+
+    const markerId = parseInt(this.getAttribute('markerId'));
+    g_modifiedRow = this.parentNode.parentNode.parentNode;
+    let successFunc = () => {
+        g_modifiedRow.parentNode.removeChild(g_modifiedRow);
+        g_modifiedRow = null;
+    }
+
+    let failureFunc = () => { g_modifiedRow = null; }
+
+    jsonRequest('delete', { id : markerId }, successFunc, failureFunc);
+
+    console.log(`Delete Click for ${markerId}!`);
 }
 
 function pad0(val, pad) {
@@ -301,6 +322,27 @@ function clearEle(ele)
   {
     ele.removeChild(ele.firstChild);
   }
+}
+
+function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
+    let url = new URL(endpoint, window.location.href);
+    for (const [key, value] of Object.entries(parameters)) {
+        url.searchParams.append(key, value);
+    }
+
+    fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
+        if (!response || response.Error) {
+            if (failureFunc) {
+                failureFunc(response);
+            } else {
+                console.error('Request failed: %o', response);
+            }
+
+            return;
+        }
+
+        successFunc(response);
+    });
 }
 
 function $(selector, ele=document)
