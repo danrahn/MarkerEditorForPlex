@@ -286,8 +286,8 @@ function onMarkerAdd() {
     console.log(`Add Click or ${metadataId}!`);
 }
 
-function timeInput() {
-    return buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]' })
+function timeInput(value) {
+    return buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' });
 }
 
 function onMarkerAddCancel() {
@@ -384,8 +384,76 @@ function timeToMs(value) {
 
 let g_modifiedRow = null;
 function onMarkerEdit() {
+    if (g_modifiedRow) {
+        console.log('Waiting for a previous operation to complete...');
+        return;
+    }
+
     const markerId = parseInt(this.getAttribute('markerId'));
+
+    g_modifiedRow = this.parentNode.parentNode.parentNode;
+    let startTime = g_modifiedRow.children[1];
+    let endTime = g_modifiedRow.children[2];
+    startTime.setAttribute('prevtime', startTime.firstChild.innerHTML);
+    endTime.setAttribute('prevtime', endTime.firstChild.innerHTML);
+    clearEle(startTime);
+    clearEle(endTime);
+
+    startTime.appendChild(timeInput(startTime.getAttribute('prevtime')));
+    endTime.appendChild(timeInput(endTime.getAttribute('prevtime')));
+
+    let tbody = g_modifiedRow.parentNode;
+    let addButton = tbody.lastChild.$$('input');
+    addButton.removeEventListener('click', onMarkerAdd);
+    addButton.addEventListener('click', onMarkerEditConfirm);
+    addButton.value = 'Confirm Edit';
+    addButton.setAttribute('markerId', markerId);
+    addButton.parentNode.appendChild(buildNode('input', { type : 'button', value : 'Cancel' }, '', { click : onMarkerEditCancel }));
     console.log(`Edit Click for ${markerId}!`);
+}
+
+function onMarkerEditConfirm() {
+    const markerId = parseInt(this.getAttribute('markerId'));
+    const inputs = g_modifiedRow.$('input[type="text"]');
+    const startTime = timeToMs(inputs[0].value);
+    const endTime = timeToMs(inputs[1].value);
+
+    if (isNaN(markerId) || isNaN(startTime) || isNaN(endTime)) {
+        // TODO: Actually indicate that something went wrong
+        return;
+    }
+
+    let successFunc = () => {
+        clearEle(g_modifiedRow.children[1]);
+        g_modifiedRow.children[1].appendChild(timeData(startTime));
+        clearEle(g_modifiedRow.children[2]);
+        g_modifiedRow.children[2].appendChild(timeData(endTime));
+
+        let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
+        addButton.parentNode.removeChild(addButton.parentNode.lastChild);
+        addButton.removeEventListener('click', onMarkerEditConfirm);
+        addButton.addEventListener('click', onMarkerAdd);
+        addButton.value = 'Add Marker';
+        g_modifiedRow = null;
+    };
+
+    let failureFunc = () => { g_modifiedRow = null; }
+    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, successFunc, failureFunc);
+}
+
+function onMarkerEditCancel() {
+    let addButton = this.parentNode.firstChild;
+    this.parentNode.removeChild(this);
+
+    addButton.removeEventListener('click', onMarkerEditConfirm);
+    addButton.addEventListener('click', onMarkerAdd);
+    addButton.value = 'Add Marker';
+
+    clearEle(g_modifiedRow.children[1]);
+    g_modifiedRow.children[1].appendChild(timeData(timeToMs(g_modifiedRow.children[1].getAttribute('prevtime'))));
+    clearEle(g_modifiedRow.children[2]);
+    g_modifiedRow.children[2].appendChild(timeData(timeToMs(g_modifiedRow.children[2].getAttribute('prevtime'))));
+    g_modifiedRow = null;
 }
 
 function onMarkerDelete() {
@@ -416,7 +484,7 @@ function pad0(val, pad) {
 }
 
 /// <summary>
-/// Convert milliseconds to a user-friendly [h:]mm:ss.00
+/// Convert milliseconds to a user-friendly [h:]mm:ss.000
 /// </summary>
 function msToHms(ms)
 {
@@ -424,9 +492,10 @@ function msToHms(ms)
     const hours = parseInt(seconds / 3600);
     const minutes = parseInt(seconds / 60) % 60;
     seconds = parseInt(seconds) % 60;
-    const hundredths = parseInt(ms / 10) % 100;
+    const thousandths = ms % 1000;
     let pad2 = (time) => time < 10 ? "0" + time : time;
-    let time = pad2(minutes) + ":" + pad2(seconds) + "." + pad2(hundredths);
+    const pad3 = (time) => time < 10 ? "00" + time : time < 100 ? "0" + time : time;
+    let time = pad2(minutes) + ":" + pad2(seconds) + "." + pad3(thousandths);
     if (hours > 0)
     {
         time = hours + ":" + time;
