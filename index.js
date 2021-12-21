@@ -323,6 +323,10 @@ function onMarkerAddConfirm() {
         g_modifiedRow.children[3].innerHTML = response.created_at;
         clearEle(g_modifiedRow.children[4]);
         g_modifiedRow.children[4].appendChild(optionButtons(response.id));
+        let addButton = g_modifiedRow.parentNode.$$(`input[metadataId="${metadataId}"]`);
+        addButton.removeEventListener('click', onMarkerAddCancel);
+        addButton.addEventListener('click', onMarkerAdd);
+        addButton.value = 'Add Marker';
         g_modifiedRow = null;
     };
 
