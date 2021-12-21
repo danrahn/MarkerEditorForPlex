@@ -68,3 +68,7 @@ input, select {
 #episodelist th {
   background-color: rgba(0,100,0,.2)
 }
+
+.timeColumn {
+  width: 150px !important;
+}

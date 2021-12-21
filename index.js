@@ -217,7 +217,7 @@ function showEpisodesReally(data) {
 
 function buildMarkerTable(markers, episode) {
     let table = buildNode('table');
-    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', 'Start Time', 'End Time', 'Date Added', 'Options')));
+    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -234,10 +234,23 @@ function buildMarkerTable(markers, episode) {
     return table;
 }
 
+function timeColumn(value) {
+    return {
+        value : value,
+        properties : {
+            class : 'timeColumn'
+        }
+    };
+}
+
 function tableRow(...columns) {
     let tr = buildNode('tr');
     for (const column of columns) {
-        tr.appendChild(buildNode('td', {}, column));
+        if (typeof(column) == 'string' || column instanceof HTMLElement) {
+            tr.appendChild(buildNode('td', {}, column));
+        } else {
+            tr.appendChild(buildNode('td', column.properties, column.value));
+        }
     }
 
     return tr;
@@ -259,8 +272,110 @@ function optionButtons(markerId) {
 }
 
 function onMarkerAdd() {
+    if (g_modifiedRow) {
+        console.log('Waiting for a previous operation to complete...');
+        return;
+    }
+
     const metadataId = parseInt(this.getAttribute('metadataId'));
+    const thisRow = this.parentNode.parentNode;
+    g_modifiedRow = thisRow.parentNode.insertBefore(tableRow('-', timeInput(), timeInput(), '-', markerAddConfirm(metadataId)), thisRow);
+    this.value = 'Cancel';
+    this.removeEventListener('click', onMarkerAdd);
+    this.addEventListener('click', onMarkerAddCancel);
     console.log(`Add Click or ${metadataId}!`);
+}
+
+function timeInput() {
+    return buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]' })
+}
+
+function onMarkerAddCancel() {
+    this.removeEventListener('click', onMarkerAddCancel);
+    this.addEventListener('click', onMarkerAdd);
+    g_modifiedRow.parentNode.removeChild(g_modifiedRow);
+    g_modifiedRow = null;
+    this.value = 'Add Marker';
+}
+
+function markerAddConfirm(metadataId) {
+    return buildNode('input', { type : 'button', value : 'Add', metadataId : metadataId }, '', { click : onMarkerAddConfirm });
+}
+
+function onMarkerAddConfirm() {
+    const metadataId = parseInt(this.getAttribute('metadataId'));
+    const thisRow = this.parentNode.parentNode;
+    let inputs = thisRow.$('input[type=text]');
+    const startTime = timeToMs(inputs[0].value);
+    const endTime = timeToMs(inputs[1].value);
+
+    if (isNaN(metadataId) || isNaN(startTime) || isNaN(endTime)) {
+        // TODO: Actually indicate that something went wrong
+        return;
+    }
+
+    let successFunc = (response) => {
+        g_modifiedRow.children[0].innerHTML = response.index;
+        clearEle(g_modifiedRow.children[1]);
+        g_modifiedRow.children[1].appendChild(timeData(response.time_offset));
+        clearEle(g_modifiedRow.children[2]);
+        g_modifiedRow.children[2].appendChild(timeData(response.end_time_offset));
+        g_modifiedRow.children[3].innerHTML = response.created_at;
+        clearEle(g_modifiedRow.children[4]);
+        g_modifiedRow.children[4].appendChild(optionButtons(response.id));
+        g_modifiedRow = null;
+    };
+
+    let failureFunc = () => { g_modifiedRow = null; }
+    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
+}
+
+function timeToMs(value) {
+    let ms = 0;
+    if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
+        return parseInt(value);
+    }
+
+    // I'm sure this can be improved on.
+    let result = /^(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
+    if (!result) {
+        return NaN;
+    }
+
+    if (result[4]) {
+        ms = parseInt(result[4]);
+        switch (result[4].length) {
+            case 1:
+                ms *= 100;
+                break;
+            case 2:
+                ms *= 10;
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (result[3]) {
+        ms += parseInt(result[3]) * 1000;
+    }
+
+    if (result[2]) {
+        ms += parseInt(result[2]) * 60 * 1000;
+    }
+
+    // Because the above regex isn't great, if we have mm:ss.000, result[1]
+    // will be populated but result[2] won't. This catches that and adds
+    // result[1] as minutes instead of as hours like we do below.
+    if (result[1] && !result[2]) {
+        ms += parseInt(result[1]) * 60 * 1000;
+    }
+
+    if (result[1] && result[2]) {
+        ms += parseInt(result[1]) * 60 * 60 * 1000;
+    }
+
+    return ms;
 }
 
 let g_modifiedRow = null;

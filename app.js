@@ -198,13 +198,23 @@ function addMarker(req, res) {
                 index = Math.max(index, row.index + 1);
             });
             
-            db.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`) " +
-                        "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", [metadataId, tagId, index, startMs, endMs], (err) => {
+            db.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
+                        "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, tagId, index, startMs, endMs], (err) => {
                 if (err) {
                     return jsonError(res, 400, err);
                 }
 
-                return jsonSuccess(res);
+                // Return our new values directly from the table
+                db.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `index`=?;", [metadataId, tagId, index], (err, row) => {
+                    if (err) {
+                        // We still succeeded, but failed to get the right data after it was inserted?
+                        return jsonSuccess(res);
+                    }
+
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(row));
+                });
             });
         });
     });
