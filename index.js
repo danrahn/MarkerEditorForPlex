@@ -476,6 +476,15 @@ function onMarkerDelete() {
         // If we're removing the last marker, add the 'No marker found' row.
         if (g_modifiedRow.parentNode.children.length == 2) {
             g_modifiedRow.parentNode.insertBefore(spanningTableRow('No markers found'), g_modifiedRow.parentNode.firstChild);
+        } else {
+            // Update indexes if needed
+            let index = parseInt(g_modifiedRow.firstChild.innerHTML);
+            if (index != g_modifiedRow.parentNode.children.length - 2) { // Our deleted index isn't at the end
+                for (let i = index + 1; i < g_modifiedRow.parentNode.children.length - 1; ++i) {
+                    let indexColumn = g_modifiedRow.parentNode.children[i].firstChild;
+                    indexColumn.innerHTML = parseInt(indexColumn.innerHTML) - 1; // We're assuming that the fire-and-forget index adjustments server-side succeeded
+                }
+            }
         }
 
         g_modifiedRow.parentNode.removeChild(g_modifiedRow);

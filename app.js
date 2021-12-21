@@ -235,12 +235,38 @@ function deleteMarker(req, res) {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        db.run("DELETE FROM `taggings` WHERE `id`=?", [id], (err) => {
+        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?;", [row.metadata_item_id, row.tag_id], (err, rows) => {
             if (err) {
-                return jsonError(res, 500, 'Failed to delete intro marker');
+                return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
             }
 
-            return jsonSuccess(res);
+            let deleteIndex = 0;
+            for (const row of rows) {
+                if (row.id == id) {
+                    deleteIndex = row.index;
+                }
+            }
+
+            const allMarkers = rows;
+
+            // Now that we're done rearranging, delete the original tag.
+            db.run("DELETE FROM `taggings` WHERE `id`=?", [id], (err) => {
+                if (err) {
+                    return jsonError(res, 500, 'Failed to delete intro marker');
+                }
+
+                // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
+                if (deleteIndex < rows.length - 1) {
+
+                    // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
+                    for (const marker of allMarkers) {
+                        if (marker.index > deleteIndex) {
+                            db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.index - 1, marker.id]);
+                        }
+                    }
+                }
+                return jsonSuccess(res);
+            });
         });
     });
 }
