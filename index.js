@@ -216,16 +216,18 @@ function showEpisodesReally(data) {
 }
 
 function buildMarkerTable(markers) {
+    let table = buildNode('table');
+    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', 'Start Time', 'End Time', 'Date Added', 'Options')));
+    let rows = buildNode('tbody');
     if (markers.length == 0) {
-        return buildNode('div', {}, 'No markers found.');
+        rows.appendChild(spanningTableRow('No markers found'));
     }
 
-    let table = buildNode('table');
-    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', 'Start Time', 'End Time', 'Date Added')));
-    let rows = buildNode('tbody');
     for (const marker of markers) {
-        rows.appendChild(tableRow(marker.index.toString(), msToHms(marker.time_offset), msToHms(marker.end_time_offset), marker.created_at));
+        rows.appendChild(tableRow(marker.index.toString(), timeData(marker.time_offset), timeData(marker.end_time_offset), marker.created_at, optionButtons()));
     }
+
+    rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker' }, '', { click : onMarkerAdd })));
 
     table.appendChild(rows);
 
@@ -239,6 +241,33 @@ function tableRow(...columns) {
     }
 
     return tr;
+}
+
+function spanningTableRow(column) {
+    return buildNode('tr').appendChildren(buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
+}
+
+function timeData(offset) {
+    return buildNode('span', { title : offset }, msToHms(offset));
+}
+
+function optionButtons() {
+    return buildNode('div').appendChildren(
+        buildNode('input', { type : 'button', value : 'Edit' }, '', { click : onMarkerEdit }),
+        buildNode('input', { type : 'button', value : 'Delete' }, '', { click : onMarkerDelete })
+    );
+}
+
+function onMarkerAdd() {
+    console.log('Add Click!');
+}
+
+function onMarkerEdit() {
+    console.log('Edit Click!');
+}
+
+function onMarkerDelete() {
+    console.log('Delete Click!');
 }
 
 function pad0(val, pad) {
@@ -328,7 +357,11 @@ function _buildNode(ele, attrs, content, events)
 
     if (content)
     {
-        ele.innerHTML = content;
+        if (content instanceof HTMLElement) {
+            ele.appendChild(content);
+        } else {
+            ele.innerHTML = content;
+        }
     }
 
     return ele;
