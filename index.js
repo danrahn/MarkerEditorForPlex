@@ -209,7 +209,6 @@ function showEpisodesReally(data) {
     for (const key of Object.keys(data)) {
         const markers = data[key];
         const episode = g_episodeResults[key.toString()];
-        console.log(markers);
 
         episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
     }
@@ -217,14 +216,17 @@ function showEpisodesReally(data) {
 
 function buildMarkerTable(markers, episode) {
     let table = buildNode('table');
-    table.appendChild(buildNode('thead').appendChildren(tableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
+    table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
     }
 
+    // Sort by earliest to latest marker if there are multiple
+    markers.sort((a, b) => a.index - b.index);
+
     for (const marker of markers) {
-        rows.appendChild(tableRow(marker.index.toString(), timeData(marker.time_offset), timeData(marker.end_time_offset), marker.created_at, optionButtons(marker.id)));
+        rows.appendChild(tableRow(marker, episode));
     }
 
     rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker', metadataId :  episode.ratingKey }, '', { click : onMarkerAdd })));
@@ -243,7 +245,31 @@ function timeColumn(value) {
     };
 }
 
-function tableRow(...columns) {
+/// <summary>
+/// Creates a table row for a specific marker of an episode
+/// </summary>
+function tableRow(marker, episode) {
+    let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.ratingKey, startTime : marker.time_offset, endTime : marker.end_time_offset });
+    const td = (column) => {
+        return buildNode('td', {}, column);
+    }
+
+    console.log(marker);
+    tr.appendChildren(
+        td(marker.index.toString()),
+        td(timeData(marker.time_offset)),
+        td(timeData(marker.end_time_offset)),
+        td(marker.created_at),
+        td(optionButtons(marker.id))
+    );
+
+    return tr;
+}
+
+/// <summary>
+/// Creates a "free-form" table row using the list of columns to add
+/// </summary>
+function rawTableRow(...columns) {
     let tr = buildNode('tr');
     for (const column of columns) {
         if (typeof(column) == 'string' || column instanceof HTMLElement) {
@@ -279,7 +305,8 @@ function onMarkerAdd() {
 
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
-    g_modifiedRow = thisRow.parentNode.insertBefore(tableRow('-', timeInput(), timeInput(), '-', markerAddConfirm(metadataId)), thisRow);
+    g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(), '-', markerAddConfirmButton(metadataId)), thisRow);
+    g_modifiedRow.setAttribute('metadataId', metadataId);
     this.value = 'Cancel';
     this.removeEventListener('click', onMarkerAdd);
     this.addEventListener('click', onMarkerAddCancel);
@@ -298,7 +325,7 @@ function onMarkerAddCancel() {
     this.value = 'Add Marker';
 }
 
-function markerAddConfirm(metadataId) {
+function markerAddConfirmButton(metadataId) {
     return buildNode('input', { type : 'button', value : 'Add', metadataId : metadataId }, '', { click : onMarkerAddConfirm });
 }
 
@@ -315,28 +342,33 @@ function onMarkerAddConfirm() {
     }
 
     let successFunc = (response) => {
-        g_modifiedRow.children[0].innerHTML = response.index;
-        clearEle(g_modifiedRow.children[1]);
-        g_modifiedRow.children[1].appendChild(timeData(response.time_offset));
-        clearEle(g_modifiedRow.children[2]);
-        g_modifiedRow.children[2].appendChild(timeData(response.end_time_offset));
-        g_modifiedRow.children[3].innerHTML = response.created_at;
-        clearEle(g_modifiedRow.children[4]);
-        g_modifiedRow.children[4].appendChild(optionButtons(response.id));
-        let addButton = g_modifiedRow.parentNode.$$(`input[metadataId="${metadataId}"]`);
+
+        // Build the new row
+        let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
+
+        let tbody = g_modifiedRow.parentNode;
+
+        // If we previously had no markers, remove the 'No marker found' row.
+        if (tbody.$('td[colspan="5"]').length == 2) {
+            tbody.removeChild(tbody.firstChild);
+        }
+
+        tbody.removeChild(g_modifiedRow);
+        g_modifiedRow = null;
+        
+        tbody.insertBefore(tr, tbody.children[response.index]);
+        for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
+            let indexData = tbody.children[i].firstChild;
+            indexData.innerHTML = parseInt(indexData.innerHTML) + 1;
+        }
+
+        let addButton = tbody.$$(`input[metadataId="${metadataId}"]`);
         addButton.removeEventListener('click', onMarkerAddCancel);
         addButton.addEventListener('click', onMarkerAdd);
         addButton.value = 'Add Marker';
-
-        // If we previously had no markers, remove the 'No marker found' row.
-        if (g_modifiedRow.parentNode.$('td[colspan="5"]').length == 2) {
-            g_modifiedRow.parentNode.removeChild(g_modifiedRow.parentNode.firstChild);
-        }
-        g_modifiedRow = null;
     };
 
-    let failureFunc = () => { g_modifiedRow = null; }
-    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
+    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc);
 }
 
 function timeToMs(value) {

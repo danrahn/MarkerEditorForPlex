@@ -179,6 +179,14 @@ function addMarker(req, res) {
     const startMs = parseInt(queryObject.start);
     const endMs = parseInt(queryObject.end);
 
+    if (isNaN(metadataId) || isNaN(startMs) || isNaN(endMs)) {
+        return jsonError(res, 400, "Invalid parameters");
+    }
+
+    if (startMs >= endMs) {
+        return jsonError(res, 400, "Start time must be less than end time.");
+    }
+
     let db = new sqlite3.Database(config.database);
     db.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
         if (err) {
@@ -191,21 +199,47 @@ function addMarker(req, res) {
                 return jsonError(res, 400, err);
             }
 
-            // There shouldn't be any gaps, but be safe and just use max + 1
-            let index = 0;
-            rows.forEach(row => {
-                console.log(row);
-                index = Math.max(index, row.index + 1);
-            });
+            let allMarkers = rows;
+            let newIndex = 0;
+            allMarkers.sort((a, b) => a.time_offset - b.time_offset);
+            let foundNewIndex = false;
+            for (let marker of allMarkers) {
+                if (foundNewIndex) {
+                    marker.newIndex = marker.index + 1;
+                    continue;
+                }
+
+                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs) {
+                    // Overlap, this should be handled client-side
+                    return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
+                }
+
+                if (marker.time_offset > startMs) {
+                    newIndex = marker.index;
+                    foundNewIndex = true;
+                    marker.newIndex = marker.index + 1;
+                } else {
+                    marker.newIndex = marker.index;
+                }
+            }
             
             db.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
-                        "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, tagId, index, startMs, endMs], (err) => {
+                        "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, tagId, newIndex, startMs, endMs], (err) => {
                 if (err) {
                     return jsonError(res, 400, err);
                 }
 
+                // Insert succeeded, update indexes of other markers if necessary
+                for (const marker of allMarkers) {
+                    if (marker.index != marker.newIndex) {
+
+                        // Fire and forget. Fingers crossed this does the right thing.
+                        db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
+                    }
+                }
+
                 // Return our new values directly from the table
-                db.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `index`=?;", [metadataId, tagId, index], (err, row) => {
+                db.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `time_offset`=?;", [metadataId, tagId, startMs], (err, row) => {
                     if (err) {
                         // We still succeeded, but failed to get the right data after it was inserted?
                         return jsonSuccess(res);

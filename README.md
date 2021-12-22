@@ -28,8 +28,6 @@ Currently, all the core behavior works, with some caveats:
   * 'Delete' deletes the marker immediately. There is no confirmation dialog and it cannot be undone.
   * The way operations are canceled/committed is inconsistent. For adding a marker, the confirmation button is added to the 'Options' column, and the 'Add Marker' turns into a cancel button. For editing a marker, the 'Add Marker' turns into a confirmation button, and a cancel button is added alongside it.
   * Most errors are silent. If nothing happens when an operation is attempted, there might be an error in the browser console.
-* If multiple markers are added to a single episode, there are no guarantees that the assigned `index` will match the actual order of the markers in the timeline. I haven't tested whether this is actually an issue.
-* When deleting a marker, `index`es are not readjusted. E.g. if I had two markers with indexes `0` and `1`, and deleted the marker at index `0`, the marker at index `1` would stay at `1`, and if an additional marker is added, it will be assigned index `2`.
 * JS files are in dire need of some code cleanup/documentation.
 
 ## Remarks
