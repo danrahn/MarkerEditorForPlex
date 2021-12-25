@@ -1,0 +1,101 @@
+/* Taken from PlexWeb/style/overlay.css */
+
+#mainOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.6);
+    overflow: auto;
+    z-index: 3; /* Show over nav */
+}
+
+#overlayContainer {
+    width: auto;
+    height: auto;
+    color: rgb(196, 196, 196);
+}
+
+.darkerOverlay {
+    background-color: rgba(0,0,0,0.3);
+}
+
+.fullOverlay {
+    margin-top: 50px;
+    margin-bottom: 50px;
+}
+
+.overlayDiv {
+    padding-bottom: 20px;
+    margin: auto;
+    display: block;
+    text-align: center;
+}
+
+.overlayTextarea {
+    display: block;
+    width: 50%;
+    min-width: 200px;
+    margin: auto;
+    float: none;
+    height: 50px;
+}
+
+.overlayInput {
+    display: block;
+    float: none;
+    margin: auto;
+}
+
+.overlayButton {
+    margin-top: 10px;
+    padding: 10px;
+}
+
+.overlayInlineButton {
+    display : inline;
+    float : none;
+    margin: auto;
+    margin-top: 10px;
+    padding: 10px;
+    width: 100px;
+}
+
+.centeredOverlay {
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Desktop/Landscape */
+@media (orientation: landscape), (min-width: 767px) {
+    .fullOverlay {
+        margin-left: 5%;
+        margin-right: 5%;
+    }
+
+    .defaultOverlay {
+        margin-top: 25vh;
+    }
+
+    #overlayContainer {
+        padding: 20px;
+    }
+}
+
+/* Phone/Portrait */
+@media all and (orientation: portrait) and (max-width: 767px) {
+    .fullOverlay {
+        margin-left: 10px;
+        margin-right: 10px;
+    }
+
+    .defaultOverlay {
+        margin-top: 10vh;
+    }
+
+    #overlayContainer {
+        padding: 5px;
+    }
+}

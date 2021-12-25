@@ -208,7 +208,8 @@ function showEpisodesReally(data) {
     clearEle(episodelist);
     for (const key of Object.keys(data)) {
         const markers = data[key];
-        const episode = g_episodeResults[key.toString()];
+        episode = g_episodeResults[key.toString()];
+        episode.markers = markers;
 
         episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
     }
@@ -254,7 +255,6 @@ function tableRow(marker, episode) {
         return buildNode('td', {}, column);
     }
 
-    console.log(marker);
     tr.appendChildren(
         td(marker.index.toString()),
         td(timeData(marker.time_offset)),
@@ -299,18 +299,19 @@ function optionButtons(markerId) {
 
 function onMarkerAdd() {
     if (g_modifiedRow) {
+        Overlay.show(`It looks like you're in the middle of a different operation. Please complete/cancel that operation before continuing.`, 'OK');
         console.log('Waiting for a previous operation to complete...');
         return;
     }
 
     const metadataId = parseInt(this.getAttribute('metadataId'));
+    console.log(g_episodeResults[metadataId].markers);
     const thisRow = this.parentNode.parentNode;
     g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(), '-', markerAddConfirmButton(metadataId)), thisRow);
     g_modifiedRow.setAttribute('metadataId', metadataId);
     this.value = 'Cancel';
     this.removeEventListener('click', onMarkerAdd);
     this.addEventListener('click', onMarkerAddCancel);
-    console.log(`Add Click or ${metadataId}!`);
 }
 
 function timeInput(value) {
@@ -336,9 +337,23 @@ function onMarkerAddConfirm() {
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
-    if (isNaN(metadataId) || isNaN(startTime) || isNaN(endTime)) {
-        // TODO: Actually indicate that something went wrong
+    if (isNaN(metadataId)) {
+        // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
+        Overlay.show('Sorry, something went wrong. Please reload the page and try again.');
         return;
+    }
+
+    if (isNaN(startTime) || isNaN(endTime)) {
+        Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`, 'OK');
+        return;
+    }
+
+    const markers = g_episodeResults[metadataId].markers;
+    for (const marker of markers) {
+        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime) {
+            Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.time_offset)}-${msToHms(marker.end_time_offset)}). Edit the exiting marker instead.`, 'OK');
+            return;
+        }
     }
 
     let successFunc = (response) => {
@@ -357,10 +372,15 @@ function onMarkerAddConfirm() {
         g_modifiedRow = null;
         
         tbody.insertBefore(tr, tbody.children[response.index]);
+        let markers = g_episodeResults[response.metadata_item_id].markers;
         for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
             let indexData = tbody.children[i].firstChild;
-            indexData.innerHTML = parseInt(indexData.innerHTML) + 1;
+            let newIndex = parseInt(indexData.innerHTML) + 1;
+            indexData.innerHTML = newIndex;
+            markers[i - 1].index += 1;
         }
+
+        markers.splice(response.index, 0, response);
 
         let addButton = tbody.$$(`input[metadataId="${metadataId}"]`);
         addButton.removeEventListener('click', onMarkerAddCancel);
@@ -368,7 +388,11 @@ function onMarkerAddConfirm() {
         addButton.value = 'Add Marker';
     };
 
-    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc);
+    let failureFunc = (response) => {
+        Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${response.Error}`, 'OK');
+    }
+
+    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
 
 function timeToMs(value) {

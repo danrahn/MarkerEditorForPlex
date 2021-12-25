@@ -3,12 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="Tooltip.css" rel="stylesheet" type="text/css" />
+    <link href="Overlay.css" rel="stylesheet" type="text/css" />
     <link href="style.css" rel="stylesheet" type="text/css" />
     <title>Plex Intro Marker Editor</title>
 </head>
 <body>
 
-<div>
+<div id="plexFrame">
     <form>
         <div id="libraryList"><label for="libraries">Select a library to parse:</label><select id="libraries"></select></div>
     </form>
@@ -23,5 +25,9 @@
     </div>
 </div>
 </body>
+<script src="ConsoleLog.js"></script>
+<script src="Animate.js"></script>
+<script src="Tooltip.js"></script>
+<script src="Overlay.js"></script>
 <script src="index.js"></script>
 </html>
