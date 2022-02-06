@@ -387,7 +387,7 @@ function onMarkerAddConfirm() {
     jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
 
-function checkValues(metadataId, startTime, endTime, isEdit=false) {
+function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) {
     if (isNaN(metadataId)) {
         // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
         Overlay.show('Sorry, something went wrong. Please reload the page and try again.');
@@ -405,12 +405,15 @@ function checkValues(metadataId, startTime, endTime, isEdit=false) {
     }
     
     const markers = g_episodeResults[metadataId].markers;
+    let index = 0;
     for (const marker of markers) {
-        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime) {
+        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime && (!isEdit || editIndex != index)) {
             const message = isEdit ? 'Adjust this marker\'s timings or delete the other marker first to avoid overlap.' : 'Edit the existing marker instead';
             Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.time_offset)}-${msToHms(marker.end_time_offset)}). ${message}`, 'OK');
             return;
         }
+
+        index += 1;
     }
 
     return true;
@@ -500,41 +503,50 @@ function onMarkerEditConfirm() {
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
-    if (!checkValues(this.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/)) {
+    if (!checkValues(this.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/, parseInt(g_modifiedRow.children[0].innerText))) {
         return;
     }
 
     let successFunc = (response) => {
-        clearEle(g_modifiedRow.children[1]);
-        g_modifiedRow.children[1].appendChild(timeData(startTime));
-        clearEle(g_modifiedRow.children[2]);
-        g_modifiedRow.children[2].appendChild(timeData(endTime));
+        const oldIndex = parseInt(g_modifiedRow.children[0].innerText);
+        if (response.index != oldIndex) {
+            let parent = g_modifiedRow.parentElement;
+            parent.removeChild(g_modifiedRow);
+            parent.insertBefore(g_modifiedRow, parent.children[response.index]);
+            for (let i = 0; i < parent.children.length - 1; ++i) {
+                parent.children[i].children[0].innerText = i.toString();
+            }
+        }
 
-                                      /*   tbody.       tr.        td.     input*/
-        let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
-        addButton.parentNode.removeChild(addButton.parentNode.lastChild);
-        addButton.removeEventListener('click', onMarkerEditConfirm);
-        addButton.addEventListener('click', onMarkerAdd);
-        addButton.value = 'Add Marker';
-        g_modifiedRow = null;
+        resetAfterEdit(startTime, endTime);
     };
 
-    let failureFunc = () => { g_modifiedRow = null; }
+    let failureFunc = (response) => {
+        onMarkerEditCancel();
+        Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error}`, 'OK');
+    }
+
     jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
 
 function onMarkerEditCancel() {
-    let addButton = this.parentNode.firstChild;
-    this.parentNode.removeChild(this);
+    resetAfterEdit(timeToMs(g_modifiedRow.children[1].getAttribute('prevtime')), timeToMs(g_modifiedRow.children[2].getAttribute('prevtime')));
+}
+
+function resetAfterEdit(newStart, newEnd) {
+                                  /*   tbody.       tr.        td.     input*/
+    let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
+    addButton.parentNode.removeChild(addButton.parentNode.lastChild);
 
     addButton.removeEventListener('click', onMarkerEditConfirm);
     addButton.addEventListener('click', onMarkerAdd);
     addButton.value = 'Add Marker';
 
     clearEle(g_modifiedRow.children[1]);
-    g_modifiedRow.children[1].appendChild(timeData(timeToMs(g_modifiedRow.children[1].getAttribute('prevtime'))));
     clearEle(g_modifiedRow.children[2]);
-    g_modifiedRow.children[2].appendChild(timeData(timeToMs(g_modifiedRow.children[2].getAttribute('prevtime'))));
+    g_modifiedRow.children[1].appendChild(timeData(newStart));
+    g_modifiedRow.children[2].appendChild(timeData(newEnd));
+
     g_modifiedRow = null;
 }
 

@@ -94,10 +94,10 @@ function jsonError(res, code, error) {
     res.end(JSON.stringify({ Error : error }));
 }
 
-function jsonSuccess(res) {
+function jsonSuccess(res, data) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ success : true }));
+    res.end(JSON.stringify(data || { success : true }));
 }
 
 function queryIds(req, res) {
@@ -145,27 +145,70 @@ function queryIds(req, res) {
 
 function editMarker(req, res) {
     const queryObject = url.parse(req.url, true).query;
-    let id = parseInt(queryObject.id);
-    let startMs = parseInt(queryObject.start);
-    let endMs = parseInt(queryObject.end);
+    const id = parseInt(queryObject.id);
+    const startMs = parseInt(queryObject.start);
+    const endMs = parseInt(queryObject.end);
 
     if (isNaN(id) || isNaN(startMs) || isNaN(endMs)) {
         return jsonError(res, 400, "invalid parameters");
     }
 
     let db = new sqlite3.Database(config.database);
-    db.get("SELECT * FROM `taggings` WHERE `id`=" + id + ";", (err, row) => {
-        if (err || !row || row.text != 'intro') {
+    db.get("SELECT * FROM `taggings` WHERE `id`=" + id + ";", (err, currentMarker) => {
+        if (err || !currentMarker || currentMarker.text != 'intro') {
             return jsonError(res, 400, err | 'Intro marker not found');
         }
 
-        // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
-        db.run('UPDATE `taggings` SET `time_offset`=?, `end_time_offset`=?, `thumb_url`=CURRENT_TIMESTAMP WHERE `id`=?;', [startMs.toString(), endMs, id], (err) => {
+        const oldIndex = currentMarker.index;
+
+        // Get all markers to adjust indexes if necessary
+        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?", [currentMarker.metadata_item_id, currentMarker.tag_id], (err, rows) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
 
-            return jsonSuccess(res);
+            console.log(`Markers for this episode: ${rows.length}`);
+
+            let allMarkers = rows;
+            allMarkers.sort((a, b) => a.index - b.index);
+            allMarkers[oldIndex].time_offset = startMs;
+            allMarkers[oldIndex].end_time_offset = endMs;
+            allMarkers.sort((a, b) => a.time_offset - b.time_offset);
+            let sameIndex = true;
+            let newIndex = 0;
+
+            for (let index = 0; index < allMarkers.length; ++index) {
+                let marker = allMarkers[index];
+                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs && marker.id != id) {
+                    // Overlap, this should be handled client-side
+                    return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
+                }
+
+                if (marker.id == id) {
+                    newIndex = index;
+                }
+
+                marker.newIndex = index;
+                sameIndex = sameIndex && marker.newIndex == marker.index;
+            }
+
+            // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
+            db.run('UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=CURRENT_TIMESTAMP WHERE `id`=?;', [newIndex, startMs.toString(), endMs, id], (err) => {
+                if (err) {
+                    return jsonError(res, 400, err);
+                }
+
+                for (const marker of allMarkers) {
+                    if (marker.index != marker.newIndex) {
+
+                        // Fire and forget. Fingers crossed this does the right thing.
+                        db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
+                    }
+                }
+    
+                return jsonSuccess(res, { time_offset : startMs, end_time_offset : endMs, index : newIndex });
+            });
+
         });
     });
     db.close();
