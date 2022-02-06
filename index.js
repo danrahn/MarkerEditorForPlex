@@ -337,23 +337,8 @@ function onMarkerAddConfirm() {
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
-    if (isNaN(metadataId)) {
-        // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
-        Overlay.show('Sorry, something went wrong. Please reload the page and try again.');
+    if (!checkValues(metadataId, startTime, endTime)) {
         return;
-    }
-
-    if (isNaN(startTime) || isNaN(endTime)) {
-        Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`, 'OK');
-        return;
-    }
-
-    const markers = g_episodeResults[metadataId].markers;
-    for (const marker of markers) {
-        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime) {
-            Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.time_offset)}-${msToHms(marker.end_time_offset)}). Edit the exiting marker instead.`, 'OK');
-            return;
-        }
     }
 
     let successFunc = (response) => {
@@ -393,6 +378,35 @@ function onMarkerAddConfirm() {
     }
 
     jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
+}
+
+function checkValues(metadataId, startTime, endTime, isEdit=false) {
+    if (isNaN(metadataId)) {
+        // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
+        Overlay.show('Sorry, something went wrong. Please reload the page and try again.');
+        return false;
+    }
+
+    if (isNaN(startTime) || isNaN(endTime)) {
+        Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`, 'OK');
+        return false;
+    }
+
+    if (startTime >= endTime) {
+        Overlay.show('Start time cannot be greater than or equal to the end time.', 'OK');
+        return false;
+    }
+    
+    const markers = g_episodeResults[metadataId].markers;
+    for (const marker of markers) {
+        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime) {
+            const message = isEdit ? 'Adjust this marker\'s timings or delete the other marker first to avoid overlap.' : 'Edit the existing marker instead';
+            Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.time_offset)}-${msToHms(marker.end_time_offset)}). ${message}`, 'OK');
+            return;
+        }
+    }
+
+    return true;
 }
 
 function timeToMs(value) {
@@ -479,17 +493,17 @@ function onMarkerEditConfirm() {
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
-    if (isNaN(markerId) || isNaN(startTime) || isNaN(endTime)) {
-        // TODO: Actually indicate that something went wrong
+    if (!checkValues(this.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/)) {
         return;
     }
 
-    let successFunc = () => {
+    let successFunc = (response) => {
         clearEle(g_modifiedRow.children[1]);
         g_modifiedRow.children[1].appendChild(timeData(startTime));
         clearEle(g_modifiedRow.children[2]);
         g_modifiedRow.children[2].appendChild(timeData(endTime));
 
+                                      /*   tbody.       tr.        td.     input*/
         let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
         addButton.parentNode.removeChild(addButton.parentNode.lastChild);
         addButton.removeEventListener('click', onMarkerEditConfirm);
