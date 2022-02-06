@@ -131,6 +131,13 @@ function listLibraries(data) {
             library.title)
         );
     });
+
+    // Only a single TV show library, select it automatically
+    if (select.length == 2)
+    {
+        select[1].selected = true;
+        libraryChanged.bind(select)();
+    }
 }
 
 function libraryChanged() {
