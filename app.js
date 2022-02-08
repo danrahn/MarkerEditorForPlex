@@ -81,6 +81,8 @@ function handlePost(req, res)
         return addMarker(req, res);
     } else if (req.url.startsWith('/delete?')) {
         return deleteMarker(req, res);
+    } else if (req.url.startsWith('/get_section?')) {
+        return getShows(req, res);
     }
 
     res.statusCode = 200;
@@ -345,5 +347,29 @@ function deleteMarker(req, res) {
                 return jsonSuccess(res);
             });
         });
+    });
+}
+
+function getShows(req, res) {
+    const queryObject = url.parse(req.url, true).query;
+    const id = parseInt(queryObject.id);
+    let db = new sqlite3.Database(config.database);
+    db.all("SELECT `id`, `title`, `title_sort`, `original_title` FROM `metadata_items` WHERE `library_section_id`=? AND `metadata_type`=?;", [id, 2], (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, "Could not retrieve shows from the database");
+        }
+
+        let shows = [];
+        for (const show of rows) {
+            shows.push({
+                title : show.title,
+                titleSearch : show.title.toLowerCase().replace(/[\s,'"_\-!?]/g, ''),
+                sort : show.title.toLowerCase() != show.title_sort.toLowerCase() ? show.title_sort.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
+                original : show.original_title ? show.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
+                metadataId : show.id,
+            });
+        }
+
+        return jsonSuccess(res, shows);
     });
 }

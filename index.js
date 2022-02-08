@@ -20,10 +20,14 @@ class Plex
         this.host = this._normalizeHost(config);
         this.token = config.token;
         this.activeSection = -1;
+        this.shows = {};
     }
 
-    setSection(section) {
+    async setSection(section) {
         this.activeSection = isNaN(section) ? -1 : section;
+        if (this.activeSection != -1) {
+            await this._populate_shows();
+        }
     }
 
     get(endpoint, params, successFunc)
@@ -36,12 +40,59 @@ class Plex
 
     search(query, successFunc)
     {
-        if (this.activeSection == -1) {
-            this._fail('Library section not set');
-            return;
+        // Ignore non-word characters to improve matching if there are spacing or quote mismatches. Don't use \W though, since that also clears out unicode characters.
+        // Rather than import some heavy package that's aware of unicode word characters, just clear out the most common characters we want to ignore.
+        // I could probably figure out how to utilize Plex's spellfix tables, but substring search on display, sort, and original titles should be good enough here.
+        query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
+
+        const showList = this.shows[this.activeSection];
+
+        let result = [];
+        for (const show of showList) {
+            if (show.titleSearch.indexOf(query) != -1 || (show.sort && show.sort.indexOf(query) != -1) || (show.original && show.original.indexOf(query) != -1)) {
+                result.push(show);
+            }
         }
 
-        this.get(`/library/sections/${this.activeSection}/all`, { 'type' : 2, 'title' : query }, successFunc);
+        // Sort the results. Title prefix matches are first, then sort title prefix matches, the original title prefix matches, and alphabetical sorting after that.
+        result.sort((a, b) => {
+            const prefixTitleA = a.titleSearch.startsWith(query);
+            const prefixTitleB = b.titleSearch.startsWith(query);
+            if (prefixTitleA != prefixTitleB) {
+                return prefixTitleA ? -1 : 1;
+            }
+
+            const prefixSortA = a.sort && a.sort.startsWith(query);
+            const prefixSortB = b.sort && b.sort.startsWith(query);
+            if (prefixSortA != prefixSortB) {
+                return prefixSortA ? -1 : 1;
+            }
+
+            const prefixOrigA = a.original && a.original.startsWith(query);
+            const prefixOrigB = b.original && b.original.startsWith(query);
+            if (prefixOrigA != prefixOrigB) {
+                return prefixOrigA ? -1 : 1;
+            }
+
+            return a.title.localeCompare(b.title);
+        });
+
+
+        successFunc(result);
+    }
+
+    /// <summary>
+    /// Async because we don't want to try searching/other operations until we finish the search, so await the result
+    /// </summary>
+    async _populate_shows() {
+        if (this.shows[this.activeSection]) {
+            return Promise.resolve();
+        }
+
+        // TODO: Handle failure gracefully
+        return new Promise(resolve => {
+            jsonRequest('get_section', { id : plex.activeSection }, (res) => { plex.shows[plex.activeSection] = res; resolve(); });
+        });
     }
 
     _fail(err)
@@ -140,13 +191,12 @@ function listLibraries(data) {
     }
 }
 
-function libraryChanged() {
+async function libraryChanged() {
+    $('#container').classList.add('hidden');
     let section = parseInt(this.value);
-    plex.setSection(section);
+    await plex.setSection(section);
     if (!isNaN(section) && section != -1) {
         $('#container').classList.remove('hidden');
-    } else {
-        $('#container').classList.add('hidden');
     }
 }
 
@@ -163,20 +213,20 @@ function search() {
 let g_showResults = {}
 
 function parseShowResults(data) {
-    let showlist = $('#showlist');
-    clearEle(showlist);
-    let media = data.MediaContainer.Metadata;
+    let showList = $('#showlist');
+    clearEle(showList);
+
     g_showResults = {};
-    for (const show of media) {
-        let div = buildNode('div', { 'ratingKey' : show.ratingKey }, show.title, { click : showClick});
-        showlist.appendChild(div);
-        g_showResults[show.ratingKey] = show;
+    for (const show of data) {
+        let div = buildNode('div', { 'ratingKey' : show.metadataId }, show.title, { click : showClick });
+        showList.appendChild(div);
+        g_showResults[show.metadataId] = show;
     }
 }
 
 function showClick() {
     let show = g_showResults[this.getAttribute('ratingKey')];
-    plex.get(`/library/metadata/${show.ratingKey}/children`, {}, showSeasons);
+    plex.get(`/library/metadata/${show.metadataId}/children`, {}, showSeasons);
 }
 
 g_seasonResults = {};
