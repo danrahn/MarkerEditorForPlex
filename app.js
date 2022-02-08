@@ -85,6 +85,8 @@ function handlePost(req, res)
         return getLibraries(res);
     } else if (req.url.startsWith('/get_section?')) {
         return getShows(req, res);
+    } else if (req.url.startsWith('/get_seasons?')) {
+        return getSeasons(req, res);
     }
 
     res.statusCode = 404;
@@ -390,4 +392,26 @@ function getShows(req, res) {
 
         return jsonSuccess(res, shows);
     });
+}
+
+function getSeasons(req, res) {
+    const queryObject = url.parse(req.url, true).query;
+    const id = parseInt(queryObject.id);
+    let db = new sqlite3.Database(config.database);
+    db.all("SELECT `id`, `title`, `index` FROM `metadata_items` WHERE `parent_id`=? ORDER BY `index` ASC;", [id], (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, "Could not retrieve seasons from the database.");
+        }
+
+        let seasons = [];
+        for (const season of rows) {
+            seasons.push({
+                index : season.index,
+                title : season.title,
+                metadataId : season.id,
+            });
+        }
+
+        return jsonSuccess(res, seasons);
+    })
 }

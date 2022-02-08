@@ -231,25 +231,33 @@ function parseShowResults(data) {
 
 function showClick() {
     let show = g_showResults[this.getAttribute('ratingKey')];
-    plex.get(`/library/metadata/${show.metadataId}/children`, {}, showSeasons);
+
+    let failureFunc = (response) => {
+        Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error}`, 'OK');
+    };
+
+    jsonRequest('get_seasons', { id : show.metadataId }, showSeasons, failureFunc);
 }
 
 g_seasonResults = {};
-function showSeasons(data) {
+function showSeasons(seasons) {
     let seasonlist = $('#seasonlist');
     clearEle(seasonlist);
-    let media = data.MediaContainer.Metadata;
     g_seasonResults = {};
-    for (const season of media) {
-        let div = buildNode('div', { 'ratingKey' : season.ratingKey }, season.title, { click : seasonClick });
+    for (const season of seasons) {
+        let seasonTitle = season.title;
+        if (season.title.toLowerCase() != `season ${season.index}`) {
+            seasonTitle = `Season ${season.index} (${season.title})`;
+        }
+        let div = buildNode('div', { 'ratingKey' : season.metadataId }, seasonTitle, { click : seasonClick });
         seasonlist.appendChild(div);
-        g_seasonResults[season.ratingKey] = season;
+        g_seasonResults[season.metadataId] = season;
     }
 }
 
 function seasonClick() {
     let season = g_seasonResults[this.getAttribute('ratingKey')];
-    plex.get(`/library/metadata/${season.ratingKey}/children`, {}, showEpisodes);
+    plex.get(`/library/metadata/${season.metadataId}/children`, {}, showEpisodes);
 }
 
 g_episodeResults = {};
