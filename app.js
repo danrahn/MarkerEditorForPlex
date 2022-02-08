@@ -81,13 +81,15 @@ function handlePost(req, res)
         return addMarker(req, res);
     } else if (req.url.startsWith('/delete?')) {
         return deleteMarker(req, res);
+    } else if (req.url == '/get_sections') {
+        return getLibraries(res);
     } else if (req.url.startsWith('/get_section?')) {
         return getShows(req, res);
     }
 
-    res.statusCode = 200;
+    res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json');
-    res.end('{ "success" : true }');
+    res.end(JSON.stringify({ Error : 'Invalid endpoint' }));
 }
 
 function jsonError(res, code, error) {
@@ -350,6 +352,22 @@ function deleteMarker(req, res) {
     });
 }
 
+function getLibraries(res) {
+    let db = new sqlite3.Database(config.database);
+    db.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, "Could not retrieve library sections.");
+        }
+
+        let result = [];
+        for (const row of rows) {
+            result.push({ id : row.id, name : row.name });
+        }
+
+        return jsonSuccess(res, result);
+    });
+}
+
 function getShows(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
@@ -365,7 +383,7 @@ function getShows(req, res) {
                 title : show.title,
                 titleSearch : show.title.toLowerCase().replace(/[\s,'"_\-!?]/g, ''),
                 sort : show.title.toLowerCase() != show.title_sort.toLowerCase() ? show.title_sort.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
-                original : show.original_title ? show.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
+                original : show.original_title ? show.original_title.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
                 metadataId : show.id,
             });
         }

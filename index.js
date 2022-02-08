@@ -154,14 +154,23 @@ function libraryFail(response) {
 }
 
 function getLibraries() {
-    plex.get('/library/sections', {}, listLibraries);
+    let failureFunc = (response) => {
+        Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${response.Error}`, 'OK');
+    };
+
+    jsonRequest('get_sections', {}, listLibraries, failureFunc);
 }
 
-function listLibraries(data) {
-    console.log(data);
+function listLibraries(libraries) {
+    console.log(libraries);
     let select = document.querySelector('#libraries');
     clearEle(select);
-    let libraries = data.MediaContainer.Directory;
+
+    if (libraries.length < 1) {
+        Overlay.show('No TV libraries found in the database.', 'OK');
+        return;
+    }
+
     select.appendChild(buildNode(
         'option',
         {
@@ -172,19 +181,15 @@ function listLibraries(data) {
     );
 
     libraries.forEach(library => {
-        if (['show'].indexOf(library.type) == -1) {
-            return;
-        }
-
         select.appendChild(buildNode(
             'option',
-            { value: `${library.key}` },
-            library.title)
+            { value: `${library.id}` },
+            library.name)
         );
     });
 
     // Only a single TV show library, select it automatically
-    if (select.length == 2)
+    if (libraries.length == 1)
     {
         select[1].selected = true;
         libraryChanged.bind(select)();
