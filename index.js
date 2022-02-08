@@ -7,18 +7,17 @@ let plex;
 
 function setup()
 {
-    fetch('config.json').then(res => res.json()).then(gotConfig);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#gosearch').addEventListener('click', search);
     $('#search').addEventListener('keyup', onSearchInput);
+    plex = new Plex();
+    getLibraries();
 }
 
 class Plex
 {
-    constructor(config)
+    constructor()
     {
-        this.host = this._normalizeHost(config);
-        this.token = config.token;
         this.activeSection = -1;
         this.shows = {};
     }
@@ -28,14 +27,6 @@ class Plex
         if (this.activeSection != -1) {
             await this._populate_shows();
         }
-    }
-
-    get(endpoint, params, successFunc)
-    {
-        let url = new URL(this.host + endpoint);
-        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-        url.searchParams.append('X-Plex-Token', this.token);
-        fetch(url, { method : 'GET', headers : { accept : 'application/json' }}).then(res => res.json()).then(j => successFunc(j)).catch(err => this._fail(err));
     }
 
     search(query, successFunc)
@@ -94,35 +85,12 @@ class Plex
             jsonRequest('get_section', { id : plex.activeSection }, (res) => { plex.shows[plex.activeSection] = res; resolve(); });
         });
     }
-
-    _fail(err)
-    {
-        setStatus(err);
-    }
-
-    _normalizeHost(config) {
-        let host = config.host;
-        if (!host.startsWith('http')) {
-            if (smellsLikeLocal(host)) {
-                host = `http://${host}`;
-            } else {
-                host = `https://${host}`;
-            }
-        }
-        
-        return `${host}:${config.port}`;
-    }
 }
 
 function setStatus(text) {
     let status = $('#status');
     clearEle(status);
     status.appendChild(buildNode('span', {}, text));
-}
-
-function gotConfig(config) {
-    plex = new Plex(config);
-    getLibraries();
 }
 
 // Check for localhost and other IPv4 addresses reserved for private networks
@@ -257,17 +225,21 @@ function showSeasons(seasons) {
 
 function seasonClick() {
     let season = g_seasonResults[this.getAttribute('ratingKey')];
-    plex.get(`/library/metadata/${season.metadataId}/children`, {}, showEpisodes);
+
+    let failureFunc = (response) => {
+        Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error}`, 'OK');
+    };
+
+    jsonRequest('get_episodes', { id : season.metadataId }, showEpisodes, failureFunc);
 }
 
 g_episodeResults = {};
-function showEpisodes(data) {
-    let episodes = data.MediaContainer.Metadata;
+function showEpisodes(episodes) {
     g_episodeResults = {};
     let queryString = [];
     for (const episode of episodes) {
-        g_episodeResults[episode.ratingKey] = episode;
-        queryString.push(episode.ratingKey);
+        g_episodeResults[episode.metadataId] = episode;
+        queryString.push(episode.metadataId);
     }
 
     jsonRequest('query', { keys : queryString.join(',') }, showEpisodesReally);
@@ -278,10 +250,10 @@ function showEpisodesReally(data) {
     clearEle(episodelist);
     for (const key of Object.keys(data)) {
         const markers = data[key];
-        episode = g_episodeResults[key.toString()];
+        episode = g_episodeResults[key];
         episode.markers = markers;
 
-        episodelist.appendChildren(buildNode('div', {}, `${episode.grandparentTitle} - S${pad0(episode.parentIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
+        episodelist.appendChildren(buildNode('div', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
     }
 }
 
@@ -300,7 +272,7 @@ function buildMarkerTable(markers, episode) {
         rows.appendChild(tableRow(marker, episode));
     }
 
-    rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker', metadataId :  episode.ratingKey }, '', { click : onMarkerAdd })));
+    rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker', metadataId :  episode.metadataId }, '', { click : onMarkerAdd })));
 
     table.appendChild(rows);
 
@@ -320,7 +292,7 @@ function timeColumn(value) {
 /// Creates a table row for a specific marker of an episode
 /// </summary>
 function tableRow(marker, episode) {
-    let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.ratingKey, startTime : marker.time_offset, endTime : marker.end_time_offset });
+    let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.metadataId, startTime : marker.time_offset, endTime : marker.end_time_offset });
     const td = (column) => {
         return buildNode('td', {}, column);
     }

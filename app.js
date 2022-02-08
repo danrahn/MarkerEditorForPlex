@@ -68,11 +68,6 @@ function handleGet(req, res)
 
 function handlePost(req, res)
 {
-    if (req.url == '/config.json') {
-        handleGet(req, res);
-        return;
-    }
-
     if (req.url.startsWith('/query?')) {
         return queryIds(req, res);
     } else if (req.url.startsWith('/edit?')) {
@@ -87,6 +82,8 @@ function handlePost(req, res)
         return getShows(req, res);
     } else if (req.url.startsWith('/get_seasons?')) {
         return getSeasons(req, res);
+    } else if (req.url.startsWith('/get_episodes?')) {
+        return getEpisodes(req, res);
     }
 
     res.statusCode = 404;
@@ -414,4 +411,34 @@ function getSeasons(req, res) {
 
         return jsonSuccess(res, seasons);
     })
+}
+
+function getEpisodes(req, res) {
+    const queryObject = url.parse(req.url, true).query;
+    const id = parseInt(queryObject.id);
+    let db = new sqlite3.Database(config.database);
+    const query = `
+SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season, p.\`index\` AS season_index, g.title AS show FROM metadata_items e
+    INNER JOIN metadata_items p ON e.parent_id=p.id
+    INNER JOIN metadata_items g ON p.parent_id = g.id
+WHERE e.parent_id=?;`;
+    db.all(query, [id], (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, "Could not retrieve episodes from the database.");
+        }
+
+        let episodes = [];
+        for (const episode of rows) {
+            episodes.push({
+                title : episode.title,
+                index : episode.index,
+                seasonName : episode.season,
+                seasonIndex : episode.season_index,
+                showName : episode.show,
+                metadataId : episode.id,
+            });
+        }
+
+        return jsonSuccess(res, episodes);
+    });
 }
