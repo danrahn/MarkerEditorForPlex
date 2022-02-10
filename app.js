@@ -14,7 +14,7 @@ const server = http.createServer((req, res) => {
     const method = req.method?.toLowerCase();
 
     if (req.url.toLowerCase().indexOf('node_modules') != -1
-        || req.url.lastIndexOf('/') > 0) {
+        || (req.url.lastIndexOf('/') > 0 && !req.url.toLowerCase().startsWith('/inc'))) {
         return error(404, res);
     }
 
