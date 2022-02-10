@@ -190,6 +190,12 @@ function parseShowResults(data) {
     clearEle(showList);
 
     g_showResults = {};
+
+    if (data.length == 0) {
+        showList.appendChild(buildNode('div', {}, "No results found."));
+        return;
+    }
+
     for (const show of data) {
         let div = buildNode('div', { 'ratingKey' : show.metadataId }, show.title, { click : showClick });
         showList.appendChild(div);
