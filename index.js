@@ -111,7 +111,7 @@ function smellsLikeLocal(host) {
             return true;
         }
     }
-    
+
     return false;
 
 }
@@ -180,6 +180,11 @@ function onSearchInput(e) {
 }
 
 function search() {
+    // Remove any existing season/marker data
+    clearEle($('#seasonlist'));
+    clearEle($('#episodelist'));
+    g_seasonResults = {};
+    g_episodeResults = {};
     plex.search($('#search').value, parseShowResults);
 }
 
@@ -204,6 +209,10 @@ function parseShowResults(data) {
 }
 
 function showClick() {
+    // Remove any existing marker data
+    clearEle($('#episodelist'));
+    g_episodeResults = {};
+
     let show = g_showResults[this.getAttribute('ratingKey')];
 
     let failureFunc = (response) => {
