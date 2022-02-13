@@ -166,6 +166,10 @@ input, select {
   background-color: #612121;
 }
 
+.userModifiedMarker {
+  font-weight: bold;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

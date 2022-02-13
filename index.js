@@ -324,7 +324,7 @@ function showEpisodesReally(data) {
 
 function buildMarkerTable(markers, episode) {
     let table = buildNode('table');
-    table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'User Modified', 'Options')));
+    table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -366,8 +366,7 @@ function tableRow(marker, episode) {
         td(marker.index.toString()),
         td(timeData(marker.time_offset)),
         td(timeData(marker.end_time_offset)),
-        td(friendlyDate(marker.created_at)),
-        td(marker.thumb_url ? friendlyDate(marker.thumb_url, 'Yes') : 'No'),
+        td(friendlyDate(marker.created_at, marker.thumb_url)),
         td(optionButtons(marker.id))
     );
 
@@ -391,16 +390,24 @@ function rawTableRow(...columns) {
 }
 
 function spanningTableRow(column) {
-    return buildNode('tr').appendChildren(buildNode('td', { colspan : 6, style : 'text-align: center;' }, column));
+    return buildNode('tr').appendChildren(buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
 }
 
 function timeData(offset) {
     return buildNode('span', { title : offset }, msToHms(offset));
 }
 
-function friendlyDate(date, overrideText='') {
-    let node = buildNode('span', {}, overrideText || DateUtil.getDisplayDate(date));
-    Tooltip.setTooltip(node, DateUtil.getFullDate(date));
+function friendlyDate(date, userModifiedDate) {
+    let node = buildNode('span', { class : userModifiedDate ? 'userModifiedMarker' : '' }, DateUtil.getDisplayDate(date));
+    let tooltipText = `Automatically created on ${DateUtil.getFullDate(date)}`;
+    if (userModifiedDate) {
+        if (userModifiedDate == date) {
+            tooltipText = `Manually added on ${DateUtil.getFullDate(date)}`;
+        } else {
+            tooltipText = `Added on ${DateUtil.getFullDate(date)}<br>Modified by user on ${DateUtil.getFullDate(userModifiedDate)}`;
+        }
+    }
+    Tooltip.setTooltip(node, tooltipText);
     return node;
 }
 
