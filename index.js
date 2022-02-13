@@ -318,12 +318,47 @@ function showEpisodesReally(data) {
         episode = g_episodeResults[key];
         episode.markers = markers;
 
-        episodelist.appendChildren(buildNode('div', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`), buildMarkerTable(markers, episode));
+        episodelist.appendChildren(
+            buildNode('div').appendChildren(
+                buildNode('div', { class : 'episodeResult' }).appendChildren(
+                    buildNode('div', { class : 'episodeName', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }).appendChildren(
+                        buildNode('span', { class : 'markerExpand' }, '&#9205; '),
+                        buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`)
+                    ),
+                    buildNode('div', { class : 'episodeResultMarkers' }, markers.length + ' Marker' + (markers.length == 1 ? '' : 's'))),
+                buildMarkerTable(markers, episode),
+                buildNode('hr', { class : 'episodeSeparator' }))
+            );
+    }
+}
+
+function showHideMarkerTable(e) {
+    const expanded = !this.parentNode.parentNode.$$('table').classList.contains('hidden');
+    if (e.ctrlKey) {
+        let episodeList = $('#episodelist');
+        for (const episode of episodeList.children) {
+            const table = episode.$$('table');
+            // headers don't have a table
+            if (!table) {
+                continue;
+            }
+
+            if (expanded) {
+                table.classList.add('hidden');
+                episode.$$('.markerExpand').innerHTML = '&#9205; ';
+            } else {
+                table.classList.remove('hidden');
+                episode.$$('.markerExpand').innerHTML = '&#9660; ';
+            }
+        }
+    } else {
+        this.parentNode.parentNode.$$('table').classList.toggle('hidden');
+        this.$$('.markerExpand').innerHTML = expanded ? '&#9205; ' : '&#9660; ';
     }
 }
 
 function buildMarkerTable(markers, episode) {
-    let table = buildNode('table');
+    let table = buildNode('table', { class : 'hidden' });
     table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {

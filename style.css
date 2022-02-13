@@ -12,7 +12,7 @@ body {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 form {
@@ -122,6 +122,34 @@ input, select {
 
 .seasonTitle {
   color: #909090;
+}
+
+.episodeResult {
+  padding: 5px 10px 5px 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.episodeResult:hover {
+  font-weight: bold;
+}
+
+.episodeName {
+  padding-left: 10px;
+  cursor: pointer;
+}
+
+.episodeResultMarkers {
+  text-align: right;
+}
+
+.episodeSeparator {
+  color: #909090;
+  margin: 1px;
+}
+
+.markerExpand {
+  font-size: 14px;
 }
 
 .goBack {
