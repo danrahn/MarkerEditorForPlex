@@ -218,8 +218,6 @@ function editMarker(req, res) {
 }
 
 function addMarker(req, res) {
-    // TODO: Do marker indexes have to be in order from earliest to latest? Should probably order/UPDATE regardless so it's cleaner.
-    // TODO: Client-side, detect if a new marker overlaps with another, and ask if they want to expand the existing marker instead (and check multiple overlaps)
     const queryObject = url.parse(req.url, true).query;
     const metadataId = parseInt(queryObject.metadataId);
     const startMs = parseInt(queryObject.start);
@@ -302,7 +300,6 @@ function addMarker(req, res) {
 }
 
 function deleteMarker(req, res) {
-    // TODO: Recheck indexes on delete and adjust if necessary to avoid gaps.
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     if (isNaN(id)) {
@@ -376,13 +373,13 @@ function getShows(req, res) {
     // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
     const query =
 'SELECT shows.`id`, shows.title, shows.title_sort, shows.original_title, COUNT(shows.`id`) AS season_count, SUM(seasons.`episode_count`) AS episode_count FROM metadata_items shows\n\
-INNER JOIN (\n\
-    SELECT seasons.`id`, seasons.`parent_id` AS show_id, COUNT(episodes.`id`) AS episode_count FROM metadata_items seasons\n\
-    INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.`id`\n\
-    WHERE seasons.library_section_id=? AND seasons.metadata_type=3\n\
-    GROUP BY seasons.id) seasons\n\
-WHERE shows.metadata_type=2 AND shows.`id`=seasons.show_id\n\
-GROUP BY shows.`id`;';
+ INNER JOIN (\n\
+     SELECT seasons.`id`, seasons.`parent_id` AS show_id, COUNT(episodes.`id`) AS episode_count FROM metadata_items seasons\n\
+     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.`id`\n\
+     WHERE seasons.library_section_id=? AND seasons.metadata_type=3\n\
+     GROUP BY seasons.id) seasons\n\
+ WHERE shows.metadata_type=2 AND shows.`id`=seasons.show_id\n\
+ GROUP BY shows.`id`;';
 
     db.all(query, [id], (err, rows) => {
         if (err) {
@@ -412,10 +409,10 @@ function getSeasons(req, res) {
     let db = new sqlite3.Database(config.database);
     const query =
 'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
-INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
-WHERE seasons.parent_id=?\n\
-GROUP BY seasons.id\n\
-ORDER BY seasons.`index` ASC;'
+     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
+     WHERE seasons.parent_id=?\n\
+ GROUP BY seasons.id\n\
+ ORDER BY seasons.`index` ASC;'
 
     db.all(query, [id], (err, rows) => {
         if (err) {
@@ -443,7 +440,7 @@ function getEpisodes(req, res) {
     const query = `
 SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season, p.\`index\` AS season_index, g.title AS show FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id
-    INNER JOIN metadata_items g ON p.parent_id = g.id
+    INNER JOIN metadata_items g ON p.parent_id=g.id
 WHERE e.parent_id=?;`;
     db.all(query, [id], (err, rows) => {
         if (err) {

@@ -37,6 +37,10 @@ input, select {
   color: #c1c1c1;
 }
 
+hr {
+  color: #999;
+}
+
 #episodelist table, #episodelist td, #episodelist thead {
   border-collapse: collapse;
   padding: 5px 10px;
@@ -75,7 +79,7 @@ input, select {
 
 .showResult {
   padding: 10px;
-  border-bottom: 2px solid #DDD;
+  border-bottom: 2px solid #999;
   display: flex;
   justify-content: center;
 }
@@ -89,8 +93,11 @@ input, select {
 }
 
 .showResultSeasons,
-.showResultEpisodes {
-  color: #909090;
+.showResultEpisodes,
+.showResultOriginalTitle,
+.seasonTitle,
+.episodeSeparator {
+  color: #AAA;
 }
 
 .showResultSeasons {
@@ -101,13 +108,9 @@ input, select {
   text-align: right;
 }
 
-.showResultOriginalTitle {
-  color: #909090;
-}
-
 .seasonResult {
   padding: 10px 10px 10px 20px;
-  border-bottom: 1px solid #CCC;
+  border-bottom: 1px solid #999;
   display: flex;
   justify-content: center;
 }
@@ -118,10 +121,6 @@ input, select {
 
 .seasonResult>div {
   flex: 1;
-}
-
-.seasonTitle {
-  color: #909090;
 }
 
 .episodeResult {
@@ -144,7 +143,6 @@ input, select {
 }
 
 .episodeSeparator {
-  color: #909090;
   margin: 1px;
 }
 

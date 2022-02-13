@@ -103,6 +103,10 @@ function getLibraries() {
     jsonRequest('get_sections', {}, listLibraries, failureFunc);
 }
 
+/// <summary>
+/// Populate the library selection dropdown with the items retrieved from the database.
+/// If only a single library is returned, automatically select it.
+/// </summary>
 function listLibraries(libraries) {
     let select = document.querySelector('#libraries');
     clearEle(select);
@@ -137,6 +141,10 @@ function listLibraries(libraries) {
     }
 }
 
+/// <summary>
+/// Handles when the selected library changes, clearing any
+/// existing data and requesting new show data.
+/// </summary>
 async function libraryChanged() {
     $('#container').classList.add('hidden');
     let section = parseInt(this.value);
@@ -147,6 +155,7 @@ async function libraryChanged() {
     }
 }
 
+/// <summary>Clear data from the show, season, and episode lists.</summary>
 function clearAll() {
     for (const group of [$('#showlist'), $('#seasonlist'), $('#episodelist')])
     {
@@ -154,17 +163,24 @@ function clearAll() {
     }
 }
 
+/// <summary>
+/// Reset a given element - clearing its contents and the hidden flag.
+/// </summary>
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
 }
 
+/// </summary>
+/// Invoke a search when the user presses 'Enter' in the search box.
+/// </summary>
 function onSearchInput(e) {
     if (e.keyCode == 13 /*enter*/) {
         search();
     }
 }
 
+/// <summary>Initiate a search to the database for shows.</summary>
 function search() {
     // Remove any existing show/season/marker data
     clearAll();
@@ -173,8 +189,12 @@ function search() {
     plex.search($('#search').value, parseShowResults);
 }
 
+/// <summary>Map of metadata IDs to show information</summary>
 let g_showResults = {}
 
+/// <summary>
+/// Takes the results of a show search and creates entries for each match.
+/// </summary>
 function parseShowResults(data) {
     let showList = $('#showlist');
     clearAndShow(showList);
@@ -192,6 +212,11 @@ function parseShowResults(data) {
     }
 }
 
+/// <summary>
+/// Creates a DOM element for a show result.
+/// Each entry contains three columns - the show name, the number of seasons, and the number of episodes.
+/// </summary>
+/// <param name="selected">True if this row is selected and should be treated like a header opposed to a clickable entry</param>
 function buildShowRow(show, selected=false) {
     let titleNode = buildNode('div', {}, show.title);
     if (show.original) {
@@ -223,6 +248,9 @@ function buildShowRow(show, selected=false) {
     return row;
 }
 
+/// <summary>
+/// Click handler for clicking a show row. Initiates a request for season details.
+/// </summary>
 function showClick() {
     // Remove any existing marker data
     clearEle($('#episodelist'));
@@ -238,7 +266,12 @@ function showClick() {
     jsonRequest('get_seasons', { id : show.metadataId }, showSeasons, failureFunc);
 }
 
+/// <summary>Map of metadata IDs to season information</summary>
 g_seasonResults = {};
+
+/// <summary>
+/// Takes the seasons retrieved for a show and creates and entry for each season.
+/// </summary>
 function showSeasons(seasons) {
     let seasonList = $('#seasonlist');
     clearAndShow(seasonList);
@@ -252,6 +285,11 @@ function showSeasons(seasons) {
     }
 }
 
+/// <summary>
+/// Creates a DOM element for the given season.
+/// Each row contains the season number, the season title (if applicable), and the number of episodes in the season.
+/// </summary>
+/// <param name="selected">True if this row is selected and should be treated like a header opposed to a clickable entry</param>
 function buildSeasonRow(season, selected=false) {
     let titleNode = buildNode('div', {}, `Season ${season.index}`);
     if (season.title.toLowerCase() != `season ${season.index}`) {
@@ -282,6 +320,9 @@ function buildSeasonRow(season, selected=false) {
     return row;
 }
 
+/// <summary>
+/// Click handler for clicking a show row. Initiates a request for all episodes in the given season.
+/// </summary>
 function seasonClick() {
     let season = g_seasonResults[this.getAttribute('metadataId')];
     g_seasonResults['__current'] = season;
@@ -290,11 +331,16 @@ function seasonClick() {
         Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error}`, 'OK');
     };
 
-    jsonRequest('get_episodes', { id : season.metadataId }, showEpisodes, failureFunc);
+    jsonRequest('get_episodes', { id : season.metadataId }, parseEpisodes, failureFunc);
 }
 
+/// <summary>Map of metadata IDs to episode details</summary>
 g_episodeResults = {};
-function showEpisodes(episodes) {
+
+/// <summary>
+/// Takes the given list of episodes and makes a request for marker details for each episode.
+/// </summary>
+function parseEpisodes(episodes) {
     g_episodeResults = {};
     let queryString = [];
     for (const episode of episodes) {
@@ -302,10 +348,13 @@ function showEpisodes(episodes) {
         queryString.push(episode.metadataId);
     }
 
-    jsonRequest('query', { keys : queryString.join(',') }, showEpisodesReally);
+    jsonRequest('query', { keys : queryString.join(',') }, showEpisodesAndMarkers);
 }
 
-function showEpisodesReally(data) {
+/// <summary>
+/// Takes the given list of episode data and creates entries for each episode and its markers.
+/// </summary>
+function showEpisodesAndMarkers(data) {
     let episodelist = $('#episodelist');
     clearEle(episodelist);
     $('#seasonlist').classList.add('hidden');
@@ -327,11 +376,16 @@ function showEpisodesReally(data) {
                     ),
                     buildNode('div', { class : 'episodeResultMarkers' }, markers.length + ' Marker' + (markers.length == 1 ? '' : 's'))),
                 buildMarkerTable(markers, episode),
-                buildNode('hr', { class : 'episodeSeparator' }))
-            );
+                buildNode('hr', { class : 'episodeSeparator' })
+            )
+        );
     }
 }
 
+/// <summary>
+/// Expand or collapse the marker table for the clicked episode.
+/// If the user ctrl+clicks the episode, expand/contract for all episodes.
+/// </summary>
 function showHideMarkerTable(e) {
     const expanded = !this.parentNode.parentNode.$$('table').classList.contains('hidden');
     if (e.ctrlKey) {
@@ -357,6 +411,9 @@ function showHideMarkerTable(e) {
     }
 }
 
+/// <summary>
+/// Takes the given marker data and creates a table to display it, including add/edit/delete options.
+/// </summary>
 function buildMarkerTable(markers, episode) {
     let table = buildNode('table', { class : 'hidden' });
     table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
@@ -379,6 +436,9 @@ function buildMarkerTable(markers, episode) {
     return table;
 }
 
+/// <summary>
+/// Return a custom object for rawTableRow to parse, including properties to apply to start/end time columns.
+/// </summary>
 function timeColumn(value) {
     return {
         value : value,
@@ -424,14 +484,19 @@ function rawTableRow(...columns) {
     return tr;
 }
 
+/// <summary>Create a table row that spans the entire length of the table</summary>
 function spanningTableRow(column) {
     return buildNode('tr').appendChildren(buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
 }
 
+/// <summary>Returns a span of [hh]:mm:ss.000 data, with hover text of the equivalent milliseconds.</summary>
 function timeData(offset) {
     return buildNode('span', { title : offset }, msToHms(offset));
 }
 
+/// <summary>
+/// Return a span that contains a "friendly" date (x [time span] ago), with a tooltip of the exact date.
+/// </summary>
 function friendlyDate(date, userModifiedDate) {
     let node = buildNode('span', { class : userModifiedDate ? 'userModifiedMarker' : '' }, DateUtil.getDisplayDate(date));
     let tooltipText = `Automatically created on ${DateUtil.getFullDate(date)}`;
@@ -446,6 +511,9 @@ function friendlyDate(date, userModifiedDate) {
     return node;
 }
 
+/// <summary>
+/// Return a div containing edit/delete buttons for a marker.
+/// </summary>
 function optionButtons(markerId) {
     return buildNode('div').appendChildren(
         buildNode('input', { type : 'button', value : 'Edit', markerId : markerId }, '', { click : onMarkerEdit }),
@@ -453,6 +521,9 @@ function optionButtons(markerId) {
     );
 }
 
+/// <summary>
+/// Click handler for adding a marker. Creates a new row in the marker table with editable start/end time inputs.
+/// </summary>
 function onMarkerAdd() {
     if (operationInProgress()) {
         return;
@@ -468,10 +539,14 @@ function onMarkerAdd() {
     this.addEventListener('click', onMarkerAddCancel);
 }
 
+/// <summary>Return a text input meant for time input.</summary>
 function timeInput(value) {
     return buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' });
 }
 
+/// <summary>
+/// Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button.
+/// </summary>
 function onMarkerAddCancel() {
     this.removeEventListener('click', onMarkerAddCancel);
     this.addEventListener('click', onMarkerAdd);
@@ -480,10 +555,15 @@ function onMarkerAddCancel() {
     this.value = 'Add Marker';
 }
 
+/// <summary>Return a button that will initialize adding a marker.</summary>
 function markerAddConfirmButton(metadataId) {
     return buildNode('input', { type : 'button', value : 'Add', metadataId : metadataId }, '', { click : onMarkerAddConfirm });
 }
 
+/// <summary>
+/// Attempts to add a marker to the database, first validating that the marker is valid.
+/// On success, make the temporary row permanent and rearrange the markers based on their start time.
+/// </summary>
 function onMarkerAddConfirm() {
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
@@ -534,6 +614,14 @@ function onMarkerAddConfirm() {
     jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
 
+/// <summary>
+/// Returns whether a marker the user wants to add/edit is valid.
+/// Markers must:
+///  * Have a start time earlier than its end time.
+///  * Not overlap with any existing marker. The database technically supports overlapping markers (multiple versions of an episode with
+///    slightly different intro detection), but since the markers apply to the episode regardless of the specific version, there's no
+///    reason to actually allow overlapping markers.
+/// </summary>
 function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) {
     if (isNaN(metadataId)) {
         // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
@@ -566,6 +654,9 @@ function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) 
     return true;
 }
 
+/// <summary>
+/// Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
+/// </summary>
 function timeToMs(value) {
     let ms = 0;
     if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
@@ -614,7 +705,18 @@ function timeToMs(value) {
     return ms;
 }
 
+/// <summary>
+/// Global that stores the current marker that's being edited/deleted/added.
+/// Only a single action can be in progress at once, so if this is not null, new edits/adds/deletes cannot occur.
+///
+/// TODO: Allow multiple items to be edited at once, using click context to determine what action to apply.
+/// <summary>
 let g_modifiedRow = null;
+
+/// <summary>
+/// Click handler for editing a marker.
+/// Replaces static start/end markers with editable input fields that default to the current [hh]:mm:ss.000 times.
+/// </summary>
 function onMarkerEdit() {
     if (operationInProgress()) {
         return;
@@ -642,6 +744,9 @@ function onMarkerEdit() {
     addButton.parentNode.appendChild(buildNode('input', { type : 'button', value : 'Cancel' }, '', { click : onMarkerEditCancel }));
 }
 
+/// <summary>
+/// Commits a marker edit, assuming it passes marker validation.
+/// </summary>
 function onMarkerEditConfirm() {
     const markerId = parseInt(this.getAttribute('markerId'));
     const inputs = g_modifiedRow.$('input[type="text"]');
@@ -674,10 +779,14 @@ function onMarkerEditConfirm() {
     jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
 
+/// <summary>Cancels an edit operation, reverting the editable row fields with their previous times.</summary>
 function onMarkerEditCancel() {
     resetAfterEdit(timeToMs(g_modifiedRow.children[1].getAttribute('prevtime')), timeToMs(g_modifiedRow.children[2].getAttribute('prevtime')));
 }
 
+/// <summary>
+/// Removes the editable input fields from a marker that was in edit mode, replacing them with the static values provided by newStart and newEnd.
+/// </summary>
 function resetAfterEdit(newStart, newEnd) {
                                   /*   tbody.       tr.        td.     input*/
     let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
@@ -695,6 +804,9 @@ function resetAfterEdit(newStart, newEnd) {
     g_modifiedRow = null;
 }
 
+/// <summary>
+/// Prompts the user before deleting a marker.
+/// </summary>
 function confirmMarkerDelete() {
     if (operationInProgress()) {
         return;
@@ -740,6 +852,9 @@ function confirmMarkerDelete() {
     Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus(), args : [] } }, container);
 }
 
+/// <summary>
+/// Checks if an existing operation is in progress, and alerts the user (and returns true) if there is.
+/// </summary>
 function operationInProgress() {
     if (g_modifiedRow) {
         Overlay.show(`It looks like you're in the middle of a different operation. Please complete/cancel that operation before continuing.`, 'OK');
@@ -749,6 +864,9 @@ function operationInProgress() {
     return false;
 }
 
+/// <summary>
+/// Makes a request to delete a marker, removing it from the marker table on success.
+/// </summary>
 function onMarkerDelete() {
     Overlay.dismiss();
     const markerId = parseInt(this.getAttribute('markerId'));
@@ -777,6 +895,9 @@ function onMarkerDelete() {
     jsonRequest('delete', { id : markerId }, successFunc, failureFunc);
 }
 
+/// <summary>
+/// Prefixes 0s to the given value until its length is 'pad'.
+/// </summary>
 function pad0(val, pad) {
     val = val.toString();
     return '0'.repeat(Math.max(0, pad - val.length)) + val;
@@ -803,6 +924,9 @@ function msToHms(ms)
     return time;
 }
 
+/// <summary>
+/// Removes all children from the given element.
+/// </summary>
 function clearEle(ele)
 {
   while (ele.firstChild)
@@ -811,6 +935,9 @@ function clearEle(ele)
   }
 }
 
+/// <summary>
+/// Generic method to make a request to the given endpoint that expects a JSON response.
+/// </summary>
 function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     let url = new URL(endpoint, window.location.href);
     for (const [key, value] of Object.entries(parameters)) {
@@ -832,6 +959,11 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     });
 }
 
+/// <summary>
+/// Custom jQuery-like selector method.
+/// If the selector starts with '#' and contains no spaces, return the
+/// result of querySelector, otherwise return the result of querySelectorAll
+/// </summary>
 function $(selector, ele=document)
 {
     if (selector.indexOf("#") === 0 && selector.indexOf(" ") === -1)
@@ -841,31 +973,56 @@ function $(selector, ele=document)
 
     return ele.querySelectorAll(selector);
 }
+
+/// <summary>
+/// Like $, but forces a single element to be returned. i.e. querySelector
+/// </summary>
 function $$(selector, ele=document)
 {
     return ele.querySelector(selector);
 }
+
+/// <summary>
+/// $ operator scoped to a specific element
+/// </summary>
 Element.prototype.$ = function(selector)
 {
     return $(selector, this);
 };
+
+/// <summary>
+/// $$ operator scoped to a specific element
+/// </summary>
 Element.prototype.$$ = function(selector)
 {
     return $$(selector, this);
 };
 
+/// <summary>
+/// Helper method to create DOM elements.
+/// </summary>
+/// <param name="type">The TAG to create</param>
+/// <param name="attrs">Attributes to apply to the element (e.g. class, id, or custom attributes)</param>
+/// <param name="content">The inner content for the element. Accepts both text and HTMLElements</param>
+/// <param name="events">Map of events (click/keyup/etc) to attach to the element</param>
 function buildNode(type, attrs, content, events)
 {
     let ele = document.createElement(type);
     return _buildNode(ele, attrs, content, events);
 }
 
+/// <summary>
+/// Helper method to create DOM elements with the given namespace (e.g. SVGs).
+/// </summary>
 function buildNodeNS(ns, type, attrs, content, events)
 {
     let ele = document.createElementNS(ns, type);
     return _buildNode(ele, attrs, content, events);
 }
 
+/// <summary>
+/// "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
+/// </summary>
 function _buildNode(ele, attrs, content, events)
 {
     if (attrs)
@@ -895,6 +1052,11 @@ function _buildNode(ele, attrs, content, events)
 
     return ele;
 }
+
+/// <summary>
+/// Helper to append multiple children to a single element at once
+/// </summary>
+/// <returns>The element to facilitate chained calls</returns>
 Element.prototype.appendChildren = function(...elements)
 {
     for (let element of elements)

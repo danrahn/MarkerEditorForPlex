@@ -6,11 +6,13 @@
 
 Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete intro markers for episodes.
 
+Some clients also support multiple intros, despite Plex not generating multiple markers themselves (web and desktop apps tested), so this project can also be used to add credit skips to episodes.
+
 ## Usage
 
 ### First Run Steps
 1. Install [Node.js](https://nodejs.org/en/)
-1. Enter your host/port/token/db path in config.json
+1. Enter your db path in config.json
 2. `cd /path/to/app.js`
 3. `npm install`
 
@@ -23,11 +25,7 @@ Plex does not let users modify or add intro markers, relying solely on their own
 
 Currently, all the core behavior works, with some caveats:
 
-* The UI is purely meant to be good enough to make testing easy for the person who wrote it (me). It can be very unintuitive, and while it might change eventually, don't expect any miracles.
-  * The initial search process is terrible. After searching for a show, you must click on the text that doesn't give any indication that it's clickable, and that same design is followed for clicking on the seasons of a show.
-  * 'Delete' deletes the marker immediately. There is no confirmation dialog and it cannot be undone.
-  * The way operations are canceled/committed is inconsistent. For adding a marker, the confirmation button is added to the 'Options' column, and the 'Add Marker' turns into a cancel button. For editing a marker, the 'Add Marker' turns into a confirmation button, and a cancel button is added alongside it.
-  * Most errors are silent. If nothing happens when an operation is attempted, there might be an error in the browser console.
+* The UI is far from perfect. It does the job, but isn't polished.
 * JS files are in dire need of some code cleanup/documentation.
 
 ## Remarks
