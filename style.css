@@ -139,11 +139,21 @@ hr {
   width: 150px !important;
 }
 
+.showResult,
+.seasonResult,
+.episodeResult {
+  display: flex;
+  cursor: pointer;
+}
+
+.showResult,
+.seasonResult {
+  border-bottom: 1px solid #999;
+  justify-content: center;
+}
+
 .showResult {
   padding: 10px;
-  border-bottom: 2px solid #999;
-  display: flex;
-  justify-content: center;
 }
 
 .showResult:hover,
@@ -174,9 +184,6 @@ hr {
 
 .seasonResult {
   padding: 10px 10px 10px 20px;
-  border-bottom: 1px solid #999;
-  display: flex;
-  justify-content: center;
 }
 
 .seasonResult>div {
@@ -185,13 +192,11 @@ hr {
 
 .episodeResult {
   padding: 5px 10px 5px 10px;
-  display: flex;
   justify-content: space-between;
 }
 
 .episodeName {
   padding-left: 10px;
-  cursor: pointer;
 }
 
 .episodeResultMarkers {

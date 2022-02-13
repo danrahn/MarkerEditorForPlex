@@ -399,8 +399,8 @@ function showEpisodesAndMarkers(data) {
 
         episodelist.appendChildren(
             buildNode('div').appendChildren(
-                buildNode('div', { class : 'episodeResult' }).appendChildren(
-                    buildNode('div', { class : 'episodeName', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }).appendChildren(
+                buildNode('div', { class : 'episodeResult', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }).appendChildren(
+                    buildNode('div', { class : 'episodeName' }).appendChildren(
                         buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                         buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`)
                     ),
@@ -417,7 +417,7 @@ function showEpisodesAndMarkers(data) {
 /// If the user ctrl+clicks the episode, expand/contract for all episodes.
 /// </summary>
 function showHideMarkerTable(e) {
-    const expanded = !this.parentNode.parentNode.$$('table').classList.contains('hidden');
+    const expanded = !this.parentNode.$$('table').classList.contains('hidden');
     if (e.ctrlKey) {
         let episodeList = $('#episodelist');
         for (const episode of episodeList.children) {
@@ -436,7 +436,7 @@ function showHideMarkerTable(e) {
             }
         }
     } else {
-        this.parentNode.parentNode.$$('table').classList.toggle('hidden');
+        this.parentNode.$$('table').classList.toggle('hidden');
         this.$$('.markerExpand').innerHTML = expanded ? '&#9205; ' : '&#9660; ';
     }
 }
