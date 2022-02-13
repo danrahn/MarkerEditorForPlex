@@ -72,3 +72,35 @@ input, select {
 .timeColumn {
   width: 150px !important;
 }
+
+.showResult {
+  padding: 10px;
+  border-bottom: 2px solid #DDD;
+  display: flex;
+  justify-content: center;
+}
+
+.showResult:hover {
+  font-weight: bold;
+}
+
+.showResult>div {
+  flex: 1;
+}
+
+.showResultSeasons,
+.showResultEpisodes {
+  color: #909090;
+}
+
+.showResultSeasons {
+  text-align: center;
+}
+
+.showResultEpisodes {
+  text-align: right;
+}
+
+.showResultOriginalTitle {
+  color: #909090;
+}

@@ -202,10 +202,23 @@ function parseShowResults(data) {
     }
 
     for (const show of data) {
-        let div = buildNode('div', { 'ratingKey' : show.metadataId }, show.title, { click : showClick });
+        let div = buildShowRow(show);
         showList.appendChild(div);
         g_showResults[show.metadataId] = show;
     }
+}
+
+function buildShowRow(show) {
+    let titleNode = buildNode('div', {}, show.title);
+    if (show.original) {
+        titleNode.appendChild(buildNode('span', { class : 'showResultOriginalTitle' }, ` (${show.original})`));
+    }
+
+    return buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, { click : showClick }).appendChildren(
+        titleNode,
+        buildNode('div', { class : 'showResultSeasons' }, show.seasons + ' Season' + (show.seasons == 1 ? '' : 's')),
+        buildNode('div', { class : 'showResultEpisodes' }, show.episodes + ' Episode' + (show.episodes == 1 ? '' : 's'))
+    );
 }
 
 function showClick() {
@@ -213,7 +226,7 @@ function showClick() {
     clearEle($('#episodelist'));
     g_episodeResults = {};
 
-    let show = g_showResults[this.getAttribute('ratingKey')];
+    let show = g_showResults[this.getAttribute('metadataId')];
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error}`, 'OK');
@@ -232,14 +245,14 @@ function showSeasons(seasons) {
         if (season.title.toLowerCase() != `season ${season.index}`) {
             seasonTitle = `Season ${season.index} (${season.title})`;
         }
-        let div = buildNode('div', { 'ratingKey' : season.metadataId }, seasonTitle, { click : seasonClick });
+        let div = buildNode('div', { 'metadataId' : season.metadataId }, seasonTitle, { click : seasonClick });
         seasonlist.appendChild(div);
         g_seasonResults[season.metadataId] = season;
     }
 }
 
 function seasonClick() {
-    let season = g_seasonResults[this.getAttribute('ratingKey')];
+    let season = g_seasonResults[this.getAttribute('metadataId')];
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error}`, 'OK');
