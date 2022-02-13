@@ -45,8 +45,19 @@ class Plex
             }
         }
 
-        // Sort the results. Title prefix matches are first, then sort title prefix matches, the original title prefix matches, and alphabetical sorting after that.
+        const defaultSort = (a, b) => {
+            const aTitle = a.sort || a.titleSearch;
+            const bTitle = b.sort || b.titleSearch;
+            return aTitle.localeCompare(bTitle);
+        }
+
+        // Sort the results. Title prefix matches are first, then sort title prefix matches, the original title prefix matches, and alphabetical sort title after that.
         result.sort((a, b) => {
+            if (query.length == 0) {
+                // Blank query should return all shows, and in that case we just care about sort title order
+                return defaultSort(a, b);
+            }
+
             const prefixTitleA = a.titleSearch.startsWith(query);
             const prefixTitleB = b.titleSearch.startsWith(query);
             if (prefixTitleA != prefixTitleB) {
@@ -65,7 +76,7 @@ class Plex
                 return prefixOrigA ? -1 : 1;
             }
 
-            return a.title.localeCompare(b.title);
+            return defaultSort(a, b);
         });
 
 
@@ -85,40 +96,6 @@ class Plex
             jsonRequest('get_section', { id : plex.activeSection }, (res) => { plex.shows[plex.activeSection] = res; resolve(); });
         });
     }
-}
-
-function setStatus(text) {
-    let status = $('#status');
-    clearEle(status);
-    status.appendChild(buildNode('span', {}, text));
-}
-
-// Check for localhost and other IPv4 addresses reserved for private networks
-function smellsLikeLocal(host) {
-    // easy ones, /8 and /16 allocations
-    if (host == 'localhost'
-        || host.startsWith('127.')
-        || host.startsWith('10.')
-        || host.startsWith('192.168.')) {
-        return true;
-    }
-
-    // a bit more annoying, /12
-    if (host.startsWith('172.')) {
-        // 172.16.0.0-172.31.255.255
-        let n = parseInt(host.substr(4,3));
-        if (!isNaN(n) && n >= 16 && n <= 31) {
-            return true;
-        }
-    }
-
-    return false;
-
-}
-
-function libraryFail(response) {
-    console.log('Something went wrong!');
-    console.log(response);
 }
 
 function getLibraries() {
