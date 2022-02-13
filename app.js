@@ -6,11 +6,14 @@ const url = require('url');
 
 const config = require('./config.json');
 
+const Log = require('./inc/script/ConsoleLog.js');
+Log.setLevel(getConfigLogLevel());
+
 const hostname = 'localhost';
 const port = 3232;
 
 const server = http.createServer((req, res) => {
-    console.log(`${req.method}: ${req.url}`);
+    Log.verbose(`${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
     if (req.url.toLowerCase().indexOf('node_modules') != -1
@@ -18,26 +21,51 @@ const server = http.createServer((req, res) => {
         return error(404, res);
     }
 
-    switch (method) {
-        case 'get':
-            handleGet(req, res);
-            break;
-        case 'post':
-            handlePost(req, res);
-            break;
-        default:
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'text/plain');
-            res.end('Hello World\n');
-            break;
+    try {
+        switch (method) {
+            case 'get':
+                handleGet(req, res);
+                break;
+            case 'post':
+                handlePost(req, res);
+                break;
+            default:
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'text/plain');
+                res.end('Hello World\n');
+                break;
+        }
+    } catch (e) {
+        // Something's gone horribly wrong
+        Log.log(e.toString(), 'Critical exception', false, Log.Level.Critical);
+        jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
     }
 });
 
 server.listen(port, hostname, () => {
-    console.log(`Server running at http://${hostname}:${port}`);
+    Log.info(`Server running at http://${hostname}:${port}`);
 });
 
+function getConfigLogLevel() {
+    switch(config.logLevel.toLowerCase()) {
+        case "tmi":
+            return Log.Level.Tmi;
+        case "verbose":
+            return Log.Level.Verbose;
+        case "info":
+            return Log.Level.Info;
+        case "warn":
+            return Log.Level.Warn;
+        case "error":
+            return Log.Level.Error;
+        default:
+            Log.warn(`Invalid log level detected: ${config.logLevel}. Defaulting to 'Info'`);
+            return Log.Level.Info;
+    }
+}
+
 function error(code, res) {
+    Log.error(code, 'Unable to process request');
     res.statusCode = code;
     res.end('Error');
 }
@@ -86,18 +114,26 @@ function handlePost(req, res)
         return getEpisodes(req, res);
     }
 
+    Log.warn(req.url, 'Invalid endpoint');
     res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ Error : 'Invalid endpoint' }));
 }
 
 function jsonError(res, code, error) {
+    Log.error(error, 'Unable to complete request');
     res.statusCode = code;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ Error : error }));
 }
 
 function jsonSuccess(res, data) {
+    // TMI logging, post the entire response, for verbose just indicate we succeeded.
+    if (Log.getLevel() <= Log.Level.Tmi) {
+        Log.tmi(data ? JSON.stringify(data) : 'true', 'Success');
+    } else {
+        Log.verbose(true, 'Success')
+    }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(data || { success : true }));
@@ -138,9 +174,7 @@ function queryIds(req, res) {
                 data[row.metadata_item_id].push(row);
             });
 
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
+            jsonSuccess(res, data);
         });
     });
     db.close();
@@ -170,7 +204,7 @@ function editMarker(req, res) {
                 return jsonError(res, 400, err);
             }
 
-            console.log(`Markers for this episode: ${rows.length}`);
+            Log.verbose(`Markers for this episode: ${rows.length}`);
 
             let allMarkers = rows;
             allMarkers.sort((a, b) => a.index - b.index);
@@ -289,9 +323,7 @@ function addMarker(req, res) {
                         return jsonSuccess(res);
                     }
 
-                    res.statusCode = 200;
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify(row));
+                    jsonSuccess(res, row);
                 });
             });
         });

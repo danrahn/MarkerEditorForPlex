@@ -88,9 +88,22 @@ class Plex
             return Promise.resolve();
         }
 
-        // TODO: Handle failure gracefully
+        const successFunc = (response) => {
+            plex.shows[plex.activeSection] = response;
+            resolve();
+        }
+
         return new Promise(resolve => {
-            jsonRequest('get_section', { id : plex.activeSection }, (res) => { plex.shows[plex.activeSection] = res; resolve(); });
+            jsonRequest(
+                'get_section',
+                { id : plex.activeSection },
+                (res) => {
+                    plex.shows[plex.activeSection] = res;
+                    resolve()
+                },
+                (res) => {
+                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${res.Error}`);
+                });
         });
     }
 }
@@ -378,7 +391,11 @@ function parseEpisodes(episodes) {
         queryString.push(episode.metadataId);
     }
 
-    jsonRequest('query', { keys : queryString.join(',') }, showEpisodesAndMarkers);
+    let failureFunc = (response) => {
+        Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${response.Error}`, 'OK');
+    }
+
+    jsonRequest('query', { keys : queryString.join(',') }, showEpisodesAndMarkers, failureFunc);
 }
 
 /// <summary>
@@ -997,6 +1014,7 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     }
 
     fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
+        Log.verbose(response);
         if (!response || response.Error) {
             if (failureFunc) {
                 failureFunc(response);
@@ -1008,6 +1026,8 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
         }
 
         successFunc(response);
+    }).catch(err => {
+        failureFunc(err);
     });
 }
 

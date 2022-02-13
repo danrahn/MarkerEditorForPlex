@@ -1,3 +1,4 @@
 {
-    "database" : "path/to/com.plexapp.plugins.library.db"
+    "database" : "path/to/com.plexapp.plugins.library.db",
+    "logLevel" : "Info"
 }

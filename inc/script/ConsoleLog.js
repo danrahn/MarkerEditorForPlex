@@ -4,7 +4,7 @@
 /// Because this class is used on almost every page, some additional manual minification
 /// has been done to reduce its overall size. Nothing like unnecessary micro-optimizations!
 ///
-/// Taken from PlexWeb/script/consolelog.js
+/// Taken and tweaked from PlexWeb/script/consolelog.js
 /// </summary>
 let Log = new function()
 {
@@ -68,6 +68,26 @@ let Log = new function()
         ],
         consoleColors[6]
     ];
+
+    // We use ConsoleLog both on both the server and client side.
+    // Server-side, create a stub of localStorage and window so nothing breaks
+    if (typeof localStorage === 'undefined') {
+        class LS {
+            constructor() {
+                this._dict = {};
+            }
+
+            getItem(item) { return this._dict[item]; }
+            setItem(item, value) { this._dict[item] = value; }
+        }
+
+        var localStorage = new LS();
+        class W {
+            matchMedia() { return false; }
+        }
+
+        var window = new W();
+    }
 
     /// <summary>
     /// The current log level. Anything below this will not be logged
@@ -237,12 +257,6 @@ let Log = new function()
             level,
             colors,
             ...more);
-
-        if (level > Log.Level.Warn)
-        {
-            let encode = encodeURIComponent;
-            fetch(`process_request.php?type=${Log.logErrorId}&error=${encode(currentState(obj, true, true))}&stack=${encode(Error().stack)}`);
-        }
     };
 
     /// <summary>
@@ -320,4 +334,10 @@ let Log = new function()
 
 }();
 
-Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
+// Hack to work around this file being used both client and server side.
+// Server side we want to export Log, but we want to ignore this client-side.
+if (typeof module !== 'undefined') {
+    module.exports = Log;
+} else {
+    Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
+}
