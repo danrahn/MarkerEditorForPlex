@@ -324,7 +324,7 @@ function showEpisodesReally(data) {
 
 function buildMarkerTable(markers, episode) {
     let table = buildNode('table');
-    table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
+    table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'User Modified', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -366,7 +366,8 @@ function tableRow(marker, episode) {
         td(marker.index.toString()),
         td(timeData(marker.time_offset)),
         td(timeData(marker.end_time_offset)),
-        td(marker.created_at),
+        td(friendlyDate(marker.created_at)),
+        td(marker.thumb_url ? friendlyDate(marker.thumb_url, 'Yes') : 'No'),
         td(optionButtons(marker.id))
     );
 
@@ -390,11 +391,17 @@ function rawTableRow(...columns) {
 }
 
 function spanningTableRow(column) {
-    return buildNode('tr').appendChildren(buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
+    return buildNode('tr').appendChildren(buildNode('td', { colspan : 6, style : 'text-align: center;' }, column));
 }
 
 function timeData(offset) {
     return buildNode('span', { title : offset }, msToHms(offset));
+}
+
+function friendlyDate(date, overrideText='') {
+    let node = buildNode('span', {}, overrideText || DateUtil.getDisplayDate(date));
+    Tooltip.setTooltip(node, DateUtil.getFullDate(date));
+    return node;
 }
 
 function optionButtons(markerId) {
