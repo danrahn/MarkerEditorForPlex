@@ -4,8 +4,8 @@ let plex;
 
 function setup()
 {
+    $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
-    $('#gosearch').addEventListener('click', search);
     $('#search').addEventListener('keyup', onSearchInput);
     plex = new Plex();
     getLibraries();
@@ -95,6 +95,15 @@ class Plex
     }
 }
 
+function showHideInstructions() {
+    $('.instructions').forEach(instruction => instruction.classList.toggle('hidden'));
+    if (this.innerHTML[0] == '+') {
+        this.innerHTML = '- Click to hide details';
+    } else {
+        this.innerHTML = '+ Click for details';
+    }
+}
+
 function getLibraries() {
     let failureFunc = (response) => {
         Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${response.Error}`, 'OK');
@@ -122,7 +131,7 @@ function listLibraries(libraries) {
             value: '-1',
             plexType: '-1'
         },
-        'Select...')
+        'Select a library to parse')
     );
 
     libraries.forEach(library => {
@@ -171,13 +180,34 @@ function clearAndShow(ele) {
     ele.classList.remove('hidden');
 }
 
+let g_searchTimer;
+
 /// </summary>
-/// Invoke a search when the user presses 'Enter' in the search box.
+/// Handle search box input. Invoke a search immediately if 'Enter'
+/// is pressed, otherwise set a timeout to invoke a search after
+/// a quarter of a second has passed.
 /// </summary>
 function onSearchInput(e) {
+    clearTimeout(g_searchTimer);
     if (e.keyCode == 13 /*enter*/) {
         search();
+        return;
     }
+
+    // List of modifiers, taken from https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values, to ignore as input.
+    const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta', 'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
+    if (modifiers.indexOf(e.key) !== -1) {
+        return;
+    }
+
+    if ($('#search').value.length == 0) {
+        // Only show all series if the user explicitly presses 'Enter'
+        // on a blank query, otherwise clear the results.
+        clearAll();
+        return;
+    }
+
+    g_searchTimer = setTimeout(search, 250);
 }
 
 /// <summary>Initiate a search to the database for shows.</summary>
@@ -201,7 +231,7 @@ function parseShowResults(data) {
     g_showResults = {};
 
     if (data.length == 0) {
-        showList.appendChild(buildNode('div', {}, "No results found."));
+        showList.appendChild(buildNode('div', { class : 'showResult' }, "No results found."));
         return;
     }
 
@@ -415,7 +445,8 @@ function showHideMarkerTable(e) {
 /// Takes the given marker data and creates a table to display it, including add/edit/delete options.
 /// </summary>
 function buildMarkerTable(markers, episode) {
-    let table = buildNode('table', { class : 'hidden' });
+    let container = buildNode('div', { class : 'tableHolder' });
+    let table = buildNode('table', { class : 'hidden markerTable' });
     table.appendChild(buildNode('thead').appendChildren(rawTableRow('Index', timeColumn('Start Time'), timeColumn('End Time'), 'Date Added', 'Options')));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
@@ -432,8 +463,9 @@ function buildMarkerTable(markers, episode) {
     rows.appendChild(spanningTableRow(buildNode('input', { type : 'button', value : 'Add Marker', metadataId :  episode.metadataId }, '', { click : onMarkerAdd })));
 
     table.appendChild(rows);
+    container.appendChild(table);
 
-    return table;
+    return container;
 }
 
 /// <summary>

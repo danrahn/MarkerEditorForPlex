@@ -15,10 +15,6 @@ body {
     display: none !important;
 }
 
-form {
-  width: 350px;
-}
-
 form label {
   float: left;
   padding: 3px;
@@ -39,6 +35,72 @@ input, select {
 
 hr {
   color: #999;
+  border-color: #999;
+}
+
+#showInstructions {
+  cursor: pointer;
+}
+
+#intro {
+  max-width: 1000px;
+  text-align: center;
+  margin: auto;
+}
+
+#libraryList {
+  width: 100%;
+  margin: auto;
+  text-align: center;
+}
+
+#libraries,
+#search {
+  padding: 5px;
+  border-radius: 5px;
+  background: transparent;
+  text-align: center;
+  font-size: 14pt;
+}
+
+#libraries {
+  min-width: 350px;
+}
+
+#libraries option {
+  background-color: #212121;
+}
+
+#libraries option:hover {
+  background-color: #414141;
+}
+
+#libraries:hover,
+#search:hover {
+  border-color: #909090;
+}
+
+#libraries:focus,
+#search:focus {
+  border-color: #ff7f00;
+}
+
+#searchContainer {
+  padding-top: 10px;
+  width: 100%;
+  text-align: center;
+}
+
+#search {
+  width: 350px;
+  margin: auto;
+}
+
+#showlist,
+#seasonlist,
+#episodelist {
+  max-width: 1000px;
+  margin: auto;
 }
 
 #episodelist table, #episodelist td, #episodelist thead {
@@ -84,8 +146,11 @@ hr {
   justify-content: center;
 }
 
-.showResult:hover {
+.showResult:hover,
+.seasonResult:hover,
+.episodeResult:hover {
   font-weight: bold;
+  background-color: rgba(0,0,0,0.5);
 }
 
 .showResult>div {
@@ -95,8 +160,7 @@ hr {
 .showResultSeasons,
 .showResultEpisodes,
 .showResultOriginalTitle,
-.seasonTitle,
-.episodeSeparator {
+.seasonTitle {
   color: #AAA;
 }
 
@@ -115,10 +179,6 @@ hr {
   justify-content: center;
 }
 
-.seasonResult:hover {
-  font-weight: bold;
-}
-
 .seasonResult>div {
   flex: 1;
 }
@@ -127,10 +187,6 @@ hr {
   padding: 5px 10px 5px 10px;
   display: flex;
   justify-content: space-between;
-}
-
-.episodeResult:hover {
-  font-weight: bold;
 }
 
 .episodeName {
@@ -164,6 +220,10 @@ hr {
   border-color: #c1c1c1;
 }
 
+input[type=button]:hover {
+  border-color: #A0A0A0;
+}
+
 .selected {
   background: rgba(255,255,255,0.1);
   font-weight: bold;
@@ -194,6 +254,13 @@ hr {
 
 .userModifiedMarker {
   font-weight: bold;
+}
+
+.tableHolder {
+  max-width: 1000px;
+  margin: auto;
+  display: flex;
+  justify-content: center;
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)

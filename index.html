@@ -11,13 +11,28 @@
 <body>
 
 <div id="plexFrame">
+    <div id="intro">
+        <h1>Plex Intro Editor</h1>
+        <div>
+            <p id="showInstructions">+ Click here for details</p>
+            <p class="instructions hidden">
+                Welcome to the Plex Intro Editor. To begin, select a TV library from the dropdown below (if one is not already selected) and search for the show that you want to edit the intro markers for.
+                After selecting a show and a season, click on an episode name to show the marker table (or Ctrl+click to show/hide markers for all episodes in the season). The table will allow you to add,
+                edit, and delete its markers. Note that multiple markers can also be added for an episode, and all will trigger within Plex (tested on web and desktop clients), so can also be used to add
+                credit skips.
+            </p>
+            <p class="instructions hidden">
+                Disclaimer: This interacts directly with your Plex database in a completely unsupported way. The author is in no way responsible for any database corruption that may occur both now or in
+                the future if Plex modifies the way intros are detected and/or stored in the database. USE AT YOUR OWN RISK.
+            </p>
+        </div>
+    </div>
     <form>
-        <div id="libraryList"><label for="libraries">Select a library to parse:</label><select id="libraries"></select></div>
+        <div id="libraryList"><label for="libraries" class="hidden">Library selection</label><select id="libraries"></select></div>
     </form>
     <div id='status'></div>
     <div id='container' class='hidden'>
-        <label for='search'>Search: <input type='text' id='search' name='search' /></label>
-        <input type='button' id='gosearch' value='Go' />
+        <div id="searchContainer"><label for='search' class="hidden">Search</label><input type='text' id='search' name='search' placeholder='Search for a Show...' /></div>
         <br>
         <div id="showlist"></div>
         <div id="seasonlist"></div>

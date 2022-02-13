@@ -447,6 +447,7 @@ SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season
     INNER JOIN media_items m ON e.id=m.metadata_item_id
 WHERE e.parent_id=?
 GROUP BY e.id;`;
+
     db.all(query, [id], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve episodes from the database.");
