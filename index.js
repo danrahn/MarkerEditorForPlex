@@ -194,6 +194,7 @@ function parseShowResults(data) {
     let showList = $('#showlist');
     clearEle(showList);
 
+    $('#showlist').classList.remove('hidden');
     g_showResults = {};
 
     if (data.length == 0) {
@@ -208,13 +209,18 @@ function parseShowResults(data) {
     }
 }
 
-function buildShowRow(show) {
+function buildShowRow(show, forSeasons=false) {
     let titleNode = buildNode('div', {}, show.title);
     if (show.original) {
         titleNode.appendChild(buildNode('span', { class : 'showResultOriginalTitle' }, ` (${show.original})`));
     }
 
-    return buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, { click : showClick }).appendChildren(
+    let events = {};
+    if (!forSeasons) {
+        events = { click : showClick };
+    }
+
+    return buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
         titleNode,
         buildNode('div', { class : 'showResultSeasons' }, show.seasons + ' Season' + (show.seasons == 1 ? '' : 's')),
         buildNode('div', { class : 'showResultEpisodes' }, show.episodes + ' Episode' + (show.episodes == 1 ? '' : 's'))
@@ -227,6 +233,7 @@ function showClick() {
     g_episodeResults = {};
 
     let show = g_showResults[this.getAttribute('metadataId')];
+    g_showResults['__current'] = show.metadataId;
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error}`, 'OK');
@@ -239,16 +246,31 @@ g_seasonResults = {};
 function showSeasons(seasons) {
     let seasonlist = $('#seasonlist');
     clearEle(seasonlist);
+    $('#showlist').classList.add('hidden');
+    seasonlist.appendChild(buildShowRow(g_showResults[g_showResults['__current']], true /*forSeasons*/))
+    seasonlist.appendChild(buildNode('hr'));
     g_seasonResults = {};
     for (const season of seasons) {
-        let seasonTitle = season.title;
-        if (season.title.toLowerCase() != `season ${season.index}`) {
-            seasonTitle = `Season ${season.index} (${season.title})`;
-        }
-        let div = buildNode('div', { 'metadataId' : season.metadataId }, seasonTitle, { click : seasonClick });
-        seasonlist.appendChild(div);
+        seasonlist.appendChild(buildSeasonRow(season));
         g_seasonResults[season.metadataId] = season;
     }
+}
+
+function buildSeasonRow(season, forEpisodes=false) {
+    let titleNode = buildNode('div', {}, `Season ${season.index}`);
+    if (season.title.toLowerCase() != `season ${season.index}`) {
+        titleNode.appendChild(buildNode('span', { class : 'seasonTitle' }, ` (${season.title})`));
+    }
+
+    let events = {};
+    if (!forEpisodes) {
+        events = { click : seasonClick };
+    }
+
+    return buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
+        titleNode,
+        buildNode('div', { class : 'showResultEpisodes' }, season.episodes + ' Episode' + (season.episodes == 1 ? '' : 's'))
+    );
 }
 
 function seasonClick() {

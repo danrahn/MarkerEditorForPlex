@@ -374,7 +374,8 @@ function getShows(req, res) {
 
     // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
     // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
-    const query = 'SELECT shows.`id`, shows.title, shows.title_sort, shows.original_title, COUNT(shows.`id`) AS season_count, SUM(seasons.`episode_count`) AS episode_count FROM metadata_items shows\n\
+    const query =
+'SELECT shows.`id`, shows.title, shows.title_sort, shows.original_title, COUNT(shows.`id`) AS season_count, SUM(seasons.`episode_count`) AS episode_count FROM metadata_items shows\n\
 INNER JOIN (\n\
     SELECT seasons.`id`, seasons.`parent_id` AS show_id, COUNT(episodes.`id`) AS episode_count FROM metadata_items seasons\n\
     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.`id`\n\
@@ -409,7 +410,14 @@ function getSeasons(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     let db = new sqlite3.Database(config.database);
-    db.all("SELECT `id`, `title`, `index` FROM `metadata_items` WHERE `parent_id`=? ORDER BY `index` ASC;", [id], (err, rows) => {
+    const query =
+'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
+INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
+WHERE seasons.parent_id=?\n\
+GROUP BY seasons.id\n\
+ORDER BY seasons.`index` ASC;'
+
+    db.all(query, [id], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve seasons from the database.");
         }
@@ -419,6 +427,7 @@ function getSeasons(req, res) {
             seasons.push({
                 index : season.index,
                 title : season.title,
+                episodes : season.episode_count,
                 metadataId : season.id,
             });
         }

@@ -37,6 +37,10 @@ input, select {
   color: #c1c1c1;
 }
 
+#episodelist {
+  padding-top: 20px;
+}
+
 #episodelist table, #episodelist td, #episodelist thead {
   border-collapse: collapse;
   padding: 5px 10px;
@@ -102,5 +106,24 @@ input, select {
 }
 
 .showResultOriginalTitle {
+  color: #909090;
+}
+
+.seasonResult {
+  padding: 10px 20px 10px 20px;
+  border-bottom: 1px solid #CCC;
+  display: flex;
+  justify-content: center;
+}
+
+.seasonResult:hover {
+  font-weight: bold;
+}
+
+.seasonResult>div {
+  flex: 1;
+}
+
+.seasonTitle {
   color: #909090;
 }
