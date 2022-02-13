@@ -1,8 +1,5 @@
 window.addEventListener('load', setup);
 
-let g_host;
-let g_token;
-
 let plex;
 
 function setup()
@@ -107,7 +104,6 @@ function getLibraries() {
 }
 
 function listLibraries(libraries) {
-    console.log(libraries);
     let select = document.querySelector('#libraries');
     clearEle(select);
 
@@ -404,22 +400,20 @@ function timeData(offset) {
 function optionButtons(markerId) {
     return buildNode('div').appendChildren(
         buildNode('input', { type : 'button', value : 'Edit', markerId : markerId }, '', { click : onMarkerEdit }),
-        buildNode('input', { type : 'button', value : 'Delete', markerId : markerId }, '', { click : onMarkerDelete })
+        buildNode('input', { type : 'button', value : 'Delete', markerId : markerId }, '', { click : confirmMarkerDelete })
     );
 }
 
 function onMarkerAdd() {
-    if (g_modifiedRow) {
-        Overlay.show(`It looks like you're in the middle of a different operation. Please complete/cancel that operation before continuing.`, 'OK');
-        console.log('Waiting for a previous operation to complete...');
+    if (operationInProgress()) {
         return;
     }
 
     const metadataId = parseInt(this.getAttribute('metadataId'));
-    console.log(g_episodeResults[metadataId].markers);
     const thisRow = this.parentNode.parentNode;
     g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(), '-', markerAddConfirmButton(metadataId)), thisRow);
     g_modifiedRow.setAttribute('metadataId', metadataId);
+    g_modifiedRow.children[1].children[0].focus();
     this.value = 'Cancel';
     this.removeEventListener('click', onMarkerAdd);
     this.addEventListener('click', onMarkerAddCancel);
@@ -573,8 +567,7 @@ function timeToMs(value) {
 
 let g_modifiedRow = null;
 function onMarkerEdit() {
-    if (g_modifiedRow) {
-        console.log('Waiting for a previous operation to complete...');
+    if (operationInProgress()) {
         return;
     }
 
@@ -598,7 +591,6 @@ function onMarkerEdit() {
     addButton.value = 'Confirm Edit';
     addButton.setAttribute('markerId', markerId);
     addButton.parentNode.appendChild(buildNode('input', { type : 'button', value : 'Cancel' }, '', { click : onMarkerEditCancel }));
-    console.log(`Edit Click for ${markerId}!`);
 }
 
 function onMarkerEditConfirm() {
@@ -654,41 +646,86 @@ function resetAfterEdit(newStart, newEnd) {
     g_modifiedRow = null;
 }
 
-function onMarkerDelete() {
-    // TODO: 'Are you sure?'
-    // TODO: Additional (or any) indication that we failed/succeeded
-    if (g_modifiedRow) {
-        console.log('Waiting for a previous operation to complete...');
+function confirmMarkerDelete() {
+    if (operationInProgress()) {
         return;
     }
 
+    // Build confirmation dialog
+    let container = buildNode('div', { class : 'overlayDiv' });
+    let header = buildNode('h2', {}, 'Are you sure?');
+    let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this intro marker?');
+    
+    let okayButton = buildNode(
+        'input',
+        {
+            type : 'button',
+            value : 'Delete',
+            class : 'overlayButton confirmDelete',
+            markerId : this.getAttribute('markerId')
+        },
+        0,
+        {
+            click : onMarkerDelete.bind(this)
+        }
+    );
+
+    let cancelButton = buildNode(
+        'input',
+        {
+            id : 'deleteMarkerCancel',
+            type : 'button',
+            value : 'Cancel',
+            class : 'overlayButton'
+        },
+        0,
+        {
+            click : Overlay.dismiss
+        }
+    );
+
+    let outerButtonContainer = buildNode("div", { class : "formInput", style : "text-align: center" });
+    let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });
+    outerButtonContainer.appendChild(buttonContainer.appendChildren(okayButton, cancelButton));
+    container.appendChildren(header, subtext, outerButtonContainer);
+    Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus(), args : [] } }, container);
+}
+
+function operationInProgress() {
+    if (g_modifiedRow) {
+        Overlay.show(`It looks like you're in the middle of a different operation. Please complete/cancel that operation before continuing.`, 'OK');
+        return true;
+    }
+
+    return false;
+}
+
+function onMarkerDelete() {
+    Overlay.dismiss();
     const markerId = parseInt(this.getAttribute('markerId'));
     g_modifiedRow = this.parentNode.parentNode.parentNode;
     let successFunc = () => {
+        let markerTable = g_modifiedRow.parentNode;
+        markerTable.removeChild(g_modifiedRow);
+        g_modifiedRow = null;
 
         // If we're removing the last marker, add the 'No marker found' row.
-        if (g_modifiedRow.parentNode.children.length == 2) {
-            g_modifiedRow.parentNode.insertBefore(spanningTableRow('No markers found'), g_modifiedRow.parentNode.firstChild);
+        if (markerTable.children.length == 1) {
+            markerTable.insertBefore(spanningTableRow('No markers found'), markerTable.firstChild);
         } else {
             // Update indexes if needed
-            let index = parseInt(g_modifiedRow.firstChild.innerHTML);
-            if (index != g_modifiedRow.parentNode.children.length - 2) { // Our deleted index isn't at the end
-                for (let i = index + 1; i < g_modifiedRow.parentNode.children.length - 1; ++i) {
-                    let indexColumn = g_modifiedRow.parentNode.children[i].firstChild;
-                    indexColumn.innerHTML = parseInt(indexColumn.innerHTML) - 1; // We're assuming that the fire-and-forget index adjustments server-side succeeded
-                }
+            for (let marker = 0; marker < markerTable.children.length - 1; ++marker) {
+                markerTable.children[marker].firstChild.innerHTML = marker;
             }
         }
+    }
 
-        g_modifiedRow.parentNode.removeChild(g_modifiedRow);
+    let failureFunc = (response) => {
+        Overlay.show(`Failed to delete marker:<br><br>${response.Error}`, 'OK');
         g_modifiedRow = null;
     }
 
-    let failureFunc = () => { g_modifiedRow = null; }
-
     jsonRequest('delete', { id : markerId }, successFunc, failureFunc);
-
-    console.log(`Delete Click for ${markerId}!`);
 }
 
 function pad0(val, pad) {

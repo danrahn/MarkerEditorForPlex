@@ -147,6 +147,25 @@ input, select {
   background: rgba(255,255,255, 0.2);
 }
 
+.overlayButton {
+  padding: 10px;
+  background-color: rgba(40, 40, 40, 0.8);
+  border: 1px solid #616161;
+  border-radius: 3px;
+}
+
+.overlayButton:hover {
+  border-color: #c1c1c1;
+}
+
+.overlayButton:focus {
+  border-color:#ff7f00;
+}
+
+.confirmDelete {
+  background-color: #612121;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
