@@ -437,11 +437,16 @@ function getEpisodes(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     let db = new sqlite3.Database(config.database);
+
+    // Grab episodes for the given season.
+    // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
     const query = `
-SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season, p.\`index\` AS season_index, g.title AS show FROM metadata_items e
+SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season, p.\`index\` AS season_index, g.title AS show, MIN(m.duration) AS duration, COUNT(e.id) AS parts FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id
     INNER JOIN metadata_items g ON p.parent_id=g.id
-WHERE e.parent_id=?;`;
+    INNER JOIN media_items m ON e.id=m.metadata_item_id
+WHERE e.parent_id=?
+GROUP BY e.id;`;
     db.all(query, [id], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve episodes from the database.");
@@ -456,6 +461,7 @@ WHERE e.parent_id=?;`;
                 seasonIndex : episode.season_index,
                 showName : episode.show,
                 metadataId : episode.id,
+                duration : episode.duration,
             });
         }
 

@@ -531,7 +531,7 @@ function onMarkerAdd() {
 
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
-    g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(), '-', markerAddConfirmButton(metadataId)), thisRow);
+    g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), '-', markerAddConfirmButton(metadataId)), thisRow);
     g_modifiedRow.setAttribute('metadataId', metadataId);
     g_modifiedRow.children[1].children[0].focus();
     this.value = 'Cancel';
@@ -540,8 +540,28 @@ function onMarkerAdd() {
 }
 
 /// <summary>Return a text input meant for time input.</summary>
-function timeInput(value) {
-    return buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' });
+/// <param name="end">If provided, indicates that this is the 'end time', and we should bind Ctrl+Shift+E to 'end of the file'</param>
+function timeInput(value, end=false) {
+    let events = {};
+    if (end) {
+        events = { keydown : onEndTimeInput };
+    }
+
+    let input = buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' }, 0, events);
+    if (end) {
+        Tooltip.setTooltip(input, 'Ctrl+Shift+E to replace with the end of the episode');
+    }
+
+    return input;
+}
+
+function onEndTimeInput(e) {
+    if (!e.shiftKey || !e.ctrlKey || e.key != 'E') {
+        return;
+    }
+
+    e.preventDefault();
+    this.value = msToHms(g_episodeResults[parseInt(g_modifiedRow.getAttribute('metadataId'))].duration);
 }
 
 /// <summary>
@@ -733,7 +753,7 @@ function onMarkerEdit() {
     clearEle(endTime);
 
     startTime.appendChild(timeInput(startTime.getAttribute('prevtime')));
-    endTime.appendChild(timeInput(endTime.getAttribute('prevtime')));
+    endTime.appendChild(timeInput(endTime.getAttribute('prevtime'), true));
 
     let tbody = g_modifiedRow.parentNode;
     let addButton = tbody.lastChild.$$('input');
