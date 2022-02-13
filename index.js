@@ -168,9 +168,22 @@ async function libraryChanged() {
     $('#container').classList.add('hidden');
     let section = parseInt(this.value);
     await plex.setSection(section);
+    clearAll();
     if (!isNaN(section) && section != -1) {
         $('#container').classList.remove('hidden');
     }
+}
+
+function clearAll() {
+    for (const group of [$('#showlist'), $('#seasonlist'), $('#episodelist')])
+    {
+        clearAndShow(group);
+    }
+}
+
+function clearAndShow(ele) {
+    clearEle(ele);
+    ele.classList.remove('hidden');
 }
 
 function onSearchInput(e) {
@@ -180,9 +193,8 @@ function onSearchInput(e) {
 }
 
 function search() {
-    // Remove any existing season/marker data
-    clearEle($('#seasonlist'));
-    clearEle($('#episodelist'));
+    // Remove any existing show/season/marker data
+    clearAll();
     g_seasonResults = {};
     g_episodeResults = {};
     plex.search($('#search').value, parseShowResults);
@@ -192,9 +204,7 @@ let g_showResults = {}
 
 function parseShowResults(data) {
     let showList = $('#showlist');
-    clearEle(showList);
-
-    $('#showlist').classList.remove('hidden');
+    clearAndShow(showList);
     g_showResults = {};
 
     if (data.length == 0) {
@@ -230,11 +240,9 @@ function buildShowRow(show, selected=false) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
             buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
-                clearEle($('#seasonlist'));
-                clearEle($('#episodelist'));
+                clearAndShow($('#seasonlist'));
+                clearAndShow($('#episodelist'));
                 $('#showlist').classList.remove('hidden');
-                $('#seasonlist').classList.remove('hidden');
-                $('#episodelist').classList.remove('hidden');
             }
         })));
     }
@@ -259,14 +267,14 @@ function showClick() {
 
 g_seasonResults = {};
 function showSeasons(seasons) {
-    let seasonlist = $('#seasonlist');
-    clearEle(seasonlist);
+    let seasonList = $('#seasonlist');
+    clearAndShow(seasonList);
     $('#showlist').classList.add('hidden');
-    seasonlist.appendChild(buildShowRow(g_showResults['__current'], true /*selected*/))
-    seasonlist.appendChild(buildNode('hr'));
+    seasonList.appendChild(buildShowRow(g_showResults['__current'], true /*selected*/))
+    seasonList.appendChild(buildNode('hr'));
     g_seasonResults = {};
     for (const season of seasons) {
-        seasonlist.appendChild(buildSeasonRow(season));
+        seasonList.appendChild(buildSeasonRow(season));
         g_seasonResults[season.metadataId] = season;
     }
 }
@@ -292,9 +300,8 @@ function buildSeasonRow(season, selected=false) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
             buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
-                clearEle($('#episodelist'));
+                clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
-                $('#episodelist').classList.remove('hidden');
             }
         })));
     }
