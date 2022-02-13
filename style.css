@@ -127,3 +127,17 @@ input, select {
 .seasonTitle {
   color: #909090;
 }
+
+.goBack {
+  color: #d1d1d1;
+  text-align: right;
+}
+
+.goBack {
+  margin: 0;
+  padding: 2px;
+}
+
+.goBack>input:hover {
+  border-color: #c1c1c1;
+}

@@ -220,11 +220,25 @@ function buildShowRow(show, forSeasons=false) {
         events = { click : showClick };
     }
 
-    return buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
+    let row = buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
         titleNode,
         buildNode('div', { class : 'showResultSeasons' }, show.seasons + ' Season' + (show.seasons == 1 ? '' : 's')),
         buildNode('div', { class : 'showResultEpisodes' }, show.episodes + ' Episode' + (show.episodes == 1 ? '' : 's'))
     );
+
+    if (forSeasons) {
+        row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
+            buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
+                clearEle($('#seasonlist'));
+                clearEle($('#episodelist'));
+                $('#showlist').classList.remove('hidden');
+                $('#seasonlist').classList.remove('hidden');
+                $('#episodelist').classList.remove('hidden');
+            }
+        })));
+    }
+
+    return row;
 }
 
 function showClick() {
@@ -233,7 +247,7 @@ function showClick() {
     g_episodeResults = {};
 
     let show = g_showResults[this.getAttribute('metadataId')];
-    g_showResults['__current'] = show.metadataId;
+    g_showResults['__current'] = show;
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error}`, 'OK');
@@ -247,7 +261,7 @@ function showSeasons(seasons) {
     let seasonlist = $('#seasonlist');
     clearEle(seasonlist);
     $('#showlist').classList.add('hidden');
-    seasonlist.appendChild(buildShowRow(g_showResults[g_showResults['__current']], true /*forSeasons*/))
+    seasonlist.appendChild(buildShowRow(g_showResults['__current'], true /*forSeasons*/))
     seasonlist.appendChild(buildNode('hr'));
     g_seasonResults = {};
     for (const season of seasons) {
@@ -267,14 +281,27 @@ function buildSeasonRow(season, forEpisodes=false) {
         events = { click : seasonClick };
     }
 
-    return buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
+    let row = buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
         titleNode,
         buildNode('div', { class : 'showResultEpisodes' }, season.episodes + ' Episode' + (season.episodes == 1 ? '' : 's'))
     );
+
+    if (forEpisodes) {
+        row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
+            buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
+                clearEle($('#episodelist'));
+                $('#seasonlist').classList.remove('hidden');
+                $('#episodelist').classList.remove('hidden');
+            }
+        })));
+    }
+
+    return row;
 }
 
 function seasonClick() {
     let season = g_seasonResults[this.getAttribute('metadataId')];
+    g_seasonResults['__current'] = season;
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error}`, 'OK');
@@ -298,6 +325,11 @@ function showEpisodes(episodes) {
 function showEpisodesReally(data) {
     let episodelist = $('#episodelist');
     clearEle(episodelist);
+    $('#seasonlist').classList.add('hidden');
+    episodelist.appendChild(buildShowRow(g_showResults['__current'], true /*forSeasons*/));
+    episodelist.appendChild(buildNode('hr'));
+    episodelist.appendChild(buildSeasonRow(g_seasonResults['__current'], true /*forEpisodes*/));
+    episodelist.appendChild(buildNode('hr'));
     for (const key of Object.keys(data)) {
         const markers = data[key];
         episode = g_episodeResults[key];
