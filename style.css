@@ -133,11 +133,60 @@ input, select {
   text-align: right;
 }
 
-.goBack {
+.goBack>input {
   margin: 0;
   padding: 2px;
 }
 
 .goBack>input:hover {
   border-color: #c1c1c1;
+}
+
+.selected {
+  background: rgba(255,255,255,0.1);
+  font-weight: bold;
+}
+
+.selected:hover {
+  background: rgba(255,255,255, 0.2);
+}
+
+/* #616161C1 == rgba(97, 97, 97, 0.76)
+/* firefox */
+:root {
+  scrollbar-color: rgba(97, 97, 97, 0.76) transparent !important;
+  scrollbar-width: thin !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-track:hover {
+  background: black;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  width: 5px;
+  border-radius: 5px;
+  background: rgba(97, 97, 97, 0.76);
+  opacity: 0.5;
+}
+
+/* corner */
+::-webkit-scrollbar-corner {
+  background: rgba(97, 97, 97, 0.76);
+  border: none;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+   background: rgba(129, 129, 129, 0.76); /* #818181C1 */
 }
