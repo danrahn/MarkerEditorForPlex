@@ -887,6 +887,7 @@ function onMarkerEdit() {
 function onMarkerEditConfirm() {
     const markerId = parseInt(this.getAttribute('markerId'));
     const inputs = g_modifiedRow.$('input[type="text"]');
+    const metadataId = g_modifiedRow.getAttribute('metadataId');
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
@@ -902,6 +903,14 @@ function onMarkerEditConfirm() {
             parent.insertBefore(g_modifiedRow, parent.children[response.index]);
             for (let i = 0; i < parent.children.length - 1; ++i) {
                 parent.children[i].children[0].innerText = i.toString();
+            }
+        }
+
+        for (let marker of g_episodeResults[metadataId].markers) {
+            if (marker.id == markerId) {
+                marker.time_offset = startTime;
+                marker.end_time_offset = endTime;
+                break;
             }
         }
 
@@ -1008,6 +1017,7 @@ function onMarkerDelete() {
     Overlay.dismiss();
     const markerId = parseInt(this.getAttribute('markerId'));
     g_modifiedRow = this.parentNode.parentNode.parentNode;
+    const metadataId = parseInt(g_modifiedRow.getAttribute('metadataId'));
     let successFunc = () => {
         let markerTable = g_modifiedRow.parentNode;
         markerTable.removeChild(g_modifiedRow);
@@ -1022,6 +1032,9 @@ function onMarkerDelete() {
                 markerTable.children[marker].firstChild.innerHTML = marker;
             }
         }
+
+        // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid
+        g_episodeResults[metadataId].markers = g_episodeResults[metadataId].markers.filter((marker) => marker.id != markerId);
     }
 
     let failureFunc = (response) => {
