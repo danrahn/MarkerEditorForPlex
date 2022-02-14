@@ -16,8 +16,8 @@ const server = http.createServer((req, res) => {
     Log.verbose(`${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
-    if (req.url.toLowerCase().indexOf('node_modules') != -1
-        || (req.url.lastIndexOf('/') > 0 && !req.url.toLowerCase().startsWith('/inc'))) {
+    if (req.url.toLowerCase().indexOf('node_modules') != -1 ||
+        req.url.indexOf('..') != -1) {
         return error(404, res);
     }
 
@@ -77,6 +77,10 @@ function handleGet(req, res)
         url = '/index.html';
     }
 
+    if (url.startsWith('/i/')) {
+        return getSvgIcon(url, res);
+    }
+
     let mimetype = mime.lookup(url);
     if (!mimetype) {
         res.statusCode = 404;
@@ -92,6 +96,40 @@ function handleGet(req, res)
         res.statusCode = 404;
         res.end('Not Found: ' + err.code);
     });
+}
+
+/// <summary>
+/// Retrieve an SVG icon requested with the given color: /i/[hex color]/icon.svg
+/// </summary>
+function getSvgIcon(url, res) {
+    parts = url.split('/');
+    if (parts.length !== 4) {
+        return jsonError(res, 400, 'Invalid icon request.');
+    }
+
+    const color = parts[2];
+    const icon = parts[3];
+
+    // Expecting a 3 or 6 character hex string
+    if (!/^[a-fA-F0-9]{3}$/.test(color) && !/^[a-fA-F0-9]{6}$/.test(color)) {
+        return jsonError(res, 400, 'Invalid icon color.');
+    }
+
+    fs.readFile(__dirname + '/inc/svg/' + icon).then(contents => {
+        // Raw file has FILL_COLOR in place of hardcoded values. Replace
+        // it with the requested hex color (after decoding the contents)
+        if (Buffer.isBuffer(contents)) {
+            contents = contents.toString('utf-8');
+        }
+
+        contents = contents.replace(/FILL_COLOR/g, `#${color}`);
+        res.setHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
+        res.end(Buffer.from(contents, 'utf-8'));
+    }).catch(err => {
+        Log.error(err, 'Failed to read icon');
+        res.statusCode = 404;
+        res.end('Not Found: ' + err.code);
+    })
 }
 
 function handlePost(req, res)

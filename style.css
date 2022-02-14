@@ -11,6 +11,13 @@ body {
   height: 100%;
 }
 
+.noSelect {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 .hidden {
     display: none !important;
 }
@@ -39,6 +46,8 @@ hr {
 }
 
 #showInstructions {
+  margin: 5px auto 5px auto;
+  display: inline-block;
   cursor: pointer;
 }
 
@@ -103,40 +112,111 @@ hr {
   margin: auto;
 }
 
-#episodelist table, #episodelist td, #episodelist thead {
+table {
+  display: table;
   border-collapse: collapse;
-  padding: 5px 10px;
-  font-size: 10pt;
-  width: auto
+  white-space: normal;
+  line-height: normal;
+  font-weight: normal;
+  border-spacing: 0;
+  margin: auto;
+  max-width: 95vw;
+  font-size: 11pt;
 }
 
 #episodelist table {
-  margin: unset;
-  overflow: auto;
-  display: block;
-  background: 0 0;
-  max-width: 100%;
-  color: #c1c1c1
+  margin-top: 10px;
 }
 
-#episodelist td,#episodelist thead {
-  border-left: 1px solid gray;
-  border-right: 1px solid gray;
-  border-bottom: 1px solid #606060
+thead {
+  border-bottom: 1px solid #c1c1c1;
 }
 
-#episodelist thead {
-  background-color: rgba(0,40,0,.3);
-  border-top: 1px solid gray;
-  font-weight: 700
+tbody {
+  vertical-align: middle;
 }
 
-#episodelist th {
-  background-color: rgba(0,100,0,.2)
+tr {
+  display: table-row;
+  padding: 5px;
+}
+
+td {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+thead tr {
+  background-color: transparent !important;
+}
+
+tr:nth-child(odd) {
+  background-color: #111;
+}
+
+tr:nth-child(odd):hover {
+  background-color: #111121;
+}
+
+tr:nth-child(even) {
+  background-color: #212121;
+}
+
+tr:nth-child(even):hover {
+  background-color: #212131;
+}
+
+.tableNoIcon {
+  border: 1px solid #666;
+  padding: 3px;
+  margin: 5px 1px 5px 1px;
+  display: inline-block;
+  line-height: 20px;
+  cursor: default;
+  font-size: 10pt;
+}
+
+.tableNoIcon>span {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.tableIcon {
+  border: 1px solid transparent;
+  padding: 3px;
+  margin: 5px 1px 5px 1px;
+  font-size: 9pt;
+  opacity: 0.8;
+  display: inline-block;
+  line-height: 20px;
+  cursor: default;
+}
+
+.tableIcon>img {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+
+.tableIcon>span {
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.tableIcon:hover,
+.tableNoIcon:hover {
+  border: 1px solid rgba(193,193,193,.67);
+  box-shadow: 0 0 6px #919191;
+  transition: border .25s,box-shadow .5s;
+  opacity: 1;
 }
 
 .timeColumn {
   width: 150px !important;
+}
+
+.centeredColumn {
+  text-align: center;
 }
 
 .showResult,
