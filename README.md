@@ -20,7 +20,13 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 ### After initial setup
 0. **Back up your Plex database**
 2. `node app.js`
-3. Navigate to `http://localhost:3232` in your browser
+
+## Configuration file
+| Key | Description | Possible Values
+---|---|---
+`database` | Full path to the Plex database. | A valid file path. Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\database.db"`)
+`autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
+`logLevel` | Determines logging verbosity in the console. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
 
 ## Current Status/TODO
 

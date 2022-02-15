@@ -10,6 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "mime-types": "^2.1.34",
+    "open": "^8.4.0",
     "sqlite3": "^4.2.0"
   }
 }

@@ -2,7 +2,8 @@ const http = require('http');
 const fs = require('fs').promises;
 const mime = require('mime-types');
 const sqlite3 = require('sqlite3');
-const url = require('url');
+const URL = require('url');
+const Open = require('open');
 
 const Log = require('./inc/script/ConsoleLog.js');
 
@@ -73,7 +74,12 @@ function createServer() {
     });
     
     server.listen(port, hostname, () => {
-        Log.info(`Server running at http://${hostname}:${port} (Ctrl+C to exit)`);
+        const url = `http://${hostname}:${port}`;
+        Log.info(`Server running at ${url} (Ctrl+C to exit)`);
+        if (config.autoOpen) {
+            Log.info('Launching browser...');
+            Open(url);
+        }
     });
 
     process.on('SIGINT', () => {
@@ -218,7 +224,7 @@ function jsonSuccess(res, data) {
 }
 
 function queryIds(req, res) {
-    const queryObject = url.parse(req.url,true).query;
+    const queryObject = URL.parse(req.url,true).query;
     let keys = queryObject.keys.split(',');
 
     let data = {};
@@ -257,7 +263,7 @@ function queryIds(req, res) {
 }
 
 function editMarker(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     const startMs = parseInt(queryObject.start);
     const endMs = parseInt(queryObject.end);
@@ -326,7 +332,7 @@ function editMarker(req, res) {
 }
 
 function addMarker(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const metadataId = parseInt(queryObject.metadataId);
     const startMs = parseInt(queryObject.start);
     const endMs = parseInt(queryObject.end);
@@ -404,7 +410,7 @@ function addMarker(req, res) {
 }
 
 function deleteMarker(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     if (isNaN(id)) {
         return jsonError(res, 400, "Invalid marker ID");
@@ -467,7 +473,7 @@ function getLibraries(res) {
 }
 
 function getShows(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
 
     // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
@@ -505,7 +511,7 @@ function getShows(req, res) {
 }
 
 function getSeasons(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
     const query =
 'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
@@ -534,7 +540,7 @@ function getSeasons(req, res) {
 }
 
 function getEpisodes(req, res) {
-    const queryObject = url.parse(req.url, true).query;
+    const queryObject = URL.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
 
     // Grab episodes for the given season.
