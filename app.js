@@ -4,47 +4,87 @@ const mime = require('mime-types');
 const sqlite3 = require('sqlite3');
 const url = require('url');
 
-const config = require('./config.json');
-
 const Log = require('./inc/script/ConsoleLog.js');
+
+let config;
+let db;
+try {
+    config = require('./config.json');
+
+    // Set up the database, and make sure it's the right one.
+    db = new sqlite3.Database(config.database, sqlite3.OPEN_READWRITE, (err) => {
+        if (err) {
+            Log.error(err.message);
+            Log.error(`Unable to open database. Are you sure "${config.database}" exists?`);
+            process.exit(1);
+        } else {
+            // One final check, make sure the metadata_items table exists
+            db.get('SELECT id FROM metadata_items LIMIT 1', (err, _) => {
+                if (err) {
+                    Log.error(err.message);
+                    Log.error(`Are you sure "${config.database}" is the Plex database?`);
+                    process.exit(1);
+                }
+
+                createServer();
+            });
+        }
+    });
+} catch (ex) {
+    Log.error(ex.message);
+    Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
+    process.exit(1);
+}
+
 Log.setLevel(getConfigLogLevel());
 
 const hostname = 'localhost';
 const port = 3232;
 
-const server = http.createServer((req, res) => {
-    Log.verbose(`${req.method}: ${req.url}`);
-    const method = req.method?.toLowerCase();
-
-    if (req.url.toLowerCase().indexOf('node_modules') != -1 ||
-        req.url.indexOf('..') != -1) {
-        return error(404, res);
-    }
-
-    try {
-        switch (method) {
-            case 'get':
-                handleGet(req, res);
-                break;
-            case 'post':
-                handlePost(req, res);
-                break;
-            default:
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'text/plain');
-                res.end('Hello World\n');
-                break;
+function createServer() {
+    const server = http.createServer((req, res) => {
+        Log.verbose(`${req.method}: ${req.url}`);
+        const method = req.method?.toLowerCase();
+    
+        if (req.url.toLowerCase().indexOf('node_modules') != -1 ||
+            req.url.indexOf('..') != -1) {
+            return error(404, res);
         }
-    } catch (e) {
-        // Something's gone horribly wrong
-        Log.log(e.toString(), 'Critical exception', false, Log.Level.Critical);
-        jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
-    }
-});
+    
+        try {
+            switch (method) {
+                case 'get':
+                    handleGet(req, res);
+                    break;
+                case 'post':
+                    handlePost(req, res);
+                    break;
+                default:
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'text/plain');
+                    res.end('Hello World\n');
+                    break;
+            }
+        } catch (e) {
+            // Something's gone horribly wrong
+            Log.log(e.toString(), 'Critical exception', false, Log.Level.Critical);
+            jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
+        }
+    });
+    
+    server.listen(port, hostname, () => {
+        Log.info(`Server running at http://${hostname}:${port} (Ctrl+C to exit)`);
+    });
 
-server.listen(port, hostname, () => {
-    Log.info(`Server running at http://${hostname}:${port}`);
-});
+    process.on('SIGINT', () => {
+        Log.info('SIGINT detected, exiting...');
+        if (db) {
+            db.close();
+        }
+
+        process.exit(0);
+    });
+}
 
 function getConfigLogLevel() {
     switch(config.logLevel.toLowerCase()) {
@@ -185,7 +225,6 @@ function queryIds(req, res) {
     keys.forEach(key => {
         data[key] = [];
     });
-    let db = new sqlite3.Database(config.database);
 
     // First, get the persistent 'intro marker' id
     db.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
@@ -215,7 +254,6 @@ function queryIds(req, res) {
             jsonSuccess(res, data);
         });
     });
-    db.close();
 }
 
 function editMarker(req, res) {
@@ -228,7 +266,6 @@ function editMarker(req, res) {
         return jsonError(res, 400, "invalid parameters");
     }
 
-    let db = new sqlite3.Database(config.database);
     db.get("SELECT * FROM `taggings` WHERE `id`=" + id + ";", (err, currentMarker) => {
         if (err || !currentMarker || currentMarker.text != 'intro') {
             return jsonError(res, 400, err | 'Intro marker not found');
@@ -286,7 +323,6 @@ function editMarker(req, res) {
 
         });
     });
-    db.close();
 }
 
 function addMarker(req, res) {
@@ -303,7 +339,6 @@ function addMarker(req, res) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
 
-    let db = new sqlite3.Database(config.database);
     db.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
         if (err) {
             return jsonError(res, 400, 'Unable to find the correct tag_id');
@@ -366,7 +401,6 @@ function addMarker(req, res) {
             });
         });
     });
-    db.close();
 }
 
 function deleteMarker(req, res) {
@@ -376,7 +410,6 @@ function deleteMarker(req, res) {
         return jsonError(res, 400, "Invalid marker ID");
     }
 
-    let db = new sqlite3.Database(config.database);
     db.get("SELECT * FROM `taggings` WHERE `id`=?", [id], (err, row) => {
         if (err || !row || row.text != 'intro') {
             return jsonError(res, 400, "Could not find intro marker");
@@ -419,7 +452,6 @@ function deleteMarker(req, res) {
 }
 
 function getLibraries(res) {
-    let db = new sqlite3.Database(config.database);
     db.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve library sections.");
@@ -437,7 +469,6 @@ function getLibraries(res) {
 function getShows(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
-    let db = new sqlite3.Database(config.database);
 
     // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
     // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
@@ -476,7 +507,6 @@ function getShows(req, res) {
 function getSeasons(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
-    let db = new sqlite3.Database(config.database);
     const query =
 'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
      INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
@@ -506,7 +536,6 @@ function getSeasons(req, res) {
 function getEpisodes(req, res) {
     const queryObject = url.parse(req.url, true).query;
     const id = parseInt(queryObject.id);
-    let db = new sqlite3.Database(config.database);
 
     // Grab episodes for the given season.
     // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
