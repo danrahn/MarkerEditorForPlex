@@ -471,7 +471,7 @@ function buildMarkerTable(markers, episode) {
     }
 
     // Sort by earliest to latest marker if there are multiple
-    markers.sort((a, b) => a.index - b.index);
+    markers.sort(indexSort);
 
     for (const marker of markers) {
         rows.appendChild(tableRow(marker, episode));
@@ -903,7 +903,10 @@ function onMarkerEditConfirm() {
             parent.insertBefore(g_modifiedRow, parent.children[response.index]);
             for (let i = 0; i < parent.children.length - 1; ++i) {
                 parent.children[i].children[0].innerText = i.toString();
+                g_episodeResults[metadataId].markers.find(x => x.id == parseInt(parent.children[i].getAttribute('markerId'))).index = i;
             }
+
+            g_episodeResults[metadataId].markers.sort(indexSort);
         }
 
         for (let marker of g_episodeResults[metadataId].markers) {
@@ -924,6 +927,8 @@ function onMarkerEditConfirm() {
 
     jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, successFunc, failureFunc);
 }
+
+const indexSort = (a, b) => a.index - b.index; 
 
 /// <summary>Cancels an edit operation, reverting the editable row fields with their previous times.</summary>
 function onMarkerEditCancel() {
@@ -1033,8 +1038,12 @@ function onMarkerDelete() {
             }
         }
 
-        // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid
+        // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid, and update
+        // marker indexes in our cache. Assumes markers are already sorted from least to greatest index.
         g_episodeResults[metadataId].markers = g_episodeResults[metadataId].markers.filter((marker) => marker.id != markerId);
+        g_episodeResults[metadataId].markers.forEach((marker, index) => {
+            marker.index = index;
+        });
     }
 
     let failureFunc = (response) => {
