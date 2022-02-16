@@ -254,6 +254,8 @@ function queryIds(req, res) {
             }
 
             rows.forEach(row => {
+                row.thumb_url += ' UTC';
+                row.created_at += ' UTC';
                 data[row.metadata_item_id].push(row);
             });
 
@@ -401,6 +403,10 @@ function addMarker(req, res) {
                         // We still succeeded, but failed to get the right data after it was inserted?
                         return jsonSuccess(res);
                     }
+
+                    // Times are stored as UTC, but don't say they are.
+                    row.thumb_url += ' UTC';
+                    row.created_at += ' UTC';
 
                     jsonSuccess(res, row);
                 });
