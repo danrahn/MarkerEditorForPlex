@@ -34,7 +34,7 @@ form input {
 
 input, select {
   border: 1px solid #616161;
-  padding: 3px;
+  padding: 1px;
   margin: 5px;
   background-color: #414141;
   color: #c1c1c1;
@@ -183,13 +183,20 @@ tr:nth-child(even):hover {
 
 .tableIcon {
   border: 1px solid transparent;
-  padding: 3px;
-  margin: 5px 1px 5px 1px;
+  padding: 0 3px 0 3px;
   font-size: 9pt;
   opacity: 0.8;
   display: inline-block;
   line-height: 20px;
   cursor: default;
+}
+
+.selected .tableIcon {
+  margin: 0;
+}
+
+table .tableIcon {
+  margin: 3px 1px 3px 1px;
 }
 
 .tableIcon>img {
@@ -294,6 +301,7 @@ tr:nth-child(even):hover {
 .goBack {
   color: #d1d1d1;
   text-align: right;
+  line-height: 20px;
 }
 
 .goBack>input {
@@ -310,12 +318,13 @@ input[type=button]:hover {
 }
 
 .selected {
-  background: rgba(255,255,255,0.1);
+  background: rgba(0,100,0,0.2);
   font-weight: bold;
+  line-height: 23px;
 }
 
 .selected:hover {
-  background: rgba(255,255,255, 0.2);
+  background: rgba(0,100,0,0.3);
 }
 
 .overlayButton {
