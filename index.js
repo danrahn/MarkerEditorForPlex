@@ -280,12 +280,12 @@ function buildShowRow(show, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
+            tableIconButton('Back to results', 'back', 'Go back', 'c1c1c1', () => {
                 clearAndShow($('#seasonlist'));
                 clearAndShow($('#episodelist'));
                 $('#showlist').classList.remove('hidden');
-            }
-        })));
+            })
+        ));
     }
 
     return row;
@@ -353,11 +353,11 @@ function buildSeasonRow(season, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            buildNode('input', { type : 'button', value : 'Go Back' }, 0, { click : () => {
+            tableIconButton('Back to seasons', 'back', 'Go back', 'c1c1c1', () => {
                 clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
-            }
-        })));
+            })
+        ));
     }
 
     return row;
@@ -1065,16 +1065,13 @@ function pad0(val, pad) {
 /// <summary>
 /// Convert milliseconds to a user-friendly [h:]mm:ss.000
 /// </summary>
-function msToHms(ms)
-{
+function msToHms(ms) {
     let seconds = ms / 1000;
     const hours = parseInt(seconds / 3600);
     const minutes = parseInt(seconds / 60) % 60;
     seconds = parseInt(seconds) % 60;
     const thousandths = ms % 1000;
-    let pad2 = (time) => time < 10 ? "0" + time : time;
-    const pad3 = (time) => time < 10 ? "00" + time : time < 100 ? "0" + time : time;
-    let time = pad2(minutes) + ":" + pad2(seconds) + "." + pad3(thousandths);
+    let time = pad0(minutes, 2) + ":" + pad0(seconds, 2) + "." + pad0(thousandths, 3);
     if (hours > 0)
     {
         time = hours + ":" + time;
@@ -1086,12 +1083,10 @@ function msToHms(ms)
 /// <summary>
 /// Removes all children from the given element.
 /// </summary>
-function clearEle(ele)
-{
-  while (ele.firstChild)
-  {
-    ele.removeChild(ele.firstChild);
-  }
+function clearEle(ele) {
+    while (ele.firstChild) {
+        ele.removeChild(ele.firstChild);
+    }
 }
 
 /// <summary>
@@ -1126,10 +1121,8 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
 /// If the selector starts with '#' and contains no spaces, return the
 /// result of querySelector, otherwise return the result of querySelectorAll
 /// </summary>
-function $(selector, ele=document)
-{
-    if (selector.indexOf("#") === 0 && selector.indexOf(" ") === -1)
-    {
+function $(selector, ele=document) {
+    if (selector.indexOf("#") === 0 && selector.indexOf(" ") === -1) {
         return $$(selector, ele);
     }
 
@@ -1139,24 +1132,21 @@ function $(selector, ele=document)
 /// <summary>
 /// Like $, but forces a single element to be returned. i.e. querySelector
 /// </summary>
-function $$(selector, ele=document)
-{
+function $$(selector, ele=document) {
     return ele.querySelector(selector);
 }
 
 /// <summary>
 /// $ operator scoped to a specific element
 /// </summary>
-Element.prototype.$ = function(selector)
-{
+Element.prototype.$ = function(selector) {
     return $(selector, this);
 };
 
 /// <summary>
 /// $$ operator scoped to a specific element
 /// </summary>
-Element.prototype.$$ = function(selector)
-{
+Element.prototype.$$ = function(selector) {
     return $$(selector, this);
 };
 
@@ -1167,8 +1157,7 @@ Element.prototype.$$ = function(selector)
 /// <param name="attrs">Attributes to apply to the element (e.g. class, id, or custom attributes)</param>
 /// <param name="content">The inner content for the element. Accepts both text and HTMLElements</param>
 /// <param name="events">Map of events (click/keyup/etc) to attach to the element</param>
-function buildNode(type, attrs, content, events)
-{
+function buildNode(type, attrs, content, events) {
     let ele = document.createElement(type);
     return _buildNode(ele, attrs, content, events);
 }
@@ -1176,8 +1165,7 @@ function buildNode(type, attrs, content, events)
 /// <summary>
 /// Helper method to create DOM elements with the given namespace (e.g. SVGs).
 /// </summary>
-function buildNodeNS(ns, type, attrs, content, events)
-{
+function buildNodeNS(ns, type, attrs, content, events) {
     let ele = document.createElementNS(ns, type);
     return _buildNode(ele, attrs, content, events);
 }
@@ -1185,26 +1173,20 @@ function buildNodeNS(ns, type, attrs, content, events)
 /// <summary>
 /// "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
 /// </summary>
-function _buildNode(ele, attrs, content, events)
-{
-    if (attrs)
-    {
-        for (let [key, value] of Object.entries(attrs))
-        {
+function _buildNode(ele, attrs, content, events) {
+    if (attrs) {
+        for (let [key, value] of Object.entries(attrs)) {
             ele.setAttribute(key, value);
         }
     }
 
-    if (events)
-    {
-        for (let [event, func] of Object.entries(events))
-        {
+    if (events) {
+        for (let [event, func] of Object.entries(events)) {
             ele.addEventListener(event, func);
         }
     }
 
-    if (content)
-    {
+    if (content) {
         if (content instanceof HTMLElement) {
             ele.appendChild(content);
         } else {
@@ -1219,12 +1201,9 @@ function _buildNode(ele, attrs, content, events)
 /// Helper to append multiple children to a single element at once
 /// </summary>
 /// <returns>The element to facilitate chained calls</returns>
-Element.prototype.appendChildren = function(...elements)
-{
-    for (let element of elements)
-    {
-        if (element)
-        {
+Element.prototype.appendChildren = function(...elements) {
+    for (let element of elements) {
+        if (element) {
             this.appendChild(element);
         }
     }

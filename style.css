@@ -89,9 +89,19 @@ hr {
   border-color: #909090;
 }
 
-#libraries:focus,
-#search:focus {
-  border-color: #ff7f00;
+select:focus,
+input:focus {
+  border-color: #ff7f00 !important;
+}
+
+input:focus-visible {
+  outline: none;
+}
+
+.tableIcon:focus-visible,
+.tableNoIcon:focus-visible {
+  outline: #ff7f00 solid 1px;
+  border-radius: 3px;
 }
 
 #searchContainer {
@@ -122,6 +132,7 @@ table {
   margin: auto;
   max-width: 95vw;
   font-size: 11pt;
+  margin-bottom: 10px;
 }
 
 #episodelist table {
@@ -168,8 +179,8 @@ tr:nth-child(even):hover {
 
 .tableNoIcon {
   border: 1px solid #666;
-  padding: 3px;
-  margin: 5px 1px 5px 1px;
+  padding: 0 3px 0 3px;
+  margin: 3px 1px 3px 1px;
   display: inline-block;
   line-height: 20px;
   cursor: default;
