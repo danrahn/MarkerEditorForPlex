@@ -419,7 +419,7 @@ function showEpisodesAndMarkers(data) {
                 buildNode('div', { class : 'episodeResult', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }).appendChildren(
                     buildNode('div', { class : 'episodeName' }).appendChildren(
                         buildNode('span', { class : 'markerExpand' }, '&#9205; '),
-                        buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`)
+                        buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title || 'Episode ' + episode.index}`)
                     ),
                     buildNode('div', { class : 'episodeResultMarkers' }, plural(markers.length, 'Marker'))),
                 buildMarkerTable(markers, episode),
