@@ -273,8 +273,8 @@ function buildShowRow(show, selected=false) {
 
     let row = buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
         titleNode,
-        buildNode('div', { class : 'showResultSeasons' }, show.seasons + ' Season' + (show.seasons == 1 ? '' : 's')),
-        buildNode('div', { class : 'showResultEpisodes' }, show.episodes + ' Episode' + (show.episodes == 1 ? '' : 's'))
+        buildNode('div', { class : 'showResultSeasons' }, plural(show.seasons, 'Season')),
+        buildNode('div', { class : 'showResultEpisodes' }, plural(show.episodes, 'Episode'))
     );
 
     if (selected) {
@@ -347,7 +347,7 @@ function buildSeasonRow(season, selected=false) {
     let row = buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
         titleNode,
         buildNode('div'), // empty to keep alignment w/ series
-        buildNode('div', { class : 'showResultEpisodes' }, season.episodes + ' Episode' + (season.episodes == 1 ? '' : 's'))
+        buildNode('div', { class : 'showResultEpisodes' }, plural(season.episodes, 'Episode'))
     );
 
     if (selected) {
@@ -421,7 +421,7 @@ function showEpisodesAndMarkers(data) {
                         buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                         buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title}`)
                     ),
-                    buildNode('div', { class : 'episodeResultMarkers' }, markers.length + ' Marker' + (markers.length == 1 ? '' : 's'))),
+                    buildNode('div', { class : 'episodeResultMarkers' }, plural(markers.length, 'Marker'))),
                 buildMarkerTable(markers, episode),
                 buildNode('hr', { class : 'episodeSeparator' })
             )
@@ -740,6 +740,7 @@ function onMarkerAddConfirm() {
         addButton.removeEventListener('click', onMarkerAddCancel);
         addButton.addEventListener('click', onMarkerAdd);
         setTableButtonText(addButton, 'Add Marker');
+        episodeMarkerCountFromMarkerRow(tr).innerText = plural(markers.length, 'Marker');
     };
 
     let failureFunc = (response) => {
@@ -1025,6 +1026,7 @@ function onMarkerDelete() {
     const metadataId = parseInt(g_modifiedRow.getAttribute('metadataId'));
     let successFunc = () => {
         let markerTable = g_modifiedRow.parentNode;
+        let markerCount = episodeMarkerCountFromMarkerRow(g_modifiedRow);
         markerTable.removeChild(g_modifiedRow);
         g_modifiedRow = null;
 
@@ -1044,6 +1046,8 @@ function onMarkerDelete() {
         g_episodeResults[metadataId].markers.forEach((marker, index) => {
             marker.index = index;
         });
+
+        markerCount.innerText = plural(g_episodeResults[metadataId].markers.length, 'Marker');
     }
 
     let failureFunc = (response) => {
@@ -1052,6 +1056,21 @@ function onMarkerDelete() {
     }
 
     jsonRequest('delete', { id : markerId }, successFunc, failureFunc);
+}
+
+/// <summary>
+/// From the given row in the marker table, return the associated 'X Markers' column of its episode.
+/// </summary>
+function episodeMarkerCountFromMarkerRow(row) {
+    //     <tr><tbody>    <table>   <tableHolder>  <div>     <episodeResult>    <episodeResultMarkers>
+    return row.parentNode.parentNode.parentNode.parentNode.$$('.episodeResult').children[1];
+}
+
+/// <summary>
+/// Return 'n text' if n is 1, otherwise 'n texts'.
+/// </summary>
+function plural(n, text) {
+    return `${n} ${text}${n == 1 ? '' : 's'}`;
 }
 
 /// <summary>
