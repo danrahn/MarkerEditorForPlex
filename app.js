@@ -254,8 +254,8 @@ function queryIds(req, res) {
             }
 
             rows.forEach(row => {
-                row.thumb_url += ' UTC';
-                row.created_at += ' UTC';
+                row.thumb_url += 'Z';
+                row.created_at += 'Z';
                 data[row.metadata_item_id].push(row);
             });
 
@@ -408,8 +408,8 @@ function addMarker(req, res) {
                     }
 
                     // Times are stored as UTC, but don't say they are.
-                    row.thumb_url += ' UTC';
-                    row.created_at += ' UTC';
+                    row.thumb_url += 'Z';
+                    row.created_at += 'Z';
 
                     jsonSuccess(res, row);
                 });
