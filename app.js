@@ -39,8 +39,8 @@ try {
 
 Log.setLevel(getConfigLogLevel());
 
-const hostname = 'localhost';
-const port = 3232;
+const hostname = config.host || 'localhost';
+const port = config.port || 3232;
 
 function createServer() {
     const server = http.createServer((req, res) => {
