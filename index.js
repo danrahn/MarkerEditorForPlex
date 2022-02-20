@@ -1048,18 +1048,19 @@ function onMarkerDeleteSuccess(response) {
     let deletedRow = markerRowFromMarkerId(markerId);
     let markerTable = deletedRow.parentNode;
     let markerCount = episodeMarkerCountFromMarkerRow(deletedRow);
+    let episodeData = g_episodeResults[metadataId];
 
     deletedRow.removeSelf();
 
     // If we're removing the last marker, add the 'No marker found' row.
-    if (markerTable.children.length == 1) {
+    if (episodeData.markers.length == 1) {
         markerTable.insertBefore(spanningTableRow('No markers found'), markerTable.firstChild);
     } else {
         // Update indexes if needed
         for (let marker = 0; marker < markerTable.children.length - 1; ++marker) {
             const row = markerTable.children[marker];
             if (row.getAttribute('markerId') == '-1') {
-                continue;
+                break;
             }
 
             markerTable.children[marker].firstChild.innerText = marker;
@@ -1068,12 +1069,12 @@ function onMarkerDeleteSuccess(response) {
 
     // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid, and update
     // marker indexes in our cache. Assumes markers are already sorted from least to greatest index.
-    g_episodeResults[metadataId].markers = g_episodeResults[metadataId].markers.filter((marker) => marker.id != markerId);
-    g_episodeResults[metadataId].markers.forEach((marker, index) => {
+    episodeData.markers = episodeData.markers.filter((marker) => marker.id != markerId);
+    episodeData.markers.forEach((marker, index) => {
         marker.index = index;
     });
 
-    markerCount.innerText = plural(g_episodeResults[metadataId].markers.length, 'Marker');
+    markerCount.innerText = plural(episodeData.markers.length, 'Marker');
 }
 
 function markerRowFromMarkerId(id) {
