@@ -353,14 +353,13 @@ function addMarker(req, res) {
         }
 
         const tagId = row.id;
-        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?", [metadataId, tagId], (err, rows) => {
+        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC;", [metadataId, tagId], (err, rows) => {
             if (err) {
-                return jsonError(res, 400, err);
+                return jsonError(res, 400, err.message);
             }
 
             let allMarkers = rows;
             let newIndex = 0;
-            allMarkers.sort((a, b) => a.time_offset - b.time_offset);
             let foundNewIndex = false;
             for (let marker of allMarkers) {
                 if (foundNewIndex) {
@@ -380,6 +379,10 @@ function addMarker(req, res) {
                 } else {
                     marker.newIndex = marker.index;
                 }
+            }
+
+            if (!foundNewIndex) {
+                newIndex = allMarkers.length;
             }
             
             db.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
