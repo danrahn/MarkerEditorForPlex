@@ -280,7 +280,7 @@ function buildShowRow(show, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            tableIconButton('Back to results', 'back', 'Go back', 'c1c1c1', () => {
+            createFullButton('Back to results', 'back', 'Go back', 'c1c1c1', () => {
                 clearAndShow($('#seasonlist'));
                 clearAndShow($('#episodelist'));
                 $('#showlist').classList.remove('hidden');
@@ -353,7 +353,7 @@ function buildSeasonRow(season, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            tableIconButton('Back to seasons', 'back', 'Go back', 'c1c1c1', () => {
+            createFullButton('Back to seasons', 'back', 'Go back', 'c1c1c1', () => {
                 clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
             })
@@ -477,7 +477,7 @@ function buildMarkerTable(markers, episode) {
         rows.appendChild(tableRow(marker, episode));
     }
 
-    rows.appendChild(spanningTableRow(tableButton('Add Marker', onMarkerAdd, { metadataId : episode.metadataId })));
+    rows.appendChild(spanningTableRow(createTextButton('Add Marker', onMarkerAdd, { metadataId : episode.metadataId })));
 
     table.appendChild(rows);
     container.appendChild(table);
@@ -503,7 +503,7 @@ function centeredColumn(value) {
 /// Returns a column with a fixed width and centered contents.
 /// </summary>
 function dateColumn(value) {
-    return _classColumn('centeredColumn timeColumn');
+    return _classColumn(value, 'centeredColumn timeColumn');
 }
 
 /// <summary>
@@ -586,8 +586,8 @@ function friendlyDate(date, userModifiedDate) {
 /// </summary>
 function optionButtons(markerId) {
     return buildNode('div').appendChildren(
-        tableIconButton('Edit', 'edit', 'Edit Marker', 'c1c1c1', onMarkerEdit, { markerId : markerId }),
-        tableIconButton('Delete', 'delete', 'Delete Marker', 'C44', confirmMarkerDelete, { markerId : markerId })
+        createFullButton('Edit', 'edit', 'Edit Marker', 'c1c1c1', onMarkerEdit, { markerId : markerId }),
+        createFullButton('Delete', 'delete', 'Delete Marker', 'C44', confirmMarkerDelete, { markerId : markerId })
     );
 }
 
@@ -597,13 +597,11 @@ function optionButtons(markerId) {
 function onMarkerAdd() {
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
-    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), '-', markerAddConfirmButton(metadataId)), thisRow);
+    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), dateColumn(''), centeredColumn('-')), thisRow);
+    buildConfirmCancel(addedRow.children[3], 'Add', '-1', onMarkerAddConfirm, onMarkerAddCancel);
     addedRow.setAttribute('metadataId', metadataId);
     addedRow.setAttribute('markerId', '-1');
     addedRow.children[1].children[0].focus();
-    setTableButtonText(this, 'Cancel');
-    this.removeEventListener('click', onMarkerAdd);
-    this.addEventListener('click', onMarkerAddCancel);
 }
 
 /// <summary>Return a text input meant for time input.</summary>
@@ -620,6 +618,13 @@ function timeInput(value, end=false) {
     }
 
     return input;
+}
+
+function buildConfirmCancel(container, operation, markerId, confirmCallback, cancelCallback) {
+    return container.appendChildren(
+        createIconButton('confirm', `Confirm ${operation}`, '4C4', confirmCallback, { markerId : markerId, title : `Confirm ${operation}` }),
+        createIconButton('cancel', `Cancel ${operation}`, 'C44', cancelCallback, { markerId : markerId, title : `Cancel ${operation}` })
+    );
 }
 
 /// <summary>
@@ -639,16 +644,7 @@ function onEndTimeInput(e) {
 /// Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button.
 /// </summary>
 function onMarkerAddCancel() {
-    this.removeEventListener('click', onMarkerAddCancel);
-    this.addEventListener('click', onMarkerAdd);
-    let addRow = this.parentNode.parentNode.parentNode.$$('tr[markerid="-1"');
-    addRow.parentNode.removeChild(addRow);
-    setTableButtonText(this, 'Add Marker');
-}
-
-/// <summary>Return a button that will initialize adding a marker.</summary>
-function markerAddConfirmButton(metadataId) {
-    return tableButton('Add', onMarkerAddConfirm, { metadataId : metadataId });
+    this.parentNode.parentNode.removeSelf();
 }
 
 /// <summary>
@@ -660,8 +656,8 @@ function markerAddConfirmButton(metadataId) {
 /// <param name="color">The hex color for the icon (no leading #, 3 or 6 characters)</param>
 /// <param name="clickHandler">The click callback for the button</param>
 /// <param name="attributes">Any optional attributes to apply to the button</summary>
-function tableIconButton(text, icon, altText, color, clickHandler, attributes={}) {
-    let button = _tableButtonHolder('tableIcon', clickHandler, attributes);
+function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
+    let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
     return button.appendChildren(
         buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }),
         buildNode('span', {}, text)
@@ -671,16 +667,16 @@ function tableIconButton(text, icon, altText, color, clickHandler, attributes={}
 /// <summary>
 /// Creates a tabbable button in the marker table that doesn't have an icon.
 /// </summary>
-function tableButton(text, clickHandler, attributes={}) {
-    let button = _tableButtonHolder('tableNoIcon', clickHandler, attributes);
+function createTextButton(text, clickHandler, attributes={}) {
+    let button = _tableButtonHolder('buttonTextOnly', clickHandler, attributes);
     return button.appendChildren(buildNode('span', {}, text));
 }
 
 /// <summary>
 /// Creates a button with only an icon, no associated label text.
 /// </summary>
-function tableButtonNoText(icon, altText, color, clickHandler, attributes={}) {
-    let button = _tableButtonHolder('tableIconOnly', clickHandler, attributes);
+function createIconButton(icon, altText, color, clickHandler, attributes={}) {
+    let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
     return button.appendChildren(buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }));
 }
 
@@ -688,7 +684,7 @@ function tableButtonNoText(icon, altText, color, clickHandler, attributes={}) {
 /// Returns an empty button with the given class
 /// </summary>
 function _tableButtonHolder(className, clickHandler, attributes) {
-    let button = buildNode('div', { class : className, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });
+    let button = buildNode('div', { class : `button ${className}`, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });
     for (const [key, value] of Object.entries(attributes)) {
         button.setAttribute(key, value);
     }
@@ -718,8 +714,8 @@ function setTableButtonText(button, text) {
 /// On success, make the temporary row permanent and rearrange the markers based on their start time.
 /// </summary>
 function onMarkerAddConfirm() {
-    const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
+    const metadataId = parseInt(thisRow.getAttribute('metadataId'));
     let inputs = thisRow.$('input[type=text]');
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
@@ -728,44 +724,11 @@ function onMarkerAddConfirm() {
         return;
     }
 
-    let successFunc = (response) => {
-
-        // Build the new row
-        let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
-
-        let addRow = $$(`tr[metadataid="${response.metadata_item_id}"][markerid="-1"]`);
-        let tbody = addRow.parentNode;
-
-        // If we previously had no markers, remove the 'No marker found' row.
-        if (tbody.$('td[colspan="5"]').length == 2) {
-            tbody.removeChild(tbody.firstChild);
-        }
-
-        tbody.removeChild(addRow);
-        
-        tbody.insertBefore(tr, tbody.children[response.index]);
-        let markers = g_episodeResults[response.metadata_item_id].markers;
-        for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
-            let indexData = tbody.children[i].firstChild;
-            let newIndex = parseInt(indexData.innerHTML) + 1;
-            indexData.innerHTML = newIndex;
-            markers[i - 1].index += 1;
-        }
-
-        markers.splice(response.index, 0, response);
-
-        let addButton = tbody.$$(`.tableNoIcon[metadataId="${metadataId}"]`);
-        addButton.removeEventListener('click', onMarkerAddCancel);
-        addButton.addEventListener('click', onMarkerAdd);
-        setTableButtonText(addButton, 'Add Marker');
-        episodeMarkerCountFromMarkerRow(tr).innerText = plural(markers.length, 'Marker');
-    };
-
     let failureFunc = (response) => {
-        Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${response.Error}`, 'OK');
+        Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${response.Error || response.message}`, 'OK');
     }
 
-    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
+    jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, onMarkerAddSuccess.bind(thisRow), failureFunc);
 }
 
 /// <summary>
@@ -775,7 +738,7 @@ function onMarkerAddSuccess(response) {
     // Build the new row
     let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
 
-    let addRow = $$(`tr[metadataid="${response.metadata_item_id}"][markerid="-1"]`);
+    let addRow = this;
 
     let tbody = addRow.parentNode;
 
@@ -784,23 +747,23 @@ function onMarkerAddSuccess(response) {
         tbody.removeChild(tbody.firstChild);
     }
 
-    tbody.removeChild(addRow);
+    addRow.removeSelf();
     
     tbody.insertBefore(tr, tbody.children[response.index]);
     let markers = g_episodeResults[response.metadata_item_id].markers;
     for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
         let indexData = tbody.children[i].firstChild;
-        let newIndex = parseInt(indexData.innerHTML) + 1;
+        const oldIndex = parseInt(indexData.innerText);
+        if (isNaN(oldIndex) || oldIndex == -1) {
+            break;
+        }
+        let newIndex = oldIndex + 1;
         indexData.innerHTML = newIndex;
         markers[i - 1].index += 1;
     }
 
     markers.splice(response.index, 0, response);
 
-    let addButton = tbody.$$(`.tableNoIcon[metadataId="${metadataId}"]`);
-    addButton.removeEventListener('click', onMarkerAddCancel);
-    addButton.addEventListener('click', onMarkerAdd);
-    setTableButtonText(addButton, 'Add Marker');
     episodeMarkerCountFromMarkerRow(tr).innerText = plural(markers.length, 'Marker');
 }
 
@@ -815,7 +778,7 @@ function onMarkerAddSuccess(response) {
 function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) {
     if (isNaN(metadataId)) {
         // If this is NaN, something went wrong on our side, not the user (unless they're tampering with things)
-        Overlay.show('Sorry, something went wrong. Please reload the page and try again.');
+        Overlay.show('Sorry, something went wrong. Please reload the page and try again.', 'OK');
         return false;
     }
 
@@ -920,10 +883,7 @@ function onMarkerEdit() {
 
     startTime.appendChild(timeInput(startTime.getAttribute('prevtime')));
     endTime.appendChild(timeInput(endTime.getAttribute('prevtime'), true));
-    modifiedDate.appendChildren(
-        tableButtonNoText('confirm', 'Confirm Edit', '4C4', onMarkerEditConfirm, { markerId : markerId, title : 'Confirm Edit' }),
-        tableButtonNoText('cancel', 'Cancel Edit', 'C44', onMarkerEditCancel, { markerId : markerId, title : 'Cancel Edit' })
-    );
+    buildConfirmCancel(modifiedDate, 'Edit', markerId, onMarkerEditConfirm, onMarkerEditCancel);
 
     startTime.children[0].focus();
     startTime.children[0].select();
@@ -961,7 +921,7 @@ function onMarkerEditSuccess(response) {
     const metadataId = response.metadata_id;
     if (response.index != oldIndex) {
         let parent = editedRow.parentElement;
-        parent.removeChild(editedRow);
+        editedRow.removeSelf();
         parent.insertBefore(editedRow, parent.children[response.index]);
         for (let i = 0; i < parent.children.length - 1; ++i) {
             const row = parent.children[i];
@@ -1089,7 +1049,7 @@ function onMarkerDeleteSuccess(response) {
     let markerTable = deletedRow.parentNode;
     let markerCount = episodeMarkerCountFromMarkerRow(deletedRow);
 
-    markerTable.removeChild(deletedRow);
+    deletedRow.removeSelf();
 
     // If we're removing the last marker, add the 'No marker found' row.
     if (markerTable.children.length == 1) {
@@ -1230,6 +1190,13 @@ Element.prototype.$ = function(selector) {
 Element.prototype.$$ = function(selector) {
     return $$(selector, this);
 };
+
+/// <summary>
+/// Remove this element from the DOM, returning itself.
+/// </summary>
+Element.prototype.removeSelf = function() {
+    return this.parentNode.removeChild(this);
+}
 
 /// <summary>
 /// Helper method to create DOM elements.
