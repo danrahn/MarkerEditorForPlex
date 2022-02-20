@@ -99,7 +99,8 @@ input:focus-visible {
 }
 
 .tableIcon:focus-visible,
-.tableNoIcon:focus-visible {
+.tableNoIcon:focus-visible,
+.tableIconOnly:focus-visible {
   outline: #ff7f00 solid 1px;
   border-radius: 3px;
 }
@@ -192,7 +193,7 @@ tr:nth-child(even):hover {
   padding-right: 5px;
 }
 
-.tableIcon {
+.tableIcon, .tableIconOnly {
   border: 1px solid transparent;
   padding: 0 3px 0 3px;
   font-size: 9pt;
@@ -210,7 +211,7 @@ table .tableIcon {
   margin: 3px 1px 3px 1px;
 }
 
-.tableIcon>img {
+.tableIcon>img, .tableIconOnly>img {
   width: 20px;
   height: 20px;
   vertical-align: middle;
@@ -222,7 +223,8 @@ table .tableIcon {
 }
 
 .tableIcon:hover,
-.tableNoIcon:hover {
+.tableNoIcon:hover,
+.tableIconOnly:hover {
   border: 1px solid rgba(193,193,193,.67);
   box-shadow: 0 0 6px #919191;
   transition: border .25s,box-shadow .5s;

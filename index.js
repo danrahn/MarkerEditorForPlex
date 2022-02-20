@@ -464,7 +464,7 @@ function showHideMarkerTable(e) {
 function buildMarkerTable(markers, episode) {
     let container = buildNode('div', { class : 'tableHolder' });
     let table = buildNode('table', { class : 'hidden markerTable' });
-    table.appendChild(buildNode('thead').appendChildren(rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), centeredColumn('Date Added'), centeredColumn('Options'))));
+    table.appendChild(buildNode('thead').appendChildren(rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), dateColumn('Date Added'), centeredColumn('Options'))));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -489,24 +489,33 @@ function buildMarkerTable(markers, episode) {
 /// Return a custom object for rawTableRow to parse, including properties to apply to start/end time columns.
 /// </summary>
 function timeColumn(value) {
-    return {
-        value : value,
-        properties : {
-            class : 'timeColumn'
-        }
-    };
+    return _classColumn(value, 'timeColumn');
 }
 
 /// <summary>
 /// Return a custom object for rawTableRow to parse that will center the given column.
 /// </summary>
 function centeredColumn(value) {
+    return _classColumn(value, 'centeredColumn');
+}
+
+/// <summary>
+/// Returns a column with a fixed width and centered contents.
+/// </summary>
+function dateColumn(value) {
+    return _classColumn('centeredColumn timeColumn');
+}
+
+/// <summary>
+/// Return an object for rawTableRow to parse that will attach the given class name(s) to the column.
+/// </summary>
+function _classColumn(value, className) {
     return {
         value : value,
         properties : {
-            class : 'centeredColumn'
+            class : className
         }
-    }
+    };
 }
 
 /// <summary>
@@ -586,15 +595,12 @@ function optionButtons(markerId) {
 /// Click handler for adding a marker. Creates a new row in the marker table with editable start/end time inputs.
 /// </summary>
 function onMarkerAdd() {
-    if (operationInProgress()) {
-        return;
-    }
-
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
-    g_modifiedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), '-', markerAddConfirmButton(metadataId)), thisRow);
-    g_modifiedRow.setAttribute('metadataId', metadataId);
-    g_modifiedRow.children[1].children[0].focus();
+    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), '-', markerAddConfirmButton(metadataId)), thisRow);
+    addedRow.setAttribute('metadataId', metadataId);
+    addedRow.setAttribute('markerId', '-1');
+    addedRow.children[1].children[0].focus();
     setTableButtonText(this, 'Cancel');
     this.removeEventListener('click', onMarkerAdd);
     this.addEventListener('click', onMarkerAddCancel);
@@ -616,13 +622,17 @@ function timeInput(value, end=false) {
     return input;
 }
 
+/// <summary>
+/// Processes input to the 'End time' input field, entering the end of the episode on Ctrl+Shift+E
+/// </summary>
 function onEndTimeInput(e) {
     if (!e.shiftKey || !e.ctrlKey || e.key != 'E') {
         return;
     }
 
     e.preventDefault();
-    this.value = msToHms(g_episodeResults[parseInt(g_modifiedRow.getAttribute('metadataId'))].duration);
+    const metadataId = parseInt(this.parentNode.parentNode.getAttribute('metadataId'));
+    this.value = msToHms(g_episodeResults[metadataId].duration);
 }
 
 /// <summary>
@@ -631,8 +641,8 @@ function onEndTimeInput(e) {
 function onMarkerAddCancel() {
     this.removeEventListener('click', onMarkerAddCancel);
     this.addEventListener('click', onMarkerAdd);
-    g_modifiedRow.parentNode.removeChild(g_modifiedRow);
-    g_modifiedRow = null;
+    let addRow = this.parentNode.parentNode.parentNode.$$('tr[markerid="-1"');
+    addRow.parentNode.removeChild(addRow);
     setTableButtonText(this, 'Add Marker');
 }
 
@@ -651,26 +661,34 @@ function markerAddConfirmButton(metadataId) {
 /// <param name="clickHandler">The click callback for the button</param>
 /// <param name="attributes">Any optional attributes to apply to the button</summary>
 function tableIconButton(text, icon, altText, color, clickHandler, attributes={}) {
-    let button = buildNode('div', { class : 'tableIcon', tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup }).appendChildren(
+    let button = _tableButtonHolder('tableIcon', clickHandler, attributes);
+    return button.appendChildren(
         buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }),
         buildNode('span', {}, text)
     );
-
-    for (const [key, value] of Object.entries(attributes)) {
-        button.setAttribute(key, value);
-    }
-
-    return button;
 }
 
 /// <summary>
 /// Creates a tabbable button in the marker table that doesn't have an icon.
 /// </summary>
 function tableButton(text, clickHandler, attributes={}) {
-    let button = buildNode('div', { class : 'tableNoIcon', tabindex : '0' }, '', { click : clickHandler, keyup : tableButtonKeyup }).appendChildren(
-        buildNode('span', {}, text)
-    );
+    let button = _tableButtonHolder('tableNoIcon', clickHandler, attributes);
+    return button.appendChildren(buildNode('span', {}, text));
+}
 
+/// <summary>
+/// Creates a button with only an icon, no associated label text.
+/// </summary>
+function tableButtonNoText(icon, altText, color, clickHandler, attributes={}) {
+    let button = _tableButtonHolder('tableIconOnly', clickHandler, attributes);
+    return button.appendChildren(buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }));
+}
+
+/// <summary>
+/// Returns an empty button with the given class
+/// </summary>
+function _tableButtonHolder(className, clickHandler, attributes) {
+    let button = buildNode('div', { class : className, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });
     for (const [key, value] of Object.entries(attributes)) {
         button.setAttribute(key, value);
     }
@@ -715,15 +733,15 @@ function onMarkerAddConfirm() {
         // Build the new row
         let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
 
-        let tbody = g_modifiedRow.parentNode;
+        let addRow = $$(`tr[metadataid="${response.metadata_item_id}"][markerid="-1"]`);
+        let tbody = addRow.parentNode;
 
         // If we previously had no markers, remove the 'No marker found' row.
         if (tbody.$('td[colspan="5"]').length == 2) {
             tbody.removeChild(tbody.firstChild);
         }
 
-        tbody.removeChild(g_modifiedRow);
-        g_modifiedRow = null;
+        tbody.removeChild(addRow);
         
         tbody.insertBefore(tr, tbody.children[response.index]);
         let markers = g_episodeResults[response.metadata_item_id].markers;
@@ -748,6 +766,42 @@ function onMarkerAddConfirm() {
     }
 
     jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, successFunc, failureFunc);
+}
+
+/// <summary>
+/// Callback after we successfully added a marker. Replace the temporary row with a permanent one, and adjust indexes as necessary.
+/// </summary>
+function onMarkerAddSuccess(response) {
+    // Build the new row
+    let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
+
+    let addRow = $$(`tr[metadataid="${response.metadata_item_id}"][markerid="-1"]`);
+
+    let tbody = addRow.parentNode;
+
+    // If we previously had no markers, remove the 'No marker found' row.
+    if (tbody.$('td[colspan="5"]').length == 2) {
+        tbody.removeChild(tbody.firstChild);
+    }
+
+    tbody.removeChild(addRow);
+    
+    tbody.insertBefore(tr, tbody.children[response.index]);
+    let markers = g_episodeResults[response.metadata_item_id].markers;
+    for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
+        let indexData = tbody.children[i].firstChild;
+        let newIndex = parseInt(indexData.innerHTML) + 1;
+        indexData.innerHTML = newIndex;
+        markers[i - 1].index += 1;
+    }
+
+    markers.splice(response.index, 0, response);
+
+    let addButton = tbody.$$(`.tableNoIcon[metadataId="${metadataId}"]`);
+    addButton.removeEventListener('click', onMarkerAddCancel);
+    addButton.addEventListener('click', onMarkerAdd);
+    setTableButtonText(addButton, 'Add Marker');
+    episodeMarkerCountFromMarkerRow(tr).innerText = plural(markers.length, 'Marker');
 }
 
 /// <summary>
@@ -842,42 +896,35 @@ function timeToMs(value) {
 }
 
 /// <summary>
-/// Global that stores the current marker that's being edited/deleted/added.
-/// Only a single action can be in progress at once, so if this is not null, new edits/adds/deletes cannot occur.
-///
-/// TODO: Allow multiple items to be edited at once, using click context to determine what action to apply.
-/// <summary>
-let g_modifiedRow = null;
-
-/// <summary>
 /// Click handler for editing a marker.
 /// Replaces static start/end markers with editable input fields that default to the current [hh]:mm:ss.000 times.
 /// </summary>
 function onMarkerEdit() {
-    if (operationInProgress()) {
+    const markerId = parseInt(this.getAttribute('markerId'));
+    let editRow = this.parentNode.parentNode.parentNode;
+    if (editRow.classList.contains('editing')) {
         return;
     }
 
-    const markerId = parseInt(this.getAttribute('markerId'));
+    editRow.classList.add('editing');
 
-    g_modifiedRow = this.parentNode.parentNode.parentNode;
-    let startTime = g_modifiedRow.children[1];
-    let endTime = g_modifiedRow.children[2];
+    let startTime = editRow.children[1];
+    let endTime = editRow.children[2];
+    let modifiedDate = editRow.children[3];
     startTime.setAttribute('prevtime', startTime.firstChild.innerHTML);
     endTime.setAttribute('prevtime', endTime.firstChild.innerHTML);
+
     clearEle(startTime);
     clearEle(endTime);
+    clearEle(modifiedDate);
 
     startTime.appendChild(timeInput(startTime.getAttribute('prevtime')));
     endTime.appendChild(timeInput(endTime.getAttribute('prevtime'), true));
+    modifiedDate.appendChildren(
+        tableButtonNoText('confirm', 'Confirm Edit', '4C4', onMarkerEditConfirm, { markerId : markerId, title : 'Confirm Edit' }),
+        tableButtonNoText('cancel', 'Cancel Edit', 'C44', onMarkerEditCancel, { markerId : markerId, title : 'Cancel Edit' })
+    );
 
-    let tbody = g_modifiedRow.parentNode;
-    let addButton = tbody.lastChild.$$('.tableNoIcon');
-    addButton.removeEventListener('click', onMarkerAdd);
-    addButton.addEventListener('click', onMarkerEditConfirm);
-    setTableButtonText(addButton, 'Confirm Edit');
-    addButton.setAttribute('markerId', markerId);
-    addButton.parentNode.appendChild(tableButton('Cancel', onMarkerEditCancel));
     startTime.children[0].focus();
     startTime.children[0].select();
 }
@@ -887,83 +934,97 @@ function onMarkerEdit() {
 /// </summary>
 function onMarkerEditConfirm() {
     const markerId = parseInt(this.getAttribute('markerId'));
-    const inputs = g_modifiedRow.$('input[type="text"]');
-    const metadataId = g_modifiedRow.getAttribute('metadataId');
+    const editedRow = $$(`tr[markerid="${markerId}"]`);
+    const inputs = editedRow.$('input[type="text"]');
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
-    if (!checkValues(this.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/, parseInt(g_modifiedRow.children[0].innerText))) {
+    if (!checkValues(editedRow.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/, parseInt(editedRow.children[0].innerText))) {
         return;
     }
-
-    let successFunc = (response) => {
-        const oldIndex = parseInt(g_modifiedRow.children[0].innerText);
-        if (response.index != oldIndex) {
-            let parent = g_modifiedRow.parentElement;
-            parent.removeChild(g_modifiedRow);
-            parent.insertBefore(g_modifiedRow, parent.children[response.index]);
-            for (let i = 0; i < parent.children.length - 1; ++i) {
-                parent.children[i].children[0].innerText = i.toString();
-                g_episodeResults[metadataId].markers.find(x => x.id == parseInt(parent.children[i].getAttribute('markerId'))).index = i;
-            }
-
-            g_episodeResults[metadataId].markers.sort(indexSort);
-        }
-
-        for (let marker of g_episodeResults[metadataId].markers) {
-            if (marker.id == markerId) {
-                marker.time_offset = startTime;
-                marker.end_time_offset = endTime;
-                break;
-            }
-        }
-
-        resetAfterEdit(startTime, endTime);
-    };
 
     let failureFunc = (response) => {
         onMarkerEditCancel();
         Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error}`, 'OK');
     }
 
-    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, successFunc, failureFunc);
+    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, onMarkerEditSuccess, failureFunc);
+}
+
+/// <summary>
+/// Callback after a marker has been successfully edited. Replace input fields with the new times, and adjust indexes as necessary.
+/// </summary>
+function onMarkerEditSuccess(response) {
+    const markerId = response.marker_id;
+    let editedRow = $$(`tr[markerid="${markerId}"]`);
+    const oldIndex = parseInt(editedRow.children[0].innerText);
+    const metadataId = response.metadata_id;
+    if (response.index != oldIndex) {
+        let parent = editedRow.parentElement;
+        parent.removeChild(editedRow);
+        parent.insertBefore(editedRow, parent.children[response.index]);
+        for (let i = 0; i < parent.children.length - 1; ++i) {
+            const row = parent.children[i];
+            if (row.getAttribute('markerId') == '-1') {
+                continue;
+            }
+
+            row.children[0].innerText = i.toString();
+            g_episodeResults[metadataId].markers.find(x => x.id == parseInt(row.getAttribute('markerId'))).index = i;
+        }
+
+        g_episodeResults[metadataId].markers.sort(indexSort);
+    }
+
+    for (let marker of g_episodeResults[metadataId].markers) {
+        if (marker.id == markerId) {
+            marker.time_offset = response.time_offset;
+            marker.end_time_offset = response.end_time_offset;
+            const d = new Date();
+
+            // Set modified time to now, in the form 'yyyy-MM-dd [h]h:mm:ss UTC'
+            marker.thumb_url = `${d.getUTCFullYear()}-${pad0(d.getUTCMonth()+1, 2)}-${pad0(d.getUTCDate(), 2)} ${d.getUTCHours()}:${pad0(d.getUTCMinutes(), 2)}:${pad0(d.getUTCSeconds(), 2)} UTC`;
+            break;
+        }
+    }
+
+    resetAfterEdit(markerId, response.time_offset, response.end_time_offset);
 }
 
 const indexSort = (a, b) => a.index - b.index; 
 
 /// <summary>Cancels an edit operation, reverting the editable row fields with their previous times.</summary>
 function onMarkerEditCancel() {
-    resetAfterEdit(timeToMs(g_modifiedRow.children[1].getAttribute('prevtime')), timeToMs(g_modifiedRow.children[2].getAttribute('prevtime')));
+    const markerId = parseInt(this.getAttribute('markerid'));
+    const editRow = $$(`tr[markerid="${markerId}"]`)
+    resetAfterEdit(markerId, timeToMs(editRow.children[1].getAttribute('prevtime')), timeToMs(editRow.children[2].getAttribute('prevtime')));
 }
 
 /// <summary>
 /// Removes the editable input fields from a marker that was in edit mode, replacing them with the static values provided by newStart and newEnd.
 /// </summary>
-function resetAfterEdit(newStart, newEnd) {
-                                  /*   tbody.       tr.        td.     input*/
-    let addButton = g_modifiedRow.parentNode.lastChild.firstChild.firstChild;
-    addButton.parentNode.removeChild(addButton.parentNode.lastChild);
+function resetAfterEdit(markerId, newStart, newEnd) {
+    let editRow = markerRowFromMarkerId(markerId);
+    let modifiedDateRow = editRow.children[3];
+    const metadataId = parseInt(editRow.getAttribute('metadataId'));
+    clearEle(modifiedDateRow);
+    const marker = g_episodeResults[metadataId].markers[parseInt(editRow.children[0].innerText)];
+    let dateNode = friendlyDate(marker.created_at, marker.thumb_url);
+    dateNode.classList.add('centeredColumn');
+    modifiedDateRow.appendChild(dateNode)
 
-    setTableButtonText(addButton, 'Add Marker');
-    addButton.removeEventListener('click', onMarkerEditConfirm);
-    addButton.addEventListener('click', onMarkerAdd);
 
-    clearEle(g_modifiedRow.children[1]);
-    clearEle(g_modifiedRow.children[2]);
-    g_modifiedRow.children[1].appendChild(timeData(newStart));
-    g_modifiedRow.children[2].appendChild(timeData(newEnd));
-
-    g_modifiedRow = null;
+    clearEle(editRow.children[1]);
+    clearEle(editRow.children[2]);
+    editRow.children[1].appendChild(timeData(newStart));
+    editRow.children[2].appendChild(timeData(newEnd));
+    editRow.classList.remove('editing');
 }
 
 /// <summary>
 /// Prompts the user before deleting a marker.
 /// </summary>
 function confirmMarkerDelete() {
-    if (operationInProgress()) {
-        return;
-    }
-
     // Build confirmation dialog
     let container = buildNode('div', { class : 'overlayDiv' });
     let header = buildNode('h2', {}, 'Are you sure?');
@@ -1005,57 +1066,58 @@ function confirmMarkerDelete() {
 }
 
 /// <summary>
-/// Checks if an existing operation is in progress, and alerts the user (and returns true) if there is.
-/// </summary>
-function operationInProgress() {
-    if (g_modifiedRow) {
-        Overlay.show(`It looks like you're in the middle of a different operation. Please complete/cancel that operation before continuing.`, 'OK');
-        return true;
-    }
-
-    return false;
-}
-
-/// <summary>
 /// Makes a request to delete a marker, removing it from the marker table on success.
 /// </summary>
 function onMarkerDelete() {
     Overlay.dismiss();
     const markerId = parseInt(this.getAttribute('markerId'));
-    g_modifiedRow = this.parentNode.parentNode.parentNode;
-    const metadataId = parseInt(g_modifiedRow.getAttribute('metadataId'));
-    let successFunc = () => {
-        let markerTable = g_modifiedRow.parentNode;
-        let markerCount = episodeMarkerCountFromMarkerRow(g_modifiedRow);
-        markerTable.removeChild(g_modifiedRow);
-        g_modifiedRow = null;
-
-        // If we're removing the last marker, add the 'No marker found' row.
-        if (markerTable.children.length == 1) {
-            markerTable.insertBefore(spanningTableRow('No markers found'), markerTable.firstChild);
-        } else {
-            // Update indexes if needed
-            for (let marker = 0; marker < markerTable.children.length - 1; ++marker) {
-                markerTable.children[marker].firstChild.innerHTML = marker;
-            }
-        }
-
-        // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid, and update
-        // marker indexes in our cache. Assumes markers are already sorted from least to greatest index.
-        g_episodeResults[metadataId].markers = g_episodeResults[metadataId].markers.filter((marker) => marker.id != markerId);
-        g_episodeResults[metadataId].markers.forEach((marker, index) => {
-            marker.index = index;
-        });
-
-        markerCount.innerText = plural(g_episodeResults[metadataId].markers.length, 'Marker');
-    }
 
     let failureFunc = (response) => {
         Overlay.show(`Failed to delete marker:<br><br>${response.Error}`, 'OK');
-        g_modifiedRow = null;
     }
 
-    jsonRequest('delete', { id : markerId }, successFunc, failureFunc);
+    jsonRequest('delete', { id : markerId }, onMarkerDeleteSuccess, failureFunc);
+}
+
+/// <summary>
+/// Callback after a marker was successfully deleted. Remove its row in the table and adjust indexes as necessary.
+/// </summary>
+function onMarkerDeleteSuccess(response) {
+    const markerId = response.marker_id;
+    const metadataId = response.metadata_id;
+    let deletedRow = markerRowFromMarkerId(markerId);
+    let markerTable = deletedRow.parentNode;
+    let markerCount = episodeMarkerCountFromMarkerRow(deletedRow);
+
+    markerTable.removeChild(deletedRow);
+
+    // If we're removing the last marker, add the 'No marker found' row.
+    if (markerTable.children.length == 1) {
+        markerTable.insertBefore(spanningTableRow('No markers found'), markerTable.firstChild);
+    } else {
+        // Update indexes if needed
+        for (let marker = 0; marker < markerTable.children.length - 1; ++marker) {
+            const row = markerTable.children[marker];
+            if (row.getAttribute('markerId') == '-1') {
+                continue;
+            }
+
+            markerTable.children[marker].firstChild.innerText = marker;
+        }
+    }
+
+    // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid, and update
+    // marker indexes in our cache. Assumes markers are already sorted from least to greatest index.
+    g_episodeResults[metadataId].markers = g_episodeResults[metadataId].markers.filter((marker) => marker.id != markerId);
+    g_episodeResults[metadataId].markers.forEach((marker, index) => {
+        marker.index = index;
+    });
+
+    markerCount.innerText = plural(g_episodeResults[metadataId].markers.length, 'Marker');
+}
+
+function markerRowFromMarkerId(id) {
+    return $$(`tr[markerid="${id}"]`);
 }
 
 /// <summary>

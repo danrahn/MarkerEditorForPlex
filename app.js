@@ -326,7 +326,7 @@ function editMarker(req, res) {
                     }
                 }
     
-                return jsonSuccess(res, { time_offset : startMs, end_time_offset : endMs, index : newIndex });
+                return jsonSuccess(res, { metadata_id : currentMarker.metadata_item_id, marker_id : id, time_offset : startMs, end_time_offset : endMs, index : newIndex });
             });
 
         });
@@ -460,7 +460,7 @@ function deleteMarker(req, res) {
                         }
                     }
                 }
-                return jsonSuccess(res);
+                return jsonSuccess(res, { metadata_id : row.metadata_item_id, marker_id : id });
             });
         });
     });
