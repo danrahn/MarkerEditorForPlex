@@ -6,7 +6,7 @@
 ///
 /// Taken and tweaked from PlexWeb/script/consolelog.js
 /// </summary>
-let Log = new function()
+let _log = function(window)
 {
     /// <summary>
     /// All possible log levels, from most to least verbose
@@ -23,7 +23,7 @@ let Log = new function()
 
     const logStrings = ["TMI", "VERBOSE", "INFO", "WARN", "ERROR", "CRITICAL"];
     const _inherit = "inherit";
-    this.logErrorId = 26;
+    this.window = window;
 
     /// <summary>
     /// Console color definitions for each log level
@@ -71,7 +71,7 @@ let Log = new function()
 
     // We use ConsoleLog both on both the server and client side.
     // Server-side, create a stub of localStorage and window so nothing breaks
-    if (typeof localStorage === 'undefined') {
+    if (!this.window) {
         class LS {
             constructor() {
                 this._dict = {};
@@ -80,19 +80,19 @@ let Log = new function()
             getItem(item) { return this._dict[item]; }
             setItem(item, value) { this._dict[item] = value; }
         }
-
-        var localStorage = new LS();
         class W {
             matchMedia() { return false; }
+            localStorage = new LS();
         }
 
-        var window = new W();
+        this.window = new W();
+
     }
 
     /// <summary>
     /// The current log level. Anything below this will not be logged
     /// </summary>
-    let currentLogLevel = parseInt(localStorage.getItem("loglevel"));
+    let currentLogLevel = parseInt(this.window.localStorage.getItem("loglevel"));
     if (isNaN(currentLogLevel))
     {
         currentLogLevel = this.Level.Info;
@@ -101,7 +101,7 @@ let Log = new function()
     /// <summary>
     /// Determine whether we should add a trace to every log event, not just errors
     /// </summary>
-    let traceLogging = parseInt(localStorage.getItem("logtrace"));
+    let traceLogging = parseInt(this.window.localStorage.getItem("logtrace"));
     if (isNaN(traceLogging))
     {
         traceLogging = 0;
@@ -110,11 +110,11 @@ let Log = new function()
     /// <summary>
     /// Tweak colors a bit based on whether the user is using a dark console theme
     /// </summary>
-    let darkConsole = parseInt(localStorage.getItem("darkconsole"));
+    let darkConsole = parseInt(this.window.localStorage.getItem("darkconsole"));
     if (isNaN(darkConsole))
     {
         // Default to system browser theme (if available)
-        let mediaMatch = window.matchMedia("(prefers-color-scheme: dark)");
+        let mediaMatch = this.window.matchMedia("(prefers-color-scheme: dark)");
         mediaMatch = mediaMatch != "not all" && mediaMatch.matches;
         darkConsole = mediaMatch ? 1 : 0;
     }
@@ -136,7 +136,7 @@ let Log = new function()
 
     this.setLevel = function(level)
     {
-        localStorage.setItem("loglevel", level);
+        this.window.localStorage.setItem("loglevel", level);
         currentLogLevel = level;
     };
 
@@ -147,7 +147,7 @@ let Log = new function()
 
     this.setDarkConsole = function(dark)
     {
-        localStorage.setItem("darkconsole", dark);
+        this.window.localStorage.setItem("darkconsole", dark);
         darkConsole = dark;
     };
 
@@ -161,7 +161,7 @@ let Log = new function()
     /// </summary>
     this.setTrace = function(trace)
     {
-        localStorage.setItem("logtrace", trace);
+        this.window.localStorage.setItem("logtrace", trace);
         traceLogging = trace;
     };
 
@@ -332,12 +332,14 @@ let Log = new function()
         currentLogLevel = logLevelSav;
     };
 
-}();
-
+};
 // Hack to work around this file being used both client and server side.
 // Server side we want to export Log, but we want to ignore this client-side.
+let Log;
 if (typeof module !== 'undefined') {
+    Log = new _log();
     module.exports = Log;
 } else {
+    Log = new _log(window);
     Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
 }
