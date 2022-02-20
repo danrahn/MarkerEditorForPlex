@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 128 128">
+     <defs>
+         <style>
+            .a{fill:url(#a);}
+            .b{fill:none;stroke:#312100;stroke-linecap:round;stroke-linejoin:round;stroke-width:8px;}
+        </style>
+        <linearGradient id="a" x1="11.95" y1="11.95" x2="116.3" y2="116.3" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ff7f00"/>
+            <stop offset="1" stop-color="#ffcf00"/>
+        </linearGradient>
+    </defs>
+    <rect class="a" width="128" height="128" rx="40" ry="40"/><path class="b" d="M28.42,33V95.75L82.23,64.36Z" transform="translate(0 0)"/>
+    <line class="b" x1="100.17" y1="32.97" x2="100.17" y2="95.75"/>
+</svg>
