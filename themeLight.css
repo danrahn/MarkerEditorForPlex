@@ -1,0 +1,123 @@
+body {
+    background-color: #ffefcc;
+    color: #212121;
+}
+
+input, select {
+    border: 1px solid #616161;
+    background-color: #f8e8c4;
+    color: #212121;
+}
+
+hr {
+    color: #444;
+    border-color: #444;
+}
+
+#libraries option {
+    background-color: #ffcfaa;
+}
+
+#libraries option:hover {
+    background-color: #ff8f88;
+}
+
+#libraries:hover,
+#search:hover {
+    border-color: #000;
+}
+
+select:focus,
+input:focus {
+    border-color: #aa4f00 !important;
+}
+
+thead {
+    border-bottom: 1px solid #212121;
+}
+
+tr:nth-child(odd) {
+    background-color: #fec;
+}
+
+tr:nth-child(odd):hover {
+    background-color: #ffeebb;
+}
+
+tr:nth-child(even) {
+    background-color: #edb;
+}
+
+tr:nth-child(even):hover {
+    background-color: #eda;
+}
+
+.button:hover {
+    border: 1px solid rgba(93,93,93,.67);
+    box-shadow: 0 0 6px #414141;
+}
+
+.button:focus-visible {
+    outline: #ff7f00 solid 1px;
+}
+
+.buttonTextOnly {
+    border: 1px solid #333;
+}
+
+.showResult,
+.seasonResult {
+    border-bottom: 1px solid #666;
+}
+
+.showResult:hover,
+.seasonResult:hover,
+.episodeResult:hover {
+    background-color: rgba(0,0,0,0.2);
+}
+
+.showResultSeasons,
+.showResultEpisodes,
+.showResultOriginalTitle,
+.seasonTitle {
+    color: #666;
+}
+
+.goBack {
+    color: #111;
+}
+
+.goBack>input:hover {
+    border-color: #313131;
+}
+
+input[type=button]:hover {
+    border-color: #A0A0A0;
+}
+
+.selected {
+  background: rgba(0,100,0,0.2);
+}
+
+.selected:hover {
+  background: rgba(0,100,0,0.3);
+}
+
+.overlayButton {
+    color: #c1c1c1;
+    border-color: #c1c1c1;
+    background-color: rgba(40, 40, 40, 0.8);
+    border: 1px solid #616161;
+}
+
+.overlayButton:focus {
+    border-color:#ff7f00;
+}
+
+.overlayButton:hover {
+    border-color: white !important;
+}
+
+.confirmDelete {
+    background-color: #912121;
+}

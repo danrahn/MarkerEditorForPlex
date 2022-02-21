@@ -1,9 +1,7 @@
 body {
   font-family: sans-serif;
-  background-color: #212121;
   background-repeat: repeat;
   background-attachment: scroll;
-  color: #c1c1c1;
   margin: 0;
   border: 0;
   overflow: auto;
@@ -33,18 +31,9 @@ form input {
 }
 
 input, select {
-  border: 1px solid #616161;
   padding: 1px;
   margin: 5px;
-  background-color: #414141;
-  color: #c1c1c1;
 }
-
-hr {
-  color: #999;
-  border-color: #999;
-}
-
 #showInstructions {
   margin: 5px auto 5px auto;
   display: inline-block;
@@ -76,19 +65,6 @@ hr {
   min-width: 350px;
 }
 
-#libraries option {
-  background-color: #212121;
-}
-
-#libraries option:hover {
-  background-color: #414141;
-}
-
-#libraries:hover,
-#search:hover {
-  border-color: #909090;
-}
-
 select:focus,
 input:focus {
   border-color: #ff7f00 !important;
@@ -97,6 +73,7 @@ input:focus {
 input:focus-visible {
   outline: none;
 }
+
 #searchContainer {
   padding-top: 10px;
   width: 100%;
@@ -104,7 +81,7 @@ input:focus-visible {
 }
 
 #search {
-  width: 350px;
+  width: 325px;
   margin: auto;
 }
 
@@ -132,10 +109,6 @@ table {
   margin-top: 10px;
 }
 
-thead {
-  border-bottom: 1px solid #c1c1c1;
-}
-
 tbody {
   vertical-align: middle;
 }
@@ -154,22 +127,6 @@ thead tr {
   background-color: transparent !important;
 }
 
-tr:nth-child(odd) {
-  background-color: #111;
-}
-
-tr:nth-child(odd):hover {
-  background-color: #111121;
-}
-
-tr:nth-child(even) {
-  background-color: #212121;
-}
-
-tr:nth-child(even):hover {
-  background-color: #212131;
-}
-
 .button {
   padding: 0 3px 0 3px;
   display: inline-block;
@@ -178,8 +135,6 @@ tr:nth-child(even):hover {
 }
 
 .button:hover {
-  border: 1px solid rgba(193,193,193,.67);
-  box-shadow: 0 0 6px #919191;
   transition: border .25s,box-shadow .5s;
   opacity: 1;
 }
@@ -196,7 +151,6 @@ tr:nth-child(even):hover {
 }
 
 .buttonTextOnly {
-  border: 1px solid #666;
   margin: 3px 1px 3px 1px;
   font-size: 10pt;
 }
@@ -242,7 +196,6 @@ table .buttonIconAndText {
 
 .showResult,
 .seasonResult {
-  border-bottom: 1px solid #999;
   justify-content: center;
 }
 
@@ -254,18 +207,10 @@ table .buttonIconAndText {
 .seasonResult:hover,
 .episodeResult:hover {
   font-weight: bold;
-  background-color: rgba(0,0,0,0.5);
 }
 
 .showResult>div {
   flex: 1;
-}
-
-.showResultSeasons,
-.showResultEpisodes,
-.showResultOriginalTitle,
-.seasonTitle {
-  color: #AAA;
 }
 
 .showResultSeasons {
@@ -306,7 +251,6 @@ table .buttonIconAndText {
 }
 
 .goBack {
-  color: #d1d1d1;
   text-align: right;
   line-height: 20px;
 }
@@ -314,14 +258,6 @@ table .buttonIconAndText {
 .goBack>input {
   margin: 0;
   padding: 2px;
-}
-
-.goBack>input:hover {
-  border-color: #c1c1c1;
-}
-
-input[type=button]:hover {
-  border-color: #A0A0A0;
 }
 
 .selected {
@@ -336,21 +272,11 @@ input[type=button]:hover {
 
 .overlayButton {
   padding: 10px;
-  background-color: rgba(40, 40, 40, 0.8);
-  border: 1px solid #616161;
   border-radius: 3px;
-}
-
-.overlayButton:hover {
-  border-color: #c1c1c1;
 }
 
 .overlayButton:focus {
   border-color:#ff7f00;
-}
-
-.confirmDelete {
-  background-color: #612121;
 }
 
 .userModifiedMarker {
@@ -362,6 +288,65 @@ input[type=button]:hover {
   margin: auto;
   display: flex;
   justify-content: center;
+}
+
+#toggleContainer {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+}
+
+#darkModeToggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 20px;
+}
+
+#darkModeCheckbox {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  background-color: #a1a1a1;
+  transition: 0.3s;
+  -webkit-transition: 0.3s;
+  cursor: pointer;
+  border-radius: 16px;
+}
+
+.toggle::before {
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: black;
+  border-radius: 50%;
+  transition: 0.3s;
+  -webkit-transition: 0.3s;
+  content: "";
+}
+
+#darkModeCheckbox:checked + .toggle {
+  background-color: #616191;
+}
+
+#darkModeCheckbox:focus + .toggle {
+  box-shadow: 0 0 1px #616191;
+}
+
+#darkModeCheckbox:checked + .toggle:before {
+  -webkit-transform: translateX(30px);
+  -ms-transform: translateX(30px);
+  transform: translateX(30px);
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)

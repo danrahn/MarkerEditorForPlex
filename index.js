@@ -1,9 +1,11 @@
 window.addEventListener('load', setup);
 
 let plex;
+let g_dark = true;
 
 function setup()
 {
+    checkTheme();
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
@@ -88,11 +90,6 @@ class Plex
             return Promise.resolve();
         }
 
-        const successFunc = (response) => {
-            plex.shows[plex.activeSection] = response;
-            resolve();
-        }
-
         return new Promise(resolve => {
             jsonRequest(
                 'get_section',
@@ -105,6 +102,67 @@ class Plex
                     Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${res.Error}`);
                 });
         });
+    }
+}
+
+const themeKey = 'plexIntro_theme';
+let themedStyle;
+
+/// <summary>
+/// Adjusts the favicon depending on the browser theme.
+/// <summary>
+function checkTheme() {
+    let darkTheme = parseInt(localStorage.getItem(themeKey));
+    let darkThemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    if (isNaN(darkTheme)) {
+        darkTheme = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
+    }
+
+    themedStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : `theme${g_dark ? 'Dark' : 'Light' }.css`});
+    $$('head').appendChild(themedStyle);
+
+    let checkbox = $('#darkModeCheckbox');
+    checkbox.checked = darkTheme;
+    checkbox.addEventListener('change', (e) => toggleTheme(e.target.checked, true /*manual*/));
+
+    toggleTheme(darkTheme, false /*manual*/);
+    darkThemeMediaQuery.addEventListener('change', e => { toggleTheme(e.matches, false /*manual*/); checkbox.checked = e.matches; });
+}
+
+/// <summary>
+/// Switches between dark and light themes.
+/// </summary>
+function toggleTheme(isDark, manual) {
+    if (isDark == g_dark) {
+        return;
+    }
+
+    if (manual) {
+        localStorage.setItem(themeKey, isDark ? 1 : 0);
+    } else if (!!localStorage.getItem(themeKey)) {
+        // A manual choice sticks, regardless of browser theme change.
+        return;
+    }
+
+    g_dark = isDark;
+
+    if (g_dark) {
+        themedStyle.href = "themeDark.css";
+    } else {
+        themedStyle.href = "themeLight.css";
+    }
+
+    adjustIcons();
+}
+
+/// <summary>
+/// After changing the theme, make sure any theme-sensitive icons are also adjusted.
+/// </summary>
+function adjustIcons() {
+    for (const icon of $('.button img')) {
+        const split = icon.src.split('/');
+        icon.src = `i/${colors.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
     }
 }
 
@@ -280,7 +338,7 @@ function buildShowRow(show, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            createFullButton('Back to results', 'back', 'Go back', 'c1c1c1', () => {
+            createFullButton('Back to results', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#seasonlist'));
                 clearAndShow($('#episodelist'));
                 $('#showlist').classList.remove('hidden');
@@ -303,7 +361,7 @@ function showClick() {
     g_showResults['__current'] = show;
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
     };
 
     jsonRequest('get_seasons', { id : show.metadataId }, showSeasons, failureFunc);
@@ -353,7 +411,7 @@ function buildSeasonRow(season, selected=false) {
     if (selected) {
         row.classList.add('selected');
         row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
-            createFullButton('Back to seasons', 'back', 'Go back', 'c1c1c1', () => {
+            createFullButton('Back to seasons', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
             })
@@ -586,8 +644,8 @@ function friendlyDate(date, userModifiedDate) {
 /// </summary>
 function optionButtons(markerId) {
     return buildNode('div').appendChildren(
-        createFullButton('Edit', 'edit', 'Edit Marker', 'c1c1c1', onMarkerEdit, { markerId : markerId }),
-        createFullButton('Delete', 'delete', 'Delete Marker', 'C44', confirmMarkerDelete, { markerId : markerId })
+        createFullButton('Edit', 'edit', 'Edit Marker', 'standard', onMarkerEdit, { markerId : markerId }),
+        createFullButton('Delete', 'delete', 'Delete Marker', 'red', confirmMarkerDelete, { markerId : markerId })
     );
 }
 
@@ -622,8 +680,8 @@ function timeInput(value, end=false) {
 
 function buildConfirmCancel(container, operation, markerId, confirmCallback, cancelCallback) {
     return container.appendChildren(
-        createIconButton('confirm', `Confirm ${operation}`, '4C4', confirmCallback, { markerId : markerId, title : `Confirm ${operation}` }),
-        createIconButton('cancel', `Cancel ${operation}`, 'C44', cancelCallback, { markerId : markerId, title : `Cancel ${operation}` })
+        createIconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback, { markerId : markerId, title : `Confirm ${operation}` }),
+        createIconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback, { markerId : markerId, title : `Cancel ${operation}` })
     );
 }
 
@@ -648,6 +706,25 @@ function onMarkerAddCancel() {
 }
 
 /// <summary>
+/// Map of colors used for icons, which may vary depending on the current theme.
+/// </summary>
+const colors = {
+    _dict : {
+        0 /*dark*/ : {
+            standard : 'c1c1c1',
+            green : '4C4',
+            red : 'C44'
+        },
+        1 /*light*/ : {
+            standard : '212121',
+            green : '292',
+            red : 'A22'
+        }
+    },
+    get : function(color) { return this._dict[g_dark ? 0 : 1][color]; }
+}
+
+/// <summary>
 /// Creates a tabbable button in the marker table with an associated icon.
 /// </summary>
 /// <param name="text">The text of the button</param>
@@ -659,7 +736,7 @@ function onMarkerAddCancel() {
 function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
     return button.appendChildren(
-        buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }),
+        buildNode('img', { src : `/i/${colors.get(color)}/${icon}.svg`, alt : altText, theme : color }),
         buildNode('span', {}, text)
     );
 }
@@ -677,7 +754,7 @@ function createTextButton(text, clickHandler, attributes={}) {
 /// </summary>
 function createIconButton(icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-    return button.appendChildren(buildNode('img', { src : `/i/${color}/${icon}.svg`, alt : altText }));
+    return button.appendChildren(buildNode('img', { src : `/i/${colors.get(color)}/${icon}.svg`, alt : altText, theme : color }));
 }
 
 /// <summary>
