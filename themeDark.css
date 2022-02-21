@@ -1,5 +1,11 @@
+body,
+::-webkit-scrollbar-track {
+  background: linear-gradient(#212121CC, #402200CC),
+              url('inc/svg/noise.svg');
+}
+
 body {
-  background-color: #212121;
+  background-attachment: fixed;
   color: #c1c1c1;
 }
 
@@ -37,19 +43,19 @@ thead {
 }
 
 tr:nth-child(odd) {
-  background-color: #111;
+  background-color: #1116;
 }
 
 tr:nth-child(odd):hover {
-  background-color: #111121;
+  background-color: #11112166;
 }
 
 tr:nth-child(even) {
-  background-color: #212121;
+  background-color: #21212166;
 }
 
 tr:nth-child(even):hover {
-  background-color: #212131;
+  background-color: #21213166;
 }
 
 .button:hover {
@@ -118,4 +124,8 @@ input[type=button]:hover {
 
 .confirmDelete {
   background-color: #612121;
+}
+
+::-webkit-scrollbar-track:hover {
+  background: black;
 }

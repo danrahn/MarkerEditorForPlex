@@ -1,5 +1,12 @@
-body {
+body, 
+::-webkit-scrollbar-track {
     background-color: #ffefcc;
+    background: linear-gradient(#FFEFCCDD, #CCA066DD),
+                url('inc/svg/noise.svg');
+}
+
+body {
+    background-attachment: fixed;
     color: #212121;
 }
 
@@ -33,23 +40,23 @@ input:focus {
 }
 
 thead {
-    border-bottom: 1px solid #212121;
+    border-bottom: 1px solid #21212166;
 }
 
 tr:nth-child(odd) {
-    background-color: #fec;
+    background-color: #fec6;
 }
 
 tr:nth-child(odd):hover {
-    background-color: #ffeebb;
+    background-color: #ffeebb66;
 }
 
 tr:nth-child(even) {
-    background-color: #edb;
+    background-color: #edb6;
 }
 
 tr:nth-child(even):hover {
-    background-color: #eda;
+    background-color: #eda6;
 }
 
 .button:hover {
@@ -80,7 +87,7 @@ tr:nth-child(even):hover {
 .showResultEpisodes,
 .showResultOriginalTitle,
 .seasonTitle {
-    color: #666;
+    color: #444;
 }
 
 .goBack {
@@ -121,3 +128,7 @@ input[type=button]:hover {
 .confirmDelete {
     background-color: #912121;
 }
+
+::-webkit-scrollbar-track:hover {
+    background: #EECC99;
+  }
