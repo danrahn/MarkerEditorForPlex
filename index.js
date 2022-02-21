@@ -984,11 +984,11 @@ function onMarkerEditConfirm() {
     }
 
     let failureFunc = (response) => {
-        onMarkerEditCancel();
-        Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error}`, 'OK');
+        onMarkerEditCancel.bind(this)();
+        Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error || response.message}`, 'OK');
     }
 
-    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, onMarkerEditSuccess, failureFunc);
+    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, onMarkerEditSuccess, failureFunc.bind(editedRow));
 }
 
 /// <summary>

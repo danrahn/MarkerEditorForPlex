@@ -1,99 +1,109 @@
-const http = require('http');
-const fs = require('fs').promises;
-const mime = require('mime-types');
-const sqlite3 = require('sqlite3');
-const URL = require('url');
+const Http = require('http');
+const Fs = require('fs').promises;
+const Mime = require('mime-types');
+const Sqlite3 = require('sqlite3');
 const Open = require('open');
+const QueryParse = require('./QueryParse.js')
 
 const Log = require('./inc/script/ConsoleLog.js');
 
-let config;
-let db;
+let Config;
+let Database;
+let TagId;
 try {
-    config = require('./config.json');
+    Config = require('./config.json');
 
     // Set up the database, and make sure it's the right one.
-    db = new sqlite3.Database(config.database, sqlite3.OPEN_READWRITE, (err) => {
+    Database = new Sqlite3.Database(Config.database, Sqlite3.OPEN_READWRITE, (err) => {
         if (err) {
-            Log.error(err.message);
-            Log.error(`Unable to open database. Are you sure "${config.database}" exists?`);
+            Log.critical(err.message);
+            Log.error(`Unable to open database. Are you sure "${Config.database}" exists?`);
             process.exit(1);
         } else {
-            // One final check, make sure the metadata_items table exists
-            db.get('SELECT id FROM metadata_items LIMIT 1', (err, _) => {
+            // Get the persistent tag_id for intro markers (which also acts as a validation check)
+            Database.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
                 if (err) {
-                    Log.error(err.message);
-                    Log.error(`Are you sure "${config.database}" is the Plex database?`);
+                    Log.critical(err.message);
+                    Log.error(`Are you sure "${Config.database}" is the Plex database, and has at least one existing intro marker?`);
                     process.exit(1);
                 }
 
+                TagId = row.id;
                 createServer();
             });
         }
     });
 } catch (ex) {
-    Log.error(ex.message);
+    Log.critical(ex.message);
     Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
     process.exit(1);
 }
 
 Log.setLevel(getConfigLogLevel());
 
-const hostname = config.host || 'localhost';
-const port = config.port || 3232;
+const Hostname = Config.host || 'localhost';
+const Port = Config.port || 3232;
 
+/// <summary>
+/// Creates the server, called after verifying the config file and database.
+/// </summary>
 function createServer() {
-    const server = http.createServer((req, res) => {
-        Log.verbose(`${req.method}: ${req.url}`);
-        const method = req.method?.toLowerCase();
+    const server = Http.createServer(serverMain);
     
-        if (req.url.toLowerCase().indexOf('node_modules') != -1 ||
-            req.url.indexOf('..') != -1) {
-            return error(404, res);
-        }
-    
-        try {
-            switch (method) {
-                case 'get':
-                    handleGet(req, res);
-                    break;
-                case 'post':
-                    handlePost(req, res);
-                    break;
-                default:
-                    res.statusCode = 200;
-                    res.setHeader('Content-Type', 'text/plain');
-                    res.end('Hello World\n');
-                    break;
-            }
-        } catch (e) {
-            // Something's gone horribly wrong
-            Log.log(e.toString(), 'Critical exception', false, Log.Level.Critical);
-            jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
-        }
-    });
-    
-    server.listen(port, hostname, () => {
-        const url = `http://${hostname}:${port}`;
+    server.listen(Port, Hostname, () => {
+        const url = `http://${Hostname}:${Port}`;
         Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-        if (config.autoOpen) {
+        if (Config.autoOpen) {
             Log.info('Launching browser...');
             Open(url);
         }
     });
 
+    // Capture Ctrl+C and cleanly exit the process
     process.on('SIGINT', () => {
         Log.info('SIGINT detected, exiting...');
-        if (db) {
-            db.close();
+        if (Database) {
+            Database.close();
         }
 
         process.exit(0);
     });
 }
 
+/// <summary>
+/// Entrypoint for incoming connections to the server.
+/// </summary>
+function serverMain(req, res) {
+    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
+    const method = req.method?.toLowerCase();
+
+    // Don't get into node_modules or parent directories
+    if (req.url.toLowerCase().indexOf('node_modules') != -1 || req.url.indexOf('/..') != -1) {
+        return jsonError(res, 403, `Cannot access ${req.url}: Forbidden`);
+    }
+
+    try {
+        // Only serve static resources via GET, and only accept queries for JSON via POST.
+        switch (method) {
+            case 'get':
+                return handleGet(req, res);
+            case 'post':
+                return handlePost(req, res);
+            default:
+                return jsonError(res, 405, `Unexpected method "${req.method?.toUpperCase()}"`);
+        }
+    } catch (e) {
+        // Something's gone horribly wrong
+        Log.error(e.toString(), `Exception thrown for ${req.url}`);
+        return jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
+    }
+}
+
+/// <summary>
+/// Maps a configured log level string to its underlying value
+/// </summary>
 function getConfigLogLevel() {
-    switch(config.logLevel.toLowerCase()) {
+    switch(Config.logLevel.toLowerCase()) {
         case "tmi":
             return Log.Level.Tmi;
         case "verbose":
@@ -105,19 +115,15 @@ function getConfigLogLevel() {
         case "error":
             return Log.Level.Error;
         default:
-            Log.warn(`Invalid log level detected: ${config.logLevel}. Defaulting to 'Info'`);
+            Log.warn(`Invalid log level detected: ${Config.logLevel}. Defaulting to 'Info'`);
             return Log.Level.Info;
     }
 }
 
-function error(code, res) {
-    Log.error(code, 'Unable to process request');
-    res.statusCode = code;
-    res.end('Error');
-}
-
-function handleGet(req, res)
-{
+/// <summary>
+/// Handle GET requests, used to serve static content like HTML/CSS/SVG.
+/// </summary>
+function handleGet(req, res) {
     let url = req.url;
     if (url == '/') {
         url = '/index.html';
@@ -127,18 +133,19 @@ function handleGet(req, res)
         return getSvgIcon(url, res);
     }
 
-    let mimetype = mime.lookup(url);
+    let mimetype = Mime.lookup(url);
     if (!mimetype) {
         res.statusCode = 404;
         res.end('Bad MIME type!');
         return;
     }
 
-    fs.readFile(__dirname + url).then(contents => {
+    Fs.readFile(__dirname + url).then(contents => {
         res.statusCode = 200;
         res.setHeader('Content-Type', mimetype);
         res.end(contents);
     }).catch(err => {
+        Log.warn(`Unable to serve ${url}`);
         res.statusCode = 404;
         res.end('Not Found: ' + err.code);
     });
@@ -161,7 +168,7 @@ function getSvgIcon(url, res) {
         return jsonError(res, 400, 'Invalid icon color.');
     }
 
-    fs.readFile(__dirname + '/inc/svg/' + icon).then(contents => {
+    Fs.readFile(__dirname + '/inc/svg/' + icon).then(contents => {
         // Raw file has FILL_COLOR in place of hardcoded values. Replace
         // it with the requested hex color (after decoding the contents)
         if (Buffer.isBuffer(contents)) {
@@ -178,32 +185,47 @@ function getSvgIcon(url, res) {
     })
 }
 
-function handlePost(req, res)
-{
-    if (req.url.startsWith('/query?')) {
-        return queryIds(req, res);
-    } else if (req.url.startsWith('/edit?')) {
-        return editMarker(req, res);
-    } else if (req.url.startsWith('/add?')) {
-        return addMarker(req, res);
-    } else if (req.url.startsWith('/delete?')) {
-        return deleteMarker(req, res);
-    } else if (req.url == '/get_sections') {
-        return getLibraries(res);
-    } else if (req.url.startsWith('/get_section?')) {
-        return getShows(req, res);
-    } else if (req.url.startsWith('/get_seasons?')) {
-        return getSeasons(req, res);
-    } else if (req.url.startsWith('/get_episodes?')) {
-        return getEpisodes(req, res);
+/// <summary>
+/// Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
+/// </summary>
+const EndpointMap = {
+    query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
+    edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end'), res),
+    add          : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
+    delete       : (params, res) => deleteMarker(params.i('id'), res),
+    get_sections : (_     , res) => getLibraries(res),
+    get_section  : (params, res) => getShows(params.i('id'), res),
+    get_seasons  : (params, res) => getSeasons(params.i('id'), res),
+    get_episodes : (params, res) => getEpisodes(params.i('id'), res),
+};
+
+/// <summary>
+/// Handle POST requests, used to return JSON data queried by the client.
+/// </summary>
+function handlePost(req, res) {
+    const url = req.url.toLowerCase();
+    const endpointIndex = url.indexOf('?');
+    const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
+    const parameters = new QueryParse.Parser(req);
+    if (EndpointMap[endpoint]) {
+        try {
+            return EndpointMap[endpoint](parameters, res);
+        } catch (ex) {
+            // Capture QueryParameterException and overwrite the 500 error we would otherwise return with 400
+            if (ex instanceof QueryParse.QueryParameterException) {
+                return jsonError(res, 400, ex.message);
+            }
+
+            throw ex;
+        }
     }
 
-    Log.warn(req.url, 'Invalid endpoint');
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ Error : 'Invalid endpoint' }));
+    return jsonError(res, 404, `Invalid endpoint: ${endpoint}`);
 }
 
+/// <summary>
+/// Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
+/// </summary>
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
     res.statusCode = code;
@@ -211,6 +233,9 @@ function jsonError(res, code, error) {
     res.end(JSON.stringify({ Error : error }));
 }
 
+/// <summary>
+/// Helper method that returns a success HTTP status code alongside any data we want to return to the client.
+/// </summary>
 function jsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
     if (Log.getLevel() <= Log.Level.Tmi) {
@@ -223,58 +248,49 @@ function jsonSuccess(res, data) {
     res.end(JSON.stringify(data || { success : true }));
 }
 
-function queryIds(req, res) {
-    const queryObject = URL.parse(req.url,true).query;
-    let keys = queryObject.keys.split(',');
-
-    let data = {};
+/// <summary>
+/// Return an array of markers for all requested metadata ids.
+/// </summary>
+function queryIds(keys, res) {
+    let markers = {};
     keys.forEach(key => {
-        data[key] = [];
+        markers[key] = [];
     });
 
-    // First, get the persistent 'intro marker' id
-    db.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
-        if (err) {
-            return jsonError(res, 400, 'Unable to find the correct tag_id');
+    let query = 'SELECT * FROM `taggings` WHERE `tag_id`=' + TagId + ' AND (';
+    keys.forEach(key => {
+        const intKey = parseInt(key);
+        if (isNaN(intKey)) {
+            // Don't accept bad keys, but don't fail the entire operation either.
+            Log.warn(key, 'Found bad key in queryIds, skipping');
+            return;
         }
 
-        const tag_id = row.id;
-        let query = 'SELECT * FROM `taggings` WHERE `tag_id`=' + tag_id + ' AND (';
-        keys.forEach(key => {
-            const intKey = parseInt(key);
-            if (isNaN(intKey)) {
-                return jsonError(res, 400, `Invalid key given: ${key}`);
-            }
-            query += '`metadata_item_id`=' + intKey + ' OR ';
-        });
-        query = query.substring(0, query.length - 4) + ');';
-        db.all(query, (err, rows) => {
-            if (err) {
-                return jsonError(res, 400, 'Unable to retrieve ids');
-            }
+        query += '`metadata_item_id`=' + intKey + ' OR ';
+    });
 
-            rows.forEach(row => {
-                row.thumb_url += 'Z';
-                row.created_at += 'Z';
-                data[row.metadata_item_id].push(row);
-            });
+    query = query.substring(0, query.length - 4) + ');';
+    Database.all(query, (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, 'Unable to retrieve ids');
+        }
 
-            jsonSuccess(res, data);
+        // Need to add 'Z' to timestamps
+        rows.forEach(row => {
+            if (row.thumb_url) row.thumb_url += 'Z';
+            row.created_at += 'Z';
+            markers[row.metadata_item_id].push(row);
         });
+
+        return jsonSuccess(res, markers);
     });
 }
 
-function editMarker(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const id = parseInt(queryObject.id);
-    const startMs = parseInt(queryObject.start);
-    const endMs = parseInt(queryObject.end);
-
-    if (isNaN(id) || isNaN(startMs) || isNaN(endMs)) {
-        return jsonError(res, 400, "invalid parameters");
-    }
-
-    db.get("SELECT * FROM `taggings` WHERE `id`=" + id + ";", (err, currentMarker) => {
+/// <summary>
+/// Edit an existing marker, and update index order as needed.
+/// </summary>
+function editMarker(markerId, startMs, endMs, res) {
+    Database.get("SELECT * FROM `taggings` WHERE `id`=" + markerId + ";", (err, currentMarker) => {
         if (err || !currentMarker || currentMarker.text != 'intro') {
             return jsonError(res, 400, err | 'Intro marker not found');
         }
@@ -282,7 +298,7 @@ function editMarker(req, res) {
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?", [currentMarker.metadata_item_id, currentMarker.tag_id], (err, rows) => {
+        Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC", [currentMarker.metadata_item_id, currentMarker.tag_id], (err, rows) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
@@ -290,30 +306,28 @@ function editMarker(req, res) {
             Log.verbose(`Markers for this episode: ${rows.length}`);
 
             let allMarkers = rows;
-            allMarkers.sort((a, b) => a.index - b.index);
             allMarkers[oldIndex].time_offset = startMs;
             allMarkers[oldIndex].end_time_offset = endMs;
             allMarkers.sort((a, b) => a.time_offset - b.time_offset);
-            let sameIndex = true;
             let newIndex = 0;
 
             for (let index = 0; index < allMarkers.length; ++index) {
                 let marker = allMarkers[index];
-                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs && marker.id != id) {
+                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs && marker.id != markerId) {
                     // Overlap, this should be handled client-side
                     return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
                 }
 
-                if (marker.id == id) {
+                if (marker.id == markerId) {
                     newIndex = index;
                 }
 
                 marker.newIndex = index;
-                sameIndex = sameIndex && marker.newIndex == marker.index;
             }
 
             // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
-            db.run('UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=CURRENT_TIMESTAMP WHERE `id`=?;', [newIndex, startMs.toString(), endMs, id], (err) => {
+            const query = 'UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=CURRENT_TIMESTAMP WHERE `id`=?;';
+            Database.run(query, [newIndex, startMs.toString(), endMs, markerId], (err) => {
                 if (err) {
                     return jsonError(res, 400, err);
                 }
@@ -322,122 +336,106 @@ function editMarker(req, res) {
                     if (marker.index != marker.newIndex) {
 
                         // Fire and forget. Fingers crossed this does the right thing.
-                        db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
+                        Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
                     }
                 }
     
-                return jsonSuccess(res, { metadata_id : currentMarker.metadata_item_id, marker_id : id, time_offset : startMs, end_time_offset : endMs, index : newIndex });
+                return jsonSuccess(res, { metadata_id : currentMarker.metadata_item_id, marker_id : markerId, time_offset : startMs, end_time_offset : endMs, index : newIndex });
             });
 
         });
     });
 }
 
-function addMarker(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const metadataId = parseInt(queryObject.metadataId);
-    const startMs = parseInt(queryObject.start);
-    const endMs = parseInt(queryObject.end);
-
-    if (isNaN(metadataId) || isNaN(startMs) || isNaN(endMs)) {
-        return jsonError(res, 400, "Invalid parameters");
-    }
-
+/// <summary>
+/// Adds the given marker to the database, rearranging indexes as necessary.
+/// </summary>
+function addMarker(metadataId, startMs, endMs, res) {
     if (startMs >= endMs) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
 
-    db.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
+    Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC;", [metadataId, TagId], (err, rows) => {
         if (err) {
-            return jsonError(res, 400, 'Unable to find the correct tag_id');
+            return jsonError(res, 400, err.message);
         }
 
-        const tagId = row.id;
-        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC;", [metadataId, tagId], (err, rows) => {
+        let allMarkers = rows;
+        let newIndex = 0;
+        let foundNewIndex = false;
+        for (let marker of allMarkers) {
+            if (foundNewIndex) {
+                marker.newIndex = marker.index + 1;
+                continue;
+            }
+
+            if (marker.end_time_offset >= startMs && marker.time_offset <= endMs) {
+                // Overlap, this should be handled client-side
+                return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
+            }
+
+            if (marker.time_offset > startMs) {
+                newIndex = marker.index;
+                foundNewIndex = true;
+                marker.newIndex = marker.index + 1;
+            } else {
+                marker.newIndex = marker.index;
+            }
+        }
+
+        if (!foundNewIndex) {
+            newIndex = allMarkers.length;
+        }
+        
+        Database.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
+                    "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, TagId, newIndex, startMs, endMs], (err) => {
             if (err) {
-                return jsonError(res, 400, err.message);
+                return jsonError(res, 400, err);
             }
 
-            let allMarkers = rows;
-            let newIndex = 0;
-            let foundNewIndex = false;
-            for (let marker of allMarkers) {
-                if (foundNewIndex) {
-                    marker.newIndex = marker.index + 1;
-                    continue;
-                }
+            // Insert succeeded, update indexes of other markers if necessary
+            for (const marker of allMarkers) {
+                if (marker.index != marker.newIndex) {
 
-                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs) {
-                    // Overlap, this should be handled client-side
-                    return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-                }
-
-                if (marker.time_offset > startMs) {
-                    newIndex = marker.index;
-                    foundNewIndex = true;
-                    marker.newIndex = marker.index + 1;
-                } else {
-                    marker.newIndex = marker.index;
+                    // Fire and forget. Fingers crossed this does the right thing.
+                    Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
                 }
             }
 
-            if (!foundNewIndex) {
-                newIndex = allMarkers.length;
-            }
-            
-            db.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
-                        "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, tagId, newIndex, startMs, endMs], (err) => {
+            // Return our new values directly from the table
+            Database.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `time_offset`=?;", [metadataId, TagId, startMs], (err, row) => {
                 if (err) {
-                    return jsonError(res, 400, err);
+                    // We still succeeded, but failed to get the right data after it was inserted?
+                    return jsonSuccess(res);
                 }
 
-                // Insert succeeded, update indexes of other markers if necessary
-                for (const marker of allMarkers) {
-                    if (marker.index != marker.newIndex) {
+                // Times are stored as UTC, but don't say they are.
+                row.thumb_url += 'Z';
+                row.created_at += 'Z';
 
-                        // Fire and forget. Fingers crossed this does the right thing.
-                        db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
-                    }
-                }
-
-                // Return our new values directly from the table
-                db.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `time_offset`=?;", [metadataId, tagId, startMs], (err, row) => {
-                    if (err) {
-                        // We still succeeded, but failed to get the right data after it was inserted?
-                        return jsonSuccess(res);
-                    }
-
-                    // Times are stored as UTC, but don't say they are.
-                    row.thumb_url += 'Z';
-                    row.created_at += 'Z';
-
-                    jsonSuccess(res, row);
-                });
+                jsonSuccess(res, row);
             });
         });
     });
 }
 
-function deleteMarker(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const id = parseInt(queryObject.id);
-    if (isNaN(id)) {
-        return jsonError(res, 400, "Invalid marker ID");
-    }
-
-    db.get("SELECT * FROM `taggings` WHERE `id`=?", [id], (err, row) => {
+/// <summary>
+/// Removes the given marker from the database, rearranging indexes as necessary.
+/// </summary>
+function deleteMarker(markerId, res) {
+    Database.get("SELECT * FROM `taggings` WHERE `id`=?", [markerId], (err, row) => {
         if (err || !row || row.text != 'intro') {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        db.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?;", [row.metadata_item_id, row.tag_id], (err, rows) => {
+        Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?;", [row.metadata_item_id, row.tag_id], (err, rows) => {
             if (err) {
                 return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
             }
 
             let deleteIndex = 0;
             for (const row of rows) {
-                if (row.id == id) {
+                if (row.id == markerId) {
                     deleteIndex = row.index;
                 }
             }
@@ -445,7 +443,7 @@ function deleteMarker(req, res) {
             const allMarkers = rows;
 
             // Now that we're done rearranging, delete the original tag.
-            db.run("DELETE FROM `taggings` WHERE `id`=?", [id], (err) => {
+            Database.run("DELETE FROM `taggings` WHERE `id`=?", [markerId], (err) => {
                 if (err) {
                     return jsonError(res, 500, 'Failed to delete intro marker');
                 }
@@ -456,35 +454,38 @@ function deleteMarker(req, res) {
                     // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
                     for (const marker of allMarkers) {
                         if (marker.index > deleteIndex) {
-                            db.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.index - 1, marker.id]);
+                            Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.index - 1, marker.id]);
                         }
                     }
                 }
-                return jsonSuccess(res, { metadata_id : row.metadata_item_id, marker_id : id });
+                return jsonSuccess(res, { metadata_id : row.metadata_item_id, marker_id : markerId });
             });
         });
     });
 }
 
+/// <summary>
+/// Return all TV libraries found in the database.
+/// </summary>
 function getLibraries(res) {
-    db.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
+    Database.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve library sections.");
         }
 
-        let result = [];
+        let libraries = [];
         for (const row of rows) {
-            result.push({ id : row.id, name : row.name });
+            libraries.push({ id : row.id, name : row.name });
         }
 
-        return jsonSuccess(res, result);
+        return jsonSuccess(res, libraries);
     });
 }
 
-function getShows(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const id = parseInt(queryObject.id);
-
+/// <summary>
+/// Retrieve all shows from the give library section.
+/// </summary>
+function getShows(sectionId, res) {
     // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
     // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
     const query =
@@ -497,9 +498,9 @@ function getShows(req, res) {
  WHERE shows.metadata_type=2 AND shows.`id`=seasons.show_id\n\
  GROUP BY shows.`id`;';
 
-    db.all(query, [id], (err, rows) => {
+    Database.all(query, [sectionId], (err, rows) => {
         if (err) {
-            return jsonError(res, 400, `Could not retrieve shows from the database`);
+            return jsonError(res, 400, `Could not retrieve shows from the database: ${err.message}`);
         }
 
         let shows = [];
@@ -519,9 +520,10 @@ function getShows(req, res) {
     });
 }
 
-function getSeasons(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const id = parseInt(queryObject.id);
+/// <summary>
+/// Return all seasons for the show specified by the given metadataId.
+// </summary>
+function getSeasons(metadataId, res) {
     const query =
 'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
      INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
@@ -529,7 +531,7 @@ function getSeasons(req, res) {
  GROUP BY seasons.id\n\
  ORDER BY seasons.`index` ASC;'
 
-    db.all(query, [id], (err, rows) => {
+    Database.all(query, [metadataId], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve seasons from the database.");
         }
@@ -548,10 +550,10 @@ function getSeasons(req, res) {
     })
 }
 
-function getEpisodes(req, res) {
-    const queryObject = URL.parse(req.url, true).query;
-    const id = parseInt(queryObject.id);
-
+/// <summary>
+/// Get all episodes for the season specified by the given metadataId.
+// </summary>
+function getEpisodes(metadataId, res) {
     // Grab episodes for the given season.
     // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
     const query = `
@@ -562,7 +564,7 @@ SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season
 WHERE e.parent_id=?
 GROUP BY e.id;`;
 
-    db.all(query, [id], (err, rows) => {
+    Database.all(query, [metadataId], (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve episodes from the database.");
         }

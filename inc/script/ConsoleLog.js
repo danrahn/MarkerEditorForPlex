@@ -190,6 +190,11 @@ let _log = function(window)
         this.log(obj, description, freeze, Log.Level.Error);
     };
 
+    this.critical = function(obj, description, freeze)
+    {
+        this.log(obj, description, freeze, Log.Level.Critical);
+    };
+
     this.formattedText = function(level, text, ...format)
     {
         this.log("", text, false /*freeze*/, level, true /*textOnly*/, ...format);
