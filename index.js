@@ -129,7 +129,7 @@ function checkTheme() {
     checkbox.addEventListener('change', (e) => toggleTheme(e.target.checked, true /*manual*/));
 
     toggleTheme(darkTheme, manual);
-    darkThemeMediaQuery.addEventListener('change', e => { toggleTheme(e.matches, false /*manual*/); checkbox.checked = e.matches; });
+    darkThemeMediaQuery.addEventListener('change', e => { if (toggleTheme(e.matches, false /*manual*/)) checkbox.checked = e.matches; });
 }
 
 /// <summary>
@@ -137,14 +137,14 @@ function checkTheme() {
 /// </summary>
 function toggleTheme(isDark, manual) {
     if (isDark == g_dark) {
-        return;
+        return false;
     }
 
     if (manual) {
         localStorage.setItem(themeKey, isDark ? 1 : 0);
     } else if (!!localStorage.getItem(themeKey)) {
         // A manual choice sticks, regardless of browser theme change.
-        return;
+        return false;
     }
 
     g_dark = isDark;
@@ -156,6 +156,7 @@ function toggleTheme(isDark, manual) {
     }
 
     adjustIcons();
+    return true;
 }
 
 /// <summary>
