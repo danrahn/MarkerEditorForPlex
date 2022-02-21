@@ -1,7 +1,7 @@
 window.addEventListener('load', setup);
 
 let plex;
-let g_dark = true;
+let g_dark = null;
 
 function setup()
 {
@@ -113,9 +113,11 @@ let themedStyle;
 /// <summary>
 function checkTheme() {
     let darkTheme = parseInt(localStorage.getItem(themeKey));
+    let manual = true;
     let darkThemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
     if (isNaN(darkTheme)) {
+        manual = false;
         darkTheme = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
     }
 
@@ -126,7 +128,7 @@ function checkTheme() {
     checkbox.checked = darkTheme;
     checkbox.addEventListener('change', (e) => toggleTheme(e.target.checked, true /*manual*/));
 
-    toggleTheme(darkTheme, false /*manual*/);
+    toggleTheme(darkTheme, manual);
     darkThemeMediaQuery.addEventListener('change', e => { toggleTheme(e.matches, false /*manual*/); checkbox.checked = e.matches; });
 }
 
