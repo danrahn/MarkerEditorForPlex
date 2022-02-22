@@ -39,6 +39,18 @@ let Overlay = new function()
     };
 
     /// <summary>
+    /// Immediately removes the overlay from the screen without animation.
+    /// </summary>
+    this.destroy = function()
+    {
+        const overlay = $('#mainOverlay');
+        if (overlay) {
+            overlay.parentNode.removeChild(overlay);
+            Tooltip.dismiss();
+        }
+    }
+
+    /// <summary>
     /// Generic overlay builder
     /// </summary>
     /// <param name="options">
@@ -51,9 +63,9 @@ let Overlay = new function()
     /// <param name="...children">The list of nodes to append to the overlay.</param>
     this.build = function(options, ...children)
     {
-        if ($("#mainOverlay") && $("#mainOverlay").style.opacity != "0")
+        if ($("#mainOverlay"))
         {
-            return;
+            this.destroy();
         }
 
         let overlayNode = _overlayNode(options);
@@ -81,10 +93,19 @@ let Overlay = new function()
             options.setup.fn(...options.setup.args);
         }
 
-        Animation.queue({ opacity : 1 }, overlayNode, 250);
+        let delay = options.delay || 250;
+        if (delay != 0)
+        {
+            Animation.queue({ opacity : 1 }, overlayNode, delay);
+        }
+
         if (container.clientHeight / window.innerHeight > 0.7)
         {
             addFullscreenOverlayElements(container);
+        }
+        else if (options.closeButton)
+        {
+            addCloseButton();
         }
 
         window.addEventListener("keydown", overlayKeyListener, false);
@@ -95,7 +116,7 @@ let Overlay = new function()
         return buildNode("div",
             {
                 id : "mainOverlay",
-                style : "opacity: 0",
+                style : `opacity: ${options.delay == 0 ? '1' : '0'}`,
                 dismissible : options.dismissible ? "1" : "0"
             },
             0,
@@ -124,21 +145,25 @@ let Overlay = new function()
         container.classList.remove("defaultOverlay");
         container.classList.remove("centeredOverlay");
         container.classList.add("fullOverlay");
+        addCloseButton();
+    };
+
+    let addCloseButton = function() {
         let close = buildNode(
             "img",
             {
-                src : Icons.get("exit"),
+                src : 'i/c1c1c1/cancel.svg',
                 style : "position: fixed; top: 10px; right: 20px; width: 25px"
             },
             0,
             {
                 click : Overlay.dismiss,
-                mouseover : function() { this.src = Icons.getColor("exit", "e1e1e1"); },
-                mouseout : function() { this.src = Icons.get("exit"); }
+                mouseover : function() { this.src = 'i/e1e1e1/cancel.svg'; },
+                mouseout : function() { this.src = 'i/c1c1c1/cancel.svg'; }
             });
         Tooltip.setTooltip(close, "Close");
         $("#mainOverlay").appendChild(close);
-    };
+    }
 
     /// <summary>
     /// Internal helper that dismisses an overlay when escape is pressed,

@@ -29,8 +29,17 @@ hr {
 }
 
 #libraries:hover,
-#search:hover {
+#search:hover,
+#markerBreakdown:hover {
   border-color: #909090;
+}
+
+#markerBreakdown {
+  color: #a1a1a1;
+}
+
+#markerBreakdown:hover {
+  color: #c1c1c1;
 }
 
 select:focus,

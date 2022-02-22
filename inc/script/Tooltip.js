@@ -136,11 +136,11 @@ let Tooltip = new function()
 
         tooltip.style.display = "inline";
 
-        let maxHeight = $("#plexFrame").clientHeight - tooltip.clientHeight - 20 - windowMargin;
+        let maxHeight = document.body.clientHeight - tooltip.clientHeight - 20 - windowMargin;
         tooltip.style.top = (Math.min(e.clientY, maxHeight) + 20) + "px";
 
         let avoidOverlay = e.clientY > maxHeight ? 10 : 0;
-        let maxWidth = $("#plexFrame").clientWidth - tooltip.clientWidth - windowMargin - avoidOverlay;
+        let maxWidth = document.body.clientWidth - tooltip.clientWidth - windowMargin - avoidOverlay;
         tooltip.style.left = (Math.min(e.clientX, maxWidth) + avoidOverlay) + "px";
     };
 

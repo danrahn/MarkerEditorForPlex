@@ -280,7 +280,12 @@ let Animation = new function()
             {
                 if (deleteAfterTransition)
                 {
-                    element.parentNode.removeChild(element);
+                    // In some rare cases it's already deleted, so ignore any errors that happen here
+                    try {
+                        element.parentNode.removeChild(element);
+                    } catch (ex) {
+                        Log.warn('Animate: Could not remove element from DOM. Is it already deleted?');
+                    }
                 }
 
                 // Always need to call this once a particular animation is done!

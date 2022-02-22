@@ -9,6 +9,7 @@ function setup()
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
+    setupMarkerBreakdown();
     plex = new Plex();
     getLibraries();
 }
@@ -252,6 +253,82 @@ function clearAll() {
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
+}
+
+/// <summary>
+/// Set up click handler and tooltip text for the marker breakdown button.
+/// <summary>
+function setupMarkerBreakdown() {
+    const stats = $('#markerBreakdownHolder');
+    stats.addEventListener('click', getMarkerBreakdown);
+    Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers');
+}
+
+/// <summary>
+/// Kicks off a request for marker stats. This can take some time for large libraries,
+/// so first initialize an overlay so the user knows something's actually happening.
+/// </summary>
+function getMarkerBreakdown() {
+
+    Overlay.show(
+        buildNode('div').appendChildren(
+            buildNode('h2', {}, 'Marker Breakdown'),
+            buildNode('br'),
+            buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
+            buildNode('br'),
+            buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
+        'Cancel')
+
+    jsonRequest('get_stats', { id : plex.activeSection }, showMarkerBreakdown, markerBreakdownFailed);
+}
+
+/// <summary>
+/// After successfully grabbing the marker breakdown from the server, build a pie chart
+/// visualizing the number of episodes that have n markers.
+// </summary>
+function showMarkerBreakdown(response) {
+    const overlay = $('#mainOverlay');
+    if (!overlay) {
+        Log.verbose('Overlay is gone, not showing stats');
+        return; // User closed out of window
+    }
+
+    let dataPoints = [];
+    for (const [bucket, value] of Object.entries(response)) {
+        dataPoints.push({ value : value, label : plural(bucket, 'Marker') });
+    }
+
+    const chartOptions = {
+        radius : Math.min(Math.min(400, window.innerWidth / 2 - 40), window.innerHeight / 2 - 200),
+        points : dataPoints,
+        title : 'Marker Breakdown',
+        colorMap : { // Set colors for 0 and 1, use defaults for everything else
+            '0 Markers' : '#a33e3e',
+            '1 Marker'  : '#2e832e'
+        },
+        sortFn : (a, b) => parseInt(a.label) - parseInt(b.label),
+        labelOptions : { count : true, percentage : true }
+    }
+
+    const chart = Chart.pie(chartOptions);
+
+    Overlay.destroy();
+    Overlay.build({ dismissible : true, centered : true, delay : 0, noborder : true, closeButton : true },
+        buildNode('div', { style : 'text-align: center' }).appendChildren(chart));
+}
+
+/// <summary>
+/// Let the user know something went wrong if we failed to grab marker stats.
+/// </summary>
+function markerBreakdownFailed(response) {
+    Overlay.destroy();
+    Overlay.show(
+        buildNode('div').appendChildren(
+            buildNode('h2', {}, 'Error'),
+            buildNode('br'),
+            buildNode('div', {}, `Failed to get marker breakdown: ${response.Error || response.message}`, 'OK')
+        )
+    );
 }
 
 let g_searchTimer;

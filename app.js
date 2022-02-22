@@ -197,6 +197,7 @@ const EndpointMap = {
     get_section  : (params, res) => getShows(params.i('id'), res),
     get_seasons  : (params, res) => getSeasons(params.i('id'), res),
     get_episodes : (params, res) => getEpisodes(params.i('id'), res),
+    get_stats    : (params, res) => allStats(params.i('id'), res)
 };
 
 /// <summary>
@@ -583,5 +584,48 @@ GROUP BY e.id;`;
         }
 
         return jsonSuccess(res, episodes);
+    });
+}
+
+/// <summary>
+/// Gather marker information for all episodes in the given library,
+/// returning the number of episodes that have X markers associated with it.
+/// </summary>
+function allStats(sectionId, res) {
+    // Note that the method below of grabbing _all_ tags for an episode and discarding
+    // those that aren't intro markers is faster than doing an outer join on a temporary
+    // taggings table that only includes markers
+    const query = `
+SELECT e.id AS episode_id, m.tag_id AS tag_id FROM metadata_items e
+LEFT JOIN taggings m ON e.id=m.metadata_item_id
+WHERE e.library_section_id=? AND e.metadata_type=4
+ORDER BY e.id ASC;`;
+    Database.all(query, [sectionId], (err, rows) => {
+        if (err) {
+            return jsonError(res, 400, err.message);
+        }
+
+        let buckets = {};
+        Log.verbose(`Parsing ${rows.length} tags`);
+        let idCur = -1;
+        let countCur = 0;
+        for (const row of rows) {
+            if (row.episode_id == idCur) {
+                if (row.tag_id == TagId) {
+                    ++countCur;
+                }
+            } else {
+                if (!buckets[countCur]) {
+                    buckets[countCur] = 0;
+                }
+
+                ++buckets[countCur];
+                idCur = row.episode_id;
+                countCur = row.tag_id == TagId ? 1 : 0;
+            }
+        }
+
+        ++buckets[countCur];
+        return jsonSuccess(res, buckets);
     });
 }
