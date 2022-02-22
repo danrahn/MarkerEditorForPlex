@@ -259,7 +259,7 @@ function clearAndShow(ele) {
 /// Set up click handler and tooltip text for the marker breakdown button.
 /// <summary>
 function setupMarkerBreakdown() {
-    const stats = $('#markerBreakdownHolder');
+    const stats = $('#markerBreakdown');
     stats.addEventListener('click', getMarkerBreakdown);
     Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers');
 }
@@ -277,7 +277,7 @@ function getMarkerBreakdown() {
             buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
             buildNode('br'),
             buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
-        'Cancel')
+        'Cancel');
 
     jsonRequest('get_stats', { id : plex.activeSection }, showMarkerBreakdown, markerBreakdownFailed);
 }
@@ -312,8 +312,12 @@ function showMarkerBreakdown(response) {
 
     const chart = Chart.pie(chartOptions);
 
+    // Our first request may be slow, and we want to show the graph immediately.
+    // Subsequent requests might instantly return cached data, so we want to include a fade in
+    const opacity = parseFloat(getComputedStyle(overlay).opacity);
+    const delay = (1 - opacity) * 250;
     Overlay.destroy();
-    Overlay.build({ dismissible : true, centered : true, delay : 0, noborder : true, closeButton : true },
+    Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
         buildNode('div', { style : 'text-align: center' }).appendChildren(chart));
 }
 
@@ -326,9 +330,8 @@ function markerBreakdownFailed(response) {
         buildNode('div').appendChildren(
             buildNode('h2', {}, 'Error'),
             buildNode('br'),
-            buildNode('div', {}, `Failed to get marker breakdown: ${response.Error || response.message}`, 'OK')
-        )
-    );
+            buildNode('div', {}, `Failed to get marker breakdown: ${response.Error || response.message}`)
+        ), 'OK');
 }
 
 let g_searchTimer;

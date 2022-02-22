@@ -416,6 +416,8 @@ function addMarker(metadataId, startMs, endMs, res) {
 
                 jsonSuccess(res, row);
             });
+            
+            updateMarkerBreakdownCache(metadataId, allMarkers.length, 1 /*delta*/);
         });
     });
 }
@@ -459,6 +461,9 @@ function deleteMarker(markerId, res) {
                         }
                     }
                 }
+
+                updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
+
                 return jsonSuccess(res, { metadata_id : row.metadata_item_id, marker_id : markerId });
             });
         });
@@ -587,11 +592,18 @@ GROUP BY e.id;`;
     });
 }
 
+let markerBreakdownCache = {};
+
 /// <summary>
 /// Gather marker information for all episodes in the given library,
 /// returning the number of episodes that have X markers associated with it.
 /// </summary>
 function allStats(sectionId, res) {
+    if (markerBreakdownCache[sectionId]) {
+        Log.verbose('Found cached data, returning it');
+        return jsonSuccess(res, markerBreakdownCache[sectionId]);
+    }
+
     // Note that the method below of grabbing _all_ tags for an episode and discarding
     // those that aren't intro markers is faster than doing an outer join on a temporary
     // taggings table that only includes markers
@@ -626,6 +638,24 @@ ORDER BY e.id ASC;`;
         }
 
         ++buckets[countCur];
+        markerBreakdownCache[sectionId] = buckets;
         return jsonSuccess(res, buckets);
+    });
+}
+
+/// <summary>
+/// Ensure our marker bucketing stays up to date after the user adds or deletes markers.
+/// </summary>
+function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
+    Database.get('SELECT library_section_id FROM metadata_items WHERE id=?', [metadataId], (err, row) => {
+        if (err) {
+            Log.warn(`Unable to determine the section id of metadata item ${metadataId}, wiping cache to ensure things stay in sync`);
+            markerBreakdownCache = {};
+            return;
+        }
+
+        const section = row.library_section_id;
+        markerBreakdownCache[section][oldMarkerCount] -= 1;
+        markerBreakdownCache[section][oldMarkerCount + delta] += 1;
     });
 }

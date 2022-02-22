@@ -115,6 +115,18 @@ let Animation = new function()
     /// </summary>
     let fireNext = function(element)
     {
+        // In some rare cases, 'element' no longer exists, but it's been recreated and reattached to the DOM.
+        // Update it here if necessary.
+        if (!element.isConnected) {
+            const id = element.id;
+            element = $(`#${id}`);
+            if (!element) {
+                Log.warn('Element no longer exists. Clearing queue');
+                delete animationQueue[id];
+                return;
+            }
+        }
+
         let queue = animationQueue[element.id];
         queue[0].shift();
         if (queue[0].length == 0)
@@ -282,7 +294,10 @@ let Animation = new function()
                 {
                     // In some rare cases it's already deleted, so ignore any errors that happen here
                     try {
+                        // Clear out queue in advance, since we can't do anything else with the element gone.
+                        delete animationQueue[element.id];
                         element.parentNode.removeChild(element);
+                        return;
                     } catch (ex) {
                         Log.warn('Animate: Could not remove element from DOM. Is it already deleted?');
                     }

@@ -96,7 +96,7 @@ let Overlay = new function()
         let delay = options.delay || 250;
         if (delay != 0)
         {
-            Animation.queue({ opacity : 1 }, overlayNode, delay);
+            Animation.fireNow({ opacity : 1 }, overlayNode, delay);
         }
 
         if (container.clientHeight / window.innerHeight > 0.7)
