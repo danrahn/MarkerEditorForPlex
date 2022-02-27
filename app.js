@@ -4,6 +4,7 @@ const Mime = require('mime-types');
 const Sqlite3 = require('sqlite3');
 const Open = require('open');
 const QueryParse = require('./QueryParse.js')
+const zlib = require('zlib');
 
 const Log = require('./inc/script/ConsoleLog.js');
 
@@ -141,11 +142,9 @@ function handleGet(req, res) {
     }
 
     Fs.readFile(__dirname + url).then(contents => {
-        res.statusCode = 200;
-        res.setHeader('Content-Type', mimetype);
-        res.end(contents);
+        returnCompressedData(res, 200, contents, mimetype);
     }).catch(err => {
-        Log.warn(`Unable to serve ${url}`);
+        Log.warn(`Unable to serve ${url}: ${err.message}`);
         res.statusCode = 404;
         res.end('Not Found: ' + err.code);
     });
@@ -175,6 +174,8 @@ function getSvgIcon(url, res) {
             contents = contents.toString('utf-8');
         }
 
+        // Could send this back compressed, but most of these are so small
+        // that it doesn't make a tangible difference.
         contents = contents.replace(/FILL_COLOR/g, `#${color}`);
         res.setHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
         res.end(Buffer.from(contents, 'utf-8'));
@@ -229,9 +230,7 @@ function handlePost(req, res) {
 /// </summary>
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
-    res.statusCode = code;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ Error : error }));
+    returnCompressedData(res, code, JSON.stringify({ Error : error }), 'application/json');
 }
 
 /// <summary>
@@ -244,9 +243,29 @@ function jsonSuccess(res, data) {
     } else {
         Log.verbose(true, 'Success')
     }
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(data || { success : true }));
+
+    returnCompressedData(res, 200, JSON.stringify(data || { success : true }), 'application/json');
+}
+
+/// <summary>
+/// Attempt to send gzip compressed data to reduce network traffic, falling back to plain text on failure.
+/// </summary>
+function returnCompressedData(res, status, data, contentType) {
+    zlib.gzip(data, (err, buffer) => {
+        if (err) {
+            Log.warn('Failed to compress data, sending uncompressed');
+            res.writeHead(status, { 'Content-Type' : contentType });
+            res.end(data);
+            return;
+        }
+
+        res.writeHead(status, {
+            'Content-Encoding' : 'gzip',
+            'Content-Type' : contentType
+        });
+
+        res.end(buffer);
+    })
 }
 
 /// <summary>
