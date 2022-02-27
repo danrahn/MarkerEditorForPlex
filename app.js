@@ -3,7 +3,8 @@ const Fs = require('fs').promises;
 const Mime = require('mime-types');
 const Sqlite3 = require('sqlite3');
 const Open = require('open');
-const QueryParse = require('./QueryParse.js')
+const QueryParse = require('./QueryParse.js');
+const ThumbnailManager = require('./ThumbnailManager.js').ThumbnailManager;
 const zlib = require('zlib');
 
 const Log = require('./inc/script/ConsoleLog.js');
@@ -44,6 +45,8 @@ Log.setLevel(getConfigLogLevel());
 
 const Hostname = Config.host || 'localhost';
 const Port = Config.port || 3232;
+const Thumbnails = new ThumbnailManager(Database, Config.metadataPath);
+
 
 /// <summary>
 /// Creates the server, called after verifying the config file and database.
@@ -132,6 +135,8 @@ function handleGet(req, res) {
 
     if (url.startsWith('/i/')) {
         return getSvgIcon(url, res);
+    } else if (url.startsWith('/t/')) {
+        return getThumbnail(url, res);
     }
 
     let mimetype = Mime.lookup(url);
@@ -295,14 +300,32 @@ function queryIds(keys, res) {
             return jsonError(res, 400, 'Unable to retrieve ids');
         }
 
-        // Need to add 'Z' to timestamps
+        // There's definitely a better way to do this, but determining whether an episode
+        // has thumbnails attached is asynchronous, so keep track of how many results have
+        // come in, and only return once we've processed all rows.
+        let waitingFor = rows.length;
         rows.forEach(row => {
+            // Need to add 'Z' to timestamps
             if (row.thumb_url) row.thumb_url += 'Z';
             row.created_at += 'Z';
+            if (Config.useThumbnails) {
+                Thumbnails.hasThumbnails(row.metadata_item_id).then((hasThumbs) => {
+                    row.hasThumbnails = hasThumbs;
+                    --waitingFor;
+                    if (waitingFor == 0) {
+                        return jsonSuccess(res, markers);
+                    }
+                }).catch(() => {
+                    --waitingFor;
+                });
+            }
+
             markers[row.metadata_item_id].push(row);
         });
 
-        return jsonSuccess(res, markers);
+        if (!Config.useThumbnails) {
+            return jsonSuccess(res, markers);
+        }
     });
 }
 
@@ -674,7 +697,36 @@ function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
         }
 
         const section = row.library_section_id;
+        if (!markerBreakdownCache[section]) {
+            return;
+        }
+
         markerBreakdownCache[section][oldMarkerCount] -= 1;
         markerBreakdownCache[section][oldMarkerCount + delta] += 1;
+    });
+}
+
+/// <summary>
+/// Return a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds
+/// </summary>
+function getThumbnail(url, res) {
+    const badRequest = (res) => { res.statusCode = 400; res.end(); };
+    if (!Config.useThumbnails) {
+        return badRequest(res);
+    }
+    const split = url.split('/');
+    if (split.length != 4) {
+        return badRequest(res);
+    }
+
+    const metadataId = parseInt(split[2]);
+    const timestamp = parseInt(split[3]);
+    if (isNaN(metadataId) || isNaN(timestamp)) {
+        return badRequest();
+    }
+
+    Thumbnails.getThumbnail(metadataId, timestamp).then(data => {
+        res.writeHead(200, { 'Content-Type' : 'image/jpeg', 'Content-Length' : data.length });
+        res.end(data);
     });
 }

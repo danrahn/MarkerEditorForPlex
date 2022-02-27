@@ -3,5 +3,7 @@
     "host" : "localhost",
     "port" : 3232,
     "autoOpen" : true,
-    "logLevel" : "Info"
+    "logLevel" : "Info",
+    "useThumbnails" : true,
+    "metadataPath" : "C:\\Users\\Daniel\\AppData\\Local\\Plex Media Server"
 }
