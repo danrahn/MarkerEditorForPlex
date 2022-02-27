@@ -5,7 +5,7 @@ let g_dark = null;
 
 function setup()
 {
-    checkTheme();
+    setTheme();
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
@@ -112,24 +112,24 @@ let themedStyle;
 /// <summary>
 /// Adjusts the favicon depending on the browser theme.
 /// <summary>
-function checkTheme() {
-    let darkTheme = parseInt(localStorage.getItem(themeKey));
+function setTheme() {
+    g_dark = parseInt(localStorage.getItem(themeKey));
     let manual = true;
     let darkThemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-    if (isNaN(darkTheme)) {
+    if (isNaN(g_dark)) {
         manual = false;
-        darkTheme = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
+        g_dark = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
     }
 
     themedStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : `theme${g_dark ? 'Dark' : 'Light' }.css`});
     $$('head').appendChild(themedStyle);
 
     let checkbox = $('#darkModeCheckbox');
-    checkbox.checked = darkTheme;
+    checkbox.checked = g_dark;
     checkbox.addEventListener('change', (e) => toggleTheme(e.target.checked, true /*manual*/));
 
-    toggleTheme(darkTheme, manual);
+    toggleTheme(g_dark, manual);
     darkThemeMediaQuery.addEventListener('change', e => { if (toggleTheme(e.matches, false /*manual*/)) checkbox.checked = e.matches; });
 }
 
