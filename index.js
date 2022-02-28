@@ -916,7 +916,7 @@ function thumbnailTimeInput(metadataId, value, end=false) {
         'img',
         { src : `t/${metadataId}/${value ? parseInt(timeToMs(value) / 1000) : '0' }`, class : 'inputThumb', alt : 'Timestamp Thumbnail', width: '240px' },
         0,
-        { error : () => this.classList.add('hidden') });
+        { error : function() { this.classList.add('hidden'); } });
 
     Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail');
     return buildNode('div', { class : 'thumbnailTimeInput'}).appendChildren(input, img);
@@ -940,7 +940,8 @@ function onTimeInputKeyup(e) {
                 {},
                 { error : () => this.classList.add('hidden') })
         );
-    } else if (!img.classList.contains('hidden')) {
+    } else {
+        img.classList.remove('hidden');
         img.src = url;
     }
 }
@@ -961,7 +962,13 @@ function onEndTimeInput(e) {
     }
 
     e.preventDefault();
-    const metadataId = parseInt(this.parentNode.parentNode.getAttribute('metadataId'));
+    let metadataId = 0;
+    if (this.parentNode.$$('img')) {
+        metadataId = this.parentNode.parentNode.parentNode.getAttribute('metadataId');
+    } else {
+        const metadataId = parseInt(this.parentNode.parentNode.getAttribute('metadataId'));
+    }
+
     this.value = msToHms(g_episodeResults[metadataId].duration);
 }
 
