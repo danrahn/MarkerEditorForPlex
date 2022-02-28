@@ -200,7 +200,7 @@ function mainSetup() {
     let gotConfig = (config) => {
         g_appConfig = config;
         parseSettings();
-        jsonRequest('get_sections', {}, listLibraries, failFunc);
+        jsonRequest('get_sections', {}, listLibraries, failureFunc);
     }
 
     let noConfig = () => {
