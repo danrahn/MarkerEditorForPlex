@@ -40,6 +40,74 @@ input, select {
   padding-top: 20px;
 }
 
+#settings {
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+#settings:hover {
+  opacity: 1;
+}
+
+#settingsContainer {
+  margin: auto;
+  width: 80%;
+  min-width: 200px;
+  max-width: 400px;
+  padding: 20px;
+  background-color: rgba(0,0,0,0.6);
+  color: #c4c4c4;
+}
+
+#settingsContainer h3 {
+  margin-top: 10px;
+  text-align: center;
+}
+
+#settingsContainer label {
+  float: left;
+}
+
+#settingsContainer input {
+  float: right;
+  border-radius: 5px;
+  border: 1px solid #53575a;
+  color: #c0bdba;
+  outline: 0;
+  background-color: #414141;
+}
+
+#settingsContainer hr {
+  border: 1px solid #53575a;
+}
+
+#settingsContainer input[type=checkbox] {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 6px;
+  margin: auto;
+  display: inline-block;
+  background-color: #3f4245;
+}
+
+#settingsContainer input[type=checkbox]:checked {
+  background-color: #c0bdba;
+}
+
+.settingsButtons {
+  float: right;
+  overflow: auto;
+}
+
+.settingsButtons input {
+  padding: 5px;
+}
+
+.formInput {
+  padding: 5px;
+  overflow: auto;
+}
+
 #showInstructions {
   margin: 5px auto 5px auto;
   display: inline-block;
@@ -312,6 +380,23 @@ table .buttonIconAndText {
   margin: auto;
   display: flex;
   justify-content: center;
+}
+
+.timeInput {
+  font-family: monospace;
+  width: 130px;
+}
+
+td>.timeInput {
+  margin-left: 0;
+}
+
+.thumbnailTimeInput {
+  text-align: center;
+}
+
+.thumbnailTimeInput>.timeInput {
+  margin: 2px auto 2px auto;
 }
 
 #toggleContainer {

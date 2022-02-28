@@ -29,6 +29,8 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 `port`     | The port the server will listen on. Defaults to `3232` | A valid port number.
 `autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
 `logLevel` | Determines logging verbosity in the console. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
+`useThumbnails` | Determines whether the app should attempt to retrieve preview thumbnails associated with marker timestamps | `true` or `false`
+`metadataPath` | Root path to Plex's [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A full path (e.g. `C:\\Users\\username\\AppData\\Local\\Plex Media Server`). Only required if `useThumbnails` is `true`.
 
 ## Current Status/TODO
 

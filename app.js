@@ -203,7 +203,8 @@ const EndpointMap = {
     get_section  : (params, res) => getShows(params.i('id'), res),
     get_seasons  : (params, res) => getSeasons(params.i('id'), res),
     get_episodes : (params, res) => getEpisodes(params.i('id'), res),
-    get_stats    : (params, res) => allStats(params.i('id'), res)
+    get_stats    : (params, res) => allStats(params.i('id'), res),
+    get_config : (_, res) => jsonSuccess(res, Config),
 };
 
 /// <summary>
@@ -300,32 +301,14 @@ function queryIds(keys, res) {
             return jsonError(res, 400, 'Unable to retrieve ids');
         }
 
-        // There's definitely a better way to do this, but determining whether an episode
-        // has thumbnails attached is asynchronous, so keep track of how many results have
-        // come in, and only return once we've processed all rows.
-        let waitingFor = rows.length;
         rows.forEach(row => {
             // Need to add 'Z' to timestamps
             if (row.thumb_url) row.thumb_url += 'Z';
             row.created_at += 'Z';
-            if (Config.useThumbnails) {
-                Thumbnails.hasThumbnails(row.metadata_item_id).then((hasThumbs) => {
-                    row.hasThumbnails = hasThumbs;
-                    --waitingFor;
-                    if (waitingFor == 0) {
-                        return jsonSuccess(res, markers);
-                    }
-                }).catch(() => {
-                    --waitingFor;
-                });
-            }
-
             markers[row.metadata_item_id].push(row);
         });
 
-        if (!Config.useThumbnails) {
-            return jsonSuccess(res, markers);
-        }
+        return jsonSuccess(res, markers);
     });
 }
 
@@ -617,20 +600,40 @@ GROUP BY e.id;`;
             return jsonError(res, 400, "Could not retrieve episodes from the database.");
         }
 
+        // There's definitely a better way to do this, but determining whether an episode
+        // has thumbnails attached is asynchronous, so keep track of how many results have
+        // come in, and only return once we've processed all rows.
+        let waitingFor = rows.length;
         let episodes = [];
-        for (const episode of rows) {
+        rows.forEach((episode, index) => {
+            const metadataId = episode.id;
             episodes.push({
                 title : episode.title,
                 index : episode.index,
                 seasonName : episode.season,
                 seasonIndex : episode.season_index,
                 showName : episode.show,
-                metadataId : episode.id,
+                metadataId : metadataId,
                 duration : episode.duration,
             });
-        }
 
-        return jsonSuccess(res, episodes);
+            if (Config.useThumbnails) {
+                Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
+                    episodes[index].hasThumbnails = hasThumbs;
+                    --waitingFor;
+                    if (waitingFor == 0) {
+                        return jsonSuccess(res, episodes);
+                    }
+                }).catch(() => {
+                    --waitingFor;
+                    episodes[index].hasThumbnails = false;
+                });
+            }
+        });
+
+        if (!Config.useThumbnails) {
+            return jsonSuccess(res, episodes);
+        }
     });
 }
 

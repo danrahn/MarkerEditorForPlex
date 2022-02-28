@@ -2,6 +2,7 @@ window.addEventListener('load', setup);
 
 let plex;
 let g_dark = null;
+let g_appConfig;
 
 function setup()
 {
@@ -9,9 +10,10 @@ function setup()
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
+    $('#settings').addEventListener('click', showSettings);
     setupMarkerBreakdown();
     plex = new Plex();
-    getLibraries();
+    mainSetup();
 }
 
 class Plex
@@ -131,6 +133,11 @@ function setTheme() {
 
     toggleTheme(g_dark, manual);
     darkThemeMediaQuery.addEventListener('change', e => { if (toggleTheme(e.matches, false /*manual*/)) checkbox.checked = e.matches; });
+
+    // index.html hard-codes the dark theme icon. Adjust if necessary
+    if (!g_dark) {
+        $('#settings').src = '/i/212121/settings.svg';
+    }
 }
 
 /// <summary>
@@ -164,9 +171,9 @@ function toggleTheme(isDark, manual) {
 /// After changing the theme, make sure any theme-sensitive icons are also adjusted.
 /// </summary>
 function adjustIcons() {
-    for (const icon of $('.button img')) {
+    for (const icon of $('img[src^="/i/"]')) {
         const split = icon.src.split('/');
-        icon.src = `i/${colors.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
+        icon.src = `/i/${colors.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
     }
 }
 
@@ -179,12 +186,29 @@ function showHideInstructions() {
     }
 }
 
-function getLibraries() {
+/// <summary>
+/// Kick off the initial requests necessary for the page to function:
+/// * Get app config
+/// * Get local settings
+/// * Retrieve libraries
+/// </summary>
+function mainSetup() {
     let failureFunc = (response) => {
         Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${response.Error}`, 'OK');
     };
 
-    jsonRequest('get_sections', {}, listLibraries, failureFunc);
+    let gotConfig = (config) => {
+        g_appConfig = config;
+        parseSettings();
+        jsonRequest('get_sections', {}, listLibraries, failFunc);
+    }
+
+    let noConfig = () => {
+        g_appConfig = {};
+        Overlay.show('Error getting config, please try again later.', 'OK');
+    }
+
+    jsonRequest('get_config', {}, gotConfig, noConfig);
 }
 
 /// <summary>
@@ -253,6 +277,119 @@ function clearAll() {
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
+}
+
+const settingsKey = 'plexIntro_settings';
+let g_localSettings = {};
+
+/// <summary>
+/// Retrieve local settings. Currently only contains the setting controlling whether
+/// thumbnails are shown during marker edit, as dark mode setting is stored separately.
+/// </summary>
+function parseSettings() {
+    $('#settings').classList.remove('hidden');
+    try {
+        g_localSettings = JSON.parse(localStorage.getItem(settingsKey));
+        verifySettings();
+    } catch (e) {
+        g_localSettings = defaultSettings();
+    }
+}
+
+function defaultSettings() {
+    return {
+        useThumbnails : g_appConfig.useThumbnails
+    };
+}
+
+function verifySettings() {
+    if (!g_localSettings) {
+        g_localSettings = defaultSettings();
+        return;
+    }
+
+    if (!g_localSettings.hasOwnProperty('useThumbnails')) {
+        g_localSettings.useThumbnails = g_appConfig.useThumbnails;
+    }
+}
+
+/// <summary>
+/// Show the settings overlay.
+/// Currently only has two options:
+/// * Dark Mode: toggles dark mode, and is linked to the main dark mode toggle
+/// * Show Thumbnails: Toggles whether thumbnails are shown when editing/adding markers.
+///                    Only visible if app settings have thumbnails enabled.
+/// </summary>
+function showSettings() {
+    let options = [];
+    options.push(buildSettingCheckbox('Dark Mode', 'darkModeSetting', g_dark));
+    if (g_appConfig.useThumbnails) {
+        options.push(buildSettingCheckbox(
+            'Show Thumbnails',
+            'showThumbnailsSetting',
+            g_localSettings.useThumbnails,
+            'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)'));
+    }
+    options.push(buildNode('hr'));
+
+    let container = buildNode('div', { id : 'settingsContainer'}).appendChildren(
+        buildNode('h3', {}, 'Settings'),
+        buildNode('hr')
+    );
+
+    options.forEach(option => container.appendChild(option));
+    const buildButton = (text, id, callback, style='') => buildNode(
+        'input', {
+            type : 'button',
+            value : text,
+            id : id,
+            style : style
+        },
+        0,
+        {
+            click : callback
+        });
+
+    container.appendChild(buildNode('div', { class : 'formInput' }).appendChildren(
+        buildNode('div', { class : 'settingsButtons' }).appendChildren(
+            buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
+            buildButton('Apply', 'applySettings', applySettings)
+        )
+    ));
+
+    Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
+}
+
+/// <summary>
+/// Helper method that builds a label+checkbox combo for use in the settings dialog.
+/// </summary>
+function buildSettingCheckbox(label, name, checked, tooltip='') {
+    let labelNode = buildNode('label', { for : name }, label + ': ');
+    if (tooltip) {
+        Tooltip.setTooltip(labelNode, tooltip);
+    }
+
+    let checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
+    if (checked) {
+        checkbox.setAttribute('checked', 'checked');
+    }
+    return buildNode('div', { class : 'formInput' }).appendChildren(
+        labelNode,
+        checkbox
+    );
+}
+
+/// <summary>
+/// Apply and save settings after the user chooses to commit their changes.
+/// </summary>
+function applySettings() {
+    if ($('#darkModeSetting').checked != g_dark) {
+        $('#darkModeCheckbox').click();
+    }
+
+    g_localSettings.useThumbnails = g_appConfig.useThumbnails && $('#showThumbnailsSetting').checked;
+    localStorage.setItem(settingsKey, JSON.stringify(g_localSettings));
+    Overlay.dismiss();
 }
 
 /// <summary>
@@ -738,11 +875,13 @@ function optionButtons(markerId) {
 function onMarkerAdd() {
     const metadataId = parseInt(this.getAttribute('metadataId'));
     const thisRow = this.parentNode.parentNode;
-    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeInput(), timeInput(null, true), dateColumn(''), centeredColumn('-')), thisRow);
+    const timeStart = thumbnailTimeInput(metadataId);
+    const timeEnd = thumbnailTimeInput(metadataId, null, true);
+    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeStart, timeEnd, dateColumn(''), centeredColumn('-')), thisRow);
     buildConfirmCancel(addedRow.children[3], 'Add', '-1', onMarkerAddConfirm, onMarkerAddCancel);
     addedRow.setAttribute('metadataId', metadataId);
     addedRow.setAttribute('markerId', '-1');
-    addedRow.children[1].children[0].focus();
+    addedRow.children[1].$$('input').focus();
 }
 
 /// <summary>Return a text input meant for time input.</summary>
@@ -753,12 +892,57 @@ function timeInput(value, end=false) {
         events = { keydown : onEndTimeInput };
     }
 
-    let input = buildNode('input', { type : 'text', maxlength : 12, style : 'font-family:monospace;width:130px;margin-left:0', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' }, 0, events);
+    let input = buildNode('input', { type : 'text', maxlength : 12, class : 'timeInput', placeholder : 'ms or mm:ss[.000]', value : value ? value : '' }, 0, events);
     if (end) {
         Tooltip.setTooltip(input, 'Ctrl+Shift+E to replace with the end of the episode');
     }
 
     return input;
+}
+
+/// <summary>
+/// If available and enabled, return a thumbnail image alongside the time input text.
+/// Pressing 'Enter' in the input will refresh the thumbnail.
+/// </summary>
+function thumbnailTimeInput(metadataId, value, end=false) {
+    let input = timeInput(value, end);
+    if (!g_localSettings.useThumbnails || !g_appConfig.useThumbnails || !g_episodeResults[metadataId].hasThumbnails) {
+        return input;
+    }
+
+    input.setAttribute('metadataId', metadataId);
+    input.addEventListener('keyup', onTimeInputKeyup);
+    let img = buildNode(
+        'img',
+        { src : `t/${metadataId}/${value ? parseInt(timeToMs(value) / 1000) : '0' }`, class : 'inputThumb', alt : 'Timestamp Thumbnail', width: '240px' },
+        0,
+        { error : () => this.classList.add('hidden') });
+
+    Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail');
+    return buildNode('div', { class : 'thumbnailTimeInput'}).appendChildren(input, img);
+}
+
+/// <summary>
+/// Detects 'Enter' keypress in time input fields and fetches a new thumbnail if needed.
+/// </summary>
+function onTimeInputKeyup(e) {
+    if (e.keyCode != 13) {
+        return;
+    }
+
+    const url = `t/${parseInt(this.getAttribute('metadataId'))}/${parseInt(timeToMs(this.value) / 1000)}`;
+    let img = this.parentNode.$$('.inputThumb');
+    if (!img) {
+        this.parentNode.appendChild(
+            buildNode(
+                'img',
+                { src : url, class : 'inputThumb', alt : 'timestamp thumbnail' },
+                {},
+                { error : () => this.classList.add('hidden') })
+        );
+    } else if (!img.classList.contains('hidden')) {
+        img.src = url;
+    }
 }
 
 function buildConfirmCancel(container, operation, markerId, confirmCallback, cancelCallback) {
@@ -1029,6 +1213,7 @@ function onMarkerEdit() {
         return;
     }
 
+    const metadataId = parseInt(editRow.getAttribute('metadataId'));
     editRow.classList.add('editing');
 
     let startTime = editRow.children[1];
@@ -1041,12 +1226,12 @@ function onMarkerEdit() {
     clearEle(endTime);
     clearEle(modifiedDate);
 
-    startTime.appendChild(timeInput(startTime.getAttribute('prevtime')));
-    endTime.appendChild(timeInput(endTime.getAttribute('prevtime'), true));
+    startTime.appendChild(thumbnailTimeInput(metadataId, startTime.getAttribute('prevtime')));
+    endTime.appendChild(thumbnailTimeInput(metadataId, endTime.getAttribute('prevtime'), true));
     buildConfirmCancel(modifiedDate, 'Edit', markerId, onMarkerEditConfirm, onMarkerEditCancel);
 
-    startTime.children[0].focus();
-    startTime.children[0].select();
+    startTime.$$('input').focus();
+    startTime.$$('input').select();
 }
 
 /// <summary>

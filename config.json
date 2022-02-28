@@ -5,5 +5,5 @@
     "autoOpen" : true,
     "logLevel" : "Info",
     "useThumbnails" : true,
-    "metadataPath" : "C:\\Users\\Daniel\\AppData\\Local\\Plex Media Server"
+    "metadataPath" : "path/to/data/directory"
 }
