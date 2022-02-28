@@ -136,7 +136,10 @@ class ThumbnailManager {
                 }
     
                 let index = Math.floor(timestamp / thumbCache.interval);
-                const maxIndex = data.readInt32LE(thumbnailCountOffset);
+                
+                // Last index points to the end of the file, so the real max is the
+                // number of indexes minus 1.
+                const maxIndex = data.readInt32LE(thumbnailCountOffset) - 1;
                 if (index > maxIndex) {
                     Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
                     index = maxIndex;
