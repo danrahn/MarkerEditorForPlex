@@ -124,7 +124,7 @@ function _buildNode(ele, attrs, content, events) {
  * Helper to append multiple children to a single element at once.
  * @param {HTMLElement} parent Parent element to append children to.
  * @param {...HTMLElement} elements Elements to append this this `HTMLElement`
- * @returns {Element} `parent`
+ * @returns {HTMLElement} `parent`
  */
  function appendChildren(parent, ...elements) {
     for (let element of elements) {

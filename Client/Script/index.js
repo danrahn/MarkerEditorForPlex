@@ -273,7 +273,6 @@ function afterSearchCompleted() {
  * Each entry contains three columns - the show name, the number of seasons, and the number of episodes.
  * @param {ShowData} show Information for a specific show.
  * @param {boolean} [selected=false] True if this row is selected and should be treated like a header opposed to a clickable entry.
- * @returns {HTMLElement}
  */
 function buildShowRow(show, selected=false) {
     let titleNode = buildNode('div', {}, show.title);
@@ -346,7 +345,6 @@ function showSeasons(seasons) {
  * Each row contains the season number, the season title (if applicable), and the number of episodes in the season.
  * @param {SeasonData} season Season information
  * @param {boolean} [selected=false] `true` if this row is selected and should be treated like a header opposed to a clickable entry.
- * @returns {HTMLElement}
  */
 function buildSeasonRow(season, selected=false) {
     let titleNode = buildNode('div', {}, `Season ${season.index}`);
@@ -550,7 +548,6 @@ function _classColumn(value, className) {
  * Creates a table row for a specific marker of an episode
  * @param {MarkerData} marker The marker data.
  * @param {EpisodeData} episode The episode data
- * @returns 
  */
 function tableRow(marker, episode) {
     let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.metadataId, startTime : marker.start, endTime : marker.end });
@@ -589,7 +586,6 @@ function rawTableRow(...columns) {
 /**
  * Create a table row that spans the entire length of the table.
  * @param {string|HTMLElement} column The content of the column.
- * @returns {HTMLElement}
  */
 function spanningTableRow(column) {
     return appendChildren(buildNode('tr'), buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
@@ -625,7 +621,6 @@ function friendlyDate(date, userModifiedDate) {
 /**
  * Return a div containing edit/delete buttons for a marker.
  * @param {number} markerId The marker's id.
- * @returns {HTMLElement}
  */
 function optionButtons(markerId) {
     return appendChildren(buildNode('div'),
@@ -770,7 +765,6 @@ function onMarkerAddCancel() {
  * @param {string} color The color of the icon as a hex string (without the leading '#')
  * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
  * @param {Object<string, string>} attributes Additional attributes to set on the button.
- * @returns {HTMLElement}
  */
 function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
@@ -785,7 +779,6 @@ function createFullButton(text, icon, altText, color, clickHandler, attributes={
  * @param {string} text The text of the button.
  * @param {EventListener} clickHandler The button callback when its clicked.
  * @param {Object<string, string>} [attributes={}] Additional attributes to set on the button.
- * @returns {HTMLElement}
  */
 function createTextButton(text, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonTextOnly', clickHandler, attributes);
@@ -799,7 +792,6 @@ function createTextButton(text, clickHandler, attributes={}) {
  * @param {string} color The color of the icon, as a hex string (without the leading '#')
  * @param {EventListener} clickHandler The button callback when its clicked.
  * @param {Object<string, string>} attributes Additional attributes to set on the button.
- * @returns {HTMLElement}
  */
 function createIconButton(icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
@@ -1146,7 +1138,6 @@ function markerRowFromMarkerId(id) {
 /**
  * From the given row in the marker table, return the associated 'X Markers' column of its episode.
  * @param {HTMLElement} row The marker row.
- * @returns {HTMLElement}
  */
 function episodeMarkerCountFromMarkerRow(row) {
     //                        <tr><tbody>    <table>   <tableHolder>  <div>

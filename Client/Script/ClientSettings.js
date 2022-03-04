@@ -141,10 +141,10 @@ class ClientSettingsUI {
 
     /**
      * Helper method that builds a label+checkbox combo for use in the settings dialog.
-     * @param {*} label The string label for the setting.
-     * @param {*} name The HTML name for the setting.
-     * @param {*} checked Whether the checkbox should initially be checked.
-     * @param {*} [tooltip=''] Hover tooltip, if any.
+     * @param {string} label The string label for the setting.
+     * @param {string} name The HTML name for the setting.
+     * @param {boolean} checked Whether the checkbox should initially be checked.
+     * @param {string} [tooltip=''] Hover tooltip, if any.
      * @returns A new checkbox setting for the settings dialog.
      */
     #buildSettingCheckbox(label, name, checked, tooltip='') {
