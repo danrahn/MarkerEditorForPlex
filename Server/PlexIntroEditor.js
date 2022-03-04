@@ -3,14 +3,17 @@ const Fs = require('fs').promises;
 const Mime = require('mime-types');
 const Sqlite3 = require('sqlite3');
 const Open = require('open');
-const QueryParse = require('./QueryParse.js');
-const ThumbnailManager = require('./ThumbnailManager.js').ThumbnailManager;
+const QueryParse = require('./QueryParse');
+const ThumbnailManager = require('./ThumbnailManager');
 const zlib = require('zlib');
-const PlexIntroEditorConfig = require('./PlexIntroEditorConfig.js');
-const PlexTypes = require('./PlexTypes.js');
+const PlexIntroEditorConfig = require('./PlexIntroEditorConfig');
+const PlexTypes = require('./../Shared/PlexTypes');
 
-const ConsoleLog = require('./inc/script/ConsoleLog.js');
+const ConsoleLog = require('./../Shared/ConsoleLog');
 const Log = new ConsoleLog();
+
+const Path = require('path');
+const Url = require('url');
 
 /**
  * User configuration.
@@ -28,37 +31,49 @@ let Database;
  * @type {number}
  */
 let TagId;
-try {
-    Config = new PlexIntroEditorConfig(Log);
 
-    // Set up the database, and make sure it's the right one.
-    Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
-        if (err) {
-            Log.critical(err.message);
-            Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
-            process.exit(1);
-        } else {
-            // Get the persistent tag_id for intro markers (which also acts as a validation check)
-            Database.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
-                if (err) {
-                    Log.critical(err.message);
-                    Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
-                    process.exit(1);
-                }
+/**
+ * Manages retrieving preview thumbnails for episodes.
+ * @type {ThumbnailManager}
+ */
+let Thumbnails;
 
-                TagId = row.id;
-                createServer();
-            });
-        }
-    });
-} catch (ex) {
-    Log.critical(ex.message);
-    Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
-    process.exit(1);
+/** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
+const ProjectRoot = Path.dirname(__dirname);
+
+/** Initializes and starts the server */
+function run() {
+    try {
+        Config = new PlexIntroEditorConfig(Log);
+        // Set up the database, and make sure it's the right one.
+        Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
+            if (err) {
+                Log.critical(err.message);
+                Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
+                process.exit(1);
+            } else {
+                // Get the persistent tag_id for intro markers (which also acts as a validation check)
+                Database.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
+                    if (err) {
+                        Log.critical(err.message);
+                        Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
+                        process.exit(1);
+                    }
+    
+                    TagId = row.id;
+                    Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
+                    createServer();
+                });
+            }
+        });
+    } catch (ex) {
+        Log.critical(ex.message);
+        Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
+        process.exit(1);
+    }
 }
 
-const Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
-
+module.exports = { run };
 
 /** Creates the server. Called after verifying the config file and database. */
 function createServer() {
@@ -138,7 +153,7 @@ function handleGet(req, res) {
         return;
     }
 
-    Fs.readFile(__dirname + url).then(contents => {
+    Fs.readFile(ProjectRoot + url).then(contents => {
         returnCompressedData(res, 200, contents, mimetype);
     }).catch(err => {
         Log.warn(`Unable to serve ${url}: ${err.message}`);
@@ -166,7 +181,7 @@ function getSvgIcon(url, res) {
         return jsonError(res, 400, 'Invalid icon color.');
     }
 
-    Fs.readFile(__dirname + '/inc/svg/' + icon).then(contents => {
+    Fs.readFile(ProjectRoot + '/SVG/' + icon).then(contents => {
         // Raw file has FILL_COLOR in place of hardcoded values. Replace
         // it with the requested hex color (after decoding the contents)
         if (Buffer.isBuffer(contents)) {
@@ -624,6 +639,10 @@ GROUP BY e.id;`;
                     }
                 }).catch(() => {
                     --waitingFor;
+                    if (waitingFor == 0) {
+                        // We failed, but for auxillary thumbnails, so nothing to completely fail over.
+                        return jsonSuccess(res, episodes);
+                    }
                     episodes[index].hasThumbnails = false;
                 });
             }

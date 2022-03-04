@@ -1,8 +1,8 @@
-body, 
+body,
 ::-webkit-scrollbar-track {
     background-color: #ffefcc;
     background: linear-gradient(#FFEFCCDD, #CCA066DD),
-                url('inc/svg/noise.svg');
+                url('/i/000/noise.svg');
 }
 
 body {

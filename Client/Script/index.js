@@ -1,5 +1,5 @@
 /**
- * @typedef {!import('./PlexTypes').ShowMap} ShowMap
+ * @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap
  */
 
 window.addEventListener('load', setup);
@@ -268,7 +268,7 @@ function setTheme() {
         g_dark = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
     }
 
-    themedStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : `theme${g_dark ? 'Dark' : 'Light' }.css`});
+    themedStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : `Client/Style/theme${g_dark ? 'Dark' : 'Light' }.css`});
     $$('head').appendChild(themedStyle);
 
     let checkbox = $('#darkModeCheckbox');
@@ -1800,9 +1800,9 @@ Element.prototype.appendChildren = function(...elements) {
 // if they're also open in an active editor, but the method below ensures JSDoc is available regardless
 // of that.
 if (typeof __dontEverDefineThis !== 'undefined') {
-    const { ShowData, SeasonData, EpisodeData, MarkerData } = require("./PlexTypes");
-    const { Chart } = require('./inc/script/Chart.js');
-    const { DateUtil } = require('./inc/script/DateUtil.js');
-    const { Overlay } = require('./inc/script/Overlay.js');
-    const { Tooltip } = require('./inc/script/Tooltip.js');
+    const { ShowData, SeasonData, EpisodeData, MarkerData } = require("../../Shared/PlexTypes");
+    const { Chart } = require('./inc/Chart.js');
+    const { DateUtil } = require('./inc/DateUtil.js');
+    const { Overlay } = require('./inc/Overlay.js');
+    const { Tooltip } = require('./inc/Tooltip.js');
 }

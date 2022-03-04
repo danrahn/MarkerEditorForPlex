@@ -1,7 +1,7 @@
 body,
 ::-webkit-scrollbar-track {
   background: linear-gradient(#212121CC, #402200CC),
-              url('inc/svg/noise.svg');
+              url('/i/000/noise.svg');
 }
 
 body {

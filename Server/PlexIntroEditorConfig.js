@@ -1,5 +1,5 @@
-const Config = require('./config.json');
-const ConsoleLog = require('./inc/script/ConsoleLog.js');
+const Config = require('../config.json');
+const ConsoleLog = require('../Shared/ConsoleLog.js');
 
 /**
  * Provides read-only access to the users application configuration.

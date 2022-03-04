@@ -1,6 +1,6 @@
 const FS = require('fs');
 const Path = require('path');
-const ConsoleLog = require('./inc/script/ConsoleLog.js');
+const ConsoleLog = require('../Shared/ConsoleLog.js');
 const Sqlite3 = require('sqlite3');
 const Log = new ConsoleLog();
 
@@ -242,6 +242,4 @@ class CachedThumbnail {
 }
 
 
-module.exports = {
-    ThumbnailManager : ThumbnailManager
-};
+module.exports = ThumbnailManager;

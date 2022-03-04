@@ -14,12 +14,12 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 1. Install [Node.js](https://nodejs.org/en/). This may take awhile.
 2. `git clone` this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
 3. Enter your db path in config.json
-4. `cd /path/to/app.js`
+4. `cd /path/to/start.js`
 5. `npm install`
 
 ### After initial setup
 0. **Back up your Plex database**
-2. `node app.js`
+2. `node start.js`
 
 ## Configuration file
 | Key | Description | Possible Values
