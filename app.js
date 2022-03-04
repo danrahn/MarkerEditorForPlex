@@ -6,14 +6,14 @@ const Open = require('open');
 const QueryParse = require('./QueryParse.js');
 const ThumbnailManager = require('./ThumbnailManager.js').ThumbnailManager;
 const zlib = require('zlib');
+const PlexIntroEditorConfig = require('./PlexIntroEditorConfig.js');
 
 const ConsoleLog = require('./inc/script/ConsoleLog.js');
 const Log = new ConsoleLog();
 
 /**
  * User configuration.
- * @type {Object<string, any>}
- */
+ * @type {PlexIntroEditorConfig} */
 let Config;
 
 /**
@@ -28,20 +28,21 @@ let Database;
  */
 let TagId;
 try {
-    Config = require('./config.json');
+    PlexIntroEditorConfig.SetLog(Log);
+    Config = new PlexIntroEditorConfig();
 
     // Set up the database, and make sure it's the right one.
-    Database = new Sqlite3.Database(Config.database, Sqlite3.OPEN_READWRITE, (err) => {
+    Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
         if (err) {
             Log.critical(err.message);
-            Log.error(`Unable to open database. Are you sure "${Config.database}" exists?`);
+            Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
             process.exit(1);
         } else {
             // Get the persistent tag_id for intro markers (which also acts as a validation check)
             Database.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
                 if (err) {
                     Log.critical(err.message);
-                    Log.error(`Are you sure "${Config.database}" is the Plex database, and has at least one existing intro marker?`);
+                    Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
                     process.exit(1);
                 }
 
@@ -58,19 +59,17 @@ try {
 
 Log.setLevel(getConfigLogLevel());
 
-const Hostname = Config.host || 'localhost';
-const Port = Config.port || 3232;
-const Thumbnails = new ThumbnailManager(Database, Config.metadataPath);
+const Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
 
 
 /** Creates the server. Called after verifying the config file and database. */
 function createServer() {
     const server = Http.createServer(serverMain);
 
-    server.listen(Port, Hostname, () => {
-        const url = `http://${Hostname}:${Port}`;
+    server.listen(Config.port(), Config.host(), () => {
+        const url = `http://${Config.host()}:${Config.port()}`;
         Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-        if (Config.autoOpen) {
+        if (Config.autoOpen()) {
             Log.info('Launching browser...');
             Open(url);
         }
@@ -122,7 +121,7 @@ function serverMain(req, res) {
  * @returns {Log.Level} The log level specified in the configuration, or `Log.Level.Info` if not present.
  */
 function getConfigLogLevel() {
-    switch(Config.logLevel.toLowerCase()) {
+    switch(Config.logLevel().toLowerCase()) {
         case "tmi":
             return Log.Level.Tmi;
         case "verbose":
@@ -134,7 +133,7 @@ function getConfigLogLevel() {
         case "error":
             return Log.Level.Error;
         default:
-            Log.warn(`Invalid log level detected: ${Config.logLevel}. Defaulting to 'Info'`);
+            Log.warn(`Invalid log level detected: ${Config.logLevel()}. Defaulting to 'Info'`);
             return Log.Level.Info;
     }
 }
@@ -224,7 +223,7 @@ const EndpointMap = {
     get_seasons  : (params, res) => getSeasons(params.i('id'), res),
     get_episodes : (params, res) => getEpisodes(params.i('id'), res),
     get_stats    : (params, res) => allStats(params.i('id'), res),
-    get_config : (_, res) => jsonSuccess(res, Config),
+    get_config   : (_     , res) => getConfig(res),
 };
 
 
@@ -655,6 +654,7 @@ GROUP BY e.id;`;
         // has thumbnails attached is asynchronous, so keep track of how many results have
         // come in, and only return once we've processed all rows.
         let waitingFor = rows.length;
+        let episodes = [];
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
             episodes.push({
@@ -667,7 +667,7 @@ GROUP BY e.id;`;
                 duration : episode.duration,
             });
 
-            if (Config.useThumbnails) {
+            if (Config.useThumbnails()) {
                 Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
                     episodes[index].hasThumbnails = hasThumbs;
                     --waitingFor;
@@ -681,7 +681,7 @@ GROUP BY e.id;`;
             }
         });
 
-        if (!Config.useThumbnails) {
+        if (!Config.useThumbnails()) {
             return jsonSuccess(res, episodes);
         }
     });
@@ -777,7 +777,7 @@ function getThumbnail(url, res) {
     /** @param {Http.ServerResponse} res */
     const badRequest = (res) => { res.statusCode = 400; res.end(); };
 
-    if (!Config.useThumbnails) {
+    if (!Config.useThumbnails()) {
         return badRequest(res);
     }
 
@@ -796,4 +796,12 @@ function getThumbnail(url, res) {
         res.writeHead(200, { 'Content-Type' : 'image/jpeg', 'Content-Length' : data.length });
         res.end(data);
     });
+}
+
+/**
+ * Retrieve a subset of the app configuration that the frontend needs access to.
+ * @param {Http.ServerResponse} res
+ */
+function getConfig(res) {
+    jsonSuccess(res, { useThumbnails : Config.useThumbnails() });
 }
