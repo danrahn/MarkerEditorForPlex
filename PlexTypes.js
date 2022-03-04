@@ -1,0 +1,385 @@
+/**
+ * Contains classes that represent show, season, episode, and marker data.
+ */
+
+/**
+ * Base class for a representation of a Plex item, containing
+ * the handful of shared functions/fields.
+ */
+class PlexData {
+    /**
+     * The Plex metadata id for this item.
+     * @type {number} */
+    metadataId;
+
+    constructor() {} // empty
+
+    /**
+     * Restores a serialized version of this class by importing its properties into this instance.
+     * @param {Object} json The serialized instance of a PlexData derivative.
+     * @returns itself. */
+     setFromJson(json) {
+        Object.assign(this, json);
+        return this;
+    }
+}
+
+/**
+ * Information about a TV show in the Plex database.
+ */
+ class ShowData extends PlexData {
+    // Note: It'd be nice for these fields (and those in the classes below) to be private
+    // and accessed via getters only, but as these are stringified when sent from server
+    // to client, JSON.stringify needs access to them.
+
+    /**
+     * The name of the show.
+     * @type {string} */
+    title;
+
+    /**
+     * The name of the show used for search purposes.
+     * This is the lowercase name of the show with whitespace and punctuation removed.
+     * @type {string} */
+    searchTitle;
+
+    /**
+     * The sort title of the show if different from the title, otherwise an empty string.
+     * The same transformations done to {@linkcode searchTitle} are done to `sortTitle`.
+     * @type {string} */
+    sortTitle;
+
+    /**
+     * The original title of the show, if any.
+     * The same transformations done to {@linkcode searchTitle} are done to `originalTitle`.
+     * @type {string} */
+    originalTitle;
+
+    /**
+     * The number of seasons that exist in Plex for this show.
+     * @type {number} */
+    seasonCount;
+
+    /**
+     * The number of episodes that exist in Plex for this show.
+     * @type {number} */
+    episodeCount;
+
+    /**
+     * Constructs ShowData based on the given database row, or an empty show if not provided.
+     * @param {Object<string, any>} [show] */
+    constructor(show) {
+        super();
+        if (!show) {
+            return;
+        }
+
+        this.title = show.title;
+        this.searchTitle = ShowData.#transformTitle(show.title);
+        this.sortTitle = show.title.toLowerCase() != show.title_sort.toLowerCase() ? ShowData.#transformTitle(show.title_sort) : '';
+        this.originalTitle = show.original_title ? ShowData.#transformTitle(show.original_title) : '';
+        this.seasonCount = show.season_count;
+        this.episodeCount = show.episode_count;
+        this.metadataId = show.id;
+    }
+
+    static #transformTitle(title) {
+        return title.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
+    }
+}
+
+/**
+ * Information about a season of a TV show in the Plex database.
+ */
+class SeasonData extends PlexData {
+    /**
+     * The season index. 0 == specials, 1 == season 1, etc.
+     * @type {number} */
+    index;
+
+    /**
+     * The title of the season, if any.
+     * @type {string} */
+    title;
+
+    /**
+     * The number of episodes in the season.
+     * @type {number} */
+    episodeCount;
+
+    /**
+     * Constructs SeasonData based on the given database row, or an empty season if not provided.
+     * @param {Object<string, any>} [season] */
+    constructor(season) {
+        super();
+        if (!season) {
+            return;
+        }
+
+        this.index = season.index;
+        this.title = season.title;
+        this.episodeCount = season.episode_count;
+        this.metadataId = season.id;
+    }
+}
+
+/**
+ * Information about an episode of a TV show in the Plex database.
+ */
+class EpisodeData extends PlexData {
+    /**
+     * The name of the episode.
+     * @type {string} */
+    title;
+
+    /**
+     * The episode number of its season.
+     * @type {number} */
+    index;
+
+    /**
+     * The name of the season this episode belongs to.
+     * @type {string} */
+    seasonName;
+
+    /**
+     * The season number that this episode belongs to.
+     * @type {number} */
+    seasonIndex;
+
+    /**
+     * The name of the show this episode is a part of.
+     * @type {string} */
+    showName;
+
+    /**
+     * The length of the show, in milliseconds.
+     * @type {number} */
+    duration;
+
+    /**
+     * All markers for this episode.
+     * @type {MarkerData[]} */
+    markers = [];
+
+    /**
+     * Indicates whether we found a preview thumbnail file for this episode.
+     * @type {boolean} */
+    hasThumbnails = false;
+
+    /**
+     * Creates a new EpisodeData from the given episode, if provided.
+     * @param {Object<string, any>} [episode] */
+    constructor(episode) {
+        super();
+        if (!episode) {
+            return;
+        }
+
+        this.title = episode.title;
+        this.index = episode.index;
+        this.seasonName = episode.season,
+        this.seasonIndex = episode.season_index;
+        this.showName = episode.show;
+        this.duration = episode.duration;
+        this.metadataId = episode.id;
+    }
+
+    /**
+     * Add a new marker to this episode.
+     * @param {MarkerData} newMarker The marker to add.
+     * @param {HTMLElement} addRow The temporary row used to create the marker.
+     * @param {HTMLElement} newRow The permanent row to add for the new marker.
+     */
+    addMarker(newMarker, addRow, newRow) {
+        let tableBody = addRow.parentNode;
+        tableBody.removeChild(addRow);
+
+        if (this.markers.length == 0) {
+            // This is the first marker for the episode, which means we also have
+            // to remove the placeholder 'No markers found' row.
+            tableBody.removeChild(tableBody.firstChild);
+        }
+
+        // After removing the temp row, but before adding the new row to the table, adjust
+        // indexes so we have a 1:1 mapping between our marker array and what's in our table.
+        for (let i = newMarker.index; i < this.markers.length; ++i) {
+            let markerCurrent = this.markers[i];
+            ++markerCurrent.index;
+            if (tableBody) {
+                tableBody.children[i].firstChild.innerText = markerCurrent.index.toString();
+            }
+        }
+
+        tableBody.insertBefore(newRow, tableBody.children[newMarker.index]);
+
+        this.markers.splice(newMarker.index, 0 /*deleteCount*/, newMarker);
+    }
+
+    /**
+     * Edits the given marker for this episode.
+     * @param {MarkerData} partialMarker The marker that has been edited.
+     * Not a "real" marker, but a partial representation of one that has
+     * all the fields required to successfully edit the real marker it represents.
+     * @param {HTMLElement} editedRow The HTML row for the edited marker.
+     */
+    editMarker(partialMarker, editedRow) {
+        const newIndex = partialMarker.index;
+        let oldIndex = -1;
+        // First loop - find the one we edited, modify its fields, and store its old index.
+        for (let marker of this.markers) {
+            if (marker.id == partialMarker.id) {
+                oldIndex = marker.index;
+                marker.index = newIndex;
+                marker.start = partialMarker.start;
+                marker.end = partialMarker.end;
+
+                // This won't match the YYYY-MM-DD hh:mm:ssZ returned by the database, but
+                // we just need a valid UTC string for client-side parsing.
+                marker.modifiedDate = new Date().toUTCString();
+                break;
+            }
+        }
+
+        if (newIndex == oldIndex) {
+            return; // Same position, no rearranging needed.
+        }
+
+        // Swap positions in the marker table.
+        let tableBody = editedRow.parentElement;
+        tableBody.removeChild(editedRow);
+        tableBody.insertBefore(editedRow, tableBody.children[newIndex]);
+
+        const lo = newIndex > oldIndex ? oldIndex : newIndex;
+        const hi = newIndex > oldIndex ? newIndex : oldIndex;
+        const between = (x) => x >= lo && x <= hi;
+
+        // Second loop - Go through all markers and update their index as necessary.
+        this.markers.forEach((marker, index) => {
+            // Update table index
+            const row = tableBody.children[index];
+            row.children[0].innerText = index.toString();
+
+            // Update marker index.
+            if (marker.id == partialMarker.id) {
+                return; // We already handled this.
+            }
+
+            if (between(marker.index)) {
+                if (newIndex > marker.index) {
+                    --marker.index;
+                } else {
+                    ++marker.index;
+                }
+            }
+        });
+
+        this.markers.sort((a, b) => a.index - b.index);
+    }
+
+    /**
+     * Deletes a marker for this episode and updates the HTML marker table accordingly.
+     * @param {MarkerData} deletedMarker The marker to delete. This is _not_ the same
+     * marker that's in {@linkcode this.markers}, but a standalone copy.
+     * @param {HTMLElement} deletedRow The HTML row for the deleted marker.
+     * @param {HTMLElement} [dummyRow] A "fake" row to insert into the marker table
+     * if we're deleting the last marker for the episode.
+     */
+    deleteMarker(deletedMarker, deletedRow, dummyRow) {
+        let tableBody = deletedRow.parentNode;
+
+        if (this.markers.length == 1) {
+            tableBody.insertBefore(dummyRow, tableBody.firstChild);
+        } else {
+            // Update indexes if needed.
+            for (let index = deletedMarker.index + 1; index < this.markers.length; ++index) {
+                tableBody.children[index].firstChild.innerText = (index - 1).toString();
+            }
+        }
+
+        tableBody.removeChild(deletedRow);
+
+        this.markers.splice(deletedMarker.index, 1);
+        this.markers.forEach((marker, index) => {
+            marker.index = index;
+        });
+    }
+}
+
+/**
+ * Information about a single marker for an episode of a TV show in the Plex database.
+ */
+class MarkerData extends PlexData {
+    /**
+     * The start of the marker, in milliseconds.
+     * @type {number} */
+    start;
+
+    /**
+     * The end of the marker, in milliseconds.
+     * @type {number} */
+    end;
+
+    /**
+     * The 0-based index of the marker.
+     * @type {number} */
+    index;
+
+    /**
+     * The date the marker was modified by the user.
+     * @type {string} */
+    modifiedDate;
+
+    /**
+     * The date the marker was created.
+     * @type {string} */
+    createDate;
+
+    /**
+     * The Plex metadata id of the episode this marker is attached to.
+     * @type {number} */
+    metadataItemId;
+
+    /**
+     * The Plex taggings id for this marker.
+     * @type {number} */
+    id;
+
+    /**
+     * Creates a new MarkerData from the given marker, if provided.
+     * @param {Object<string, any>} [marker] */
+    constructor(marker) {
+        super();
+        if (!marker) {
+            return;
+        }
+
+        this.start = marker.time_offset;
+        this.end = marker.end_time_offset;
+        this.index = marker.index;
+
+        // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
+        this.modifiedDate = marker.thumb_url ? marker.thumb_url + 'Z' : '';
+
+        // TODO: Plex seems to set this based on the local time, not UTC time (which it really should do).
+        //       Either I should adjust my queries to also save the modified date/create date based on the
+        //       local timezone, or I need some way to indicate that the marker was created by Plex vs. the
+        //       user. We know it was created by Plex if there is no modified date, but we don't know who
+        //       created the marker if both are present and they're not equal.
+        this.createDate = marker.created_at + (this.modifiedDate ? 'Z' : '');
+
+        this.metadataItemId = marker.metadata_item_id;
+        this.id = marker.id;
+    }
+}
+
+// This class is used both client- and server-side. Make sure
+// `module` actually exists before declaring exports.
+if (typeof module !== 'undefined') {
+    module.exports = {
+        ShowData,
+        SeasonData,
+        EpisodeData,
+        MarkerData,
+    };
+}

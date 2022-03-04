@@ -7,6 +7,7 @@ const QueryParse = require('./QueryParse.js');
 const ThumbnailManager = require('./ThumbnailManager.js').ThumbnailManager;
 const zlib = require('zlib');
 const PlexIntroEditorConfig = require('./PlexIntroEditorConfig.js');
+const PlexTypes = require('./PlexTypes.js');
 
 const ConsoleLog = require('./inc/script/ConsoleLog.js');
 const Log = new ConsoleLog();
@@ -28,8 +29,7 @@ let Database;
  */
 let TagId;
 try {
-    PlexIntroEditorConfig.SetLog(Log);
-    Config = new PlexIntroEditorConfig();
+    Config = new PlexIntroEditorConfig(Log);
 
     // Set up the database, and make sure it's the right one.
     Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
@@ -56,8 +56,6 @@ try {
     Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
     process.exit(1);
 }
-
-Log.setLevel(getConfigLogLevel());
 
 const Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
 
@@ -113,28 +111,6 @@ function serverMain(req, res) {
         // Something's gone horribly wrong
         Log.error(e.toString(), `Exception thrown for ${req.url}`);
         return jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
-    }
-}
-
-/**
- * Maps a configured log level string to its underlying value.
- * @returns {Log.Level} The log level specified in the configuration, or `Log.Level.Info` if not present.
- */
-function getConfigLogLevel() {
-    switch(Config.logLevel().toLowerCase()) {
-        case "tmi":
-            return Log.Level.Tmi;
-        case "verbose":
-            return Log.Level.Verbose;
-        case "info":
-            return Log.Level.Info;
-        case "warn":
-            return Log.Level.Warn;
-        case "error":
-            return Log.Level.Error;
-        default:
-            Log.warn(`Invalid log level detected: ${Config.logLevel()}. Defaulting to 'Info'`);
-            return Log.Level.Info;
     }
 }
 
@@ -335,10 +311,7 @@ function queryIds(keys, res) {
         }
 
         rows.forEach(row => {
-            // Need to add 'Z' to timestamps
-            if (row.thumb_url) row.thumb_url += 'Z';
-            row.created_at += 'Z';
-            markers[row.metadata_item_id].push(row);
+            markers[row.metadata_item_id].push(new PlexTypes.MarkerData(row));
         });
 
         return jsonSuccess(res, markers);
@@ -403,7 +376,7 @@ function editMarker(markerId, startMs, endMs, res) {
                     }
                 }
 
-                return jsonSuccess(res, { metadata_id : currentMarker.metadata_item_id, marker_id : markerId, time_offset : startMs, end_time_offset : endMs, index : newIndex });
+                return jsonSuccess(res, { metadataItemId : currentMarker.metadata_item_id, id : markerId, start : startMs, end : endMs, index : newIndex });
             });
 
         });
@@ -476,11 +449,7 @@ function addMarker(metadataId, startMs, endMs, res) {
                     return jsonSuccess(res);
                 }
 
-                // Times are stored as UTC, but don't say they are.
-                row.thumb_url += 'Z';
-                row.created_at += 'Z';
-
-                jsonSuccess(res, row);
+                jsonSuccess(res, new PlexTypes.MarkerData(row));
             });
 
             updateMarkerBreakdownCache(metadataId, allMarkers.length, 1 /*delta*/);
@@ -532,7 +501,7 @@ function deleteMarker(markerId, res) {
 
                 updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
 
-                return jsonSuccess(res, { metadata_id : row.metadata_item_id, marker_id : markerId });
+                return jsonSuccess(res, new PlexTypes.MarkerData(row));
             });
         });
     });
@@ -582,15 +551,7 @@ function getShows(sectionId, res) {
 
         let shows = [];
         for (const show of rows) {
-            shows.push({
-                title : show.title,
-                titleSearch : show.title.toLowerCase().replace(/[\s,'"_\-!?]/g, ''),
-                sort : show.title.toLowerCase() != show.title_sort.toLowerCase() ? show.title_sort.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
-                original : show.original_title ? show.original_title.toLowerCase().replace(/[\s,'"_\-!?]/g, '') : '',
-                seasons : show.season_count,
-                episodes : show.episode_count,
-                metadataId : show.id,
-            });
+            shows.push(new PlexTypes.ShowData(show));
         }
 
         return jsonSuccess(res, shows);
@@ -617,12 +578,7 @@ function getSeasons(metadataId, res) {
 
         let seasons = [];
         for (const season of rows) {
-            seasons.push({
-                index : season.index,
-                title : season.title,
-                episodes : season.episode_count,
-                metadataId : season.id,
-            });
+            seasons.push(new PlexTypes.SeasonData(season));
         }
 
         return jsonSuccess(res, seasons);
@@ -657,15 +613,7 @@ GROUP BY e.id;`;
         let episodes = [];
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
-            episodes.push({
-                title : episode.title,
-                index : episode.index,
-                seasonName : episode.season,
-                seasonIndex : episode.season_index,
-                showName : episode.show,
-                metadataId : metadataId,
-                duration : episode.duration,
-            });
+            episodes.push(new PlexTypes.EpisodeData(episode));
 
             if (Config.useThumbnails()) {
                 Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {

@@ -30,6 +30,7 @@ class Plex
     {
         /** @type {number} */
         this.activeSection = -1;
+        /** @type {Object<number, ShowData[]} */
         this.shows = {};
     }
 
@@ -60,14 +61,16 @@ class Plex
 
         let result = [];
         for (const show of showList) {
-            if (show.titleSearch.indexOf(query) != -1 || (show.sort && show.sort.indexOf(query) != -1) || (show.original && show.original.indexOf(query) != -1)) {
+            if (show.searchTitle.indexOf(query) != -1
+                || (show.sortTitle && show.sortTitle.indexOf(query) != -1)
+                || (show.originalTitle && show.originalTitle.indexOf(query) != -1)) {
                 result.push(show);
             }
         }
 
         const defaultSort = (a, b) => {
-            const aTitle = a.sort || a.titleSearch;
-            const bTitle = b.sort || b.titleSearch;
+            const aTitle = a.sortTitle || a.searchTitle;
+            const bTitle = b.sortTitle || b.searchTitle;
             return aTitle.localeCompare(bTitle);
         }
 
@@ -78,20 +81,20 @@ class Plex
                 return defaultSort(a, b);
             }
 
-            const prefixTitleA = a.titleSearch.startsWith(query);
-            const prefixTitleB = b.titleSearch.startsWith(query);
+            const prefixTitleA = a.searchTitle.startsWith(query);
+            const prefixTitleB = b.searchTitle.startsWith(query);
             if (prefixTitleA != prefixTitleB) {
                 return prefixTitleA ? -1 : 1;
             }
 
-            const prefixSortA = a.sort && a.sort.startsWith(query);
-            const prefixSortB = b.sort && b.sort.startsWith(query);
+            const prefixSortA = a.sortTitle && a.sortTitle.startsWith(query);
+            const prefixSortB = b.sortTitle && b.sortTitle.startsWith(query);
             if (prefixSortA != prefixSortB) {
                 return prefixSortA ? -1 : 1;
             }
 
-            const prefixOrigA = a.original && a.original.startsWith(query);
-            const prefixOrigB = b.original && b.original.startsWith(query);
+            const prefixOrigA = a.originalTitle && a.originalTitle.startsWith(query);
+            const prefixOrigB = b.originalTitle && b.originalTitle.startsWith(query);
             if (prefixOrigA != prefixOrigB) {
                 return prefixOrigA ? -1 : 1;
             }
@@ -117,8 +120,12 @@ class Plex
                 'get_section',
                 { id : plex.activeSection },
                 (res) => {
-                    plex.shows[plex.activeSection] = res;
-                    resolve()
+                    let allShows = [];
+                    plex.shows[plex.activeSection] = allShows;
+                    for (const show of res) {
+                        allShows.push(new ShowData().setFromJson(show));
+                    }
+                    resolve();
                 },
                 (res) => {
                     Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${res.Error}`);
@@ -567,14 +574,14 @@ function parseShowResults(data) {
 /**
  * Creates a DOM element for a show result.
  * Each entry contains three columns - the show name, the number of seasons, and the number of episodes.
- * @param {Object} show Information for a specific show.
+ * @param {ShowData} show Information for a specific show.
  * @param {boolean} [selected=false] True if this row is selected and should be treated like a header opposed to a clickable entry.
  * @returns {HTMLElement}
  */
 function buildShowRow(show, selected=false) {
     let titleNode = buildNode('div', {}, show.title);
-    if (show.original) {
-        titleNode.appendChild(buildNode('span', { class : 'showResultOriginalTitle' }, ` (${show.original})`));
+    if (show.originalTitle) {
+        titleNode.appendChild(buildNode('span', { class : 'showResultOriginalTitle' }, ` (${show.originalTitle})`));
     }
 
     let events = {};
@@ -584,8 +591,8 @@ function buildShowRow(show, selected=false) {
 
     let row = buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
         titleNode,
-        buildNode('div', { class : 'showResultSeasons' }, plural(show.seasons, 'Season')),
-        buildNode('div', { class : 'showResultEpisodes' }, plural(show.episodes, 'Episode'))
+        buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season')),
+        buildNode('div', { class : 'showResultEpisodes' }, plural(show.episodeCount, 'Episode'))
     );
 
     if (selected) {
@@ -620,8 +627,8 @@ function showClick() {
 
 /**
  * Map of metadata IDs to season information.
- */
-g_seasonResults = {};
+ * @type {Object<number, SeasonData} */
+let g_seasonResults = {};
 
 /**
  * Takes the seasons retrieved for a show and creates and entry for each season.
@@ -636,14 +643,14 @@ function showSeasons(seasons) {
     g_seasonResults = {};
     for (const season of seasons) {
         seasonList.appendChild(buildSeasonRow(season));
-        g_seasonResults[season.metadataId] = season;
+        g_seasonResults[season.metadataId] = new SeasonData().setFromJson(season);
     }
 }
 
 /**
  * Creates a DOM element for the given season.
  * Each row contains the season number, the season title (if applicable), and the number of episodes in the season.
- * @param {Object} season Season information
+ * @param {SeasonData} season Season information
  * @param {boolean} [selected=false] `true` if this row is selected and should be treated like a header opposed to a clickable entry.
  * @returns {HTMLElement}
  */
@@ -661,7 +668,7 @@ function buildSeasonRow(season, selected=false) {
     let row = buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
         titleNode,
         buildNode('div'), // empty to keep alignment w/ series
-        buildNode('div', { class : 'showResultEpisodes' }, plural(season.episodes, 'Episode'))
+        buildNode('div', { class : 'showResultEpisodes' }, plural(season.episodeCount, 'Episode'))
     );
 
     if (selected) {
@@ -683,7 +690,7 @@ function seasonClick() {
     g_seasonResults['__current'] = season;
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
     };
 
     jsonRequest('get_episodes', { id : season.metadataId }, parseEpisodes, failureFunc);
@@ -691,8 +698,8 @@ function seasonClick() {
 
 /**
  * Map of metadata IDs to episode details.
- */
-g_episodeResults = {};
+ * @type {Object<number, EpisodeData>} */
+let g_episodeResults = {};
 
 /**
  * Takes the given list of episodes and makes a request for marker details for each episode.
@@ -702,7 +709,7 @@ function parseEpisodes(episodes) {
     g_episodeResults = {};
     let queryString = [];
     for (const episode of episodes) {
-        g_episodeResults[episode.metadataId] = episode;
+        g_episodeResults[episode.metadataId] = new EpisodeData().setFromJson(episode);
         queryString.push(episode.metadataId);
     }
 
@@ -715,7 +722,7 @@ function parseEpisodes(episodes) {
 
 /**
  * Takes the given list of episode data and creates entries for each episode and its markers.
- * @param {Object<number, object[]>} data Map of episode ids to an array of markers for the episode.
+ * @param {Object<number, object[]>} data Map of episode ids to an array of serialized {@linkcode MarkerData} for the episode.
  */
 function showEpisodesAndMarkers(data) {
     let episodelist = $('#episodelist');
@@ -726,9 +733,14 @@ function showEpisodesAndMarkers(data) {
     episodelist.appendChild(buildSeasonRow(g_seasonResults['__current'], true /*selected*/));
     episodelist.appendChild(buildNode('hr'));
     for (const key of Object.keys(data)) {
-        const markers = data[key];
-        episode = g_episodeResults[key];
-        episode.markers = markers;
+
+        /** @type EpisodeData */
+        let episode = g_episodeResults[key];
+        for (const marker of data[key]) {
+            episode.markers.push(new MarkerData().setFromJson(marker));
+        }
+
+        const markers = episode.markers;
 
         episodelist.appendChildren(
             buildNode('div').appendChildren(
@@ -777,7 +789,7 @@ function showHideMarkerTable(e) {
 
 /**
  * Takes the given marker data and creates a table to display it, including add/edit/delete options.
- * @param {Object[]} markers The array of markers for `episode`.
+ * @param {MarkerData[]} markers The array of markers for `episode`.
  * @param {Object} episode The episode associated with `markers`.
  * @returns {HTMLElement} The marker table for the given episode.
  */
@@ -847,21 +859,21 @@ function _classColumn(value, className) {
 
 /**
  * Creates a table row for a specific marker of an episode
- * @param {Object} marker The marker data.
- * @param {Object} episode The episode data
+ * @param {MarkerData} marker The marker data.
+ * @param {EpisodeData} episode The episode data
  * @returns 
  */
 function tableRow(marker, episode) {
-    let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.metadataId, startTime : marker.time_offset, endTime : marker.end_time_offset });
+    let tr = buildNode('tr', { markerId : marker.id, metadataId : episode.metadataId, startTime : marker.start, endTime : marker.end });
     const td = (column, properties={}) => {
         return buildNode('td', properties, column);
     }
 
     tr.appendChildren(
         td(marker.index.toString()),
-        td(timeData(marker.time_offset)),
-        td(timeData(marker.end_time_offset)),
-        td(friendlyDate(marker.created_at, marker.thumb_url), { class : 'centeredColumn' }),
+        td(timeData(marker.start)),
+        td(timeData(marker.end)),
+        td(friendlyDate(marker.createDate, marker.modifiedDate), { class : 'centeredColumn' }),
         td(optionButtons(marker.id))
     );
 
@@ -1186,39 +1198,15 @@ function onMarkerAddConfirm() {
 
 /**
  * Callback after we successfully added a marker. Replace the temporary row with a permanent one, and adjust indexes as necessary.
- * @param {Object} response The server response.
+ * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}.
  */
 function onMarkerAddSuccess(response) {
-    // Build the new row
-    let tr = tableRow(response, g_episodeResults[response.metadata_item_id.toString()]);
-
+    const newMarker = new MarkerData().setFromJson(response);
+    let newRow = tableRow(newMarker, g_episodeResults[newMarker.metadataItemId.toString()]);
     let addRow = this;
-
-    let tbody = addRow.parentNode;
-
-    // If we previously had no markers, remove the 'No marker found' row.
-    if (tbody.$('td[colspan="5"]').length == 2) {
-        tbody.removeChild(tbody.firstChild);
-    }
-
-    addRow.removeSelf();
-
-    tbody.insertBefore(tr, tbody.children[response.index]);
-    let markers = g_episodeResults[response.metadata_item_id].markers;
-    for (let i = response.index + 1; i < tbody.children.length - 1; ++i) {
-        let indexData = tbody.children[i].firstChild;
-        const oldIndex = parseInt(indexData.innerText);
-        if (isNaN(oldIndex) || oldIndex == -1) {
-            break;
-        }
-        let newIndex = oldIndex + 1;
-        indexData.innerHTML = newIndex;
-        markers[i - 1].index += 1;
-    }
-
-    markers.splice(response.index, 0, response);
-
-    episodeMarkerCountFromMarkerRow(tr).innerText = plural(markers.length, 'Marker');
+    let episode = g_episodeResults[newMarker.metadataItemId];
+    episode.addMarker(newMarker, addRow, newRow);
+    episodeMarkerCountFromMarkerRow(newRow).innerText = plural(episode.markers.length, 'Marker');
 }
 
 /**
@@ -1254,9 +1242,9 @@ function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) 
     const markers = g_episodeResults[metadataId].markers;
     let index = 0;
     for (const marker of markers) {
-        if (marker.end_time_offset >= startTime && marker.time_offset <= endTime && (!isEdit || editIndex != index)) {
+        if (marker.end >= startTime && marker.start <= endTime && (!isEdit || editIndex != index)) {
             const message = isEdit ? 'Adjust this marker\'s timings or delete the other marker first to avoid overlap.' : 'Edit the existing marker instead';
-            Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.time_offset)}-${msToHms(marker.end_time_offset)}). ${message}`, 'OK');
+            Overlay.show(`That marker overlaps with an existing marker (${msToHms(marker.start)}-${msToHms(marker.end)}). ${message}`, 'OK');
             return;
         }
 
@@ -1376,40 +1364,11 @@ function onMarkerEditConfirm() {
  * @param {Object} response The response from the server.
  */
 function onMarkerEditSuccess(response) {
-    const markerId = response.marker_id;
+    const partialMarker = new MarkerData().setFromJson(response);
+    const markerId = partialMarker.id;
     let editedRow = $$(`tr[markerid="${markerId}"]`);
-    const oldIndex = parseInt(editedRow.children[0].innerText);
-    const metadataId = response.metadata_id;
-    if (response.index != oldIndex) {
-        let parent = editedRow.parentElement;
-        editedRow.removeSelf();
-        parent.insertBefore(editedRow, parent.children[response.index]);
-        for (let i = 0; i < parent.children.length - 1; ++i) {
-            const row = parent.children[i];
-            if (row.getAttribute('markerId') == '-1') {
-                continue;
-            }
-
-            row.children[0].innerText = i.toString();
-            g_episodeResults[metadataId].markers.find(x => x.id == parseInt(row.getAttribute('markerId'))).index = i;
-        }
-
-        g_episodeResults[metadataId].markers.sort(indexSort);
-    }
-
-    for (let marker of g_episodeResults[metadataId].markers) {
-        if (marker.id == markerId) {
-            marker.time_offset = response.time_offset;
-            marker.end_time_offset = response.end_time_offset;
-            const d = new Date();
-
-            // Set modified time to now, in the form 'yyyy-MM-dd [h]h:mm:ss UTC'
-            marker.thumb_url = `${d.getUTCFullYear()}-${pad0(d.getUTCMonth()+1, 2)}-${pad0(d.getUTCDate(), 2)} ${d.getUTCHours()}:${pad0(d.getUTCMinutes(), 2)}:${pad0(d.getUTCSeconds(), 2)} UTC`;
-            break;
-        }
-    }
-
-    resetAfterEdit(markerId, response.time_offset, response.end_time_offset);
+    g_episodeResults[partialMarker.metadataItemId].editMarker(partialMarker, editedRow);
+    resetAfterEdit(markerId, partialMarker.start, partialMarker.end);
 }
 
 const indexSort = (a, b) => a.index - b.index;
@@ -1434,7 +1393,7 @@ function resetAfterEdit(markerId, newStart, newEnd) {
     const metadataId = parseInt(editRow.getAttribute('metadataId'));
     clearEle(modifiedDateRow);
     const marker = g_episodeResults[metadataId].markers[parseInt(editRow.children[0].innerText)];
-    let dateNode = friendlyDate(marker.created_at, marker.thumb_url);
+    let dateNode = friendlyDate(marker.createDate, marker.modifiedDate);
     dateNode.classList.add('centeredColumn');
     modifiedDateRow.appendChild(dateNode)
 
@@ -1505,36 +1464,14 @@ function onMarkerDelete() {
  * @param {Object} response The response from the server.
  */
 function onMarkerDeleteSuccess(response) {
-    const markerId = response.marker_id;
-    const metadataId = response.metadata_id;
+    const deletedMarker = new MarkerData().setFromJson(response);
+    const markerId = response.id;
+    const metadataId = response.metadataItemId;
     let deletedRow = markerRowFromMarkerId(markerId);
-    let markerTable = deletedRow.parentNode;
     let markerCount = episodeMarkerCountFromMarkerRow(deletedRow);
     let episodeData = g_episodeResults[metadataId];
 
-    deletedRow.removeSelf();
-
-    // If we're removing the last marker, add the 'No marker found' row.
-    if (episodeData.markers.length == 1) {
-        markerTable.insertBefore(spanningTableRow('No markers found'), markerTable.firstChild);
-    } else {
-        // Update indexes if needed
-        for (let marker = 0; marker < markerTable.children.length - 1; ++marker) {
-            const row = markerTable.children[marker];
-            if (row.getAttribute('markerId') == '-1') {
-                break;
-            }
-
-            markerTable.children[marker].firstChild.innerText = marker;
-        }
-    }
-
-    // Remove the marker from the results so it's not used to determine whether a new/edited marker is valid, and update
-    // marker indexes in our cache. Assumes markers are already sorted from least to greatest index.
-    episodeData.markers = episodeData.markers.filter((marker) => marker.id != markerId);
-    episodeData.markers.forEach((marker, index) => {
-        marker.index = index;
-    });
+    episodeData.deleteMarker(deletedMarker, deletedRow, episodeData.markers.length == 1 ? spanningTableRow('No markers found') : null);
 
     markerCount.innerText = plural(episodeData.markers.length, 'Marker');
 }
@@ -1757,3 +1694,8 @@ Element.prototype.appendChildren = function(...elements) {
 
     return this;
 };
+
+// Ugly hack to let VSCode see the definition of PlexTypes in this plain JS file without causing client-side errors.
+if (typeof __dontEverDefineThis !== 'undefined') {
+    const { ShowData, SeasonData, EpisodeData, MarkerData } = require("./PlexTypes");
+}
