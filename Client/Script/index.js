@@ -7,96 +7,20 @@ window.addEventListener('load', setup);
 /** @type {PlexClientState} */
 let PlexState;
 
-/** @type {boolean} */
-let g_dark = null;
-let g_appConfig;
+/** @type {ClientSettingsManager} */
+let Settings;
 
 /** Initial setup on page load. */
 function setup()
 {
-    setTheme();
+    Settings = new ClientSettingsManager();
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
-    $('#settings').addEventListener('click', showSettings);
+    $('#settings').addEventListener('click', Settings.showSettings.bind(Settings));
     setupMarkerBreakdown();
     PlexState = new PlexClientState();
     mainSetup();
-}
-
-/** `localStorage` key to remember a user's chosen theme. */
-const themeKey = 'plexIntro_theme';
-
-/**
- * The CSS DOM element used to swap themed stylesheets.
- * @type {HTMLElement}
- */
-let themedStyle;
-
-/** Determine and set the initial theme to use on load */
-function setTheme() {
-    g_dark = parseInt(localStorage.getItem(themeKey));
-    let manual = true;
-    let darkThemeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-    if (isNaN(g_dark)) {
-        manual = false;
-        g_dark = darkThemeMediaQuery != "not all" && darkThemeMediaQuery.matches;
-    }
-
-    themedStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : `Client/Style/theme${g_dark ? 'Dark' : 'Light' }.css`});
-    $$('head').appendChild(themedStyle);
-
-    let checkbox = $('#darkModeCheckbox');
-    checkbox.checked = g_dark;
-    checkbox.addEventListener('change', (e) => toggleTheme(e.target.checked, true /*manual*/));
-
-    toggleTheme(g_dark, manual);
-    darkThemeMediaQuery.addEventListener('change', e => { if (toggleTheme(e.matches, false /*manual*/)) checkbox.checked = e.matches; });
-
-    // index.html hard-codes the dark theme icon. Adjust if necessary
-    if (!g_dark) {
-        $('#settings').src = '/i/212121/settings.svg';
-    }
-}
-
-
-/**
- * Toggle light/dark theme.
- * @param {boolean} isDark Whether dark mode is enabled.
- * @param {boolean} manual Whether we're toggling due to user interaction, or due to a change in the system theme.
- * @returns {boolean} Whether we actually toggled the theme.
- */
-function toggleTheme(isDark, manual) {
-    if (isDark == g_dark) {
-        return false;
-    }
-
-    if (manual) {
-        localStorage.setItem(themeKey, isDark ? 1 : 0);
-    } else if (!!localStorage.getItem(themeKey)) {
-        // A manual choice sticks, regardless of browser theme change.
-        return false;
-    }
-
-    g_dark = isDark;
-
-    if (g_dark) {
-        themedStyle.href = "themeDark.css";
-    } else {
-        themedStyle.href = "themeLight.css";
-    }
-
-    adjustIcons();
-    return true;
-}
-
-/** After changing the theme, make sure any theme-sensitive icons are also adjusted. */
-function adjustIcons() {
-    for (const icon of $('img[src^="/i/"]')) {
-        const split = icon.src.split('/');
-        icon.src = `/i/${colors.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
-    }
 }
 
 /**
@@ -123,14 +47,14 @@ function mainSetup() {
     };
 
     let gotConfig = (config) => {
-        g_appConfig = config;
-        parseSettings();
+        Settings.parseServerConfig(config);
         jsonRequest('get_sections', {}, listLibraries, failureFunc);
     }
 
     let noConfig = () => {
-        g_appConfig = {};
-        Overlay.show('Error getting config, please try again later.', 'OK');
+        Log.warn('Unable to get app config, defaulting to no preview thumbnails.');
+        Settings.parseServerConfig({ useThumbnails : false });
+        jsonRequest('get_sections', {}, listLibraries, failureFunc);
     }
 
     jsonRequest('get_config', {}, gotConfig, noConfig);
@@ -203,117 +127,6 @@ function clearAll() {
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
-}
-
-const settingsKey = 'plexIntro_settings';
-let g_localSettings = {};
-
-/**
- * Retrieve local settings. Currently only contains the setting controlling whether
- * thumbnails are shown during marker edit, as dark mode setting is stored separately.
- */
-function parseSettings() {
-    $('#settings').classList.remove('hidden');
-    try {
-        g_localSettings = JSON.parse(localStorage.getItem(settingsKey));
-        verifySettings();
-    } catch (e) {
-        g_localSettings = defaultSettings();
-    }
-}
-
-/** @returns The default settings. */
-function defaultSettings() {
-    return {
-        useThumbnails : g_appConfig.useThumbnails
-    };
-}
-
-/** Verify local settings are present and have the fields we expect. */
-function verifySettings() {
-    if (!g_localSettings) {
-        g_localSettings = defaultSettings();
-        return;
-    }
-
-    if (!g_localSettings.hasOwnProperty('useThumbnails')) {
-        g_localSettings.useThumbnails = g_appConfig.useThumbnails;
-    }
-}
-
-/**
- * Show the settings overlay.
- * Currently only has two options:
- * * Dark Mode: toggles dark mode, and is linked to the main dark mode toggle
- * * Show Thumbnails: Toggles whether thumbnails are shown when editing/adding markers.
- *   Only visible if app settings have thumbnails enabled.
- */
-function showSettings() {
-    let options = [];
-    options.push(buildSettingCheckbox('Dark Mode', 'darkModeSetting', g_dark));
-    if (g_appConfig.useThumbnails) {
-        options.push(buildSettingCheckbox(
-            'Show Thumbnails',
-            'showThumbnailsSetting',
-            g_localSettings.useThumbnails,
-            'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)'));
-    }
-    options.push(buildNode('hr'));
-
-    let container = buildNode('div', { id : 'settingsContainer'}).appendChildren(
-        buildNode('h3', {}, 'Settings'),
-        buildNode('hr')
-    );
-
-    options.forEach(option => container.appendChild(option));
-    const buildButton = (text, id, callback, style='') => buildNode(
-        'input', {
-            type : 'button',
-            value : text,
-            id : id,
-            style : style
-        },
-        0,
-        {
-            click : callback
-        });
-
-    container.appendChild(buildNode('div', { class : 'formInput' }).appendChildren(
-        buildNode('div', { class : 'settingsButtons' }).appendChildren(
-            buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
-            buildButton('Apply', 'applySettings', applySettings)
-        )
-    ));
-
-    Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
-}
-
-/** Helper method that builds a label+checkbox combo for use in the settings dialog. */
-function buildSettingCheckbox(label, name, checked, tooltip='') {
-    let labelNode = buildNode('label', { for : name }, label + ': ');
-    if (tooltip) {
-        Tooltip.setTooltip(labelNode, tooltip);
-    }
-
-    let checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
-    if (checked) {
-        checkbox.setAttribute('checked', 'checked');
-    }
-    return buildNode('div', { class : 'formInput' }).appendChildren(
-        labelNode,
-        checkbox
-    );
-}
-
-/** Apply and save settings after the user chooses to commit their changes. */
-function applySettings() {
-    if ($('#darkModeSetting').checked != g_dark) {
-        $('#darkModeCheckbox').click();
-    }
-
-    g_localSettings.useThumbnails = g_appConfig.useThumbnails && $('#showThumbnailsSetting').checked;
-    localStorage.setItem(settingsKey, JSON.stringify(g_localSettings));
-    Overlay.dismiss();
 }
 
 /** Set up click handler and tooltip text for the marker breakdown button. */
@@ -864,7 +677,7 @@ function timeInput(value, end=false) {
  */
 function thumbnailTimeInput(metadataId, value, end=false) {
     let input = timeInput(value, end);
-    if (!g_localSettings.useThumbnails || !g_appConfig.useThumbnails || !PlexState.getEpisode(metadataId).hasThumbnails) {
+    if (!Settings.useThumbnails() || !PlexState.getEpisode(metadataId).hasThumbnails) {
         return input;
     }
 
@@ -947,29 +760,6 @@ function onMarkerAddCancel() {
     this.parentNode.parentNode.removeSelf();
 }
 
-/** Map of colors used for icons, which may vary depending on the current theme. */
-const colors = {
-    _dict : {
-        0 /*dark*/ : {
-            standard : 'c1c1c1',
-            green : '4C4',
-            red : 'C44'
-        },
-        1 /*light*/ : {
-            standard : '212121',
-            green : '292',
-            red : 'A22'
-        }
-    },
-
-    /**
-     * Return the hex color for the given color category.
-     * @param {string} color The color category for the button.
-     * @returns {string} The hex color associated with the given color category.
-     */
-    get : function(color) { return this._dict[g_dark ? 0 : 1][color]; }
-}
-
 /**
  * Creates a tabbable button in the marker table with an associated icon.
  * @param {string} text The text of the button.
@@ -983,7 +773,7 @@ const colors = {
 function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
     return button.appendChildren(
-        buildNode('img', { src : `/i/${colors.get(color)}/${icon}.svg`, alt : altText, theme : color }),
+        buildNode('img', { src : `/i/${ThemeColors.get(color)}/${icon}.svg`, alt : altText, theme : color }),
         buildNode('span', {}, text)
     );
 }
@@ -1011,7 +801,7 @@ function createTextButton(text, clickHandler, attributes={}) {
  */
 function createIconButton(icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-    return button.appendChildren(buildNode('img', { src : `/i/${colors.get(color)}/${icon}.svg`, alt : altText, theme : color }));
+    return button.appendChildren(buildNode('img', { src : `/i/${ThemeColors.get(color)}/${icon}.svg`, alt : altText, theme : color }));
 }
 
 /**
@@ -1039,15 +829,6 @@ function tableButtonKeyup(e) {
         e.preventDefault();
         this.click();
     }
-}
-
-/**
- * Set the text of a button created by tableButton or tableIconButton.
- * @param {HTMLElement} button
- * @param {string} text
- */
-function setTableButtonText(button, text) {
-    button.$$('span').innerText = text;
 }
 
 /**
@@ -1578,6 +1359,8 @@ Element.prototype.appendChildren = function(...elements) {
 if (typeof __dontEverDefineThis !== 'undefined') {
     const { ShowData, SeasonData, EpisodeData, MarkerData } = require("../../Shared/PlexTypes");
     const { PlexClientState } = require('./PlexClientState.js');
+    const { ClientSettingsManager } = require('./ClientSettings.js');
+    const { ThemeColors } = require('./ThemeColors.js');
     const { Chart } = require('./inc/Chart.js');
     const { DateUtil } = require('./inc/DateUtil.js');
     const { Overlay } = require('./inc/Overlay.js');
