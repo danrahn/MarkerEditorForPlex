@@ -1,14 +1,15 @@
-/// <summary>
-/// Pretty-print date functions
-///
-/// Taken from PlexWeb/script/DateUtil.js
-/// </summary>
+/**
+ * Pretty-print date functions.
+ *
+ * Taken from PlexWeb/script/DateUtil.js
+ */
 let DateUtil = new function()
 {
-    /// <summary>
-    /// Determine how long ago a date is from the current time.
-    /// Returns a string of the form "X [time units] ago"
-    /// </summary>
+    /**
+     * Determine how long ago a date is from the current time.
+     * @param {Date|string} date A Date object, or a string that represents a date.
+     * @returns A string of the form "X [time units] ago".
+     */
     this.getDisplayDate = function(date)
     {
         if (!(date instanceof Date))
@@ -49,9 +50,11 @@ let DateUtil = new function()
         return `${yearDiff == 0 ? 1 : yearDiff} year${yearDiff == 1 ? "" : "s"} ago`;
     };
 
-    /// <summary>
-    /// Returns the full date, 'Month d, yyyy, h:mm [AM|PM]'
-    /// </summary>
+    /**
+     * Get the long form of the given date.
+     * @param {Date|string} date A Date object, or a string that represents a date.
+     * @returns The full date, 'Month d, yyy, h:.. [AM:PM]'
+     */
     this.getFullDate = function(date)
     {
         if (!(date instanceof Date))
@@ -71,9 +74,13 @@ let DateUtil = new function()
         return date.toLocaleDateString("en-US", tooltipDateOptions);
     };
 
-    /// <summary>
-    /// Helper that returns the 'xyz ago' string if it's below the cutoff
-    /// </summary>
+    /**
+     * Determine if the given value meets our cutoff criteria.
+     * @param {number} value The value to test.
+     * @param {number} cutoff The cutoff for the given value.
+     * @param {string} stringVal The time unit that's being tested (minute, hour, day, etc).
+     * @returns 'value stringVal(s) ago' if `value` exceeds `cutoff`, otherwise an empty string.
+     */
     let _checkDate = function(value, cutoff, stringVal)
     {
         if (value < cutoff)

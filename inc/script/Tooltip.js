@@ -1,13 +1,11 @@
-/// <summary>
-/// Implements common functionality for on-hover tooltips, and works a bit better than 'title'.
-/// Taken from PlexWeb/script/Tooltip.js
-/// </summary>
-
+/**
+ * Implements common functionality for on-hover tooltips, offering expanded functionality over 'title'.
+ * Taken from PlexWeb/script/Tooltip.
+ * @class
+ */
 let Tooltip = new function()
 {
-    /// <summary>
-    /// Contains the setTimeout id of a scroll event, which will hide the tooltip when expired
-    /// </summary>
+    /** Contains the setTimeout id of a scroll event, which will hide the tooltip when expired */
     let hideTooltipTimer = null;
 
     window.addEventListener("load", function()
@@ -27,9 +25,12 @@ let Tooltip = new function()
         });
     });
 
-    /// <summary>
-    /// Sets up tooltip handlers for basic use cases
-    /// </summary>
+    /**
+     * Sets up tooltip handlers for basic use cases.
+     * @param {HTMLElement} element The element to add the tooltip to.
+     * @param {string} tooltip The tooltip text.
+     * @param {number} [delay=250] The duration an element must be hovered before the tooltip is shown, in ms.
+     */
     this.setTooltip = function(element, tooltip, delay=250)
     {
         this.setText(element, tooltip);
@@ -45,10 +46,12 @@ let Tooltip = new function()
         });
     };
 
-    /// <summary>
-    /// Sets the tooltip text for the given element
-    /// If the tooltip for this element is currently showing, adjust that as well
-    /// </summary>
+    /**
+     * Sets the tooltip text for the given element.
+     * Assumes `element` has gone through the initial tooltip setup.
+     * @param {HTMLElement} element
+     * @param {string} tooltip
+     */
     this.setText = function(element, tooltip)
     {
         element.setAttribute("tt", tooltip);
@@ -58,13 +61,22 @@ let Tooltip = new function()
         }
     };
 
+    /** @type {number} `timerId` to keep track of the tooltip delay timeout. */
     let tooltipTimer = null;
+
+    /** @type {boolean} Keeps track of whether the tooltip is currently visible. */
     let showingTooltip = false;
+
+    /** @type {HTMLElement} The element whose tooltip is currently visible. */
     let ttElement = null;
 
-    /// <summary>
-    /// Show a tooltip with the given text at a position relative to clientX/Y in event e
-    /// </summary>
+    /**
+     * Updates the position of Show a tooltip with the given text at a position relative to the current clientX/Y.
+     * If the tooltip is not currently visible, resets the delay timer.
+     * @param {MouseEvent} e The MouseEvent that triggered this function.
+     * @param {string} text The text to display.
+     * @param {number} [delay=250] The delay before showing the tooltip, in ms.
+     */
     this.showTooltip = function(e, text, delay=250)
     {
         // If we have a raw string, shove it in a span first
@@ -89,9 +101,11 @@ let Tooltip = new function()
 
     const windowMargin = 10;
 
-    /// <summary>
-    /// Updates the position of the current tooltip, if active
-    /// </summary>
+    /**
+     * Updates the position of the current tooltip, if active.
+     * @param {number} clientX The new X-axis offset.
+     * @param {number} clientY The new Y-axis offset.
+     */
     this.updatePosition = function(clientX, clientY)
     {
         if (!showingTooltip)
@@ -108,10 +122,12 @@ let Tooltip = new function()
         tooltip.style.left = (Math.min(clientX, maxWidth) + avoidOverlay) + "px";
     };
 
-    /// <summary>
-    /// Core routine to show a tooltip and update its position
-    /// Should not be called outside of this file
-    /// </summary>
+    /**
+     * Core routine to show a tooltip and update its position.
+     * Should not be called outside of this file.
+     * @param {MouseEvent} e The MouseEvent that triggered this function.
+     * @param {HTMLElement} text The tooltip Element containing the tooltip text.
+     */
     let showTooltipCore = function(e, text)
     {
         if (!showingTooltip)
@@ -144,9 +160,7 @@ let Tooltip = new function()
         tooltip.style.left = (Math.min(e.clientX, maxWidth) + avoidOverlay) + "px";
     };
 
-    /// <summary>
-    /// Dismisses the tooltip
-    /// </summary>
+    /** Dismisses the tooltip. */
     this.dismiss = function()
     {
         if (showingTooltip)
@@ -159,9 +173,9 @@ let Tooltip = new function()
         showingTooltip = false;
     };
 
-    /// <summary>
-    /// Returns whether we're currently showing a tooltip
-    /// </summary>
+    /**
+     * @returns `true` if we're currently showing a tooltip.
+     */
     this.active = function()
     {
         return showingTooltip;

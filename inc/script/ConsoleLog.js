@@ -1,16 +1,22 @@
-/// <summary>
-/// Console logging class. Allows easy timestamped logging with various log levels
-///
-/// Because this class is used on almost every page, some additional manual minification
-/// has been done to reduce its overall size. Nothing like unnecessary micro-optimizations!
-///
-/// Taken and tweaked from PlexWeb/script/consolelog.js
-/// </summary>
-let _log = function(window)
+/**
+ * Console logging class. Allows easy timestamped logging with various log levels.
+ *
+ * Because this class is used on almost every page, some additional manual minification
+ * has been done to reduce its overall size. Nothing like unnecessary micro-optimizations!
+ *
+ * Taken and tweaked from PlexWeb/script/consolelog.js
+ * @class
+ * @param {Window} [window] The document window, if any. Because this class is used both
+ * client- and server-side, this will be empty server-side, but contain the document
+ * window client-side.
+ */
+let ConsoleLog = function(window)
 {
-    /// <summary>
-    /// All possible log levels, from most to least verbose
-    /// </summary>
+    /**
+     * Possible log levels, from most to least verbose
+     * @readonly
+     * @enum {number}
+     */
     this.Level = {
         Extreme : -1, // Log every time something is logged
         Tmi : 0,
@@ -25,9 +31,7 @@ let _log = function(window)
     const _inherit = "inherit";
     this.window = window;
 
-    /// <summary>
-    /// Console color definitions for each log level
-    /// </summary>
+    /** Console color definitions for each log level */
     const consoleColors =
     [
         // Light Title, Dark Title, Light Text, Dark Text
@@ -40,9 +44,7 @@ let _log = function(window)
         ["#009900", "#006600", "#AAA", "#888"]
     ];
 
-    /// <summary>
-    /// Trace color definitions for each log level
-    /// </summary>
+    /** Trace color definitions for each log level */
     const traceColors =
     [
         consoleColors[0],
@@ -89,27 +91,21 @@ let _log = function(window)
 
     }
 
-    /// <summary>
-    /// The current log level. Anything below this will not be logged
-    /// </summary>
+    /** The current log level. Anything below this will not be logged. */
     let currentLogLevel = parseInt(this.window.localStorage.getItem("loglevel"));
     if (isNaN(currentLogLevel))
     {
         currentLogLevel = this.Level.Info;
     }
 
-    /// <summary>
-    /// Determine whether we should add a trace to every log event, not just errors
-    /// </summary>
+    /** Determine whether we should add a trace to every log event, not just errors. */
     let traceLogging = parseInt(this.window.localStorage.getItem("logtrace"));
     if (isNaN(traceLogging))
     {
         traceLogging = 0;
     }
 
-    /// <summary>
-    /// Tweak colors a bit based on whether the user is using a dark console theme
-    /// </summary>
+    /** Tweak colors a bit based on whether the user is using a dark console theme */
     let darkConsole = parseInt(this.window.localStorage.getItem("darkconsole"));
     if (isNaN(darkConsole))
     {
@@ -119,6 +115,7 @@ let _log = function(window)
         darkConsole = mediaMatch ? 1 : 0;
     }
 
+    /** Test ConsoleLog by outputting content for each log level */
     this.testConsolelog = function()
     {
         const old = currentLogLevel;
@@ -129,98 +126,147 @@ let _log = function(window)
         this.info("Info!");
         this.warn("Warn!");
         this.error("Error!");
-        this.log("Crit!", undefined, false /*freeze*/, Log.Level.Critical);
+        this.critical("Crit!");
         this.formattedText(Log.Level.Info, "%cFormatted%c,%c Text!%c", "color: green", "color: red", "color: orange", "color: inherit");
         this.setLevel(old);
     };
 
+    /**
+     * Sets the new minimum logging severity.
+     * @param {Log.Level} level The new log level.
+     */
     this.setLevel = function(level)
     {
         this.window.localStorage.setItem("loglevel", level);
         currentLogLevel = level;
     };
 
+    /**
+     * @returns The current minimum logging severity.
+     */
     this.getLevel = function()
     {
         return currentLogLevel;
     };
 
+    /**
+     * Set text to be better suited for dark versus light backgrounds.
+     * @param {boolean} dark `true` to adjust colors for dark consoles, `false` for light.
+     */
     this.setDarkConsole = function(dark)
     {
         this.window.localStorage.setItem("darkconsole", dark);
         darkConsole = dark;
     };
 
+    /**
+     * @returns Whether the current color scheme is best suited for dark consoles.
+     */
     this.getDarkConsole = function()
     {
         return darkConsole;
     };
 
-    /// <summary>
-    /// Sets whether to print stack traces for each log. Helpful when debugging
-    /// </summary>
+    /**
+     * Set whether to print stack traces for each log. Helpful when debugging.
+     * @param {boolean} trace `true` to enable trace logging, `false` otherwise.
+     */
     this.setTrace = function(trace)
     {
         this.window.localStorage.setItem("logtrace", trace);
         traceLogging = trace;
     };
 
+    /**
+     * Log TMI (Too Much Information) output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.tmi = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Tmi);
     };
 
+    /**
+     * Log Verbose output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.verbose = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Verbose);
     };
 
+    /**
+     * Log Info level output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.info = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Info);
     };
 
+    /**
+     * Log a warning using `console.warn`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.warn = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Warn);
     };
 
+    /**
+     * Log a error using `console.error`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.error = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Error);
     };
 
+    /**
+     * Log a critical error using `console.error`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console.
+     */
     this.critical = function(obj, description, freeze)
     {
         this.log(obj, description, freeze, Log.Level.Critical);
     };
 
+    /**
+     * Log formatted text to the console.
+     * @param {Log.Level} level The severity of the log.
+     * @param {string} text The formatted text string.
+     * @param {...any} format The arguments for {@linkcode text}
+     */
     this.formattedText = function(level, text, ...format)
     {
         this.log("", text, false /*freeze*/, level, true /*textOnly*/, ...format);
     };
 
-    /// <summary>
-    /// Core logging routine. Prefixes a formatted timestamp based on the level
-    /// </summary>
-    /// <param name="obj">The object to log</param>
-    /// <param name="description">
-    /// A description for the object we're logging.
-    /// Largely used when 'obj' is an array/dictionary and not a string
-    /// </param>
-    /// <param name="freeze">
-    /// If true, freezes the current state of obj before logging it
-    /// This prevents subsequent code from modifying the console output.
-    /// </param>
-    /// <param name="logLevel">
-    /// The LOG level. Determines the format colors, as well as where
-    /// to display the message (info, warn, err). If g_traceLogging is set,
-    /// always outputs to console.trace
-    /// </param>
-    /// <param name="more">
-    /// A list of additional formatting to apply to the description
-    /// Note that this cannot apply to `obj`, only `description`.
-    /// </param>
+    /**
+     * Core logging routine. Prefixes a formatted timestamp based on the level
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] A description for the object being logged.
+     * Largely used when `obj` is an array/dictionary and not a string.
+     * @param {boolean} freeze If true, freezes the current state of obj before logging it.
+     * This prevents subsequent code from modifying the console output.
+     * @param {Log.Level} level The Log level. Determines the format colors as well as where
+     * to display the message (info, warn err). If traceLogging is set, always outputs to {@linkcode console.trace}
+     * @param {boolean} [textOnly] True if only {@linkcode description} is set, and `obj` should be ignored.
+     * @param {...any} [more] A list of additional formatting to apply to the description.
+     * Note that this cannot apply to `obj`, only `description`.
+     */
     this.log = function(obj, description, freeze, level, textOnly, ...more)
     {
         if (level < currentLogLevel)
@@ -264,19 +310,27 @@ let _log = function(window)
             ...more);
     };
 
-    /// <summary>
-    /// Internal function that actually writes the formatted text to the console
-    /// </summary>
+    /**
+     * Internal function that actually writes the formatted text to the console.
+     * @param {method} outputStream The method to use to write our message (e.g. console.log, console.warn, etc)
+     * @param {string} text The text to log.
+     * @param {*} [object] The raw object to log, if present.
+     * @param {Level} [logLevel] The log severity.
+     * @param {Array.<Array.<string>>} colors The color palette to use.
+     * This will be `traceColors` if trace logging is enabled, otherwise `consoleColors.
+     * @param {...any} [more] Any additional formatting properties that will be applied to `text`.
+     */
     const write = function(outputStream, text, object, logLevel, colors, ...more)
     {
+        console.error
         let textColor = `color: ${colors[logLevel][2 + darkConsole]}`;
         let titleColor = `color: ${colors[logLevel][darkConsole]}`;
         outputStream(text, textColor, titleColor, textColor, titleColor, textColor, ...more, object);
     };
 
-    /// <summary>
-    /// Returns the log timestamp in the form YYYY.MM.DD HH:MM:SS.000
-    /// </summary>
+    /**
+     * @returns The log timestamp in the form YYYY.MM.DD HH:MM:SS.000
+     */
     let getTimestring = function()
     {
         let padLeft = (str, pad=2) => ("00" + str).substr(-pad);
@@ -286,13 +340,14 @@ let _log = function(window)
             `${padLeft(time.getHours())}:${padLeft(time.getMinutes())}:${padLeft(time.getSeconds())}.${padLeft(time.getMilliseconds(), 3)}`;
     };
 
-    /// <summary>
-    /// Returns the printed form of the given object
-    /// </summary>
-    /// <param name="object">The object to display</param>
-    /// <param name="freeze">Whether to preserve the current state of the object</param>
-    /// <param name="str">Whether to return text regardless of the object type</param>
-    let currentState = function(object, freeze, str=0)
+    /**
+     * Retrieve the printed form of the given object.
+     * @param {Object|string} object The object or string to convert.
+     * @param {boolean} freeze Freeze the current state of `object`.
+     * This prevents subsequent code from modifying the console output.
+     * @param {boolean} [str=false] Whether to convert `object` to a string regardless of its actual type.
+     */
+    let currentState = function(object, freeze, str=false)
     {
         if (typeof(object) == "string")
         {
@@ -307,9 +362,7 @@ let _log = function(window)
         return freeze ? JSON.parse(JSON.stringify(object)) : object;
     };
 
-    /// <summary>
-    /// Returns the correct output stream for the given log level
-    /// </summary>
+    /** Return the correct output stream for the given log level */
     let getOutputStream = function(level)
     {
         return traceLogging ? console.trace :
@@ -319,9 +372,7 @@ let _log = function(window)
                         console.debug;
     };
 
-    /// <summary>
-    /// Prints a help message to the console
-    /// </summary>
+    /** Prints a help message to the console */
     this.consoleHelp = function()
     {
         // After initializing everything we need, print a message to the user to give some basic tips
@@ -342,9 +393,10 @@ let _log = function(window)
 // Server side we want to export Log, but we want to ignore this client-side.
 let Log;
 if (typeof module !== 'undefined') {
-    Log = new _log();
-    module.exports = Log;
+    Log = new ConsoleLog();
+    /** Formatted logger */
+    module.exports = ConsoleLog;
 } else {
-    Log = new _log(window);
+    Log = new ConsoleLog(window);
     Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
 }

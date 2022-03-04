@@ -1,13 +1,20 @@
-/// <summary>
-/// Class to display overlays on top of a webpage. Taken from PlexWeb/script/overlay.js
-///
-/// CSS animations should probably be used instead of my home-grown Animate.js, but I'm too lazy to change things right now.
-/// </summary>
+/**
+ * Class to display overlays on top of a webpage.
+ *
+ * Taken from PlexWeb/script/overlay.js
+ * CSS animations should probably be used instead of my home-grown Animate.js,
+ * but I'm too lazy to change things right now.
+ */
 let Overlay = new function()
 {
-    /// <summary>
-    /// Creates a full-screen overlay with the given message, button text, and button function.
-    /// </summary>
+    /**
+     * Creates a full-screen overlay with the given message, button text, and button function.
+     * @param {string} message The message to display.
+     * @param {string} buttonText The text of the button.
+     * @param {Function} [buttonFunc=Overlay.dismiss] The function to invoke when the button is pressed.
+     * Defaults to dismissing the overlay.
+     * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
+     */
     this.show = function(message, buttonText, buttonFunc=Overlay.dismiss, dismissible=true)
     {
         this.build({ dismissible : dismissible, centered : false },
@@ -29,18 +36,17 @@ let Overlay = new function()
         );
     };
 
-    /// <summary>
-    /// Common method to fade out and delete an overlay
-    /// </summary>
+    /**
+     * Dismiss the overlay and remove it from the DOM.
+     * Expects the overlay to exist.
+     */
     this.dismiss = function()
     {
         Animation.queue({ opacity : 0 }, $("#mainOverlay"), 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
     };
 
-    /// <summary>
-    /// Immediately removes the overlay from the screen without animation.
-    /// </summary>
+    /** Immediately remove the overlay from the screen without animation. */
     this.destroy = function()
     {
         const overlay = $('#mainOverlay');
@@ -50,17 +56,15 @@ let Overlay = new function()
         }
     }
 
-    /// <summary>
-    /// Generic overlay builder
-    /// </summary>
-    /// <param name="options">
-    /// Options that define how the overlay is shown:
-    ///   dismissible : Determines whether the overlay can be dismissed
-    ///   centered : Determines whether the overlay is centered in the screen (versus closer to the top)
-    ///   noborder : Determine whether to surround the overlay's children with a dark border (defaults to false)
-    ///   setup : A function to run after attaching the children to the DOM, but before triggering the show animation
-    /// </param>
-    /// <param name="...children">The list of nodes to append to the overlay.</param>
+    /**
+     * Generic overlay builder.
+     * @param {Object} options Options that define how the overlay is shown:
+     *  * `dismissible` : Determines whether the overlay can be dismissed.
+     *  * `centered` : Determines whether the overlay is centered in the screen (versus closer to the top).
+     *  * `noborder` : Determine whether to surround the overlay's children with a dark border (defaults to false).
+     *  * `setup` : A function to run after attaching the children to the DOM, but before triggering the show animation.
+     * @param {...HTMLElement} children A list of elements to append to the overlay.
+     */
     this.build = function(options, ...children)
     {
         if ($("#mainOverlay"))
@@ -111,6 +115,11 @@ let Overlay = new function()
         window.addEventListener("keydown", overlayKeyListener, false);
     };
 
+    /**
+     * Create the main overlay element based on the given options.
+     * @param {*} options The options for the overlay. See `build` for details.
+     * @returns The main overlay Element.
+     */
     let _overlayNode = function(options)
     {
         return buildNode("div",
@@ -136,10 +145,11 @@ let Overlay = new function()
         );
     };
 
-    /// <summary>
-    /// Sets different classes and adds a close button for overlays
-    /// that take up more space
-    /// </summary>
+    /**
+     * Sets different classes and adds a close button for overlays
+     * that are set to 'fullscreen'.
+     * @param {HTMLElement} container The main overlay container.
+     */
     let addFullscreenOverlayElements = function(container)
     {
         container.classList.remove("defaultOverlay");
@@ -165,10 +175,11 @@ let Overlay = new function()
         $("#mainOverlay").appendChild(close);
     }
 
-    /// <summary>
-    /// Internal helper that dismisses an overlay when escape is pressed,
-    /// but only if the overlay is set to be dismissible
-    /// </summary>
+    /**
+     * Internal helper that dismisses an overlay when escape is pressed,
+     * but only if the overlay is set to be dismissible.
+     * @param {KeyboardEvent} e The Event.
+     */
     let overlayKeyListener = function(e)
     {
         if (e.keyCode == 27 /*esc*/)

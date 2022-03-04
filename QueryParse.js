@@ -1,41 +1,42 @@
 const URL = require('url');
 
-/// <summary>
-/// Identical to a regular Error. Used to differentiate between "user bad"
-/// exceptions (HTTP 400) and unexpected internal errors (HTTP 500)
-/// </summary>
+/**
+ * Identical to a regular Error. Used to differentiate between "user bad"
+ * exceptions (HTTP 4XX) and unexpected internal errors (HTTP 5XX).
+ */
 class QueryParameterException extends Error {
     constructor(message) {
         super(message);
     }
 }
 
-/// <summary>
-/// Small helper class to handle query parameters
-/// </summary>
+/*Small helper class to handle query parameters. */
 class QueryParameterParser {
     constructor(request) {
+        /** @type {ParsedUrlQuery} */
         this.params = URL.parse(request.url, true /*parseQueryString*/).query;
     }
 
-    /// <summary>
-    /// Return the given query parameter as an integer.
-    /// Throws if the parameter does not exist or it's not an integer.
-    /// </summary>
+    /**
+     * @param {string} key A string that can be parsed as an integer.
+     * @returns The integer value of `key`.
+     * @throws {QueryParameterException} if `key` doesn't exist or is not an integer.
+     */
     i(key) {
         const value = this.raw(key);
         const intVal = parseInt(value);
         if (isNaN(intVal)) {
             throw new QueryParameterException(`Expected integer parameter for ${key}, found ${this.params[key]}`);
         }
-    
+
         return intVal;
     }
 
-    /// <summary>
-    /// Returns an array of query parameters as integers.
-    /// Fails the same as `i` above.
-    /// <summary>
+    /**
+     * @param {...string} keys Strings that can be parsed as integers.
+     * @returns An array of query parameters parsed as integers.
+     * @throws {QueryParameterException} if any string in `keys` is not an integer.
+     */
     ints(...keys) {
         let result = [];
         for (const key of keys) {
@@ -45,10 +46,12 @@ class QueryParameterParser {
         return result;
     }
 
-    /// <summary>
-    /// Returns the given query parameter after the supplied function is applied to it.
-    /// Throws if the parameter does not exist or the function could not be applied.
-    /// </summary>
+    /**
+     * @param {string} key The string query parameter to parse.
+     * @param {Function.<string>} func The function to apply to `key`.
+     * @returns The result of applying the given `func` to `key`.
+     * @throws {QueryParameterException} if `key` does not exist or cannot be handled by `func`.
+     */
     custom(key, func) {
         const value = this.raw(key);
         try {
@@ -58,9 +61,11 @@ class QueryParameterParser {
         }
     }
 
-    /// <summary>
-    /// Returns the raw value for the given query parameter. Throws if it does not exist.
-    /// </summary>
+    /**
+     * @param {string} key The query parameter to retrieve.
+     * @returns {string} The value associated with `key`.
+     * @throws {QueryParameterException} if `key` is not present in the query parameters.
+     */
     raw(key) {
         if (!(key in this.params)) {
             throw new QueryParameterException(`Parameter '${key}' not found.`);

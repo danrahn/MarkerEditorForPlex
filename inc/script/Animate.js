@@ -1,26 +1,30 @@
-/// </summary>
-/// A lightweight class to animate various element properties. Performance is questionable at best,
-/// especially since everything here could probably be done with CSS transitions.
-///
-/// Taken from PlexWeb/script/Animate.js
-/// </summary>
-
-/// <summary>
-/// The main animation class, responsible for synchronous execution
-/// </summary>
+/**
+ * A lightweight class to animate various element properties. Performance is questionable at best,
+ * especially since everything here could probably be done with CSS transitions.
+ *
+ * Taken from PlexWeb/script/Animate.js
+ * @class
+ */
 let Animation = new function()
 {
-    /// <summary>
-    /// Queue an animation of the given element
-    /// </summary>
+    /**
+     * Queue an animation of the given element.
+     * @param {Object} func Properties to animate mapped to their final values.
+     * @param {HTMLElement} element The element to animate
+     * @param {...any} args Extra arguments to be passed into the animation functions
+     */
     this.queue = function(func, element, ...args)
     {
         this.queueDelayed(func, element, 0, ...args);
     };
 
-    /// <summary>
-    /// Queue an animation that once queued for execution will fire after the specified delay
-    /// </summary>
+    /**
+     * Queue an animation that once queued for execution will fire after the specified delay.
+     * @param {object} func Properties to animate mapped to their final values.
+     * @param {HTMLElement} element The element to animate.
+     * @param {number} delay The number of milliseconds to wait until executing.
+     * @param {...any} args Additional arguments to be passed into the animation functions.
+     */
     this.queueDelayed = function(func, element, delay, ...args)
     {
         if (arguments.length < 2)
@@ -72,9 +76,12 @@ let Animation = new function()
         }
     };
 
-    /// <summary>
-    /// Immediately stop any active animations and queues this one to be fired
-    /// </summary>
+    /**
+     * Immediately stop and clear any active animations and queues this one to be fired.
+     * @param {Object} func Properties to animate mapped to their final values.
+     * @param {HTMLElement} element The element to animate.
+     * @param {...any} args Additional arguments to be passed into the animation functions.
+     */
     this.fireNow = function(func, element, ...args)
     {
         /*@__PURE__*/Log.tmi(`Firing now: ${element.id}`);
@@ -95,12 +102,16 @@ let Animation = new function()
         this.queue(func, element, ...args);
     };
 
-    // Our animation queue allows us to keep track of the current animations that are pending execution
+    /** Our animation queue allows us to keep track of the current animations that are pending execution */
     let animationQueue = {};
 
-    /// <summary>
-    /// Generic holder for the various arguments for a given animation
-    /// </summary>
+    /**
+     * Generic holder for the various arguments for a given animation.
+     * @param {Function} func The animation function to invoke.
+     * @param {string} prop The property we're animating.
+     * @param {number} delay The duration to wait before beginning animation, in ms.
+     * @param {...any} args Additional arguments to pass into `func`.
+     */
     let AnimationParams = function(func, prop, delay, ...args)
     {
         this.func = func;
@@ -109,10 +120,11 @@ let Animation = new function()
         this.args = args;
     };
 
-    /// <summary>
-    /// Should only be called after an animation completes. Removes the current
-    /// animation from the queue and fires the next one if applicable
-    /// </summary>
+    /**
+     * Removes the current animation from the queue and fires the next one if applicable.
+     * Should only be called after an animation completes.
+     * @param {HTMLElement} element The element that completed an animation.
+     */
     let fireNext = function(element)
     {
         // In some rare cases, 'element' no longer exists, but it's been recreated and reattached to the DOM.
@@ -162,9 +174,11 @@ let Animation = new function()
         }
     };
 
-    /// <summary>
-    /// The list of supported animations and their subsequent implementations
-    /// </summary>
+    /**
+     * Retrieve the function associated with the given property.
+     * @param {string} func The property to animate.
+     * @returns The function associated with the given property.
+     */
     let getFunc = function(func)
     {
         switch (func)
@@ -189,11 +203,17 @@ let Animation = new function()
         }
     };
 
-    /// <summary>
-    /// Helps with the basic minification I run this script through
-    /// </summary>
     let getStyle = (element) => getComputedStyle(element);
 
+    /**
+     * Animates the color (e.g. `color`, `background-color`) of an element.
+     * @param {HTMLElement} element The element to animate.
+     * @param {string} prop The color property to animate.
+     * @param {string|Color} newColor The new color for the element.
+     * If a string is provided, it must be an rgb(a) string, a hex string, or `"transparent"`.
+     * @param {number} duration The duration (in ms) of the animation.
+     * @param {boolean} deleteAfterTransition If `true`, unsets the property after the animation is complete.
+     */
     let animateColor = (element, prop, newColor, duration, deleteAfterTransition = false) =>
     {
         // '(x + .5) | 0' == Math.round.
@@ -262,6 +282,15 @@ let Animation = new function()
         setTimeout(animationFunc, 50 / 3, animationFunc, element, oldColor, newColor, 1, steps, prop, deleteAfterTransition);
     };
 
+    /**
+     * Animates a floating point property (e.g. `opacity`, `height`).
+     * @param {HTMLElement} element The element to animate.
+     * @param {string} prop The floating point property to animate.
+     * @param {number} newValue The new value for the property of the element.
+     * @param {number} duration The duration of the animation, in ms.
+     * @param {boolean} deleteAfterTransition If `true`, removes `element` from the DOM after the transition completes.
+     * Most commonly used when animating opacity to 0, and removing the element after it's completely transparent.
+     */
     let animateFloat = (element, prop, newValue, duration, deleteAfterTransition = false) =>
     {
         let steps = (duration / (50 / 3) + 0.5) | 0 || 1;
@@ -316,9 +345,13 @@ let Animation = new function()
     };
 }();
 
-/// <summary>
-/// Simple class to represent an rgba color. Takes either rgba value or a valid hex string (#AAA, #C1D1E1)
-/// </summary>
+/**
+ * Simple class to represent an rgba color. Takes either rgba value or a valid hex string (#AAA, #C1D1E1)
+ * @param {string|Number} r If a string that starts with `#`, a hex color string. Otherwise, the Red value of the color (0-255).
+ * @param {number} [g=0] The Green value of the color, 0-255 (if `r` is not a hex string).
+ * @param {number} [b=0] The Blue value of the color, 0-255 (if `r` is not a hex string).
+ * @param {number} [a=1] The Alpha value of the color, 0-1 (if `r` is not a hex string).
+ */
 function Color(r, g, b, a)
 {
     let parse = (a, b) => parseInt(a, b);
@@ -355,8 +388,8 @@ function Color(r, g, b, a)
         this.a = a ? parseFloat(a) : 1; // Opaque by default
     }
 
-    /// <summary>
-    /// Return an rgba string representation of this color
-    /// </summary>
+    /**
+     * @returns {string} An rgba string representation of this color.
+     */
     this.s = () => `rgba(${this.r},${this.g},${this.b},${this.a})`;
 }

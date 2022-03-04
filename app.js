@@ -7,10 +7,25 @@ const QueryParse = require('./QueryParse.js');
 const ThumbnailManager = require('./ThumbnailManager.js').ThumbnailManager;
 const zlib = require('zlib');
 
-const Log = require('./inc/script/ConsoleLog.js');
+const ConsoleLog = require('./inc/script/ConsoleLog.js');
+const Log = new ConsoleLog();
 
+/**
+ * User configuration.
+ * @type {Object<string, any>}
+ */
 let Config;
+
+/**
+ * The main database connection.
+ * @type {Sqlite3.Database}
+ */
 let Database;
+
+/**
+ * The tag id in the database that represents an intro marker.
+ * @type {number}
+ */
 let TagId;
 try {
     Config = require('./config.json');
@@ -48,12 +63,10 @@ const Port = Config.port || 3232;
 const Thumbnails = new ThumbnailManager(Database, Config.metadataPath);
 
 
-/// <summary>
-/// Creates the server, called after verifying the config file and database.
-/// </summary>
+/** Creates the server. Called after verifying the config file and database. */
 function createServer() {
     const server = Http.createServer(serverMain);
-    
+
     server.listen(Port, Hostname, () => {
         const url = `http://${Hostname}:${Port}`;
         Log.info(`Server running at ${url} (Ctrl+C to exit)`);
@@ -74,9 +87,10 @@ function createServer() {
     });
 }
 
-/// <summary>
-/// Entrypoint for incoming connections to the server.
-/// </summary>
+/**
+ * Entrypoint for incoming connections to the server.
+ * @type {Http.RequestListener}
+ */
 function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
@@ -103,9 +117,10 @@ function serverMain(req, res) {
     }
 }
 
-/// <summary>
-/// Maps a configured log level string to its underlying value
-/// </summary>
+/**
+ * Maps a configured log level string to its underlying value.
+ * @returns {Log.Level} The log level specified in the configuration, or `Log.Level.Info` if not present.
+ */
 function getConfigLogLevel() {
     switch(Config.logLevel.toLowerCase()) {
         case "tmi":
@@ -124,9 +139,11 @@ function getConfigLogLevel() {
     }
 }
 
-/// <summary>
-/// Handle GET requests, used to serve static content like HTML/CSS/SVG.
-/// </summary>
+/**
+ * Handle GET requests, used to serve static content like HTML/CSS/SVG.
+ * @param {Http.IncomingMessage} req
+ * @param {Http.ServerResponse} res
+ */
 function handleGet(req, res) {
     let url = req.url;
     if (url == '/') {
@@ -155,9 +172,11 @@ function handleGet(req, res) {
     });
 }
 
-/// <summary>
-/// Retrieve an SVG icon requested with the given color: /i/[hex color]/icon.svg
-/// </summary>
+/**
+ * Retrieve an SVG icon requested with the given color.
+ * @param {string} url The svg url of the form /i/[hex color]/[icon].svg.
+ * @param {Http.ServerResponse} res
+ */
 function getSvgIcon(url, res) {
     parts = url.split('/');
     if (parts.length !== 4) {
@@ -191,9 +210,10 @@ function getSvgIcon(url, res) {
     })
 }
 
-/// <summary>
-/// Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
-/// </summary>
+/**
+ * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
+ * @type {Object<string, (params : QueryParse.Parser, res : Http.ServerResponse) => void>}
+ */
 const EndpointMap = {
     query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
     edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end'), res),
@@ -207,9 +227,12 @@ const EndpointMap = {
     get_config : (_, res) => jsonSuccess(res, Config),
 };
 
-/// <summary>
-/// Handle POST requests, used to return JSON data queried by the client.
-/// </summary>
+
+/**
+ * Handle POST requests, used to return JSON data queried by the client.
+ * @param {Http.IncomingMessage} req
+ * @param {Http.ServerResponse} res
+ */
 function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
@@ -231,17 +254,22 @@ function handlePost(req, res) {
     return jsonError(res, 404, `Invalid endpoint: ${endpoint}`);
 }
 
-/// <summary>
-/// Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
-/// </summary>
+/**
+ * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
+ * @param {Http.ServerResponse} res
+ * @param {number} code HTTP status code.
+ * @param {string} error Error message.
+ */
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
     returnCompressedData(res, code, JSON.stringify({ Error : error }), 'application/json');
 }
 
-/// <summary>
-/// Helper method that returns a success HTTP status code alongside any data we want to return to the client.
-/// </summary>
+/**
+ * Helper method that returns a success HTTP status code alongside any data we want to return to the client.
+ * @param {Http.ServerResponse} res
+ * @param {Object} [data] Data to return to the client. If empty, returns a simple success message.
+ */
 function jsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
     if (Log.getLevel() <= Log.Level.Tmi) {
@@ -253,9 +281,13 @@ function jsonSuccess(res, data) {
     returnCompressedData(res, 200, JSON.stringify(data || { success : true }), 'application/json');
 }
 
-/// <summary>
-/// Attempt to send gzip compressed data to reduce network traffic, falling back to plain text on failure.
-/// </summary>
+/**
+ * Attempt to send gzip compressed data to reduce network traffic, falling back to plain text on failure.
+ * @param {Http.ServerResponse} res
+ * @param {number} status HTTP status code.
+ * @param {*} data The data to compress and return.
+ * @param {string} contentType The MIME type of `data`.
+ */
 function returnCompressedData(res, status, data, contentType) {
     zlib.gzip(data, (err, buffer) => {
         if (err) {
@@ -274,9 +306,11 @@ function returnCompressedData(res, status, data, contentType) {
     })
 }
 
-/// <summary>
-/// Return an array of markers for all requested metadata ids.
-/// </summary>
+/**
+ * Retrieve an array of markers for all requested metadata ids.
+ * @param {Array<string>} keys The metadata ids to lookup.
+ * @param {Http.ServerResponse} res
+ */
 function queryIds(keys, res) {
     let markers = {};
     keys.forEach(key => {
@@ -312,9 +346,13 @@ function queryIds(keys, res) {
     });
 }
 
-/// <summary>
-/// Edit an existing marker, and update index order as needed.
-/// </summary>
+/**
+ * Edit an existing marker, and update index order as needed.
+ * @param {number} markerId The id of the marker to edit.
+ * @param {number} startMs The start time of the marker, in milliseconds.
+ * @param {number} endMs The end time of the marker, in milliseconds.
+ * @param {Http.ServerResponse} res
+ */
 function editMarker(markerId, startMs, endMs, res) {
     Database.get("SELECT * FROM `taggings` WHERE `id`=" + markerId + ";", (err, currentMarker) => {
         if (err || !currentMarker || currentMarker.text != 'intro') {
@@ -365,7 +403,7 @@ function editMarker(markerId, startMs, endMs, res) {
                         Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
                     }
                 }
-    
+
                 return jsonSuccess(res, { metadata_id : currentMarker.metadata_item_id, marker_id : markerId, time_offset : startMs, end_time_offset : endMs, index : newIndex });
             });
 
@@ -373,9 +411,13 @@ function editMarker(markerId, startMs, endMs, res) {
     });
 }
 
-/// <summary>
-/// Adds the given marker to the database, rearranging indexes as necessary.
-/// </summary>
+/**
+ * Adds the given marker to the database, rearranging indexes as necessary.
+ * @param {number} metadataId The metadata id of the episode to add a marker to.
+ * @param {number} startMs The start time of the marker, in milliseconds.
+ * @param {number} endMs The end time of the marker, in milliseconds.
+ * @param {Http.ServerResponse} res
+ */
 function addMarker(metadataId, startMs, endMs, res) {
     if (startMs >= endMs) {
         return jsonError(res, 400, "Start time must be less than end time.");
@@ -412,7 +454,7 @@ function addMarker(metadataId, startMs, endMs, res) {
         if (!foundNewIndex) {
             newIndex = allMarkers.length;
         }
-        
+
         Database.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
                     "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, TagId, newIndex, startMs, endMs], (err) => {
             if (err) {
@@ -441,15 +483,17 @@ function addMarker(metadataId, startMs, endMs, res) {
 
                 jsonSuccess(res, row);
             });
-            
+
             updateMarkerBreakdownCache(metadataId, allMarkers.length, 1 /*delta*/);
         });
     });
 }
 
-/// <summary>
-/// Removes the given marker from the database, rearranging indexes as necessary.
-/// </summary>
+/**
+ * Removes the given marker from the database, rearranging indexes as necessary.
+ * @param {number} markerId The marker id to remove from the database.
+ * @param {Http.ServerResponse} res
+ */
 function deleteMarker(markerId, res) {
     Database.get("SELECT * FROM `taggings` WHERE `id`=?", [markerId], (err, row) => {
         if (err || !row || row.text != 'intro') {
@@ -495,9 +539,10 @@ function deleteMarker(markerId, res) {
     });
 }
 
-/// <summary>
-/// Return all TV libraries found in the database.
-/// </summary>
+/**
+ * Retrieve all TV libraries found in the database.
+ * @param {Http.ServerResponse} res
+ */
 function getLibraries(res) {
     Database.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
         if (err) {
@@ -513,9 +558,11 @@ function getLibraries(res) {
     });
 }
 
-/// <summary>
-/// Retrieve all shows from the give library section.
-/// </summary>
+/**
+ * Retrieve all shows from the given library section.
+ * @param {number} sectionId The section id of the library.
+ * @param {Http.ServerResponse} res
+ */
 function getShows(sectionId, res) {
     // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
     // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
@@ -551,9 +598,11 @@ function getShows(sectionId, res) {
     });
 }
 
-/// <summary>
-/// Return all seasons for the show specified by the given metadataId.
-// </summary>
+/**
+ * Retrieve all seasons for the show specified by the given metadataId.
+ * @param {number} metadataId The metadata id of the a series.
+ * @param {Http.ServerResponse} res
+ */
 function getSeasons(metadataId, res) {
     const query =
 'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
@@ -581,9 +630,11 @@ function getSeasons(metadataId, res) {
     })
 }
 
-/// <summary>
-/// Get all episodes for the season specified by the given metadataId.
-// </summary>
+/**
+ * Retrieve all episodes for the season specified by the given metadataId.
+ * @param {number} metadataId The metadata id for the season of a show.
+ * @param {Http.ServerResponse} res
+ */
 function getEpisodes(metadataId, res) {
     // Grab episodes for the given season.
     // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
@@ -604,7 +655,6 @@ GROUP BY e.id;`;
         // has thumbnails attached is asynchronous, so keep track of how many results have
         // come in, and only return once we've processed all rows.
         let waitingFor = rows.length;
-        let episodes = [];
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
             episodes.push({
@@ -637,12 +687,18 @@ GROUP BY e.id;`;
     });
 }
 
+/**
+ * Map of section IDs to a map of marker counts X to the number episodes that have X markers.
+ * @type {Object.<number, Object.<number, number>}
+ */
 let markerBreakdownCache = {};
 
-/// <summary>
-/// Gather marker information for all episodes in the given library,
-/// returning the number of episodes that have X markers associated with it.
-/// </summary>
+/**
+ * Gather marker information for all episodes in the given library,
+ * returning the number of episodes that have X markers associated with it.
+ * @param {number} sectionId The library section id to parse.
+ * @param {Http.ServerResponse} res
+ */
 function allStats(sectionId, res) {
     if (markerBreakdownCache[sectionId]) {
         Log.verbose('Found cached data, returning it');
@@ -688,9 +744,12 @@ ORDER BY e.id ASC;`;
     });
 }
 
-/// <summary>
-/// Ensure our marker bucketing stays up to date after the user adds or deletes markers.
-/// </summary>
+/**
+ * Ensure our marker bucketing stays up to date after the user adds or deletes markers.
+ * @param {number} metadataId The metadata id of the episode to adjust.
+ * @param {number} oldMarkerCount The old marker count bucket.
+ * @param {number} delta The change from the old marker count, -1 for marker removals, 1 for additions.
+ */
 function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
     Database.get('SELECT library_section_id FROM metadata_items WHERE id=?', [metadataId], (err, row) => {
         if (err) {
@@ -709,14 +768,19 @@ function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
     });
 }
 
-/// <summary>
-/// Return a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds
-/// </summary>
+/**
+ * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds
+ * @param {string} url The url specifying the thumbnail to retrieve.
+ * @param {Http.ServerResponse} res
+ */
 function getThumbnail(url, res) {
+    /** @param {Http.ServerResponse} res */
     const badRequest = (res) => { res.statusCode = 400; res.end(); };
+
     if (!Config.useThumbnails) {
         return badRequest(res);
     }
+
     const split = url.split('/');
     if (split.length != 4) {
         return badRequest(res);

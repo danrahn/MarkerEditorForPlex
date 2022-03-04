@@ -1,38 +1,31 @@
-/// <summary>
-/// A basic charting library
-///
-/// Currently only supports simple pie and bar charts
-///
-/// Taken from PlexWeb/script/chart.js
-/// </summary>
+/**
+ * A basic charting library.
+ *
+ * Currently only supports simple pie and bar charts
+ *
+ * Taken from PlexWeb/script/chart.js
+ * @class
+ */
 let Chart = new function()
 {
-    /// <summary>
-    /// Returns a pie chart in SVG form
-    /// </summary>
-    /// <param name="data">
-    /// Required fields:
-    ///  radius : the radius of the circle
-    ///  points : the values to chart
-    ///    Each point requires a 'value' and a 'label'
-    ///
-    /// Optional fields:
-    ///  colors:
-    ///    An array of colors to override the default choices
-    ///  colorMap:
-    ///    A dictionary mapping labels to colors. Takes precedence over colors.
-    ///  noSort:
-    ///    If true, points will not be sorted before creating the chart
-    ///  labelOptions:
-    ///    A dictionary of flags that determine the label:
-    ///      percentage - show the percentage of the total (default = true)
-    ///      count - show the raw value (default = false)
-    ///      name - show the name of the data point (default = true)
-    ///  title:
-    ///    The title for the graph
-    ///  noTitle:
-    ///    Flag indicating that we shouldn't add a title, even if it is set
-    /// </returns>
+    /**
+     * Create an SVG pie chart.
+     * @param {Object} data The pie chart definition
+     * @param {number} data.radius The radius of the circle.
+     * @param {{ value : number, label : string }[]} data.points The values of the to chart.
+     * @param {string[]} [data.colors] An array of colors to override the default choices.
+     * @param {{[label : string] : {color : string}}} [data.colorMap] A dictionary mapping labels to colors.
+     * Takes precedence over `data.colors`.
+     * @param {boolean} [data.noSort] If `true`, points will not be sorted before creating the chart.
+     * @param {Object} [data.labelOptions] A dictionary of flags that determine how the label is displayed.
+     * @param {boolean} [data.labelOptions.percentage=true] Show the percentage of the total (default = true).
+     * @param {boolean} [data.labelOptions.count=false] Show the raw value (default = false).
+     * @param {boolean} [data.labelOptions.name=true] Show the name of the data point (default = true).
+     * @param {string} [data.title] The title for the graph.
+     * @param {boolean} [data.noTitle=false] Whether we shouldn't add a title, even if `data.title` is set.
+     * @returns An SVG element of the pie chart specified by `data`.
+     * @typedef {data.labelOptions} LabelOptions
+     */
     this.pie = function(data)
     {
         sortData(data);
@@ -86,14 +79,15 @@ let Chart = new function()
         return svg;
     };
 
-    /// <summary>
-    /// Extremely basic bar graph support
-    ///
-    /// Required Fields:
-    ///   width : the width of the chart
-    ///   height : the height of the chart
-    ///   points : an array of { value, label } pairs
-    /// </summary>
+    /**
+     * Extremely basic bar graph support
+     * @param {Object} data Object defining the bar graph.
+     * Required Fields:
+     *   `width`: The width of the chart.
+     *   `height`: The height of the chart
+     *   `points`: An array of `{ value, label }` pairs
+     * @returns An SVG of the bar graph defined by `data`.
+     */
     this.bar = function(data)
     {
         // For now, don't bother with negative values and assume all charts start at 0
@@ -155,10 +149,11 @@ let Chart = new function()
         return svg;
     };
 
-    /// <summary>
-    /// Sorts a chart's data points, unless we explicitly don't want to.
-    /// If data.sortFn is set, sort on that function. Otherwise, do a default smallest-to-largest sort
-    /// </summary>
+    /**
+     * Sorts a chart's data points in-place, unless we explicitly don't want to.
+     * If `data.sortFn` is set, sort on that function. Otherwise di a default smallest-to-largest sort.
+     * @param {Object} data The graph data.
+     */
     let sortData = function(data)
     {
         if (data.noSort)
@@ -176,9 +171,7 @@ let Chart = new function()
         }
     };
 
-    /// <summary>
-    /// Adds a horizontally centered text node at the given y offset
-    /// </summary>
+    /** Adds a horizontally centered text node at the given y offset */
     let buildCenteredText = function(y, text, size)
     {
         return buildNodeNS(
@@ -196,10 +189,16 @@ let Chart = new function()
         );
     };
 
-    /// <summary>
-    /// Returns a rectangle with the given start coordinates, width, height, and fill color
-    /// </summary>
-    /// <param name="extra">Any extra attributes that that should be added outside of the named parameters</pram>
+    /**
+     * Create a rectangle with the supplied properties.
+     * @param {number} x Starting point on the x-axis.
+     * @param {number} y Starting point on the y-axis.
+     * @param {number} width The width of the rectangle.
+     * @param {number} height The height of the rectangle.
+     * @param {string} fill The fill color, as a hex string.
+     * @param {Object} [extra] Extra attributes to append to the SVG node.
+     * @returns An SVG rectangle.
+     */
     let buildRect = function(x, y, width, height, fill, extra)
     {
         let rect = buildNodeNS(
@@ -225,9 +224,12 @@ let Chart = new function()
         return rect;
     };
 
-    /// <summary>
-    /// Builds a slice of a pie chart
-    /// </summary>
+    /**
+     * Create a single slice of a pie chart.
+     * @param {string} definition The slice path.
+     * @param {string} fill The fill color as a hex string.
+     * @returns An SVG sector of a pie chart.
+     */
     let buildPieSlice = function(definition, fill)
     {
         return buildNodeNS("http://www.w3.org/2000/svg",
@@ -246,9 +248,13 @@ let Chart = new function()
             });
     };
 
-    /// <summary>
-    /// Builds and returns the tooltip label for the given point, based on the given options
-    /// </summary>
+    /**
+     * Builds tooltip text for a point on the chart.
+     * @param {Object} point The `{ value, label }` data for the point.
+     * @param {number} total The sum of all the values in the chart.
+     * @param {Object<string, boolean>} labelOptions Label options, as described by {@linkcode Chart.pie}.
+     * @returns Tooltip text for the given point.
+     */
     let buildPieTooltip = function(point, total, labelOptions)
     {
         let label = "";
@@ -276,9 +282,7 @@ let Chart = new function()
         return label;
     };
 
-    /// <summary>
-    /// Highlights the edges of the hovered pie slice
-    /// </summary>
+    /** Highlights the edges of the hovered pie slice */
     let highlightPieSlice = function()
     {
         // Setting this element to be the last will ensure that
@@ -289,18 +293,24 @@ let Chart = new function()
         this.setAttribute("stroke", "#c1c1c1");
     };
 
-    /// <summary>
-    /// Adds hover tooltips to the given data point
-    /// </summary>
+    /**
+     * Add a hover tooltip to the given element.
+     * @param {HTMLElement} element The element to add the tooltip to.
+     * @param {string} label The hover text.
+     */
     let addTooltip = function(element, label)
     {
         Tooltip.setTooltip(element, label, 50);
     };
 
-    /// <summary>
-    /// Given a value and total, returns a point on a circle of
-    /// the given radius that is (value / total * 100) percent of the circle
-    /// <summary>
+    /**
+     * Given a value and total, return a point on a circle of the given radius
+     * that is (`value / total * 100`) percent of the circle.
+     * @param {number} radius The radius of the pie chart.
+     * @param {number} value The value of the data point.
+     * @param {number} total The sum of values for the entire pie chart.
+     * @returns `x, y` coordinates of the point on the circle.
+     */
     let getPoint = function(radius, value, total)
     {
         // Need to translate coordinate systems
@@ -310,9 +320,12 @@ let Chart = new function()
         return { x : x, y : y };
     };
 
-    /// <summary>
-    /// Returns a top-level SVG container with the given width and height
-    /// </summary>
+    /**
+     * Create a top-level SVG container.
+     * @param {number} width The width of the container.
+     * @param {number} height The height of the container
+     * @returns {HTMLElement} An SVG `Element`
+     */
     let makeSvg = function(width, height)
     {
         return buildNodeNS(
@@ -325,6 +338,6 @@ let Chart = new function()
                 xmlns : "http://www.w3.org/2000/svg",
                 x : 0,
                 y : 0
-            });
+        });
     };
 }();
