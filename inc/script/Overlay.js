@@ -193,3 +193,9 @@ let Overlay = new function()
         }
     };
 }();
+
+// Hack for VSCode intellisense.
+if (typeof __dontEverDefineThis !== 'undefined') {
+    module.exports = { Overlay };
+    const { Animation } = require('./Animate').Animation;
+}

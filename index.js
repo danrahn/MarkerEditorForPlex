@@ -1,7 +1,11 @@
+/**
+ * @typedef {!import('./PlexTypes').ShowMap} ShowMap
+ */
+
 window.addEventListener('load', setup);
 
 /** @type {Plex} */
-let plex;
+let PlexState;
 
 /** @type {boolean} */
 let g_dark = null;
@@ -16,23 +20,28 @@ function setup()
     $('#search').addEventListener('keyup', onSearchInput);
     $('#settings').addEventListener('click', showSettings);
     setupMarkerBreakdown();
-    plex = new Plex();
+    PlexState = new Plex();
     mainSetup();
 }
 
 /**
- * A class that handles that keeps track of the currently active library,
- * and searching for shows within that library.
+ * A class that handles that keeps track of the currently UI state of Plex Intro Editor,
+ * including search results and the active show/season. 
  */
 class Plex
 {
-    constructor()
-    {
-        /** @type {number} */
-        this.activeSection = -1;
-        /** @type {Object<number, ShowData[]} */
-        this.shows = {};
-    }
+    /** @type {number} */
+    activeSection = -1;
+    /** @type {Object<number, ShowMap>} */
+    shows = {};
+    /** @type {ShowData[]} */
+    #activeSearch = [];
+    /** @type {ShowData} */
+    #activeShow;
+    /** @type {SeasonData} */
+    #activeSeason;
+
+    constructor() {}
 
     /**
      * Set the currently active library.
@@ -43,6 +52,110 @@ class Plex
         if (this.activeSection != -1) {
             await this._populate_shows();
         }
+    }
+
+    /**
+     * @returns The list of shows that match the current search.
+     */
+    getSearchResults() {
+        return this.#activeSearch;
+    }
+
+    /**
+     * Sets the show with the given metadataId as active.
+     * @param {number} metadataId
+     * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found.
+     */
+    setActiveShow(metadataId) {
+        if (!this.shows[this.activeSection][metadataId]) {
+            return false;
+        }
+
+        if (this.#activeShow && this.#activeShow.metadataId != metadataId) {
+            this.clearActiveShow();
+        } else if (!this.#activeShow) {
+            this.#activeShow = this.shows[this.activeSection][metadataId];
+        }
+
+        return this.#activeShow;
+    }
+
+    /**
+     * @returns {ShowData} The active show, or null if no show is active.
+     */
+    getActiveShow() {
+        return this.#activeShow;
+    }
+
+    /** Clears out the currently active show and other dependent data (i.e. {@linkcode #activeSeason}). */
+    clearActiveShow() {
+        // It's probably fine to keep the season/episode data cached,
+        // but it could theoretically be a memory hog if someone navigates
+        // through their entire library with hundreds/thousands of seasons.
+        if (this.#activeShow) {
+            this.clearActiveSeason();
+            this.#activeShow.clearSeasons();
+            this.#activeShow = null;
+        }
+    }
+
+    /** Clears out the currently active season and its episode data. */
+    clearActiveSeason() {
+        if (this.#activeSeason) {
+            this.#activeSeason.clearEpisodes();
+            this.#activeSeason = null;
+        }
+    }
+
+    /**
+     * Adds the given season to the current show.
+     * @param {SeasonData} season 
+     */
+    addSeason(season) {
+        this.#activeShow.addSeason(season);
+    }
+
+    /**
+     * Sets the season with the given metadata id as active.
+     * @param {number} metadataId The metadata of the season.
+     * @returns {SeasonData|false} The season with the given metadata id, or `false` if the season could not be found.
+     */
+    setActiveSeason(metadataId) {
+        let season = this.#activeShow.getSeason(metadataId);
+        if (!season) {
+            return false;
+        }
+
+        if (this.#activeSeason && this.#activeSeason.metadataId != metadataId) {
+            this.clearActiveSeason();
+        } else if (!this.#activeSeason) {
+            this.#activeSeason = season;
+        }
+
+        return this.#activeSeason;
+    }
+
+    /**
+     * @returns {SeasonData} The currently active season, or `null` if now season is active.
+     */
+    getActiveSeason() {
+        return this.#activeSeason;
+    }
+
+    /**
+     * Add the given episode to the active season's episode cache.
+     * @param {EpisodeData} episode
+     */
+    addEpisode(episode) {
+        this.#activeSeason.addEpisode(episode);
+    }
+
+    /**
+     * Retrieve an episode from the active season's episode cache.
+     * @param {number} metadataId
+     */
+    getEpisode(metadataId) {
+        return this.#activeSeason.getEpisode(metadataId);
     }
 
     /**
@@ -57,7 +170,7 @@ class Plex
         // I could probably figure out how to utilize Plex's spellfix tables, but substring search on display, sort, and original titles should be good enough here.
         query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
 
-        const showList = this.shows[this.activeSection];
+        const showList = Object.values(this.shows[this.activeSection]);
 
         let result = [];
         for (const show of showList) {
@@ -102,8 +215,8 @@ class Plex
             return defaultSort(a, b);
         });
 
-
-        successFunc(result);
+        this.#activeSearch = result;
+        successFunc();
     }
 
     /**
@@ -118,12 +231,13 @@ class Plex
         return new Promise(resolve => {
             jsonRequest(
                 'get_section',
-                { id : plex.activeSection },
+                { id : PlexState.activeSection },
                 (res) => {
-                    let allShows = [];
-                    plex.shows[plex.activeSection] = allShows;
+                    let allShows = {};
+                    PlexState.shows[PlexState.activeSection] = allShows;
                     for (const show of res) {
-                        allShows.push(new ShowData().setFromJson(show));
+                        let showData = new ShowData().setFromJson(show);
+                        allShows[showData.metadataId] = showData;
                     }
                     resolve();
                 },
@@ -289,7 +403,7 @@ function listLibraries(libraries) {
 async function libraryChanged() {
     $('#container').classList.add('hidden');
     let section = parseInt(this.value);
-    await plex.setSection(section);
+    await PlexState.setSection(section);
     clearAll();
     if (!isNaN(section) && section != -1) {
         $('#container').classList.remove('hidden');
@@ -302,6 +416,8 @@ function clearAll() {
     {
         clearAndShow(group);
     }
+
+    PlexState.clearActiveShow();
 }
 
 /**
@@ -446,7 +562,7 @@ function getMarkerBreakdown() {
             buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
         'Cancel');
 
-    jsonRequest('get_stats', { id : plex.activeSection }, showMarkerBreakdown, markerBreakdownFailed);
+    jsonRequest('get_stats', { id : PlexState.activeSection }, showMarkerBreakdown, markerBreakdownFailed);
 }
 
 /**
@@ -540,34 +656,26 @@ function onSearchInput(e) {
 function search() {
     // Remove any existing show/season/marker data
     clearAll();
-    g_seasonResults = {};
-    g_episodeResults = {};
-    plex.search($('#search').value, parseShowResults);
+    PlexState.search($('#search').value, afterSearchCompleted);
 }
 
 /**
- * Map of metadata IDs to show information.
+ * After a show search has completed, creates a DOM entry entry for each match.
  */
-let g_showResults = {}
-
-/**
- * Takes the results of a show search and creates entries for each match.
- * @param {Object[]} data List of shows that match the user's current search query.
- */
-function parseShowResults(data) {
+function afterSearchCompleted() {
     let showList = $('#showlist');
     clearAndShow(showList);
-    g_showResults = {};
+    PlexState.clearActiveShow();
 
-    if (data.length == 0) {
+    const searchResults = PlexState.getSearchResults();
+    if (searchResults.length == 0) {
         showList.appendChild(buildNode('div', { class : 'showResult' }, "No results found."));
         return;
     }
 
-    for (const show of data) {
+    for (const show of searchResults) {
         let div = buildShowRow(show);
         showList.appendChild(div);
-        g_showResults[show.metadataId] = show;
     }
 }
 
@@ -613,10 +721,13 @@ function buildShowRow(show, selected=false) {
 function showClick() {
     // Remove any existing marker data
     clearEle($('#episodelist'));
-    g_episodeResults = {};
 
-    let show = g_showResults[this.getAttribute('metadataId')];
-    g_showResults['__current'] = show;
+    let show = PlexState.setActiveShow(parseInt(this.getAttribute('metadataId')));
+    if (!show) {
+        Overlay.show('Unable to retrieve data for that show. Please try again later.', 'OK');
+        return;
+    }
+
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
@@ -626,11 +737,6 @@ function showClick() {
 }
 
 /**
- * Map of metadata IDs to season information.
- * @type {Object<number, SeasonData} */
-let g_seasonResults = {};
-
-/**
  * Takes the seasons retrieved for a show and creates and entry for each season.
  * @param {Object[]} seasons List of seasons for a given show.
  */
@@ -638,12 +744,11 @@ function showSeasons(seasons) {
     let seasonList = $('#seasonlist');
     clearAndShow(seasonList);
     $('#showlist').classList.add('hidden');
-    seasonList.appendChild(buildShowRow(g_showResults['__current'], true /*selected*/))
+    seasonList.appendChild(buildShowRow(PlexState.getActiveShow(), true /*selected*/))
     seasonList.appendChild(buildNode('hr'));
-    g_seasonResults = {};
     for (const season of seasons) {
         seasonList.appendChild(buildSeasonRow(season));
-        g_seasonResults[season.metadataId] = new SeasonData().setFromJson(season);
+        PlexState.addSeason(new SeasonData().setFromJson(season));
     }
 }
 
@@ -686,8 +791,11 @@ function buildSeasonRow(season, selected=false) {
 
 /** Click handler for clicking a show row. Initiates a request for all episodes in the given season. */
 function seasonClick() {
-    let season = g_seasonResults[this.getAttribute('metadataId')];
-    g_seasonResults['__current'] = season;
+    let season = PlexState.setActiveSeason(parseInt(this.getAttribute('metadataId')));
+    if (!season) {
+        Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
+        return;
+    }
 
     let failureFunc = (response) => {
         Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
@@ -697,19 +805,13 @@ function seasonClick() {
 }
 
 /**
- * Map of metadata IDs to episode details.
- * @type {Object<number, EpisodeData>} */
-let g_episodeResults = {};
-
-/**
  * Takes the given list of episodes and makes a request for marker details for each episode.
  * @param {Object[]} episodes Array of episodes in a particular season of a show.
  */
 function parseEpisodes(episodes) {
-    g_episodeResults = {};
     let queryString = [];
     for (const episode of episodes) {
-        g_episodeResults[episode.metadataId] = new EpisodeData().setFromJson(episode);
+        PlexState.addEpisode(new EpisodeData().setFromJson(episode));
         queryString.push(episode.metadataId);
     }
 
@@ -728,14 +830,12 @@ function showEpisodesAndMarkers(data) {
     let episodelist = $('#episodelist');
     clearEle(episodelist);
     $('#seasonlist').classList.add('hidden');
-    episodelist.appendChild(buildShowRow(g_showResults['__current'], true /*selected*/));
+    episodelist.appendChild(buildShowRow(PlexState.getActiveShow(), true /*selected*/));
     episodelist.appendChild(buildNode('hr'));
-    episodelist.appendChild(buildSeasonRow(g_seasonResults['__current'], true /*selected*/));
+    episodelist.appendChild(buildSeasonRow(PlexState.getActiveSeason(), true /*selected*/));
     episodelist.appendChild(buildNode('hr'));
     for (const key of Object.keys(data)) {
-
-        /** @type EpisodeData */
-        let episode = g_episodeResults[key];
+        let episode = PlexState.getEpisode(parseInt(key));
         for (const marker of data[key]) {
             episode.markers.push(new MarkerData().setFromJson(marker));
         }
@@ -988,7 +1088,7 @@ function timeInput(value, end=false) {
  */
 function thumbnailTimeInput(metadataId, value, end=false) {
     let input = timeInput(value, end);
-    if (!g_localSettings.useThumbnails || !g_appConfig.useThumbnails || !g_episodeResults[metadataId].hasThumbnails) {
+    if (!g_localSettings.useThumbnails || !g_appConfig.useThumbnails || !PlexState.getEpisode(metadataId).hasThumbnails) {
         return input;
     }
 
@@ -1063,7 +1163,7 @@ function onEndTimeInput(e) {
         metadataId = parseInt(this.parentNode.parentNode.getAttribute('metadataId'));
     }
 
-    this.value = msToHms(g_episodeResults[metadataId].duration);
+    this.value = msToHms(PlexState.getEpisode(metadataId).duration);
 }
 
 /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
@@ -1202,11 +1302,11 @@ function onMarkerAddConfirm() {
  */
 function onMarkerAddSuccess(response) {
     const newMarker = new MarkerData().setFromJson(response);
-    let newRow = tableRow(newMarker, g_episodeResults[newMarker.metadataItemId.toString()]);
+    let episode = PlexState.getEpisode(newMarker.metadataItemId);
+    let newRow = tableRow(newMarker, episode);
     let addRow = this;
-    let episode = g_episodeResults[newMarker.metadataItemId];
     episode.addMarker(newMarker, addRow, newRow);
-    episodeMarkerCountFromMarkerRow(newRow).innerText = plural(episode.markers.length, 'Marker');
+    episodeMarkerCountFromMarkerRow(newRow).innerText = plural(episode.markerCount(), 'Marker');
 }
 
 /**
@@ -1239,7 +1339,7 @@ function checkValues(metadataId, startTime, endTime, isEdit=false, editIndex=0) 
         return false;
     }
 
-    const markers = g_episodeResults[metadataId].markers;
+    const markers = PlexState.getEpisode(metadataId).markers;
     let index = 0;
     for (const marker of markers) {
         if (marker.end >= startTime && marker.start <= endTime && (!isEdit || editIndex != index)) {
@@ -1367,7 +1467,7 @@ function onMarkerEditSuccess(response) {
     const partialMarker = new MarkerData().setFromJson(response);
     const markerId = partialMarker.id;
     let editedRow = $$(`tr[markerid="${markerId}"]`);
-    g_episodeResults[partialMarker.metadataItemId].editMarker(partialMarker, editedRow);
+    PlexState.getEpisode(partialMarker.metadataItemId).editMarker(partialMarker, editedRow);
     resetAfterEdit(markerId, partialMarker.start, partialMarker.end);
 }
 
@@ -1392,7 +1492,7 @@ function resetAfterEdit(markerId, newStart, newEnd) {
     let modifiedDateRow = editRow.children[3];
     const metadataId = parseInt(editRow.getAttribute('metadataId'));
     clearEle(modifiedDateRow);
-    const marker = g_episodeResults[metadataId].markers[parseInt(editRow.children[0].innerText)];
+    const marker = PlexState.getEpisode(metadataId).markers[parseInt(editRow.children[0].innerText)];
     let dateNode = friendlyDate(marker.createDate, marker.modifiedDate);
     dateNode.classList.add('centeredColumn');
     modifiedDateRow.appendChild(dateNode)
@@ -1469,11 +1569,11 @@ function onMarkerDeleteSuccess(response) {
     const metadataId = response.metadataItemId;
     let deletedRow = markerRowFromMarkerId(markerId);
     let markerCount = episodeMarkerCountFromMarkerRow(deletedRow);
-    let episodeData = g_episodeResults[metadataId];
+    let episodeData = PlexState.getEpisode(metadataId);
 
-    episodeData.deleteMarker(deletedMarker, deletedRow, episodeData.markers.length == 1 ? spanningTableRow('No markers found') : null);
+    episodeData.deleteMarker(deletedMarker, deletedRow, episodeData.markerCount() == 1 ? spanningTableRow('No markers found') : null);
 
-    markerCount.innerText = plural(episodeData.markers.length, 'Marker');
+    markerCount.innerText = plural(episodeData.markerCount(), 'Marker');
 }
 
 /**
@@ -1695,7 +1795,14 @@ Element.prototype.appendChildren = function(...elements) {
     return this;
 };
 
-// Ugly hack to let VSCode see the definition of PlexTypes in this plain JS file without causing client-side errors.
+// Ugly hack to let VSCode see the definition of external classes in this client-side JS file without
+// causing client-side errors. Some of these classes will resolve correctly without this workaround
+// if they're also open in an active editor, but the method below ensures JSDoc is available regardless
+// of that.
 if (typeof __dontEverDefineThis !== 'undefined') {
     const { ShowData, SeasonData, EpisodeData, MarkerData } = require("./PlexTypes");
+    const { Chart } = require('./inc/script/Chart.js');
+    const { DateUtil } = require('./inc/script/DateUtil.js');
+    const { Overlay } = require('./inc/script/Overlay.js');
+    const { Tooltip } = require('./inc/script/Tooltip.js');
 }

@@ -3,6 +3,12 @@
  */
 
 /**
+ * @typedef {Object<number, ShowData} ShowMap A map of show metadata ids to the show itself.
+ * @typedef {Object<number, SeasonData} SeasonMap A map of season metadata ids to the season itself.
+ * @typedef {Object<number, EpisodeData} EpisodeMap A map of episode metadata ids to the episode itself.
+ */
+
+/**
  * Base class for a representation of a Plex item, containing
  * the handful of shared functions/fields.
  */
@@ -12,7 +18,10 @@ class PlexData {
      * @type {number} */
     metadataId;
 
-    constructor() {} // empty
+    constructor(metadataId)
+    {
+        this.metadataId = metadataId;
+    }
 
     /**
      * Restores a serialized version of this class by importing its properties into this instance.
@@ -66,10 +75,16 @@ class PlexData {
     episodeCount;
 
     /**
+     * A map of season metadata ids to the season data
+     * Only present client-side if this show is currently selected.
+     * @type {SeasonMap} */
+    #seasons = {};
+
+    /**
      * Constructs ShowData based on the given database row, or an empty show if not provided.
      * @param {Object<string, any>} [show] */
     constructor(show) {
-        super();
+        super(show ? show.id : null);
         if (!show) {
             return;
         }
@@ -80,7 +95,28 @@ class PlexData {
         this.originalTitle = show.original_title ? ShowData.#transformTitle(show.original_title) : '';
         this.seasonCount = show.season_count;
         this.episodeCount = show.episode_count;
-        this.metadataId = show.id;
+    }
+
+    /**
+     * Add the given season to our SeasonMap.
+     * @param {SeasonData} season
+     */
+    addSeason(season) {
+        this.#seasons[season.metadataId] = season;
+    }
+
+    /**
+     * Retrieve a season of this show with the given metadataId, or
+     * `undefined` if it doesn't exist or it isn't cached.
+     * @param {number} metadataId 
+     */
+    getSeason(metadataId) {
+        return this.#seasons[metadataId];
+    }
+
+    /** Clears out this show's cache of seasons. */
+    clearSeasons() {
+        this.#seasons = {};
     }
 
     static #transformTitle(title) {
@@ -108,10 +144,16 @@ class SeasonData extends PlexData {
     episodeCount;
 
     /**
+     * A map of episode metadata ids to the episode in this season.
+     * Only present client-side if this season is currently selected.
+     * @type {EpisodeMap} */
+    #episodes = {};
+
+    /**
      * Constructs SeasonData based on the given database row, or an empty season if not provided.
      * @param {Object<string, any>} [season] */
     constructor(season) {
-        super();
+        super(season ? season.id : null);
         if (!season) {
             return;
         }
@@ -119,7 +161,28 @@ class SeasonData extends PlexData {
         this.index = season.index;
         this.title = season.title;
         this.episodeCount = season.episode_count;
-        this.metadataId = season.id;
+    }
+
+    /**
+     * Add the given episode to this season's EpisodeMap.
+     * @param {EpisodeData} episode
+     */
+    addEpisode(episode) {
+        this.#episodes[episode.metadataId] = episode;
+    }
+
+    /**
+     * Retrieve the episode of this season with the given metadata id,
+     * or `undefined` if the episode doesn't exist or it isn't cached.
+     * @param {number} metadataId
+     */
+    getEpisode(metadataId) {
+        return this.#episodes[metadataId];
+    }
+
+    /** Clear out this season's episode cache. */
+    clearEpisodes() {
+        this.#episodes = {};
     }
 }
 
@@ -158,7 +221,7 @@ class EpisodeData extends PlexData {
     duration;
 
     /**
-     * All markers for this episode.
+     * All markers for this episode, sorted from least to greatest index.
      * @type {MarkerData[]} */
     markers = [];
 
@@ -171,7 +234,7 @@ class EpisodeData extends PlexData {
      * Creates a new EpisodeData from the given episode, if provided.
      * @param {Object<string, any>} [episode] */
     constructor(episode) {
-        super();
+        super(episode ? episode.id : null);
         if (!episode) {
             return;
         }
@@ -182,7 +245,13 @@ class EpisodeData extends PlexData {
         this.seasonIndex = episode.season_index;
         this.showName = episode.show;
         this.duration = episode.duration;
-        this.metadataId = episode.id;
+    }
+
+    /**
+     * @returns The number of markers this episode has.
+     */
+    markerCount() {
+        return this.markers.length;
     }
 
     /**
@@ -349,7 +418,7 @@ class MarkerData extends PlexData {
      * Creates a new MarkerData from the given marker, if provided.
      * @param {Object<string, any>} [marker] */
     constructor(marker) {
-        super();
+        super(null);
         if (!marker) {
             return;
         }

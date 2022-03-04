@@ -393,3 +393,8 @@ function Color(r, g, b, a)
      */
     this.s = () => `rgba(${this.r},${this.g},${this.b},${this.a})`;
 }
+
+// Hack for VSCode intellisense.
+if (typeof __dontEverDefineThis !== 'undefined') {
+    module.exports = { Animation };
+}

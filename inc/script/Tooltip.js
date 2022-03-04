@@ -181,3 +181,8 @@ let Tooltip = new function()
         return showingTooltip;
     };
 }();
+
+// Hack for VSCode intellisense.
+if (typeof __dontEverDefineThis !== 'undefined') {
+    module.exports = { Tooltip };
+}

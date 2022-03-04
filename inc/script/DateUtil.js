@@ -92,3 +92,8 @@ let DateUtil = new function()
         return "";
     };
 }();
+
+// Hack for VSCode intellisense.
+if (typeof __dontEverDefineThis !== 'undefined') {
+    module.exports = { DateUtil };
+}
