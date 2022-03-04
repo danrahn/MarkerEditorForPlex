@@ -184,5 +184,7 @@ let Tooltip = new function()
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
+    const { $, buildNode  } = require('./../Common');
+    const { Log } = require('../../../Shared/ConsoleLog');
     module.exports = { Tooltip };
 }

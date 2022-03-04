@@ -396,5 +396,6 @@ function Color(r, g, b, a)
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
+    const { Log } = require('../../../Shared/ConsoleLog');
     module.exports = { Animation };
 }

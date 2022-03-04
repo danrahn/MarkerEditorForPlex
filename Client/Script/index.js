@@ -143,7 +143,7 @@ function setupMarkerBreakdown() {
 function getMarkerBreakdown() {
 
     Overlay.show(
-        buildNode('div').appendChildren(
+        appendChildren(buildNode('div'),
             buildNode('h2', {}, 'Marker Breakdown'),
             buildNode('br'),
             buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
@@ -191,7 +191,7 @@ function showMarkerBreakdown(response) {
     const delay = (1 - opacity) * 250;
     Overlay.destroy();
     Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
-        buildNode('div', { style : 'text-align: center' }).appendChildren(chart));
+        appendChildren(buildNode('div', { style : 'text-align: center' }), chart));
 }
 
 /**
@@ -201,7 +201,7 @@ function showMarkerBreakdown(response) {
 function markerBreakdownFailed(response) {
     Overlay.destroy();
     Overlay.show(
-        buildNode('div').appendChildren(
+        appendChildren(buildNode('div'),
             buildNode('h2', {}, 'Error'),
             buildNode('br'),
             buildNode('div', {}, `Failed to get marker breakdown: ${response.Error || response.message}`)
@@ -286,7 +286,7 @@ function buildShowRow(show, selected=false) {
         events = { click : showClick };
     }
 
-    let row = buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events).appendChildren(
+    let row = appendChildren(buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events),
         titleNode,
         buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season')),
         buildNode('div', { class : 'showResultEpisodes' }, plural(show.episodeCount, 'Episode'))
@@ -294,7 +294,7 @@ function buildShowRow(show, selected=false) {
 
     if (selected) {
         row.classList.add('selected');
-        row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
+        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' }),
             createFullButton('Back to results', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#seasonlist'));
                 clearAndShow($('#episodelist'));
@@ -359,7 +359,7 @@ function buildSeasonRow(season, selected=false) {
         events = { click : seasonClick };
     }
 
-    let row = buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events).appendChildren(
+    let row = appendChildren(buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events),
         titleNode,
         buildNode('div'), // empty to keep alignment w/ series
         buildNode('div', { class : 'showResultEpisodes' }, plural(season.episodeCount, 'Episode'))
@@ -367,7 +367,7 @@ function buildSeasonRow(season, selected=false) {
 
     if (selected) {
         row.classList.add('selected');
-        row.appendChild(buildNode('div', { class : 'goBack' }).appendChildren(
+        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' }),
             createFullButton('Back to seasons', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
@@ -405,7 +405,7 @@ function parseEpisodes(episodes) {
     }
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${response.Error}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${response.Error || response.message}`, 'OK');
     }
 
     jsonRequest('query', { keys : queryString.join(',') }, showEpisodesAndMarkers, failureFunc);
@@ -431,10 +431,10 @@ function showEpisodesAndMarkers(data) {
 
         const markers = episode.markers;
 
-        episodelist.appendChildren(
-            buildNode('div').appendChildren(
-                buildNode('div', { class : 'episodeResult', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }).appendChildren(
-                    buildNode('div', { class : 'episodeName' }).appendChildren(
+        appendChildren(episodelist,
+            appendChildren(buildNode('div'),
+                appendChildren(buildNode('div', { class : 'episodeResult', title : 'Click to expand/contract. Control+Click to expand/contract all' }, 0, { click : showHideMarkerTable }),
+                    appendChildren(buildNode('div', { class : 'episodeName' }),
                         buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                         buildNode('span', {}, `${episode.showName} - S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, 2)} - ${episode.title || 'Episode ' + episode.index}`)
                     ),
@@ -452,11 +452,11 @@ function showEpisodesAndMarkers(data) {
  * @param {MouseEvent} e
  */
 function showHideMarkerTable(e) {
-    const expanded = !this.parentNode.$$('table').classList.contains('hidden');
+    const expanded = !$$('table', this.parentNode).classList.contains('hidden');
     if (e.ctrlKey) {
         let episodeList = $('#episodelist');
         for (const episode of episodeList.children) {
-            const table = episode.$$('table');
+            const table = $$('table', episode);
             // headers don't have a table
             if (!table) {
                 continue;
@@ -464,15 +464,15 @@ function showHideMarkerTable(e) {
 
             if (expanded) {
                 table.classList.add('hidden');
-                episode.$$('.markerExpand').innerHTML = '&#9205; ';
+                $$('.markerExpand', episode).innerHTML = '&#9205; ';
             } else {
                 table.classList.remove('hidden');
-                episode.$$('.markerExpand').innerHTML = '&#9660; ';
+                $$('.markerExpand', episode).innerHTML = '&#9660; ';
             }
         }
     } else {
-        this.parentNode.$$('table').classList.toggle('hidden');
-        this.$$('.markerExpand').innerHTML = expanded ? '&#9205; ' : '&#9660; ';
+        $$('table', this.parentNode).classList.toggle('hidden');
+        $$('.markerExpand', this).innerHTML = expanded ? '&#9205; ' : '&#9660; ';
     }
 }
 
@@ -485,7 +485,7 @@ function showHideMarkerTable(e) {
 function buildMarkerTable(markers, episode) {
     let container = buildNode('div', { class : 'tableHolder' });
     let table = buildNode('table', { class : 'hidden markerTable' });
-    table.appendChild(buildNode('thead').appendChildren(rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), dateColumn('Date Added'), centeredColumn('Options'))));
+    table.appendChild(buildNode('thead').appendChild(rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), dateColumn('Date Added'), centeredColumn('Options'))));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -558,7 +558,7 @@ function tableRow(marker, episode) {
         return buildNode('td', properties, column);
     }
 
-    tr.appendChildren(
+    appendChildren(tr,
         td(marker.index.toString()),
         td(timeData(marker.start)),
         td(timeData(marker.end)),
@@ -592,7 +592,7 @@ function rawTableRow(...columns) {
  * @returns {HTMLElement}
  */
 function spanningTableRow(column) {
-    return buildNode('tr').appendChildren(buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
+    return appendChildren(buildNode('tr'), buildNode('td', { colspan : 5, style : 'text-align: center;' }, column));
 }
 
 /**
@@ -628,7 +628,7 @@ function friendlyDate(date, userModifiedDate) {
  * @returns {HTMLElement}
  */
 function optionButtons(markerId) {
-    return buildNode('div').appendChildren(
+    return appendChildren(buildNode('div'),
         createFullButton('Edit', 'edit', 'Edit Marker', 'standard', onMarkerEdit, { markerId : markerId }),
         createFullButton('Delete', 'delete', 'Delete Marker', 'red', confirmMarkerDelete, { markerId : markerId })
     );
@@ -644,7 +644,7 @@ function onMarkerAdd() {
     buildConfirmCancel(addedRow.children[3], 'Add', '-1', onMarkerAddConfirm, onMarkerAddCancel);
     addedRow.setAttribute('metadataId', metadataId);
     addedRow.setAttribute('markerId', '-1');
-    addedRow.children[1].$$('input').focus();
+    $$('input', addedRow.children[1]).focus();
 }
 
 /**
@@ -690,7 +690,7 @@ function thumbnailTimeInput(metadataId, value, end=false) {
         { error : function() { this.classList.add('hidden'); } });
 
     Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail');
-    return buildNode('div', { class : 'thumbnailTimeInput'}).appendChildren(input, img);
+    return appendChildren(buildNode('div', { class : 'thumbnailTimeInput'}), input, img);
 }
 
 /**
@@ -704,7 +704,7 @@ function onTimeInputKeyup(e) {
     }
 
     const url = `t/${parseInt(this.getAttribute('metadataId'))}/${parseInt(timeToMs(this.value) / 1000)}`;
-    let img = this.parentNode.$$('.inputThumb');
+    let img = $$('.inputThumb', this.parentNode);
     if (!img) {
         this.parentNode.appendChild(
             buildNode(
@@ -729,7 +729,7 @@ function onTimeInputKeyup(e) {
  * @returns {HTMLElement} `container`
  */
 function buildConfirmCancel(container, operation, markerId, confirmCallback, cancelCallback) {
-    return container.appendChildren(
+    return appendChildren(container,
         createIconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback, { markerId : markerId, title : `Confirm ${operation}` }),
         createIconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback, { markerId : markerId, title : `Cancel ${operation}` })
     );
@@ -746,7 +746,7 @@ function onEndTimeInput(e) {
 
     e.preventDefault();
     let metadataId = 0;
-    if (this.parentNode.$$('img')) {
+    if ($$('img', this.parentNode)) {
         metadataId = this.parentNode.parentNode.parentNode.getAttribute('metadataId');
     } else {
         metadataId = parseInt(this.parentNode.parentNode.getAttribute('metadataId'));
@@ -757,7 +757,9 @@ function onEndTimeInput(e) {
 
 /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
 function onMarkerAddCancel() {
-    this.parentNode.parentNode.removeSelf();
+    let grandparent = this.parentNode.parentNode;
+    let greatGrandparent = grandparent.parentNode;
+    greatGrandparent.removeChild(grandparent);
 }
 
 /**
@@ -772,7 +774,7 @@ function onMarkerAddCancel() {
  */
 function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
-    return button.appendChildren(
+    return appendChildren(button,
         buildNode('img', { src : `/i/${ThemeColors.get(color)}/${icon}.svg`, alt : altText, theme : color }),
         buildNode('span', {}, text)
     );
@@ -787,7 +789,7 @@ function createFullButton(text, icon, altText, color, clickHandler, attributes={
  */
 function createTextButton(text, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonTextOnly', clickHandler, attributes);
-    return button.appendChildren(buildNode('span', {}, text));
+    return appendChildren(button, buildNode('span', {}, text));
 }
 
 /**
@@ -801,7 +803,7 @@ function createTextButton(text, clickHandler, attributes={}) {
  */
 function createIconButton(icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-    return button.appendChildren(buildNode('img', { src : `/i/${ThemeColors.get(color)}/${icon}.svg`, alt : altText, theme : color }));
+    return appendChildren(button, buildNode('img', { src : `/i/${ThemeColors.get(color)}/${icon}.svg`, alt : altText, theme : color }));
 }
 
 /**
@@ -838,7 +840,7 @@ function tableButtonKeyup(e) {
 function onMarkerAddConfirm() {
     const thisRow = this.parentNode.parentNode;
     const metadataId = parseInt(thisRow.getAttribute('metadataId'));
-    let inputs = thisRow.$('input[type=text]');
+    let inputs = $('input[type=text]', thisRow);
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
@@ -992,15 +994,15 @@ function onMarkerEdit() {
     endTime.appendChild(thumbnailTimeInput(metadataId, endTime.getAttribute('prevtime'), true));
     buildConfirmCancel(modifiedDate, 'Edit', markerId, onMarkerEditConfirm, onMarkerEditCancel);
 
-    startTime.$$('input').focus();
-    startTime.$$('input').select();
+    $$('input', startTime).focus();
+    $$('input', startTime).select();
 }
 
 /** Commits a marker edit, assuming it passes marker validation. */
 function onMarkerEditConfirm() {
     const markerId = parseInt(this.getAttribute('markerId'));
     const editedRow = $$(`tr[markerid="${markerId}"]`);
-    const inputs = editedRow.$('input[type="text"]');
+    const inputs = $('input[type="text"]', editedRow);
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
 
@@ -1099,8 +1101,8 @@ function confirmMarkerDelete() {
 
     let outerButtonContainer = buildNode("div", { class : "formInput", style : "text-align: center" });
     let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });
-    outerButtonContainer.appendChild(buttonContainer.appendChildren(okayButton, cancelButton));
-    container.appendChildren(header, subtext, outerButtonContainer);
+    outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
+    appendChildren(container, header, subtext, outerButtonContainer);
     Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus(), args : [] } }, container);
 }
 
@@ -1147,8 +1149,9 @@ function markerRowFromMarkerId(id) {
  * @returns {HTMLElement}
  */
 function episodeMarkerCountFromMarkerRow(row) {
-    //     <tr><tbody>    <table>   <tableHolder>  <div>     <episodeResult>    <episodeResultMarkers>
-    return row.parentNode.parentNode.parentNode.parentNode.$$('.episodeResult').children[1];
+    //                        <tr><tbody>    <table>   <tableHolder>  <div>
+    const tableHolderParent = row.parentNode.parentNode.parentNode.parentNode;
+    return $$('.episodeResult', tableHolderParent).children[1];
 }
 
 /**
@@ -1189,180 +1192,19 @@ function msToHms(ms) {
     return time;
 }
 
-/**
- * Removes all children from the given element.
- * @param {HTMLElement} ele The element to clear.
- */
-function clearEle(ele) {
-    while (ele.firstChild) {
-        ele.removeChild(ele.firstChild);
-    }
-}
-
-/**
- * Generic method to make a request to the given endpoint that expects a JSON response.
- * @param {string} endpoint The URL to query.
- * @param {Object<string, any>} parameters URL parameters.
- * @param {Function<Object>} successFunc Callback function to invoke on success.
- * @param {Function<Object>} failureFunc Callback function to invoke on failure.
- */
-function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
-    let url = new URL(endpoint, window.location.href);
-    for (const [key, value] of Object.entries(parameters)) {
-        url.searchParams.append(key, value);
-    }
-
-    fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
-        Log.verbose(response);
-        if (!response || response.Error) {
-            if (failureFunc) {
-                failureFunc(response);
-            } else {
-                console.error('Request failed: %o', response);
-            }
-
-            return;
-        }
-
-        successFunc(response);
-    }).catch(err => {
-        failureFunc(err);
-    });
-}
-
-/**
- * Custom jQuery-like selector method.
- * If the selector starts with '#' and contains no spaces, return the result of `querySelector`,
- * otherwise return the result of `querySelectorAll`.
- * @param {DOMString} selector The selector to match.
- * @param {HTMLElement} ele The scope of the query. Defaults to `document`.
- */
-function $(selector, ele=document) {
-    if (selector.indexOf("#") === 0 && selector.indexOf(" ") === -1) {
-        return $$(selector, ele);
-    }
-
-    return ele.querySelectorAll(selector);
-}
-
-/**
- * Like $, but forces a single element to be returned. i.e. querySelector.
- * @param {string} selector The query selector.
- * @param {HTMLElement} [ele=document] The scope of the query. Defaults to `document`.
- */
-function $$(selector, ele=document) {
-    return ele.querySelector(selector);
-}
-
-/**
- * $ operator scoped to a specific element.
- * @param {string} selector The query selector.
- * @type {Function<DOMString>}
- */
-Element.prototype.$ = function(selector) {
-    return $(selector, this);
-};
-
-/**
- * $$ operator scoped to a specific element.
- * @param {string} selector The query selector.
- * @returns {Element}
- * @function
- */
-Element.prototype.$$ = function(selector) {
-    return $$(selector, this);
-};
-
-/**
- * Remote this element from the DOM.
- * @returns Its detached self.
- */
-Element.prototype.removeSelf = function() {
-     return this.parentNode.removeChild(this);
-}
-
-/**
- * Helper method to create DOM elements.
- * @param {string} type The TAG to create.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Map of events (click/keyup/etc) to attach to the element.
- */
-function buildNode(type, attrs, content, events) {
-    let ele = document.createElement(type);
-    return _buildNode(ele, attrs, content, events);
-}
-
-/**
- * Helper method to create DOM elements with the given namespace (e.g. SVGs).
- * @param {string} ns The namespace to create the element under.
- * @param {string} type The type of element to create.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Event listeners to add to the element.
- */
-function buildNodeNS(ns, type, attrs, content, events) {
-    let ele = document.createElementNS(ns, type);
-    return _buildNode(ele, attrs, content, events);
-}
-
-/**
- * "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
- * @param {HTMLElement} ele The HTMLElement to attach the given properties to.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Event listeners to add to the element.
- */
-function _buildNode(ele, attrs, content, events) {
-    if (attrs) {
-        for (let [key, value] of Object.entries(attrs)) {
-            ele.setAttribute(key, value);
-        }
-    }
-
-    if (events) {
-        for (let [event, func] of Object.entries(events)) {
-            ele.addEventListener(event, func);
-        }
-    }
-
-    if (content) {
-        if (content instanceof HTMLElement) {
-            ele.appendChild(content);
-        } else {
-            ele.innerHTML = content;
-        }
-    }
-
-    return ele;
-}
-
-/**
- * Helper to append multiple children to a single element at once.
- * @param {...HTMLElement} elements Elements to append this this `HTMLElement`
- * @returns {Element} Itself
- */
-Element.prototype.appendChildren = function(...elements) {
-    for (let element of elements) {
-        if (element) {
-            this.appendChild(element);
-        }
-    }
-
-    return this;
-};
-
 // Ugly hack to let VSCode see the definition of external classes in this client-side JS file without
 // causing client-side errors. Some of these classes will resolve correctly without this workaround
 // if they're also open in an active editor, but the method below ensures JSDoc is available regardless
 // of that.
 if (typeof __dontEverDefineThis !== 'undefined') {
+    const { Log } = require('../../Shared/ConsoleLog.js');
     const { ShowData, SeasonData, EpisodeData, MarkerData } = require("../../Shared/PlexTypes");
-    const { PlexClientState } = require('./PlexClientState.js');
-    const { ClientSettingsManager } = require('./ClientSettings.js');
-    const { ThemeColors } = require('./ThemeColors.js');
-    const { Chart } = require('./inc/Chart.js');
-    const { DateUtil } = require('./inc/DateUtil.js');
-    const { Overlay } = require('./inc/Overlay.js');
-    const { Tooltip } = require('./inc/Tooltip.js');
+    const { PlexClientState } = require('./PlexClientState');
+    const { ClientSettingsManager } = require('./ClientSettings');
+    const { ThemeColors } = require('./ThemeColors');
+    const { clearEle, jsonRequest, $, $$, buildNode, appendChildren  } = require('./Common');
+    const { Chart } = require('./inc/Chart');
+    const { DateUtil } = require('./inc/DateUtil');
+    const { Overlay } = require('./inc/Overlay');
+    const { Tooltip } = require('./inc/Tooltip');
 }

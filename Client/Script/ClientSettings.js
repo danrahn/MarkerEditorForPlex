@@ -111,7 +111,7 @@ class ClientSettingsUI {
         }
         options.push(buildNode('hr'));
     
-        let container = buildNode('div', { id : 'settingsContainer'}).appendChildren(
+        let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
@@ -129,8 +129,8 @@ class ClientSettingsUI {
                 click : callback
             });
     
-        container.appendChild(buildNode('div', { class : 'formInput' }).appendChildren(
-            buildNode('div', { class : 'settingsButtons' }).appendChildren(
+        appendChildren(container.appendChild(buildNode('div', { class : 'formInput' }),
+            appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
                 buildButton('Apply', 'applySettings', this.#applySettings.bind(this))
             )
@@ -157,7 +157,7 @@ class ClientSettingsUI {
         if (checked) {
             checkbox.setAttribute('checked', 'checked');
         }
-        return buildNode('div', { class : 'formInput' }).appendChildren(
+        return appendChildren(buildNode('div', { class : 'formInput' }),
             labelNode,
             checkbox
         );
@@ -219,6 +219,7 @@ class ClientSettingsManager {
         this.#checkbox.checked = this.isDarkTheme();
         this.#checkbox.addEventListener('change', (e) => this.toggleTheme(e.target.checked, true /*manual*/));
 
+        ThemeColors.setDarkTheme(this.isDarkTheme());
         this.toggleTheme(this.isDarkTheme(), this.isThemeUserSet());
 
         // After initialization, start the system theme listener.
@@ -325,7 +326,8 @@ class ClientSettingsManager {
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
-    const { Overlay } = require('./inc/Overlay.js');
-    const { ThemeColors } = require('./ThemeColors.js');
+    const { $, $$, buildNode, appendChildren  } = require('./Common');
+    const { Overlay } = require('./inc/Overlay');
+    const { ThemeColors } = require('./ThemeColors');
     module.exports = { ClientSettingsManager };
 }

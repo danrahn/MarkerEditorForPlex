@@ -225,6 +225,7 @@
 
 // Hack for VSCode intellisense.
  if (typeof __dontEverDefineThis !== 'undefined') {
+    const { jsonRequest } = require('./Common');
      module.exports = { PlexClientState };
  }
  

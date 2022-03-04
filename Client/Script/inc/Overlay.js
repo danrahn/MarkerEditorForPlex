@@ -196,6 +196,8 @@ let Overlay = new function()
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
+    const { $, buildNode } = require('../Common');
+    const { Animation } = require('./Animate');
+    const { Tooltip } = require('./Tooltip');
     module.exports = { Overlay };
-    const { Animation } = require('./Animate').Animation;
 }

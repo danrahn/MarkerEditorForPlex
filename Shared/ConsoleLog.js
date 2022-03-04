@@ -391,12 +391,16 @@ let ConsoleLog = function(window)
 };
 // Hack to work around this file being used both client and server side.
 // Server side we want to export Log, but we want to ignore this client-side.
+/** @type {ConsoleLog} */
 let Log;
 if (typeof module !== 'undefined') {
     Log = new ConsoleLog();
     /** Formatted logger */
-    module.exports = ConsoleLog;
+    module.exports = { ConsoleLog };
 } else {
     Log = new ConsoleLog(window);
     Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
+    if (typeof __dontEverDefineThis !== 'undefined') {
+        module.exports = { Log };
+    }
 }

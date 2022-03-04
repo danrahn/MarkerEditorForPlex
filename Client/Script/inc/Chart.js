@@ -24,7 +24,6 @@ let Chart = new function()
      * @param {string} [data.title] The title for the graph.
      * @param {boolean} [data.noTitle=false] Whether we shouldn't add a title, even if `data.title` is set.
      * @returns An SVG element of the pie chart specified by `data`.
-     * @typedef {data.labelOptions} LabelOptions
      */
     this.pie = function(data)
     {
@@ -344,5 +343,7 @@ let Chart = new function()
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
+    const { buildNodeNS } = require('./../Common.js');
+    const { Tooltip } = require('./Tooltip');
     module.exports = { Chart };
 }

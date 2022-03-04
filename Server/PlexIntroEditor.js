@@ -10,10 +10,9 @@ const PlexIntroEditorConfig = require('./PlexIntroEditorConfig');
 const PlexTypes = require('./../Shared/PlexTypes');
 
 const ConsoleLog = require('./../Shared/ConsoleLog');
-const Log = new ConsoleLog();
+const Log = new ConsoleLog.ConsoleLog();
 
 const Path = require('path');
-const Url = require('url');
 
 /**
  * User configuration.
@@ -61,7 +60,7 @@ function run() {
                     }
     
                     TagId = row.id;
-                    Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
+                    Thumbnails = new ThumbnailManager(Database, Log, Config.metadataPath());
                     createServer();
                 });
             }
