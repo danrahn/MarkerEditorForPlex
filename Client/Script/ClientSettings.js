@@ -110,12 +110,12 @@ class ClientSettingsUI {
                 'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)'));
         }
         options.push(buildNode('hr'));
-    
+
         let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
-    
+
         options.forEach(option => container.appendChild(option));
         const buildButton = (text, id, callback, style='') => buildNode(
             'input', {
@@ -128,14 +128,14 @@ class ClientSettingsUI {
             {
                 click : callback
             });
-    
+
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' }),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
                 buildButton('Apply', 'applySettings', this.#applySettings.bind(this))
             )
         ));
-    
+
         Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
     }
 
@@ -152,7 +152,7 @@ class ClientSettingsUI {
         if (tooltip) {
             Tooltip.setTooltip(labelNode, tooltip);
         }
-    
+
         let checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
         if (checked) {
             checkbox.setAttribute('checked', 'checked');
@@ -168,7 +168,7 @@ class ClientSettingsUI {
         if ($('#darkModeSetting').checked != this.#settingsManager.isDarkTheme()) {
             $('#darkModeCheckbox').click();
         }
-    
+
         this.#settingsManager.setThumbnails($('#showThumbnailsSetting').checked);
         Overlay.dismiss();
     }

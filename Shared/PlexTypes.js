@@ -108,7 +108,7 @@ class PlexData {
     /**
      * Retrieve a season of this show with the given metadataId, or
      * `undefined` if it doesn't exist or it isn't cached.
-     * @param {number} metadataId 
+     * @param {number} metadataId
      */
     getSeason(metadataId) {
         return this.#seasons[metadataId];

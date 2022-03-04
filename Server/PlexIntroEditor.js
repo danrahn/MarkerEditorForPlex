@@ -58,7 +58,7 @@ function run() {
                         Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
                         process.exit(1);
                     }
-    
+
                     TagId = row.id;
                     Thumbnails = new ThumbnailManager(Database, Log, Config.metadataPath());
                     createServer();
