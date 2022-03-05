@@ -108,6 +108,14 @@ function createServer() {
         }
     });
 
+    // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
+    process.on('uncaughtException', (err) => {
+        Log.critical(err.message);
+        Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
+        Log.error('The server ran into an unexpected problem, exiting...');
+        process.exit(0);
+    });
+
     // Capture Ctrl+C and cleanly exit the process
     process.on('SIGINT', () => {
         Log.info('SIGINT detected, exiting...');

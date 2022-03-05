@@ -43,7 +43,7 @@ function showHideInstructions() {
  */
 function mainSetup() {
     let failureFunc = (response) => {
-        Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${response.Error}`, 'OK');
+        Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${errorMessage(response)}`, 'OK');
     };
 
     let gotConfig = (config) => {
@@ -204,7 +204,7 @@ function markerBreakdownFailed(response) {
         appendChildren(buildNode('div'),
             buildNode('h2', {}, 'Error'),
             buildNode('br'),
-            buildNode('div', {}, `Failed to get marker breakdown: ${response.Error || response.message}`)
+            buildNode('div', {}, `Failed to get marker breakdown: ${errorMessage(response)}`)
         ), 'OK');
 }
 
@@ -318,7 +318,7 @@ function showClick() {
 
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br>Server message:<br>${errorMessage(response)}`, 'OK');
     };
 
     jsonRequest('get_seasons', { id : show.metadataId }, showSeasons, failureFunc);
@@ -385,7 +385,7 @@ function seasonClick() {
     }
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${response.Error || response.message}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${errorMessage(response)}`, 'OK');
     };
 
     jsonRequest('get_episodes', { id : season.metadataId }, parseEpisodes, failureFunc);
@@ -403,7 +403,7 @@ function parseEpisodes(episodes) {
     }
 
     let failureFunc = (response) => {
-        Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${response.Error || response.message}`, 'OK');
+        Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${errorMessage(response)}`, 'OK');
     }
 
     jsonRequest('query', { keys : queryString.join(',') }, showEpisodesAndMarkers, failureFunc);
@@ -844,7 +844,7 @@ function onMarkerAddConfirm() {
     }
 
     let failureFunc = (response) => {
-        Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${response.Error || response.message}`, 'OK');
+        Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${errorMessage(response)}`, 'OK');
     }
 
     jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, onMarkerAddSuccess.bind(thisRow), failureFunc);
@@ -1010,7 +1010,7 @@ function onMarkerEditConfirm() {
 
     let failureFunc = (response) => {
         onMarkerEditCancel.bind(this)();
-        Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error || response.message}`, 'OK');
+        Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${errorMessage(response)}`, 'OK');
     }
 
     jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated }, onMarkerEditSuccess, failureFunc.bind(editedRow));
@@ -1075,6 +1075,7 @@ function confirmMarkerDelete() {
             type : 'button',
             value : 'Delete',
             class : 'overlayButton confirmDelete',
+            id : 'overlayDeleteMarker',
             markerId : this.getAttribute('markerId')
         },
         0,
@@ -1106,11 +1107,15 @@ function confirmMarkerDelete() {
 
 /** Makes a request to delete a marker, removing it from the marker table on success. */
 function onMarkerDelete() {
-    Overlay.dismiss();
     const markerId = parseInt(this.getAttribute('markerId'));
 
     let failureFunc = (response) => {
-        Overlay.show(`Failed to delete marker:<br><br>${response.Error}`, 'OK');
+        Overlay.show(`Failed to delete marker:<br><br>${errorMessage(response)}`, 'OK');
+    }
+
+    let thisButton = $('#overlayDeleteMarker');
+    if (thisButton) {
+        thisButton.value = 'Deleting...';
     }
 
     jsonRequest('delete', { id : markerId }, onMarkerDeleteSuccess, failureFunc);
@@ -1121,6 +1126,7 @@ function onMarkerDelete() {
  * @param {Object} response The response from the server.
  */
 function onMarkerDeleteSuccess(response) {
+    Overlay.dismiss();
     const deletedMarker = new MarkerData().setFromJson(response);
     const markerId = response.id;
     const metadataId = response.metadataItemId;
@@ -1187,6 +1193,34 @@ function msToHms(ms) {
     }
 
     return time;
+}
+
+/**
+ * Return an error string from the given error.
+ * In almost all cases, `error` will be either a JSON object with a single `Error` field,
+ * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
+ * generic error message.
+ * @param {*} error
+ * @returns {string} 
+ */
+function errorMessage(error) {
+    if (error.Error) {
+        return error.Error;
+    }
+
+    if (error instanceof Error) {
+        Log.error(error);
+        Log.error(error.stack ? error.stack : '(Unknown stack)');
+
+        if (error instanceof TypeError && error.message == 'Failed to fetch') {
+            // Special handling of what's likely a server-side exit.
+            return error.toString() + '<br><br>The server may have exited unexpectedly, please check the console.';
+        }
+
+        return error.toString();
+    }
+
+    return 'I don\'t know what went wrong, sorry :(';
 }
 
 // Ugly hack to let VSCode see the definition of external classes in this client-side JS file without

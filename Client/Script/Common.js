@@ -23,7 +23,7 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     }
 
     fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
-        Log.verbose(response);
+        Log.verbose(response, `Response from ${url}`);
         if (!response || response.Error) {
             if (failureFunc) {
                 failureFunc(response);

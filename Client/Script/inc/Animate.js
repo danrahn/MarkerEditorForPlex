@@ -321,14 +321,15 @@ let Animation = new function()
             {
                 if (deleteAfterTransition)
                 {
-                    // In some rare cases it's already deleted, so ignore any errors that happen here
-                    try {
+                    if (element.isConnected) {
                         // Clear out queue in advance, since we can't do anything else with the element gone.
                         delete animationQueue[element.id];
                         element.parentNode.removeChild(element);
                         return;
-                    } catch (ex) {
-                        Log.warn('Animate: Could not remove element from DOM. Is it already deleted?');
+                    } else {
+                        // If we're already not connected, don't delete the queue, since we may have
+                        // added additional animations meant for a difference instance of this element.
+                        Log.verbose('Animate.deleteAfterTransition: Element has already been removed from the DOM');
                     }
                 }
 
