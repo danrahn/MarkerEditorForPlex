@@ -5,6 +5,7 @@
     "logLevel" : "Info",
     "features" : {
         "autoOpen" : true,
+        "extendedMarkerStats" : true,
         "previewThumbnails" : {
             "enabled" : true,
             "metadataPath" : "/path/to/server/data/directory"

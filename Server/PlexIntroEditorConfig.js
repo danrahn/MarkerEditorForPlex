@@ -73,6 +73,9 @@ class PlexFeatures extends ConfigBase {
     /** Setting for opening the UI in the browser on launch */
     autoOpen = true;
 
+    /** Setting for gathering all markers before launch to compile additional statistics. */
+    extendedMarkerStats = true;
+
     /** Setting for displaying timestamped preview thumbnails when editing or adding markers.
      * @type {PreviewThumbnails} */
     previewThumbnails = {};
@@ -91,6 +94,7 @@ class PlexFeatures extends ConfigBase {
         }
 
         this.autoOpen = this.#getOrDefault('autoOpen', true);
+        this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', { enabled : false, metadataPath : '' });
         if (this.previewThumbnails.enabled && !this.previewThumbnails.metadataPath || !FS.existsSync(this.previewThumbnails.metadataPath)) {
             throw new Error(`Preview thumbnails are enabled, but the metadata path '${this.previewThumbnails.metadataPath}' does not exist.`);
@@ -142,6 +146,7 @@ class PlexIntroEditorConfig extends ConfigBase {
             throw new Error('Log not set before using PlexIntroEditorConfig!');
         }
 
+        log.info('Reading configuration...');
         let baseClass = {};
         super(Config, log, baseClass);
         this.#Base = baseClass;
@@ -165,6 +170,8 @@ class PlexIntroEditorConfig extends ConfigBase {
     autoOpen() { return this.#features.autoOpen; }
     useThumbnails() { return this.#features.previewThumbnails.enabled; }
     metadataPath() { return this.#features.previewThumbnails.metadataPath; }
+    extendedMarkerStats() { return this.#features.extendedMarkerStats; }
+    disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
 
     /** Sets the server side log level taken from the config file */
     #setLogLevel() {

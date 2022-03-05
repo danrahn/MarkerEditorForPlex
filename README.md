@@ -19,7 +19,7 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 
 ### After initial setup
 0. **Back up your Plex database**
-2. `node start.js`
+1. `node start.js`
 
 ## Configuration file
 
@@ -39,6 +39,7 @@ Settings inside the `features` dictionary:
 | Key | Description | Possible Values
 ---|---|---
 `autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
+`extendedMarkerStats` | Whether to gather all markers in the database to compile per library/show/season marker data. Potentially compute and memory expensive for very large libraries, as it keeps a record for every episode/marker in the database. | `true` or `false`
 `previewThumbnails` | Controls preview thumbnail retrieval | [Preview Thumbnails Settings](#preview-thumbnails-settings)
 
 #### Preview Thumbnails Settings

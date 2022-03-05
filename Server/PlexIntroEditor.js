@@ -8,6 +8,7 @@ const ThumbnailManager = require('./ThumbnailManager');
 const zlib = require('zlib');
 const PlexIntroEditorConfig = require('./PlexIntroEditorConfig');
 const PlexTypes = require('./../Shared/PlexTypes');
+const MarkerCacheManager = require('./MarkerCacheManager');
 
 const ConsoleLog = require('./../Shared/ConsoleLog');
 const Log = new ConsoleLog.ConsoleLog();
@@ -37,6 +38,12 @@ let TagId;
  */
 let Thumbnails;
 
+/**
+ * Manages basic marker information for the entire database.
+ * @type {MarkerCacheManager}
+ */
+let MarkerCache = null;
+
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = Path.dirname(__dirname);
 
@@ -44,6 +51,8 @@ const ProjectRoot = Path.dirname(__dirname);
 function run() {
     try {
         Config = new PlexIntroEditorConfig(Log);
+        Log.info(`Verifying database '${Config.databasePath()}'...`);
+
         // Set up the database, and make sure it's the right one.
         Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
             if (err) {
@@ -61,7 +70,18 @@ function run() {
 
                     TagId = row.id;
                     Thumbnails = new ThumbnailManager(Database, Log, Config.metadataPath());
-                    createServer();
+                    if (Config.extendedMarkerStats()) {
+                        MarkerCache = new MarkerCacheManager(Database, TagId, Log);
+                        MarkerCache.buildCache(createServer, (message) => {
+                            Log.error(message, 'Failed to build marker cache:');
+                            Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+                            Config.disableExtendedMarkerStats();
+                            createServer();
+                        });
+                    } else {
+                        // If extended marker stats aren't enabled, just create the server now.
+                        createServer();
+                    }
                 });
             }
         });
@@ -465,6 +485,10 @@ function addMarker(metadataId, startMs, endMs, res) {
                     return jsonSuccess(res);
                 }
 
+                if (Config.extendedMarkerStats()) {
+                    MarkerCache.addMarkerToCache(metadataId, row.id);
+                }
+
                 jsonSuccess(res, new PlexTypes.MarkerData(row));
             });
 
@@ -513,6 +537,10 @@ function deleteMarker(markerId, res) {
                             Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.index - 1, marker.id]);
                         }
                     }
+                }
+
+                if (Config.extendedMarkerStats()) {
+                    MarkerCache.removeMarkerFromCache(markerId);
                 }
 
                 updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
