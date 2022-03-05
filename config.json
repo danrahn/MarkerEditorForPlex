@@ -2,8 +2,12 @@
     "database" : "path/to/com.plexapp.plugins.library.db",
     "host" : "localhost",
     "port" : 3232,
-    "autoOpen" : true,
     "logLevel" : "Info",
-    "useThumbnails" : true,
-    "metadataPath" : "path/to/data/directory"
+    "features" : {
+        "autoOpen" : true,
+        "previewThumbnails" : {
+            "enabled" : true,
+            "metadataPath" : "/path/to/server/data/directory"
+        }
+    }
 }

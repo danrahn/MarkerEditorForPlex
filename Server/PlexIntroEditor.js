@@ -67,6 +67,7 @@ function run() {
         });
     } catch (ex) {
         Log.critical(ex.message);
+        Log.verbose(ex.stack || 'Unable to retrieve stack');
         Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
         process.exit(1);
     }

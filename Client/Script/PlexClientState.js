@@ -40,14 +40,17 @@ class PlexClientState
       * @param {number} metadataId
       * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found. */
     setActiveShow(metadataId) {
-        if (!this.#shows[this.#activeSection][metadataId]) {
+        let show = this.#shows[this.#activeSection][metadataId];
+        if (!show) {
             return false;
         }
 
         if (this.#activeShow && this.#activeShow.metadataId != metadataId) {
             this.clearActiveShow();
-        } else if (!this.#activeShow) {
-            this.#activeShow = this.#shows[this.#activeSection][metadataId];
+        }
+
+        if (!this.#activeShow) {
+            this.#activeShow = show;
         }
 
         return this.#activeShow;
@@ -97,7 +100,9 @@ class PlexClientState
 
         if (this.#activeSeason && this.#activeSeason.metadataId != metadataId) {
             this.clearActiveSeason();
-        } else if (!this.#activeSeason) {
+        }
+
+        if (!this.#activeSeason) {
             this.#activeSeason = season;
         }
 

@@ -1,13 +1,11 @@
 /** Helper class that holds theme-related settings. */
 class ThemeSetting {
 
-    /** Whether the user is in dark mode.
-     * @type {boolean} */
+    /** Whether the user is in dark mode. */
     dark;
 
     /** Whether the user set the theme.
-     * If `false`, the theme is based on the browser theme.
-     * @type {boolean} */
+     * If `false`, the theme is based on the browser theme. */
     userSet;
 
     /**
@@ -18,6 +16,30 @@ class ThemeSetting {
         this.dark = dark;
         this.userSet = userSet;
     }
+}
+
+/** Holds settings for displaying preview thumbnails. */
+class PreviewThumbnailsSetting {
+    /** Whether the user wants to see preview thumbnails when adding/editing markers */
+    #useThumbnails;
+    /** Whether the server settings have preview thumbnails disabled, blocking `#useThumbnails` */
+    #blockedByServer;
+    /**
+     * @param {boolean} useThumbnails
+     * @param {boolean} blockedByServer */
+    constructor(useThumbnails) {
+        this.#useThumbnails = useThumbnails;
+        this.#blockedByServer = false;
+    }
+
+    /** Enable/disable preview thumbnails. Thumbnails won't be enabled if they're blocked by the server. */
+    enable(enabled) { if (!this.#blockedByServer) { this.#useThumbnails = enabled; } }
+    /** @returns Whether preview thumbnails should be shown. */
+    enabled() { return this.#useThumbnails && !this.#blockedByServer; }
+    /** @returns Whether the server has preview thumbnails disabled. */
+    blocked() { return this.#blockedByServer; }
+    /** Called if the server indicates that preview thumbnails are disabled. */
+    block() { this.#blockedByServer = true; }
 }
 
 /**
@@ -32,8 +54,8 @@ class ClientSettings {
     theme;
 
     /** Whether thumbnails appear when adding/editing markers.
-     * @type {boolean} */
-    useThumbnails = true;
+     * @type {PreviewThumbnailsSetting} */
+    previewThumbnails;
 
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
@@ -53,7 +75,7 @@ class ClientSettings {
         this.theme = new ThemeSetting(
             this.#valueOrDefault(themeData, 'dark', false),
             this.#valueOrDefault(themeData, 'userSet', false));
-        this.useThumbnails = this.#valueOrDefault(json, 'useThumbnails', true);
+        this.previewThumbnails = new PreviewThumbnailsSetting(this.#valueOrDefault(json, 'useThumbnails', true));
     }
 
     /** Save the current settings to {@linkcode localStorage}. */
@@ -198,10 +220,6 @@ class ClientSettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
-    /** Determines whether thumbnails are blocked by the server, and should not be controllable client-side.
-     * @type {boolean} */
-    #thumbnailsBlocked = false;
-
     constructor() {
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
@@ -240,19 +258,18 @@ class ClientSettingsManager {
     isThemeUserSet() { return this.#settings.theme.userSet; }
 
     /** @returns Whether thumbnails should be displayed when adding/editing markers. */
-    useThumbnails() { return this.#settings.useThumbnails; }
+    useThumbnails() { return this.#settings.previewThumbnails.enabled(); }
 
     /** @returns Whether the server doesn't have preview thumbnails enabled. */
-    thumbnailsBlockedByServer() { return this.#thumbnailsBlocked; }
+    thumbnailsBlockedByServer() { return this.#settings.previewThumbnails.blocked(); }
 
     /**
      * Sets whether thumbnails should be displayed when adding/editing markers.
-     * This is a no-op if {@linkcode thumbnailsBlockedByServer} is `true`.
+     * This is a no-op if {@linkcode PreviewThumbnailsSetting.blocked()} is `true`.
      * @param {boolean} useThumbnails
      */
     setThumbnails(useThumbnails) {
-        useThumbnails = useThumbnails && !this.#thumbnailsBlocked;
-        this.#settings.useThumbnails = useThumbnails;
+        this.#settings.previewThumbnails.enable(useThumbnails);
         this.#settings.save();
     }
 
@@ -299,8 +316,7 @@ class ClientSettingsManager {
         $('#settings').classList.remove('hidden');
         if (!serverConfig.useThumbnails) {
             // If thumbnails aren't available server-side, don't make them an option client-side.
-            this.#settings.useThumbnails = false;
-            this.#thumbnailsBlocked = true;
+            this.#settings.previewThumbnails.block();
         }
     }
 
