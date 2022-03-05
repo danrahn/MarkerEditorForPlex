@@ -206,7 +206,7 @@ class PlexClientState
                     resolve();
                 },
                 (res) => {
-                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${res.Error}`);
+                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${errorMessage(res)}`);
                 });
         });
     }
@@ -214,7 +214,7 @@ class PlexClientState
 
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
-    const { jsonRequest } = require('./Common');
+    const { jsonRequest, errorMessage } = require('./Common');
     const { ShowData, SeasonData, EpisodeData } = require("../../Shared/PlexTypes");
     module.exports = { PlexClientState };
 }

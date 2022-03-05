@@ -3,10 +3,24 @@
  */
 
 /**
+ * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
  * @typedef {Object<number, ShowData} ShowMap A map of show metadata ids to the show itself.
  * @typedef {Object<number, SeasonData} SeasonMap A map of season metadata ids to the season itself.
  * @typedef {Object<number, EpisodeData} EpisodeMap A map of episode metadata ids to the episode itself.
+ * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  */
+
+/**
+ * Retrieve an object to initialize the base PlexData of a derived class.
+ * @param {object} item
+ * @returns {PlexDataBaseData} */
+function getBaseData(item) {
+    if (!item) {
+        return null;
+    }
+
+    return { metadataId : item.id, markerBreakdown : item.markerBreakdown };    
+}
 
 /**
  * Base class for a representation of a Plex item, containing
@@ -18,9 +32,20 @@ class PlexData {
      * @type {number} */
     metadataId;
 
-    constructor(metadataId)
+    /**
+     * The breakdown of how many episodes have X markers.
+     * @type {MarkerBreakdownMap} */
+    markerBreakdown;
+
+    /**
+     * @param {PlexDataBaseData} [data]
+     */
+    constructor(data)
     {
-        this.metadataId = metadataId;
+        if (data) {
+            this.metadataId = data.metadataId;
+            this.markerBreakdown = data.markerBreakdown;
+        }
     }
 
     /**
@@ -84,7 +109,7 @@ class PlexData {
      * Constructs ShowData based on the given database row, or an empty show if not provided.
      * @param {Object<string, any>} [show] */
     constructor(show) {
-        super(show ? show.id : null);
+        super(getBaseData(show));
         if (!show) {
             return;
         }
@@ -153,7 +178,7 @@ class SeasonData extends PlexData {
      * Constructs SeasonData based on the given database row, or an empty season if not provided.
      * @param {Object<string, any>} [season] */
     constructor(season) {
-        super(season ? season.id : null);
+        super(getBaseData(season));
         if (!season) {
             return;
         }
@@ -234,7 +259,7 @@ class EpisodeData extends PlexData {
      * Creates a new EpisodeData from the given episode, if provided.
      * @param {Object<string, any>} [episode] */
     constructor(episode) {
-        super(episode ? episode.id : null);
+        super(getBaseData(episode));
         if (!episode) {
             return;
         }

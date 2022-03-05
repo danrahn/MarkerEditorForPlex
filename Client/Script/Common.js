@@ -137,8 +137,36 @@ function _buildNode(ele, attrs, content, events) {
 };
 
 
+/**
+ * Return an error string from the given error.
+ * In almost all cases, `error` will be either a JSON object with a single `Error` field,
+ * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
+ * generic error message.
+ * @param {*} error
+ * @returns {string} 
+ */
+ function errorMessage(error) {
+    if (error.Error) {
+        return error.Error;
+    }
+
+    if (error instanceof Error) {
+        Log.error(error);
+        Log.error(error.stack ? error.stack : '(Unknown stack)');
+
+        if (error instanceof TypeError && error.message == 'Failed to fetch') {
+            // Special handling of what's likely a server-side exit.
+            return error.toString() + '<br><br>The server may have exited unexpectedly, please check the console.';
+        }
+
+        return error.toString();
+    }
+
+    return 'I don\'t know what went wrong, sorry :(';
+}
+
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
     const { Log } = require('../../Shared/ConsoleLog');
-    module.exports = { clearEle, jsonRequest, $, $$, buildNode, buildNodeNS, appendChildren };
+    module.exports = { clearEle, jsonRequest, $, $$, buildNode, buildNodeNS, appendChildren, errorMessage };
 }

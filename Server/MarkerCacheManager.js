@@ -15,34 +15,127 @@ const { ConsoleLog, Log } = require('../Shared/ConsoleLog');
  *     marker_id : number,
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
- * @typedef {{ [markerCount: number] : [episodeCount: number] }} MarkerBreakdown
+ * @typedef {{ [markerCount: number] : [episodeCount: number] }} MarkerBreakdownMap
  */
 
+/**
+ * Manages marker statistics at an arbitrary level (section/series/season/episode)
+ */
+class MarkerBreakdown {
+    /** @type {MarkerBreakdownMap} */
+    #counts = { 0 : 0 };
+    /** @type {MarkerNodeBase} */
+    #parent;
+
+    /** @param {MarkerNodeBase} parent */
+    constructor(parent=null) {
+        this.#parent = parent;
+    }
+
+    /** @returns {MarkerBreakdownMap} */
+    data() {
+        // Create a copy by stringifying/serializing to prevent underlying data from being overwritten.
+        this.#minify();
+        return JSON.parse(JSON.stringify(this.#counts));
+    }
+    
+    /** Increase the marker count for an episode that previously had `oldCount` markers.
+     * @param {number} oldCount */
+    add(oldCount) {
+        this.delta(oldCount, 1);
+    }
+
+    /** Decrease the marker count for an episode that previously had `oldCount` markers.
+     * @param {number} oldCount */
+    remove(oldCount) {
+        this.delta(oldCount, -1);
+    }
+
+    /** Adjust the marker count for an episode that previously had `oldCount` markers
+     * @param {number} oldCount
+     * @param {number} delta 1 if a marker was added, -1 if one was deleted. */
+    delta(oldCount, delta) {
+        if (!this.#counts[oldCount + delta]) {
+            this.#counts[oldCount + delta] = 0;
+        }
+
+        --this.#counts[oldCount];
+        ++this.#counts[oldCount + delta];
+        if (this.#parent) {
+            this.#parent.markerBreakdown.delta(oldCount, delta);
+        }
+    }
+
+    /**
+     * Handles a new episode in the database.
+     * Adds to the 'episodes with 0 markers' bucket for the episode and all parent categories. */
+    initEpisode() {
+        ++this.#counts[0];
+        this.#parent?.markerBreakdown.initEpisode();
+    }
+
+    /** Removes any marker counts that have no episodes in `#counts` */
+    #minify() {
+        // Remove episode counts that have no episodes.
+        const keys = Object.keys(this.#counts);
+        for (const key of keys) {
+            if (this.#counts[key] == 0) {
+                delete this.#counts[key];
+            }
+        }
+    }
+}
+
+/** Base class for a node in the {@linkcode MarkerCacheManager}'s hierarchical data. */
+class MarkerNodeBase {
+    markerBreakdown;
+    /** @param {MarkerNodeBase} parent */
+    constructor(parent=null) {
+        this.markerBreakdown = new MarkerBreakdown(parent);
+    }
+}
+
 /** Representation of a library section in the marker cache. */
-class MarkerSectionNode {
+class MarkerSectionNode extends MarkerNodeBase {
     /** @type {MarkerShowMap} */
     shows = {};
-    markerCount = 0;
+    constructor() {
+        super(null);
+    }
 }
 
 /** Representation of a TV show in the marker cache. */
-class MarkerShowNode {
+class MarkerShowNode extends MarkerNodeBase {
     /** @type {MarkerSeasonMap} */
     seasons = {};
-    markerCount = 0;
+    
+    /** @param {MarkerSectionNode} parent */
+    constructor(parent) {
+        super(parent);
+    }
 }
 
 /** Representation of a season of a TV show in the marker cache. */
-class MarkerSeasonNode {
+class MarkerSeasonNode extends MarkerNodeBase {
     /** @type {MarkerEpisodeMap} */
     episodes = {};
-    markerCount = 0;
+
+    /** @param {MarkerShowNode} parent */
+    constructor(parent) {
+        super(parent);
+    }
 }
 
 /** Representation of an episode of a TV show in the marker cache. */
-class MarkerEpisodeNode {
+class MarkerEpisodeNode extends MarkerNodeBase {
     /** @type {MarkerId[]} */
     markers = [];
+
+    /** @param {MarkerSeasonNode} parent */
+    constructor(parent) {
+        super(parent);
+        this.markerBreakdown.initEpisode();
+    }
 }
 
 /**
@@ -116,6 +209,7 @@ class MarkerCacheManager {
 
         delete this.#allMarkers[markerId];
         const episode = this.#drillDown(markerData);
+        episode.markerBreakdown.remove(episode.markers.length);
         episode.markers = episode.markers.filter(marker => marker != markerId);
     }
 
@@ -145,26 +239,46 @@ class MarkerCacheManager {
      * @param {number} sectionId The library section to iterate over.
      * @returns {MarkerBreakdown} */
     getSectionOverview(sectionId) {
-        let buckets = {};
         try { // This _really_ shouldn't fail, but ¯\_(ツ)_/¯
-            for (const show of Object.values(this.#markerHierarchy[sectionId].shows)) {
-                for (const season of Object.values(show.seasons)) {
-                    for (const episode of Object.values(season.episodes)) {
-                        if (!buckets[episode.markers.length]) {
-                            buckets[episode.markers.length] = 0;
-                        }
-
-                        ++buckets[episode.markers.length];
-                    }
-                }
-            }
+            return this.#markerHierarchy[sectionId].markerBreakdown.data();
         } catch (ex) {
             Log.error(ex.message,'Something went wrong when gathering the section overview');
             Log.error('Attempting to fall back to markerBreakdownCache data.');
             return false;
         }
+    }
 
-        return buckets;
+    getShowStats(metadataId) {
+        let show = this.#showFromId(metadataId);
+        if (!show) {
+            this.#log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
+            return null;
+        }
+
+        return show.markerBreakdown.data();
+    }
+
+    getSeasonStats(showId, seasonId) {
+        // Like getShowStats, just the show's metadataId is okay.
+        let show = this.#showFromId(showId);
+        if (!show) {
+            Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
+            return null;
+        }
+
+        return show.seasons[seasonId]?.markerBreakdown;
+    }
+
+    #showFromId(showId) {
+        // Just a show metadataId is okay. Someone would need thousands of libraries before
+        // the perf hit of looking for the right section was noticeable.
+        for (const section of Object.values(this.#markerHierarchy)) {
+            if (section.shows[showId]) {
+                return section.shows[showId];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -190,26 +304,22 @@ class MarkerCacheManager {
 
         let thisSection = this.#markerHierarchy[row.section_id];
         if (!thisSection.shows[row.show_id]) {
-            thisSection.shows[row.show_id] = new MarkerShowNode();
+            thisSection.shows[row.show_id] = new MarkerShowNode(thisSection);
         }
 
         let show = thisSection.shows[row.show_id];
         if (!show.seasons[row.season_id]) {
-            show.seasons[row.season_id] = new MarkerSeasonNode();
+            show.seasons[row.season_id] = new MarkerSeasonNode(show);
         }
 
         let season = show.seasons[row.season_id];
         if (!season.episodes[row.episode_id]) {
-            season.episodes[row.episode_id] = new MarkerEpisodeNode();
+            season.episodes[row.episode_id] = new MarkerEpisodeNode(season);
         }
 
         let episode = season.episodes[row.episode_id];
         if (isMarker) {
-            if (episode.markers.length == 0) {
-                ++show.markerCount;
-                ++season.markerCount;
-            }
-
+            episode.markerBreakdown.add(episode.markers.length);
             episode.markers.push(row.marker_id);
 
             if (row.marker_id in this.#allMarkers) {

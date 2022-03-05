@@ -76,6 +76,7 @@ function run() {
                             Log.error(message, 'Failed to build marker cache:');
                             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
                             Config.disableExtendedMarkerStats();
+                            MarkerCache = null;
                             createServer();
                         });
                     } else {
@@ -351,6 +352,7 @@ function queryIds(keys, res) {
     query = query.substring(0, query.length - 4) + ');';
     Database.all(query, (err, rows) => {
         if (err) {
+            Log.error(err);
             return jsonError(res, 400, 'Unable to retrieve ids');
         }
 
@@ -494,10 +496,7 @@ function addMarker(metadataId, startMs, endMs, res) {
                     return jsonSuccess(res);
                 }
 
-                if (Config.extendedMarkerStats()) {
-                    MarkerCache.addMarkerToCache(metadataId, row.id);
-                }
-
+                MarkerCache?.addMarkerToCache(metadataId, row.id);
                 jsonSuccess(res, new PlexTypes.MarkerData(row));
             });
 
@@ -548,10 +547,7 @@ function deleteMarker(markerId, res) {
                     }
                 }
 
-                if (Config.extendedMarkerStats()) {
-                    MarkerCache.removeMarkerFromCache(markerId);
-                }
-
+                MarkerCache?.removeMarkerFromCache(markerId);
                 updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
 
                 return jsonSuccess(res, new PlexTypes.MarkerData(row));
@@ -604,6 +600,7 @@ function getShows(sectionId, res) {
 
         let shows = [];
         for (const show of rows) {
+            show.markerBreakdown = MarkerCache?.getShowStats(show.id);
             shows.push(new PlexTypes.ShowData(show));
         }
 
@@ -631,6 +628,7 @@ function getSeasons(metadataId, res) {
 
         let seasons = [];
         for (const season of rows) {
+            season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
             seasons.push(new PlexTypes.SeasonData(season));
         }
 

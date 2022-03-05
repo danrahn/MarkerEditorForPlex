@@ -1194,34 +1194,6 @@ function msToHms(ms) {
     return time;
 }
 
-/**
- * Return an error string from the given error.
- * In almost all cases, `error` will be either a JSON object with a single `Error` field,
- * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
- * generic error message.
- * @param {*} error
- * @returns {string} 
- */
-function errorMessage(error) {
-    if (error.Error) {
-        return error.Error;
-    }
-
-    if (error instanceof Error) {
-        Log.error(error);
-        Log.error(error.stack ? error.stack : '(Unknown stack)');
-
-        if (error instanceof TypeError && error.message == 'Failed to fetch') {
-            // Special handling of what's likely a server-side exit.
-            return error.toString() + '<br><br>The server may have exited unexpectedly, please check the console.';
-        }
-
-        return error.toString();
-    }
-
-    return 'I don\'t know what went wrong, sorry :(';
-}
-
 // Ugly hack to let VSCode see the definition of external classes in this client-side JS file without
 // causing client-side errors. Some of these classes will resolve correctly without this workaround
 // if they're also open in an active editor, but the method below ensures JSDoc is available regardless
@@ -1232,7 +1204,7 @@ if (typeof __dontEverDefineThis !== 'undefined') {
     const { PlexClientState } = require('./PlexClientState');
     const { ClientSettingsManager } = require('./ClientSettings');
     const { ThemeColors } = require('./ThemeColors');
-    const { clearEle, jsonRequest, $, $$, buildNode, appendChildren  } = require('./Common');
+    const { clearEle, jsonRequest, $, $$, buildNode, appendChildren, errorMessage } = require('./Common');
     const { Chart } = require('./inc/Chart');
     const { DateUtil } = require('./inc/DateUtil');
     const { Overlay } = require('./inc/Overlay');
