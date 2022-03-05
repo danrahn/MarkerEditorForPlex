@@ -1,5 +1,5 @@
 const { Database } = require('sqlite3');
-const { ConsoleLog } = require('../Shared/ConsoleLog');
+const { ConsoleLog, Log } = require('../Shared/ConsoleLog');
 
 /**
  * @typedef {{[markerId: number] : MarkerQueryResult}} MarkerMap
@@ -15,6 +15,7 @@ const { ConsoleLog } = require('../Shared/ConsoleLog');
  *     marker_id : number,
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
+ * @typedef {{ [markerCount: number] : [episodeCount: number] }} MarkerBreakdown
  */
 
 /** Representation of a library section in the marker cache. */
@@ -137,6 +138,33 @@ class MarkerCacheManager {
             row.tag_id = this.#tagId;
             this.#addMarkerData(row);
         });
+    }
+
+    /**
+     * Retrieve {@link MarkerBreakdown} statistics for the given library section.
+     * @param {number} sectionId The library section to iterate over.
+     * @returns {MarkerBreakdown} */
+    getSectionOverview(sectionId) {
+        let buckets = {};
+        try { // This _really_ shouldn't fail, but ¯\_(ツ)_/¯
+            for (const show of Object.values(this.#markerHierarchy[sectionId].shows)) {
+                for (const season of Object.values(show.seasons)) {
+                    for (const episode of Object.values(season.episodes)) {
+                        if (!buckets[episode.markers.length]) {
+                            buckets[episode.markers.length] = 0;
+                        }
+
+                        ++buckets[episode.markers.length];
+                    }
+                }
+            }
+        } catch (ex) {
+            Log.error(ex.message,'Something went wrong when gathering the section overview');
+            Log.error('Attempting to fall back to markerBreakdownCache data.');
+            return false;
+        }
+
+        return buckets;
     }
 
     /**

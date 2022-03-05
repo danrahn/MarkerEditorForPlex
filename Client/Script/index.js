@@ -185,11 +185,11 @@ function showMarkerBreakdown(response) {
 
     const chart = Chart.pie(chartOptions);
 
-    // Our first request may be slow, and we want to show the graph immediately.
-    // Subsequent requests might instantly return cached data, so we want to include a fade in
+    // Our first request may be slow, and we want to show the graph immediately. Subsequent requests
+    // (or the first one if extendedMarkerStats is enabled) might instantly return cached data,
+    // so we want to include a fade in/
     const opacity = parseFloat(getComputedStyle(overlay).opacity);
     const delay = (1 - opacity) * 250;
-    Overlay.destroy();
     Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
         appendChildren(buildNode('div', { style : 'text-align: center' }), chart));
 }
@@ -199,7 +199,6 @@ function showMarkerBreakdown(response) {
  * @param {Object} response JSON failure message.
  */
 function markerBreakdownFailed(response) {
-    Overlay.destroy();
     Overlay.show(
         appendChildren(buildNode('div'),
             buildNode('h2', {}, 'Error'),

@@ -47,10 +47,11 @@ let Overlay = new function()
     };
 
     /** Immediately remove the overlay from the screen without animation. */
-    this.destroy = function()
+    let destroyExistingOverlay = function()
     {
         const overlay = $('#mainOverlay');
         if (overlay) {
+            Log.verbose('Destroying existing overlay to display a new one.');
             overlay.parentNode.removeChild(overlay);
             Tooltip.dismiss();
         }
@@ -67,11 +68,8 @@ let Overlay = new function()
      */
     this.build = function(options, ...children)
     {
-        if ($("#mainOverlay"))
-        {
-            this.destroy();
-        }
-
+        // Immediately remove any existing overlays
+        destroyExistingOverlay();
         let overlayNode = _overlayNode(options);
 
         let container = buildNode("div", { id : "overlayContainer", class : options.centered ? "centeredOverlay" : "defaultOverlay" });

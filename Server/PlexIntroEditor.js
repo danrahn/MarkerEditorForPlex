@@ -80,6 +80,7 @@ function run() {
                         });
                     } else {
                         // If extended marker stats aren't enabled, just create the server now.
+                        Log.info('Creating server...');
                         createServer();
                     }
                 });
@@ -704,6 +705,19 @@ let markerBreakdownCache = {};
  * @param {Http.ServerResponse} res
  */
 function allStats(sectionId, res) {
+    // If we have global marker data, forego the specialized markerBreakdownCache
+    // and build the statistics using the cache manager.
+    if (Config.extendedMarkerStats()) {
+        Log.verbose('Grabbing section data from the full marker cache.');
+
+        const buckets = MarkerCache.getSectionOverview(sectionId);
+        if (buckets) {
+            return jsonSuccess(res, buckets);
+        }
+
+        // Something went wrong with our global cache. Fall back to markerBreakdownCache.
+    }
+
     if (markerBreakdownCache[sectionId]) {
         Log.verbose('Found cached data, returning it');
         return jsonSuccess(res, markerBreakdownCache[sectionId]);
