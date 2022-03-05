@@ -150,7 +150,7 @@ class PlexClientState
         result.sort((a, b) => {
             if (query.length == 0) {
                 // Blank query should return all shows, and in that case we just care about sort title order
-                return defaultSort(a, b);
+                return this.#defaultSort(a, b);
             }
 
             // Title prefix matches are first, then sort title, then original title.
