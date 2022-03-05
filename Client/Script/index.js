@@ -17,7 +17,7 @@ function setup()
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
-    $('#settings').addEventListener('click', Settings.showSettings.bind(Settings));
+    $('#settings').addEventListener('click', showSettings);
     setupMarkerBreakdown();
     PlexState = new PlexClientState();
     mainSetup();
@@ -207,6 +207,27 @@ function markerBreakdownFailed(response) {
         ), 'OK');
 }
 
+/** Invoke the settings dialog. */
+function showSettings() {
+    Settings.showSettings.bind(Settings)(onSettingsApplied);
+}
+
+/** Callback invoked when settings are applied.
+ * @param {boolean} shouldResetView Whether a setting that affects the display of markers
+ * was changed, requiring the current view to be reset. */
+function onSettingsApplied(shouldResetView) {
+    if (shouldResetView) {
+        clearAll();
+    }
+
+    // If the search input is visible, clear its input and give it focus.
+    const searchInput = $('#search');
+    if (!searchInput.classList.contains('hidden')) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+}
+
 /**
  * timerID for the search timeout
  * @type {number} */
@@ -287,7 +308,7 @@ function buildShowRow(show, selected=false) {
     let row = appendChildren(buildNode('div', { class : 'showResult', metadataId : show.metadataId }, 0, events),
         titleNode,
         buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season')),
-        buildNode('div', { class : 'showResultEpisodes' }, plural(show.episodeCount, 'Episode'))
+        buildNode('div', { class : 'showResultEpisodes' }, getEpisodeDisplay(show))
     );
 
     if (selected) {
@@ -302,6 +323,40 @@ function buildShowRow(show, selected=false) {
     }
 
     return row;
+}
+
+/**
+ * Get the episode summary display, which varies depending on whether extended marker information is enabled.
+ * @param {ShowData|SeasonData} item
+ * @returns A basic 'X Episode(s)' string if extended marker information is disabled, otherwise a Span
+ * that shows how many episodes have at least one marker, with tooltip text with a further breakdown of
+ * how many episodes have X markers.
+ */
+function getEpisodeDisplay(item) {
+    if (!Settings.showExtendedMarkerInfo()) {
+        return plural(item.episodeCount, 'Episode');
+    }
+
+    let atLeastOne = 0;
+    let tooltipText = `${plural(item.episodeCount, 'Episode')}<br>`;
+    let keys = Object.keys(item.markerBreakdown);
+    keys.sort((a, b) => parseInt(a) - parseInt(b));
+    for (const key of keys) {
+        const episodeCount = item.markerBreakdown[key];
+        tooltipText += `${episodeCount} ${episodeCount == 1 ? 'has' : 'have'} ${plural(parseInt(key), ' marker')}<br>`;
+        if (key != 0) {
+            atLeastOne += episodeCount;
+        }
+    }
+
+    if (!tooltipText) {
+        tooltipText = 'No markers';
+    }
+
+    const percent = (atLeastOne / item.episodeCount * 100).toFixed(2);
+    let episodeDisplay = buildNode('span', {}, `${atLeastOne}/${item.episodeCount} (${percent}%)`);
+    Tooltip.setTooltip(episodeDisplay, tooltipText);
+    return episodeDisplay;
 }
 
 /** Click handler for clicking a show row. Initiates a request for season details. */
@@ -359,7 +414,7 @@ function buildSeasonRow(season, selected=false) {
     let row = appendChildren(buildNode('div', { class : 'seasonResult', metadataId : season.metadataId }, 0, events),
         titleNode,
         buildNode('div'), // empty to keep alignment w/ series
-        buildNode('div', { class : 'showResultEpisodes' }, plural(season.episodeCount, 'Episode'))
+        buildNode('div', { class : 'showResultEpisodes' }, getEpisodeDisplay(season))
     );
 
     if (selected) {

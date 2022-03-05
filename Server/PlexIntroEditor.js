@@ -819,5 +819,5 @@ function getThumbnail(url, res) {
  * @param {Http.ServerResponse} res
  */
 function getConfig(res) {
-    jsonSuccess(res, { useThumbnails : Config.useThumbnails() });
+    jsonSuccess(res, { useThumbnails : Config.useThumbnails(), extendedMarkerStats : Config.extendedMarkerStats() });
 }

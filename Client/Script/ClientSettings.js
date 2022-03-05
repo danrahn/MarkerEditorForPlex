@@ -18,28 +18,41 @@ class ThemeSetting {
     }
 }
 
-/** Holds settings for displaying preview thumbnails. */
-class PreviewThumbnailsSetting {
-    /** Whether the user wants to see preview thumbnails when adding/editing markers */
-    #useThumbnails;
-    /** Whether the server settings have preview thumbnails disabled, blocking `#useThumbnails` */
-    #blockedByServer;
-    /**
-     * @param {boolean} useThumbnails
-     * @param {boolean} blockedByServer */
-    constructor(useThumbnails) {
-        this.#useThumbnails = useThumbnails;
-        this.#blockedByServer = false;
-    }
+/** Generic implementation for a feature that can be blocked by a server setting. */
+class BlockableSetting {
+    /** Whether this setting is enabled by the user */
+    #enabled = false;
 
-    /** Enable/disable preview thumbnails. Thumbnails won't be enabled if they're blocked by the server. */
-    enable(enabled) { if (!this.#blockedByServer) { this.#useThumbnails = enabled; } }
-    /** @returns Whether preview thumbnails should be shown. */
-    enabled() { return this.#useThumbnails && !this.#blockedByServer; }
-    /** @returns Whether the server has preview thumbnails disabled. */
-    blocked() { return this.#blockedByServer; }
-    /** Called if the server indicates that preview thumbnails are disabled. */
-    block() { this.#blockedByServer = true; }
+    /** Whether the correlating server setting is disabled, therefore
+     * blocking it client-side regardless of the user's preference. */
+    #blocked = false;
+
+    /** Enable/disable this feature. No-op of the setting is blocked by the server. */
+    enable(enabled) { if (!this.#blocked) { this.#enabled = enabled; } }
+
+    /** @returns Whether this feature is currently enabled */
+    enabled() { return this.#enabled && !this.#blocked; }
+
+    /** @returns Whether this feature would be enabled if the server wasn't blocking it. */
+    enabledIgnoringBlock() { return this.#enabled; }
+
+    /** @returns Whether the setting is disabled because the corresponding server setting is disabled. */
+    blocked() { return this.#blocked; }
+
+    /** Block this setting because the corresponding server setting is disabled. */
+    block() { this.#blocked = true; }
+
+    constructor(enabled) {
+        this.#enabled = enabled;
+    }
+}
+
+class PreviewThumbnailsSetting extends BlockableSetting {
+    static settingsKey = 'useThumbnails';
+}
+
+class ExtendedMarkerStatsSetting extends BlockableSetting {
+    static settingsKey = 'extendedMarkerStats';
 }
 
 /**
@@ -56,6 +69,10 @@ class ClientSettings {
     /** Whether thumbnails appear when adding/editing markers.
      * @type {PreviewThumbnailsSetting} */
     previewThumbnails;
+
+    /** Whether extended marker statistics should be shown when displaying shows/seasons
+     * @type {ExtendedMarkerStatsSetting} */
+    extendedMarkerStats;
 
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
@@ -75,12 +92,24 @@ class ClientSettings {
         this.theme = new ThemeSetting(
             this.#valueOrDefault(themeData, 'dark', false),
             this.#valueOrDefault(themeData, 'userSet', false));
-        this.previewThumbnails = new PreviewThumbnailsSetting(this.#valueOrDefault(json, 'useThumbnails', true));
+        this.previewThumbnails = new PreviewThumbnailsSetting(this.#valueOrDefault(json, PreviewThumbnailsSetting.settingsKey, true));
+        this.extendedMarkerStats = new ExtendedMarkerStatsSetting(this.#valueOrDefault(json, ExtendedMarkerStatsSetting.settingsKey, true));
     }
 
     /** Save the current settings to {@linkcode localStorage}. */
     save() {
-        localStorage.setItem(ClientSettings.#settingsKey, JSON.stringify(this));
+        localStorage.setItem(ClientSettings.#settingsKey, this.#serialize());
+    }
+
+    /** Returns a stringified version of the current client settings. */
+    #serialize() {
+        let json = {};
+        json.theme = this.theme;
+
+        // BlockableSettings can't be serialized by default, so grab the one field that matters explicitly.
+        json[this.previewThumbnails.settingsKey] = this.previewThumbnails.enabledIgnoringBlock();
+        json[this.extendedMarkerStats.settingsKey] = this.extendedMarkerStats.enabledIgnoringBlock();
+        return JSON.stringify(json);
     }
 
     /**
@@ -107,6 +136,9 @@ class ClientSettingsUI {
      * @type {ClientSettingsManager} */
     #settingsManager;
 
+    /** The callback to invoke after settings are applied */
+    #currentCallback = null;
+
     /**
      * @param {ClientSettingsManager} settingsManager
      */
@@ -116,12 +148,17 @@ class ClientSettingsUI {
 
     /**
      * Show the settings overlay.
-     * Currently only has two options:
+     * Currently has three options:
      * * Dark Mode: toggles dark mode, and is linked to the main dark mode toggle
      * * Show Thumbnails: Toggles whether thumbnails are shown when editing/adding markers.
      *   Only visible if app settings have thumbnails enabled.
+     * * Show extended marker information: Toggles whether we show marker breakdowns at the
+     *   show and season level, not just at the episode level. Only visible if app settings
+     *   have extended marker stats enabled.
+     * @param {Function<boolean>} callback The callback to invoke if settings are applied.
      */
-    showSettings() {
+    showSettings(callback) {
+        this.#currentCallback = callback;
         let options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
         if (!this.#settingsManager.thumbnailsBlockedByServer()) {
@@ -131,6 +168,16 @@ class ClientSettingsUI {
                 this.#settingsManager.useThumbnails(),
                 'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)'));
         }
+
+        if (!this.#settingsManager.extendedMarkerStatsBlocked()) {
+            options.push(this.#buildSettingCheckbox(
+                'Extended Marker Stats',
+                'extendedStatsSetting',
+                this.#settingsManager.showExtendedMarkerInfo(),
+                `When browsing shows/seasons, show a breakdown<br>of how many episodes have markers.`
+            ));
+        }
+
         options.push(buildNode('hr'));
 
         let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
@@ -187,12 +234,29 @@ class ClientSettingsUI {
 
     /** Apply and save settings after the user chooses to commit their changes. */
     #applySettings() {
+        let shouldResetView = false;
         if ($('#darkModeSetting').checked != this.#settingsManager.isDarkTheme()) {
             $('#darkModeCheckbox').click();
         }
 
-        this.#settingsManager.setThumbnails($('#showThumbnailsSetting').checked);
+        /** @type {HTMLInputElement} */
+        const thumbnails = $('#showThumbnailsSetting');
+        if (thumbnails) {
+            shouldResetView = shouldResetView || thumbnails.checked != this.#settingsManager.useThumbnails();
+            this.#settingsManager.setThumbnails(thumbnails.checked);
+        }
+
+        /** @type {HTMLInputElement} */
+        const extended = $('#extendedStatsSetting');
+        if (extended) {
+            shouldResetView = shouldResetView || extended.checked != this.#settingsManager.showExtendedMarkerInfo();
+            this.#settingsManager.setExtendedStats(extended.checked);
+        }
+
+        this.#settingsManager.save();
         Overlay.dismiss();
+        this.#currentCallback(shouldResetView);
+        this.#currentCallback = null;
     }
 }
 
@@ -270,11 +334,32 @@ class ClientSettingsManager {
      */
     setThumbnails(useThumbnails) {
         this.#settings.previewThumbnails.enable(useThumbnails);
+    }
+
+    /** @returns Whether extended marker statistics should be displayed when navigating shows/seasons */
+    showExtendedMarkerInfo() { return this.#settings.extendedMarkerStats.enabled(); }
+
+    /** @returns Whether the server doesn't have extended marker statistics enabled. */
+    extendedMarkerStatsBlocked() { return this.#settings.extendedMarkerStats.blocked(); }
+
+    /**
+     * Sets whether extra marker information should be displayed when navigating shows/seasons.
+     * This is a no-ope if {@linkcode ExtendedMarkerStatsSetting.blocked()} is `true`.
+     * @param {boolean} showStats 
+     */
+    setExtendedStats(showStats) {
+        this.#settings.extendedMarkerStats.enable(showStats);
+    }
+
+    /** Save the currently active settings to {@linkcode localStorage} */
+    save() {
         this.#settings.save();
     }
 
-    /** Display the settings dialog. */
-    showSettings() { this.#uiManager.showSettings(); }
+    /** Display the settings dialog.
+     * @param {Function<bool>} callback Function to invoke if settings are applied.
+    */
+    showSettings(callback) { this.#uiManager.showSettings(callback); }
 
     /**
      * Toggle light/dark theme.
@@ -308,7 +393,7 @@ class ClientSettingsManager {
 
     /**
      * Called after the client retrieves the server config. Enables the settings
-     * icon and determines whether the server is blocking preview thumbnails.
+     * icon and determines whether the server is blocking various UI options.
      * @param {object} serverConfig
      */
     parseServerConfig(serverConfig) {
@@ -317,6 +402,11 @@ class ClientSettingsManager {
         if (!serverConfig.useThumbnails) {
             // If thumbnails aren't available server-side, don't make them an option client-side.
             this.#settings.previewThumbnails.block();
+        }
+
+        if (!serverConfig.extendedMarkerStats) {
+            // Similarly, don't allow extended marker information if the server isn't set to collect it.
+            this.#settings.extendedMarkerStats.block();
         }
     }
 

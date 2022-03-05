@@ -266,7 +266,7 @@ class MarkerCacheManager {
             return null;
         }
 
-        return show.seasons[seasonId]?.markerBreakdown;
+        return show.seasons[seasonId]?.markerBreakdown.data();
     }
 
     #showFromId(showId) {
