@@ -400,6 +400,11 @@ class MarkerData extends PlexData {
     modifiedDate;
 
     /**
+     * Whether the user created this marker, or it's an edit of a marker Plex created.
+     * @type {boolean} */
+    createdByUser;
+
+    /**
      * The date the marker was created.
      * @type {string} */
     createDate;
@@ -427,15 +432,22 @@ class MarkerData extends PlexData {
         this.end = marker.end_time_offset;
         this.index = marker.index;
 
-        // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
-        this.modifiedDate = marker.thumb_url ? marker.thumb_url + 'Z' : '';
+        if (marker.thumb_url) {
+            // Check to see if it has a 'user created' flag.
+            // For legacy purposes, also check whether the create date equals the modified date,
+            // as previous versions of this application didn't include the 'manually created' marker.
+            this.createdByUser = marker.thumb_url[marker.thumb_url.length - 1] == '*' || marker.thumb_url == marker.created_at;
 
-        // TODO: Plex seems to set this based on the local time, not UTC time (which it really should do).
-        //       Either I should adjust my queries to also save the modified date/create date based on the
-        //       local timezone, or I need some way to indicate that the marker was created by Plex vs. the
-        //       user. We know it was created by Plex if there is no modified date, but we don't know who
-        //       created the marker if both are present and they're not equal.
-        this.createDate = marker.created_at + (this.modifiedDate ? 'Z' : '');
+            // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
+            this.modifiedDate = marker.thumb_url.substring(0, marker.thumb_url.length - 1) + 'Z';
+        } else {
+            this.createdByUser = false;
+            this.modifiedDate = '';
+        }
+
+        // Plex stores timestamps in local time for some reason, so only "convert" to UTC time
+        // if the marker was created by the user.
+        this.createDate = marker.created_at + (this.createdByUser ? 'Z' : '');
 
         this.metadataItemId = marker.metadata_item_id;
         this.id = marker.id;

@@ -559,7 +559,7 @@ function tableRow(marker, episode) {
         td(marker.index.toString()),
         td(timeData(marker.start)),
         td(timeData(marker.end)),
-        td(friendlyDate(marker.createDate, marker.modifiedDate), { class : 'centeredColumn' }),
+        td(friendlyDate(marker), { class : 'centeredColumn' }),
         td(optionButtons(marker.id))
     );
 
@@ -601,19 +601,22 @@ function timeData(offset) {
 
 /**
  * Return a span that contains a "friendly" date (x [time span] ago), with a tooltip of the exact date.
- * @param {string} date The date the string
- * @param {string} [userModifiedDate] The date the marker was modified by the user, if any.
+ * @param {MarkerData} marker The marker being displayed.
  */
-function friendlyDate(date, userModifiedDate) {
-    let node = buildNode('span', { class : userModifiedDate ? 'userModifiedMarker' : '' }, DateUtil.getDisplayDate(date));
-    let tooltipText = `Automatically created on ${DateUtil.getFullDate(date)}`;
-    if (userModifiedDate) {
-        if (userModifiedDate == date) {
-            tooltipText = `Manually added on ${DateUtil.getFullDate(date)}`;
+function friendlyDate(marker) {
+    const createDate = DateUtil.getDisplayDate(marker.createDate);
+    const fullCreateDate = DateUtil.getFullDate(marker.createDate);
+    let node = buildNode('span', { class : marker.modifiedDate ? 'userModifiedMarker' : '' }, createDate);
+    let tooltipText = `Automatically created on ${fullCreateDate}`;
+    if (marker.modifiedDate) {
+        if (marker.modifiedDate == marker.createDate) {
+            tooltipText = `Manually added on ${fullCreateDate}`;
         } else {
-            tooltipText = `Added on ${DateUtil.getFullDate(date)}<br>Modified by user on ${DateUtil.getFullDate(userModifiedDate)}`;
+            const who = marker.createdByUser ? 'Manually' : 'Automatically';
+            tooltipText = `${who} added on ${fullCreateDate}<br>Modified by user on ${DateUtil.getFullDate(marker.modifiedDate)}`;
         }
     }
+
     Tooltip.setTooltip(node, tooltipText);
     return node;
 }
@@ -997,8 +1000,11 @@ function onMarkerEditConfirm() {
     const inputs = $('input[type="text"]', editedRow);
     const startTime = timeToMs(inputs[0].value);
     const endTime = timeToMs(inputs[1].value);
+    const markerIndex = parseInt(editedRow.children[0].innerText);
+    const metadataId = editedRow.getAttribute('metadataId');
+    const userCreated = PlexState.getEpisode(metadataId).markers[markerIndex].createdByUser ? 1 : 0;
 
-    if (!checkValues(editedRow.getAttribute('metadataId'), startTime, endTime, true /*isEdit*/, parseInt(editedRow.children[0].innerText))) {
+    if (!checkValues(metadataId, startTime, endTime, true /*isEdit*/, markerIndex)) {
         return;
     }
 
@@ -1007,7 +1013,7 @@ function onMarkerEditConfirm() {
         Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${response.Error || response.message}`, 'OK');
     }
 
-    jsonRequest('edit', { id : markerId, start : startTime, end : endTime }, onMarkerEditSuccess, failureFunc.bind(editedRow));
+    jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated }, onMarkerEditSuccess, failureFunc.bind(editedRow));
 }
 
 /**
@@ -1044,7 +1050,7 @@ function resetAfterEdit(markerId, newStart, newEnd) {
     const metadataId = parseInt(editRow.getAttribute('metadataId'));
     clearEle(modifiedDateRow);
     const marker = PlexState.getEpisode(metadataId).markers[parseInt(editRow.children[0].innerText)];
-    let dateNode = friendlyDate(marker.createDate, marker.modifiedDate);
+    let dateNode = friendlyDate(marker);
     dateNode.classList.add('centeredColumn');
     modifiedDateRow.appendChild(dateNode)
 

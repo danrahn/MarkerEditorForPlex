@@ -226,5 +226,6 @@ class PlexClientState
 // Hack for VSCode intellisense.
 if (typeof __dontEverDefineThis !== 'undefined') {
     const { jsonRequest } = require('./Common');
+    const { ShowData, SeasonData, EpisodeData } = require("../../Shared/PlexTypes");
     module.exports = { PlexClientState };
 }

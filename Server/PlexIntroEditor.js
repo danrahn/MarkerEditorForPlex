@@ -205,7 +205,7 @@ function getSvgIcon(url, res) {
  */
 const EndpointMap = {
     query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
-    edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end'), res),
+    edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end', 'userCreated'), res),
     add          : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
     delete       : (params, res) => deleteMarker(params.i('id'), res),
     get_sections : (_     , res) => getLibraries(res),
@@ -339,7 +339,7 @@ function queryIds(keys, res) {
  * @param {number} endMs The end time of the marker, in milliseconds.
  * @param {Http.ServerResponse} res
  */
-function editMarker(markerId, startMs, endMs, res) {
+function editMarker(markerId, startMs, endMs, userCreated, res) {
     Database.get("SELECT * FROM `taggings` WHERE `id`=" + markerId + ";", (err, currentMarker) => {
         if (err || !currentMarker || currentMarker.text != 'intro') {
             return jsonError(res, 400, err | 'Intro marker not found');
@@ -376,7 +376,8 @@ function editMarker(markerId, startMs, endMs, res) {
             }
 
             // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
-            const query = 'UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=CURRENT_TIMESTAMP WHERE `id`=?;';
+            const thumbUrl = `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+            const query = 'UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=' + thumbUrl + ' WHERE `id`=?;';
             Database.run(query, [newIndex, startMs.toString(), endMs, markerId], (err) => {
                 if (err) {
                     return jsonError(res, 400, err);
@@ -442,7 +443,7 @@ function addMarker(metadataId, startMs, endMs, res) {
         }
 
         Database.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
-                    "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, TagId, newIndex, startMs, endMs], (err) => {
+                    "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP || '*', CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, TagId, newIndex, startMs, endMs], (err) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
