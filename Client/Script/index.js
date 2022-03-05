@@ -293,13 +293,13 @@ function buildShowRow(show, selected=false) {
 
     if (selected) {
         row.classList.add('selected');
-        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' }),
+        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
             createFullButton('Back to results', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#seasonlist'));
                 clearAndShow($('#episodelist'));
                 $('#showlist').classList.remove('hidden');
             })
-        ));
+        );
     }
 
     return row;
@@ -365,12 +365,12 @@ function buildSeasonRow(season, selected=false) {
 
     if (selected) {
         row.classList.add('selected');
-        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' }),
+        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
             createFullButton('Back to seasons', 'back', 'Go back', 'standard', () => {
                 clearAndShow($('#episodelist'));
                 $('#seasonlist').classList.remove('hidden');
             })
-        ));
+        );
     }
 
     return row;
