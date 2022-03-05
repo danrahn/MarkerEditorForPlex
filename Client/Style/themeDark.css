@@ -106,7 +106,8 @@ tr:nth-child(even):hover {
   border-color: #c1c1c1;
 }
 
-input[type=button]:hover {
+input[type=button]:hover,
+#settingsContainer input[type=button]:hover {
   border-color: #A0A0A0;
 }
 

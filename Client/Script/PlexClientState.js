@@ -1,14 +1,13 @@
-
 /**
-* A class that handles that keeps track of the currently UI state of Plex Intro Editor,
+* A class that keeps track of the currently UI state of Plex Intro Editor,
 * including search results and the active show/season.
 */
 class PlexClientState
 {
     /** @type {number} */
-    activeSection = -1;
+    #activeSection = -1;
     /** @type {Object<number, ShowMap>} */
-    shows = {};
+    #shows = {};
     /** @type {ShowData[]} */
     #activeSearch = [];
     /** @type {ShowData} */
@@ -20,18 +19,18 @@ class PlexClientState
 
     /**
       * Set the currently active library.
-      * @param {number} section The section to make active.
-      */
+      * @param {number} section The section to make active. */
     async setSection(section) {
-        this.activeSection = isNaN(section) ? -1 : section;
-        if (this.activeSection != -1) {
-            await this._populate_shows();
+        this.#activeSection = isNaN(section) ? -1 : section;
+        if (this.#activeSection != -1) {
+            await this.#populateShows();
         }
     }
 
-    /**
-      * @returns The list of shows that match the current search.
-      */
+    /** @returns The active Plex library section. */
+    activeSection() { return this.#activeSection; }
+
+    /** @returns The list of shows that match the current search. */
     getSearchResults() {
         return this.#activeSearch;
     }
@@ -39,25 +38,22 @@ class PlexClientState
     /**
       * Sets the show with the given metadataId as active.
       * @param {number} metadataId
-      * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found.
-      */
+      * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found. */
     setActiveShow(metadataId) {
-        if (!this.shows[this.activeSection][metadataId]) {
+        if (!this.#shows[this.#activeSection][metadataId]) {
             return false;
         }
 
         if (this.#activeShow && this.#activeShow.metadataId != metadataId) {
             this.clearActiveShow();
         } else if (!this.#activeShow) {
-            this.#activeShow = this.shows[this.activeSection][metadataId];
+            this.#activeShow = this.#shows[this.#activeSection][metadataId];
         }
 
         return this.#activeShow;
     }
 
-    /**
-      * @returns {ShowData} The active show, or null if no show is active.
-      */
+    /** @returns {ShowData} The active show, or null if no show is active. */
     getActiveShow() {
         return this.#activeShow;
     }
@@ -84,8 +80,7 @@ class PlexClientState
 
     /**
       * Adds the given season to the current show.
-      * @param {SeasonData} season
-      */
+      * @param {SeasonData} season */
     addSeason(season) {
         this.#activeShow.addSeason(season);
     }
@@ -93,8 +88,7 @@ class PlexClientState
     /**
       * Sets the season with the given metadata id as active.
       * @param {number} metadataId The metadata of the season.
-      * @returns {SeasonData|false} The season with the given metadata id, or `false` if the season could not be found.
-      */
+      * @returns {SeasonData|false} The season with the given metadata id, or `false` if the season could not be found. */
     setActiveSeason(metadataId) {
         let season = this.#activeShow.getSeason(metadataId);
         if (!season) {
@@ -110,25 +104,21 @@ class PlexClientState
         return this.#activeSeason;
     }
 
-    /**
-      * @returns {SeasonData} The currently active season, or `null` if now season is active.
-      */
+    /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
         return this.#activeSeason;
     }
 
     /**
       * Add the given episode to the active season's episode cache.
-      * @param {EpisodeData} episode
-      */
+      * @param {EpisodeData} episode */
     addEpisode(episode) {
         this.#activeSeason.addEpisode(episode);
     }
 
     /**
       * Retrieve an episode from the active season's episode cache.
-      * @param {number} metadataId
-      */
+      * @param {number} metadataId */
     getEpisode(metadataId) {
         return this.#activeSeason.getEpisode(metadataId);
     }
@@ -136,8 +126,7 @@ class PlexClientState
     /**
       * Search for shows that match the given query.
       * @param {string} query The show to search for.
-      * @param {Function<Object>} successFunc The function to invoke after search the search results have been compiled.
-      */
+      * @param {Function<Object>} successFunc The function to invoke after search the search results have been compiled. */
     search(query, successFunc)
     {
         // Ignore non-word characters to improve matching if there are spacing or quote mismatches. Don't use \W though, since that also clears out unicode characters.
@@ -145,7 +134,8 @@ class PlexClientState
         // I could probably figure out how to utilize Plex's spellfix tables, but substring search on display, sort, and original titles should be good enough here.
         query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
 
-        const showList = Object.values(this.shows[this.activeSection]);
+        /** @type {ShowData[]} */
+        const showList = Object.values(this.#shows[this.#activeSection]);
 
         let result = [];
         for (const show of showList) {
@@ -156,12 +146,6 @@ class PlexClientState
             }
         }
 
-        const defaultSort = (a, b) => {
-            const aTitle = a.sortTitle || a.searchTitle;
-            const bTitle = b.sortTitle || b.searchTitle;
-            return aTitle.localeCompare(bTitle);
-        }
-
         // Sort the results. Title prefix matches are first, then sort title prefix matches, the original title prefix matches, and alphabetical sort title after that.
         result.sort((a, b) => {
             if (query.length == 0) {
@@ -169,47 +153,47 @@ class PlexClientState
                 return defaultSort(a, b);
             }
 
-            const prefixTitleA = a.searchTitle.startsWith(query);
-            const prefixTitleB = b.searchTitle.startsWith(query);
-            if (prefixTitleA != prefixTitleB) {
-                return prefixTitleA ? -1 : 1;
+            // Title prefix matches are first, then sort title, then original title.
+            for (const key of ['searchTitle', 'sortTitle', 'originalTitle']) {
+                const prefixA = a[key] && a[key].startsWith(query);
+                const prefixB = b[key] && b[key].startsWith(query);
+                if (prefixA != prefixB) {
+                    return prefixA ? -1 : 1;
+                }
             }
 
-            const prefixSortA = a.sortTitle && a.sortTitle.startsWith(query);
-            const prefixSortB = b.sortTitle && b.sortTitle.startsWith(query);
-            if (prefixSortA != prefixSortB) {
-                return prefixSortA ? -1 : 1;
-            }
-
-            const prefixOrigA = a.originalTitle && a.originalTitle.startsWith(query);
-            const prefixOrigB = b.originalTitle && b.originalTitle.startsWith(query);
-            if (prefixOrigA != prefixOrigB) {
-                return prefixOrigA ? -1 : 1;
-            }
-
-            return defaultSort(a, b);
+            // If there aren't any prefix matches, go by alphabetical sort title.
+            return this.#defaultSort(a, b);
         });
 
         this.#activeSearch = result;
         successFunc();
     }
 
+    /** Comparator that sorts shows by sort title, falling back to the regular title if needed.
+     * @type {(a: ShowData, b: ShowData) => number} */
+    #defaultSort(a, b) {
+        const aTitle = a.sortTitle || a.searchTitle;
+        const bTitle = b.sortTitle || b.searchTitle;
+        return aTitle.localeCompare(bTitle);
+    }
+
     /**
       * Kick off a request to get all shows in the currently active session, if it's not already cached.
-      * @returns {Promise<void>}
-      */
-    async _populate_shows() {
-        if (this.shows[this.activeSection]) {
+      * @returns {Promise<void>} */
+    async #populateShows() {
+        if (this.#shows[this.#activeSection]) {
             return Promise.resolve();
         }
 
         return new Promise(resolve => {
             jsonRequest(
                 'get_section',
-                { id : PlexState.activeSection },
+                { id : this.#activeSection },
                 (res) => {
+                    Log.info(this);
                     let allShows = {};
-                    PlexState.shows[PlexState.activeSection] = allShows;
+                    this.#shows[this.#activeSection] = allShows;
                     for (const show of res) {
                         let showData = new ShowData().setFromJson(show);
                         allShows[showData.metadataId] = showData;

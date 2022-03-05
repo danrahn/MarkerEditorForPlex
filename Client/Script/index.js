@@ -151,7 +151,7 @@ function getMarkerBreakdown() {
             buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
         'Cancel');
 
-    jsonRequest('get_stats', { id : PlexState.activeSection }, showMarkerBreakdown, markerBreakdownFailed);
+    jsonRequest('get_stats', { id : PlexState.activeSection() }, showMarkerBreakdown, markerBreakdownFailed);
 }
 
 /**

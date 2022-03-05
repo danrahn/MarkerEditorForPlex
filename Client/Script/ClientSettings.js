@@ -129,12 +129,12 @@ class ClientSettingsUI {
                 click : callback
             });
 
-        appendChildren(container.appendChild(buildNode('div', { class : 'formInput' }),
+        appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
                 buildButton('Apply', 'applySettings', this.#applySettings.bind(this))
             )
-        ));
+        );
 
         Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
     }
