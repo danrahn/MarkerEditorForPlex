@@ -1,4 +1,4 @@
-const URL = require('url');
+import { parse } from 'url';
 
 /**
  * Identical to a regular Error. Used to differentiate between "user bad"
@@ -14,7 +14,7 @@ class QueryParameterException extends Error {
 class QueryParameterParser {
     constructor(request) {
         /** @type {ParsedUrlQuery} */
-        this.params = URL.parse(request.url, true /*parseQueryString*/).query;
+        this.params = parse(request.url, true /*parseQueryString*/).query;
     }
 
     /**
@@ -75,7 +75,5 @@ class QueryParameterParser {
     }
 }
 
-module.exports = {
-    Parser : QueryParameterParser,
-    QueryParameterException : QueryParameterException
-};
+export const Parser = QueryParameterParser;
+export const ParserException = QueryParameterException;

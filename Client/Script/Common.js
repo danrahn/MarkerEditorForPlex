@@ -1,3 +1,4 @@
+import { Log } from '../../Shared/ConsoleLog.js';
 
 /**
  * Removes all children from the given element.
@@ -165,8 +166,4 @@ function _buildNode(ele, attrs, content, events) {
     return 'I don\'t know what went wrong, sorry :(';
 }
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { Log } = require('../../Shared/ConsoleLog');
-    module.exports = { clearEle, jsonRequest, $, $$, buildNode, buildNodeNS, appendChildren, errorMessage };
-}
+export { clearEle, jsonRequest, $, $$, buildNode, buildNodeNS, appendChildren, errorMessage };

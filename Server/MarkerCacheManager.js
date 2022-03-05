@@ -1,5 +1,5 @@
-const { Database } = require('sqlite3');
-const { ConsoleLog, Log } = require('../Shared/ConsoleLog');
+import { ConsoleLog } from '../Shared/ConsoleLog.js';
+/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
 /**
  * @typedef {{[markerId: number] : MarkerQueryResult}} MarkerMap
@@ -161,7 +161,7 @@ class MarkerCacheManager {
 
     /**
      * Instantiate a MarkerCache.
-     * @param {Database} database The connection to the Plex database.
+     * @param {SqliteDatabase} database The connection to the Plex database.
      * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers.
      * @param {ConsoleLog} log The logging instance for this application. */
     constructor(database, tagId, log) {
@@ -361,4 +361,4 @@ FROM metadata_items episode
 WHERE episode.id=?;`;
 }
 
-module.exports = MarkerCacheManager;
+export default MarkerCacheManager;

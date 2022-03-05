@@ -1,3 +1,8 @@
+import { jsonRequest, errorMessage } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
+import { ShowData, SeasonData, EpisodeData } from '../../Shared/PlexTypes.js';
+import Overlay from './inc/Overlay.js';
+
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
 * including search results and the active show/season.
@@ -212,9 +217,4 @@ class PlexClientState
     }
 }
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { jsonRequest, errorMessage } = require('./Common');
-    const { ShowData, SeasonData, EpisodeData } = require("../../Shared/PlexTypes");
-    module.exports = { PlexClientState };
-}
+export default PlexClientState;

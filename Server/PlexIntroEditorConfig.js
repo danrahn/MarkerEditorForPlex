@@ -1,10 +1,13 @@
-const Config = require('../config.json');
-const ConsoleLog = require('../Shared/ConsoleLog.js').ConsoleLog;
-const FS = require('fs');
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+import { ConsoleLog } from '../Shared/ConsoleLog.js';
 
 /** @typedef {{enabled : boolean, metadataPath : string}} PreviewThumbnails */
 
-/** @typedef {{json : Object, log : ConsoleLog, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
+/**
+ * The protected fields of ConfigBase that are available to derived classes, but not available externally.
+ * @typedef {{json : Object, log : ConsoleLog, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
 
 /**
  * Base class for a piece of a configuration file.
@@ -96,7 +99,7 @@ class PlexFeatures extends ConfigBase {
         this.autoOpen = this.#getOrDefault('autoOpen', true);
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', { enabled : false, metadataPath : '' });
-        if (this.previewThumbnails.enabled && !this.previewThumbnails.metadataPath || !FS.existsSync(this.previewThumbnails.metadataPath)) {
+        if (this.previewThumbnails.enabled && !this.previewThumbnails.metadataPath || !existsSync(this.previewThumbnails.metadataPath)) {
             throw new Error(`Preview thumbnails are enabled, but the metadata path '${this.previewThumbnails.metadataPath}' does not exist.`);
         }
     }
@@ -141,14 +144,15 @@ class PlexIntroEditorConfig extends ConfigBase {
      * Creates a new PlexIntroEditorConfig.
      * @param {ConsoleLog} log
      * @throws Error if `log` is not present. */
-    constructor(log) {
+    constructor(projectRoot, log) {
         if (!log) {
             throw new Error('Log not set before using PlexIntroEditorConfig!');
         }
 
         log.info('Reading configuration...');
         let baseClass = {};
-        super(Config, log, baseClass);
+        const config = JSON.parse(readFileSync(join(projectRoot, 'config.json')));
+        super(config, log, baseClass);
         this.#Base = baseClass;
 
         this.#logLevel = this.#getOrDefault('logLevel', "Info");
@@ -185,20 +189,20 @@ class PlexIntroEditorConfig extends ConfigBase {
     #convertLogLevel() {
         switch(this.#logLevel.toLowerCase()) {
             case "tmi":
-                return this.#Base.log.Level.Tmi;
+                return ConsoleLog.Level.Tmi;
             case "verbose":
-                return this.#Base.log.Level.Verbose;
+                return ConsoleLog.Level.Verbose;
             case "info":
-                return this.#Base.log.Level.Info;
+                return ConsoleLog.Level.Info;
             case "warn":
-                return this.#Base.log.Level.Warn;
+                return ConsoleLog.Level.Warn;
             case "error":
-                return this.#Base.log.Level.Error;
+                return ConsoleLog.Level.Error;
             default:
                 this.#Base.log.warn(`Invalid log level detected: ${this.#logLevel}. Defaulting to 'Info'`);
-                return this.#Base.log.Level.Info;
+                return ConsoleLog.Level.Info;
         }
     }
 }
 
-module.exports = PlexIntroEditorConfig;
+export default PlexIntroEditorConfig;

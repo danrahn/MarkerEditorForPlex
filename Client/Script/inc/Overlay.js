@@ -1,3 +1,9 @@
+import { $, buildNode } from '../Common.js';
+import { Log } from '../../../Shared/ConsoleLog.js';
+
+import Animation from './Animate.js';
+import Tooltip from './Tooltip.js';
+
 /**
  * Class to display overlays on top of a webpage.
  *
@@ -192,10 +198,4 @@ let Overlay = new function()
     };
 }();
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { $, buildNode } = require('../Common');
-    const { Animation } = require('./Animate');
-    const { Tooltip } = require('./Tooltip');
-    module.exports = { Overlay };
-}
+export default Overlay;

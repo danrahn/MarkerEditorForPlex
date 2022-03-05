@@ -479,13 +479,4 @@ class MarkerData extends PlexData {
     }
 }
 
-// This class is used both client- and server-side. Make sure
-// `module` actually exists before declaring exports.
-if (typeof module !== 'undefined') {
-    module.exports = {
-        ShowData,
-        SeasonData,
-        EpisodeData,
-        MarkerData,
-    };
-}
+export { ShowData, SeasonData, EpisodeData, MarkerData }

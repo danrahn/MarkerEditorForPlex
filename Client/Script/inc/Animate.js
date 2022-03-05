@@ -1,3 +1,6 @@
+import { $ } from '../Common.js';
+import { Log } from '../../../Shared/ConsoleLog.js';
+
 /**
  * A lightweight class to animate various element properties. Performance is questionable at best,
  * especially since everything here could probably be done with CSS transitions.
@@ -395,8 +398,4 @@ function Color(r, g, b, a)
     this.s = () => `rgba(${this.r},${this.g},${this.b},${this.a})`;
 }
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { Log } = require('../../../Shared/ConsoleLog');
-    module.exports = { Animation };
-}
+export default Animation;

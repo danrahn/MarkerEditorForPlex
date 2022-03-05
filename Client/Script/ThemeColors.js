@@ -31,7 +31,4 @@ class ThemeColors {
     }
 }
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    module.exports = { ThemeColors };
-}
+export default ThemeColors;

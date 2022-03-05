@@ -1,19 +1,24 @@
-const Http = require('http');
-const Fs = require('fs').promises;
-const Mime = require('mime-types');
-const Sqlite3 = require('sqlite3');
-const Open = require('open');
-const QueryParse = require('./QueryParse');
-const ThumbnailManager = require('./ThumbnailManager');
-const zlib = require('zlib');
-const PlexIntroEditorConfig = require('./PlexIntroEditorConfig');
-const PlexTypes = require('./../Shared/PlexTypes');
-const MarkerCacheManager = require('./MarkerCacheManager');
+/** External dependencies */
+import { promises as Fs } from 'fs';
+import { createServer } from 'http';
+import { lookup } from 'mime-types';
+import Open from 'open';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { gzip } from 'zlib';
 
-const ConsoleLog = require('./../Shared/ConsoleLog');
-const Log = new ConsoleLog.ConsoleLog();
+/** Server dependencies */
+import CreateDatabase from './CreateDatabase.cjs';
+import MarkerCacheManager from './MarkerCacheManager.js';
+import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
+import { Parser, ParserException } from './QueryParse.js';
+import ThumbnailManager from './ThumbnailManager.js';
+/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
-const Path = require('path');
+/** Server+Client shared dependencies */
+import { Log, ConsoleLog } from './../Shared/ConsoleLog.js';
+import { MarkerData, ShowData, SeasonData, EpisodeData } from './../Shared/PlexTypes.js';
+
 
 /**
  * User configuration.
@@ -22,7 +27,7 @@ let Config;
 
 /**
  * The main database connection.
- * @type {Sqlite3.Database}
+ * @type {SqliteDatabase}
  */
 let Database;
 
@@ -45,16 +50,16 @@ let Thumbnails;
 let MarkerCache = null;
 
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
-const ProjectRoot = Path.dirname(__dirname);
+const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Initializes and starts the server */
 function run() {
     try {
-        Config = new PlexIntroEditorConfig(Log);
+        Config = new PlexIntroEditorConfig(ProjectRoot, Log);
         Log.info(`Verifying database '${Config.databasePath()}'...`);
 
         // Set up the database, and make sure it's the right one.
-        Database = new Sqlite3.Database(Config.databasePath(), Sqlite3.OPEN_READWRITE, (err) => {
+        Database = CreateDatabase(Config.databasePath(), (err) => {
             if (err) {
                 Log.critical(err.message);
                 Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
@@ -72,17 +77,17 @@ function run() {
                     Thumbnails = new ThumbnailManager(Database, Log, Config.metadataPath());
                     if (Config.extendedMarkerStats()) {
                         MarkerCache = new MarkerCacheManager(Database, TagId, Log);
-                        MarkerCache.buildCache(createServer, (message) => {
+                        MarkerCache.buildCache(launchServer, (message) => {
                             Log.error(message, 'Failed to build marker cache:');
                             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
                             Config.disableExtendedMarkerStats();
                             MarkerCache = null;
-                            createServer();
+                            launchServer();
                         });
                     } else {
                         // If extended marker stats aren't enabled, just create the server now.
                         Log.info('Creating server...');
-                        createServer();
+                        launchServer();
                     }
                 });
             }
@@ -95,11 +100,11 @@ function run() {
     }
 }
 
-module.exports = { run };
+export default run;
 
 /** Creates the server. Called after verifying the config file and database. */
-function createServer() {
-    const server = Http.createServer(serverMain);
+function launchServer() {
+    const server = createServer(serverMain);
 
     server.listen(Config.port(), Config.host(), () => {
         const url = `http://${Config.host()}:${Config.port()}`;
@@ -176,7 +181,7 @@ function handleGet(req, res) {
         return getThumbnail(url, res);
     }
 
-    let mimetype = Mime.lookup(url);
+    let mimetype = lookup(url);
     if (!mimetype) {
         res.statusCode = 404;
         res.end('Bad MIME type!');
@@ -198,7 +203,7 @@ function handleGet(req, res) {
  * @param {Http.ServerResponse} res
  */
 function getSvgIcon(url, res) {
-    parts = url.split('/');
+    let parts = url.split('/');
     if (parts.length !== 4) {
         return jsonError(res, 400, 'Invalid icon request.');
     }
@@ -232,7 +237,7 @@ function getSvgIcon(url, res) {
 
 /**
  * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
- * @type {Object<string, (params : QueryParse.Parser, res : Http.ServerResponse) => void>}
+ * @type {Object<string, (params : Parser, res : Http.ServerResponse) => void>}
  */
 const EndpointMap = {
     query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
@@ -257,13 +262,13 @@ function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    const parameters = new QueryParse.Parser(req);
+    const parameters = new Parser(req);
     if (EndpointMap[endpoint]) {
         try {
             return EndpointMap[endpoint](parameters, res);
         } catch (ex) {
-            // Capture QueryParameterException and overwrite the 500 error we would otherwise return with 400
-            if (ex instanceof QueryParse.QueryParameterException) {
+            // Capture ParserException and overwrite the 500 error we would otherwise return with 400
+            if (ex instanceof ParserException) {
                 return jsonError(res, 400, ex.message);
             }
 
@@ -292,7 +297,7 @@ function jsonError(res, code, error) {
  */
 function jsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
-    if (Log.getLevel() <= Log.Level.Tmi) {
+    if (Log.getLevel() <= ConsoleLog.Level.Tmi) {
         Log.tmi(data ? JSON.stringify(data) : 'true', 'Success');
     } else {
         Log.verbose(true, 'Success')
@@ -309,7 +314,7 @@ function jsonSuccess(res, data) {
  * @param {string} contentType The MIME type of `data`.
  */
 function returnCompressedData(res, status, data, contentType) {
-    zlib.gzip(data, (err, buffer) => {
+    gzip(data, (err, buffer) => {
         if (err) {
             Log.warn('Failed to compress data, sending uncompressed');
             res.writeHead(status, { 'Content-Type' : contentType });
@@ -357,7 +362,7 @@ function queryIds(keys, res) {
         }
 
         rows.forEach(row => {
-            markers[row.metadata_item_id].push(new PlexTypes.MarkerData(row));
+            markers[row.metadata_item_id].push(new MarkerData(row));
         });
 
         return jsonSuccess(res, markers);
@@ -497,7 +502,7 @@ function addMarker(metadataId, startMs, endMs, res) {
                 }
 
                 MarkerCache?.addMarkerToCache(metadataId, row.id);
-                jsonSuccess(res, new PlexTypes.MarkerData(row));
+                jsonSuccess(res, new MarkerData(row));
             });
 
             updateMarkerBreakdownCache(metadataId, allMarkers.length, 1 /*delta*/);
@@ -550,7 +555,7 @@ function deleteMarker(markerId, res) {
                 MarkerCache?.removeMarkerFromCache(markerId);
                 updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
 
-                return jsonSuccess(res, new PlexTypes.MarkerData(row));
+                return jsonSuccess(res, new MarkerData(row));
             });
         });
     });
@@ -601,7 +606,7 @@ function getShows(sectionId, res) {
         let shows = [];
         for (const show of rows) {
             show.markerBreakdown = MarkerCache?.getShowStats(show.id);
-            shows.push(new PlexTypes.ShowData(show));
+            shows.push(new ShowData(show));
         }
 
         return jsonSuccess(res, shows);
@@ -629,7 +634,7 @@ function getSeasons(metadataId, res) {
         let seasons = [];
         for (const season of rows) {
             season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
-            seasons.push(new PlexTypes.SeasonData(season));
+            seasons.push(new SeasonData(season));
         }
 
         return jsonSuccess(res, seasons);
@@ -664,7 +669,7 @@ GROUP BY e.id;`;
         let episodes = [];
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
-            episodes.push(new PlexTypes.EpisodeData(episode));
+            episodes.push(new EpisodeData(episode));
 
             if (Config.useThumbnails()) {
                 Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {

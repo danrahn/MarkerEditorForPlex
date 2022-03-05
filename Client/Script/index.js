@@ -1,6 +1,17 @@
-/**
- * @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap
- */
+import { clearEle, jsonRequest, $, $$, buildNode, appendChildren, errorMessage } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
+import { ShowData, SeasonData, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
+
+import ClientSettingsManager from './ClientSettings.js';
+import Chart from './inc/Chart.js';
+import DateUtil from './inc/DateUtil.js';
+import Overlay from './inc/Overlay.js';
+import PlexClientState from './PlexClientState.js';
+import ThemeColors from './ThemeColors.js';
+import Tooltip from './inc/Tooltip.js';
+/** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
+
+window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
 
 window.addEventListener('load', setup);
 
@@ -1247,21 +1258,4 @@ function msToHms(ms) {
     }
 
     return time;
-}
-
-// Ugly hack to let VSCode see the definition of external classes in this client-side JS file without
-// causing client-side errors. Some of these classes will resolve correctly without this workaround
-// if they're also open in an active editor, but the method below ensures JSDoc is available regardless
-// of that.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { Log } = require('../../Shared/ConsoleLog.js');
-    const { ShowData, SeasonData, EpisodeData, MarkerData } = require("../../Shared/PlexTypes");
-    const { PlexClientState } = require('./PlexClientState');
-    const { ClientSettingsManager } = require('./ClientSettings');
-    const { ThemeColors } = require('./ThemeColors');
-    const { clearEle, jsonRequest, $, $$, buildNode, appendChildren, errorMessage } = require('./Common');
-    const { Chart } = require('./inc/Chart');
-    const { DateUtil } = require('./inc/DateUtil');
-    const { Overlay } = require('./inc/Overlay');
-    const { Tooltip } = require('./inc/Tooltip');
 }

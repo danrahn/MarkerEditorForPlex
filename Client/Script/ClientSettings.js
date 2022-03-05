@@ -1,3 +1,8 @@
+import { $, $$, buildNode, appendChildren } from './Common.js';
+import Overlay from './inc/Overlay.js';
+import Tooltip from './inc/Tooltip.js';
+import ThemeColors from './ThemeColors.js';
+
 /** Helper class that holds theme-related settings. */
 class ThemeSetting {
 
@@ -430,10 +435,4 @@ class ClientSettingsManager {
     }
 }
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { $, $$, buildNode, appendChildren  } = require('./Common');
-    const { Overlay } = require('./inc/Overlay');
-    const { ThemeColors } = require('./ThemeColors');
-    module.exports = { ClientSettingsManager };
-}
+export default ClientSettingsManager;

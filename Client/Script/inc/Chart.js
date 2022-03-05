@@ -1,3 +1,6 @@
+import { buildNodeNS } from './../Common.js';
+import Tooltip from './Tooltip.js';
+
 /**
  * A basic charting library.
  *
@@ -341,9 +344,4 @@ let Chart = new function()
     };
 }();
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { buildNodeNS } = require('./../Common.js');
-    const { Tooltip } = require('./Tooltip');
-    module.exports = { Chart };
-}
+export default Chart;

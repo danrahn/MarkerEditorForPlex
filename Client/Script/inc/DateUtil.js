@@ -93,7 +93,4 @@ let DateUtil = new function()
     };
 }();
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    module.exports = { DateUtil };
-}
+export default DateUtil;

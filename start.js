@@ -1,2 +1,2 @@
-const PlexIntroEditor = require('./Server/PlexIntroEditor');
-PlexIntroEditor.run();
+import run from './Server/PlexIntroEditor.js';
+run();

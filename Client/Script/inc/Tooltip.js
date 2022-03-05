@@ -1,3 +1,6 @@
+import { $, buildNode } from './../Common.js';
+import { Log } from '../../../Shared/ConsoleLog.js';
+
 /**
  * Implements common functionality for on-hover tooltips, offering expanded functionality over 'title'.
  * Taken from PlexWeb/script/Tooltip.
@@ -182,9 +185,4 @@ let Tooltip = new function()
     };
 }();
 
-// Hack for VSCode intellisense.
-if (typeof __dontEverDefineThis !== 'undefined') {
-    const { $, buildNode  } = require('./../Common');
-    const { Log } = require('../../../Shared/ConsoleLog');
-    module.exports = { Tooltip };
-}
+export default Tooltip;

@@ -1,6 +1,7 @@
 {
   "name": "plexintroeditor",
-  "version": "1.0.0",
+  "version": "0.9.0",
+  "type": "module",
   "description": "Edit Plex intro markers",
   "main": "start.js",
   "scripts": {
