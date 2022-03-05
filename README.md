@@ -22,15 +22,32 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 2. `node start.js`
 
 ## Configuration file
+
+### Main Settings
 | Key | Description | Possible Values
 ---|---|---
 `database` | Full path to the Plex database. | A valid file path. Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\database.db"`)
 `host`     | The hostname Node will listen on. Defaults to `localhost`, but could be changed to a local IP (e.g. `192.168.1.2`) if you want to modify markers on a different device on your local network. | A valid IP/hostname
 `port`     | The port the server will listen on. Defaults to `3232` | A valid port number.
-`autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
 `logLevel` | Determines logging verbosity in the console. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
-`useThumbnails` | Determines whether the app should attempt to retrieve preview thumbnails associated with marker timestamps | `true` or `false`
-`metadataPath` | Root path to Plex's [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A full path (e.g. `C:\\Users\\username\\AppData\\Local\\Plex Media Server`). Only required if `useThumbnails` is `true`.
+`features` | A dictionary of toggleable features for the application | [Feature Settings](#feature-settings)
+
+### Feature Settings
+
+Settings inside the `features` dictionary:
+
+| Key | Description | Possible Values
+---|---|---
+`autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
+`previewThumbnails` | Controls preview thumbnail retrieval | [Preview Thumbnails Settings](#preview-thumbnails-settings)
+
+#### Preview Thumbnails Settings
+
+Settings inside the `previewThumbnails` dictionary:
+| Key | Description | Possible Values
+---|---|---
+`enabled` | Determines whether the app should attempt to retrieve preview thumbnails associated with marker timestamps | `true` or `false`
+`metadataPath` | Root path to Plex's [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A full path (e.g. `C:\\Users\\username\\AppData\\Local\\Plex Media Server`). Only required if `enabled` is `true`.
 
 ## Current Status/TODO
 
