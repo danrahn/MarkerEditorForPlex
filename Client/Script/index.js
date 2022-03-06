@@ -650,6 +650,9 @@ function onMarkerAdd() {
     const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeStart, timeEnd, dateColumn(''), optionsColumn), thisRow);
     if (thumbnailsAvailable) {
         buildThumbnailCollapse(addedRow.children[4]);
+        addedRow.children[0].classList.add('topAligned');
+        addedRow.children[3].classList.add('topAligned');
+        addedRow.children[4].classList.add('topAligned');
     }
 
     buildConfirmCancel(addedRow.children[3], 'Add', '-1', onMarkerAddConfirm, onMarkerAddCancel);
