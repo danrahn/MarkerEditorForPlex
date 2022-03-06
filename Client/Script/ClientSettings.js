@@ -289,7 +289,13 @@ class ClientSettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
-    constructor() {
+    /** The callback to invoke after settings are applied. */
+    #applyCallback;
+
+    /** @param {(shouldResetView: bool) => void} onSettingsAppliedCallback */
+    constructor(onSettingsAppliedCallback) {
+        $('#settings').addEventListener('click', this.#showSettings.bind(this));
+        this.#applyCallback = onSettingsAppliedCallback;
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
         this.#themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -361,11 +367,6 @@ class ClientSettingsManager {
         this.#settings.save();
     }
 
-    /** Display the settings dialog.
-     * @param {Function<bool>} callback Function to invoke if settings are applied.
-    */
-    showSettings(callback) { this.#uiManager.showSettings(callback); }
-
     /**
      * Toggle light/dark theme.
      * @param {boolean} isDark Whether dark mode is enabled.
@@ -414,6 +415,9 @@ class ClientSettingsManager {
             this.#settings.extendedMarkerStats.block();
         }
     }
+
+    /** Display the settings dialog. */
+    #showSettings() { this.#uiManager.showSettings(this.#applyCallback); }
 
     /**
      * Callback invoked when the system browser theme changes.

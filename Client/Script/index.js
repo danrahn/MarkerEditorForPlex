@@ -24,11 +24,10 @@ let Settings;
 /** Initial setup on page load. */
 function setup()
 {
-    Settings = new ClientSettingsManager();
+    Settings = new ClientSettingsManager(onSettingsApplied);
     $('#showInstructions').addEventListener('click', showHideInstructions);
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
-    $('#settings').addEventListener('click', showSettings);
     PlexState = new PlexClientState();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
@@ -141,11 +140,6 @@ function clearAll() {
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
-}
-
-/** Invoke the settings dialog. */
-function showSettings() {
-    Settings.showSettings.bind(Settings)(onSettingsApplied);
 }
 
 /** Callback invoked when settings are applied.
