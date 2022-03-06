@@ -1,7 +1,7 @@
 import { existsSync, readFile } from 'fs';
 import { join as joinPath } from 'path';
 
-import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import { Log } from '../Shared/ConsoleLog.js';
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {{[metadataId: number]: EpisodeCache}} EpisodeCacheMap */
@@ -25,10 +25,6 @@ class ThumbnailManager {
      * @type {string} */
     #metadataPath;
 
-    /** The logging instance for the app.
-     * @type {ConsoleLog} */
-    #log;
-
     /** A map of episode metadataIds to the cached thumbnails of the episode.
      * @type {EpisodeCacheMap} */
     #cache = {};
@@ -47,13 +43,11 @@ class ThumbnailManager {
     /**
      * Create a new ThumbnailManager
      * @param {SqliteDatabase} db The database connection
-     * @param {ConsoleLog} log The main application's logging instance.
      * @param {string} metadataPath The path to the root of Plex's data directory
      */
-    constructor(db, log, metadataPath) {
+    constructor(db, metadataPath) {
         this.#database = db;
         this.#metadataPath = metadataPath;
-        this.#log = log;
     }
 
     /**
@@ -76,12 +70,14 @@ class ThumbnailManager {
                 for (const row of rows) {
                     const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
                     if (existsSync(bifPath)) {
+                        Log.verbose(bifPath, `Found thumbnail index file for ${metadataId}`);
                         this.#cache[metadataId] = new EpisodeCache(true, bifPath);
                         resolve(true);
                         return;
                     }
                 }
 
+                Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
                 this.#cache[metadataId] = new EpisodeCache(false);
                 resolve(false);
             });
@@ -130,6 +126,7 @@ class ThumbnailManager {
         if (thumbCache.interval != 0) {
             index = Math.floor(timestamp / thumbCache.interval);
             if (thumbCache.cachedThumbnails[index]) {
+                Log.verbose(`Found cached thumbnail with rank ${thumbCache.cachedThumbnails[index].rank}.`);
                 thumbCache.cachedThumbnails[index].rank = ThumbnailManager.#maxCache + 1;
                 this.#touchCache();
                 return Promise.resolve(thumbCache.cachedThumbnails[index].data);
@@ -187,7 +184,7 @@ class ThumbnailManager {
                 // number of indexes minus 1.
                 const maxIndex = data.readInt32LE(thumbnailCountOffset) - 1;
                 if (index > maxIndex) {
-                    this.#log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
+                    Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
                     index = maxIndex;
                 }
 
@@ -195,6 +192,7 @@ class ThumbnailManager {
                 const thumbEnd = index == maxIndex ? data.length : getOffset(index + 1);
                 const thumbBuf = Buffer.alloc(thumbEnd - thumbStart);
                 data.copy(thumbBuf, 0, thumbStart, thumbEnd);
+                Log.verbose(`Thumbnail found, caching (${thumbEnd - thumbStart} bytes).`);
                 thumbCache.cachedThumbnails[index] = new CachedThumbnail(thumbBuf, ThumbnailManager.#maxCache + 1);
                 this.#touchCache();
                 resolve(thumbBuf);

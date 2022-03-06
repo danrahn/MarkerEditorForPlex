@@ -710,7 +710,7 @@ function thumbnailTimeInput(metadataId, value, end=false) {
 
 /** Callback when we failed to load a preview thumbnail, marking it as in an error state. */
 function onThumbnailPreviewLoadFailed() {
-    this.classList.add('hiddenThumb');
+    this.classList.add('hidden');
     this.setAttribute('error', '1');
     $$('.thumbnailShowHide', this.parentNode.parentNode.parentNode).classList.add('thumbnailError');
 }

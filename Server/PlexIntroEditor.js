@@ -55,7 +55,7 @@ const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Initializes and starts the server */
 function run() {
     try {
-        Config = new PlexIntroEditorConfig(ProjectRoot, Log);
+        Config = new PlexIntroEditorConfig(ProjectRoot);
         Log.info(`Verifying database '${Config.databasePath()}'...`);
 
         // Set up the database, and make sure it's the right one.
@@ -74,9 +74,9 @@ function run() {
                     }
 
                     TagId = row.id;
-                    Thumbnails = new ThumbnailManager(Database, Log, Config.metadataPath());
+                    Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
                     if (Config.extendedMarkerStats()) {
-                        MarkerCache = new MarkerCacheManager(Database, TagId, Log);
+                        MarkerCache = new MarkerCacheManager(Database, TagId);
                         MarkerCache.buildCache(launchServer, (message) => {
                             Log.error(message, 'Failed to build marker cache:');
                             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
@@ -818,6 +818,9 @@ function getThumbnail(url, res) {
     Thumbnails.getThumbnail(metadataId, timestamp).then(data => {
         res.writeHead(200, { 'Content-Type' : 'image/jpeg', 'Content-Length' : data.length });
         res.end(data);
+    }).catch((err) => {
+        Log.error(err, 'Failed to retrieve thumbnail');
+        res.statusCode = 500, res.end();
     });
 }
 

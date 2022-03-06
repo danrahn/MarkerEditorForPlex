@@ -1,4 +1,4 @@
-import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import { Log } from '../Shared/ConsoleLog.js';
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
 /**
@@ -156,18 +156,13 @@ class MarkerCacheManager {
     /** The connection to the Plex database. */
     #database;
 
-    /** The logging instance for this application. */
-    #log;
-
     /**
      * Instantiate a MarkerCache.
      * @param {SqliteDatabase} database The connection to the Plex database.
-     * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers.
-     * @param {ConsoleLog} log The logging instance for this application. */
-    constructor(database, tagId, log) {
+     * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers. */
+    constructor(database, tagId) {
         this.#database = database;
         this.#tagId = tagId;
-        this.#log = log;
     }
 
     /**
@@ -175,7 +170,7 @@ class MarkerCacheManager {
      * @param {Function} successFunction The function to invoke if the cache was built successfully.
      * @param {Function} failureFunction The function to invoke if the cache failed to build. */
     buildCache(successFunction, failureFunction) {
-        this.#log.info('Gathering markers...');
+        Log.info('Gathering markers...');
         this.#database.all(MarkerCacheManager.#markerQuery, [], (err, rows) => {
             if (err) {
                 failureFunction(err.message);
@@ -192,7 +187,7 @@ class MarkerCacheManager {
                 ++markerCount;
             }
 
-            this.#log.info(`Cached ${markerCount} markers, starting server...`);
+            Log.info(`Cached ${markerCount} markers, starting server...`);
             successFunction();
         });
     }
@@ -203,7 +198,7 @@ class MarkerCacheManager {
     removeMarkerFromCache(markerId) {
         const markerData = this.#allMarkers[markerId];
         if (!markerData) {
-            this.#log.warn(`The marker we're attempting to delete isn't in our cache. That's not right!`);
+            Log.warn(`The marker we're attempting to delete isn't in our cache. That's not right!`);
             return;
         }
 
@@ -221,7 +216,7 @@ class MarkerCacheManager {
     addMarkerToCache(metadataId, markerId) {
         this.#database.get(MarkerCacheManager.#newMarkerQuery, [metadataId], (err, row) => {
             if (err) {
-                this.#log.error(`Unable to get the episode associated with this marker. Reinitializing cache to ensure things stay in sync.`);
+                Log.error(`Unable to get the episode associated with this marker. Reinitializing cache to ensure things stay in sync.`);
                 this.#markerHierarchy = {};
                 this.#allMarkers = {};
                 this.buildCache(() => {}, () => {}); // Is this safe to do? Probably not, but we _really_ shouldn't be hitting it anyway
@@ -251,7 +246,7 @@ class MarkerCacheManager {
     getShowStats(metadataId) {
         let show = this.#showFromId(metadataId);
         if (!show) {
-            this.#log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
+            Log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
             return null;
         }
 
@@ -323,7 +318,7 @@ class MarkerCacheManager {
             episode.markers.push(row.marker_id);
 
             if (row.marker_id in this.#allMarkers) {
-                this.#log.warn(`Found marker id ${row.marker_id} multiple times, that's not right!`);
+                Log.warn(`Found marker id ${row.marker_id} multiple times, that's not right!`);
             }
 
             this.#allMarkers[row.marker_id] = row;

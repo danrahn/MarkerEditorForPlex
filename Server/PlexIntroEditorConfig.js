@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
 
 /** @typedef {{enabled : boolean, metadataPath : string}} PreviewThumbnails */
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.
- * @typedef {{json : Object, log : ConsoleLog, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
+ * @typedef {{json : Object, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
 
 /**
  * Base class for a piece of a configuration file.
@@ -28,21 +28,14 @@ class ConfigBase {
      * @type {Object} */
     #json;
 
-    /** The application logging instance.
-     * @type {ConsoleLog} */
-    #log;
-
     /**
      * @param {Object} json
-     * @param {ConsoleLog} log
      * @param {ConfigBaseProtected} protectedFields Out parameter - contains private members and methods
      * to share with the derived class that called us, making them "protected" */
-    constructor(json, log, protectedFields) {
+    constructor(json, protectedFields) {
         this.#json = json;
-        this.#log = log;
         protectedFields['getOrDefault'] = this.#getOrDefault;
         protectedFields['json'] = this.#json;
-        protectedFields['log'] = this.#log;
         protectedFields['baseInstance'] = this;
     }
 
@@ -57,7 +50,7 @@ class ConfigBase {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
             }
 
-            this.#log.warn(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
+            Log.warn(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
             return defaultValue;
         }
 
@@ -84,14 +77,13 @@ class PlexFeatures extends ConfigBase {
     previewThumbnails = {};
 
     /** Sets the application features based on the given json.
-     * @param {object} json
-     * @param {ConsoleLog} log */
-    constructor(json, log) {
+     * @param {object} json */
+    constructor(json) {
         let baseClass = {};
-        super(json, log, baseClass);
+        super(json, baseClass);
         this.#Base = baseClass;
         if (!json) {
-            log.warn('Features not found in config, setting defaults');
+            Log.warn('Features not found in config, setting defaults');
             this.previewThumbnails = { enabled : false, metadataPath : '' };
             return;
         }
@@ -140,19 +132,12 @@ class PlexIntroEditorConfig extends ConfigBase {
      * @type {PlexFeatures} */
     #features;
 
-    /**
-     * Creates a new PlexIntroEditorConfig.
-     * @param {ConsoleLog} log
-     * @throws Error if `log` is not present. */
-    constructor(projectRoot, log) {
-        if (!log) {
-            throw new Error('Log not set before using PlexIntroEditorConfig!');
-        }
-
-        log.info('Reading configuration...');
+    /** Creates a new PlexIntroEditorConfig. */
+    constructor(projectRoot) {
+        Log.info('Reading configuration...');
         let baseClass = {};
         const config = JSON.parse(readFileSync(join(projectRoot, 'config.json')));
-        super(config, log, baseClass);
+        super(config, baseClass);
         this.#Base = baseClass;
 
         this.#logLevel = this.#getOrDefault('logLevel', "Info");
@@ -160,7 +145,7 @@ class PlexIntroEditorConfig extends ConfigBase {
         this.#dbPath = this.#getOrDefault('database');
         this.#host = this.#getOrDefault('host', 'localhost');
         this.#port = this.#getOrDefault('port', 3232);
-        this.#features = new PlexFeatures(this.#Base.json.features, log);
+        this.#features = new PlexFeatures(this.#Base.json.features);
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`} */
@@ -179,7 +164,7 @@ class PlexIntroEditorConfig extends ConfigBase {
 
     /** Sets the server side log level taken from the config file */
     #setLogLevel() {
-        this.#Base.log.setLevel(this.#convertLogLevel());
+        Log.setLevel(this.#convertLogLevel());
     }
 
     /**
@@ -199,7 +184,7 @@ class PlexIntroEditorConfig extends ConfigBase {
             case "error":
                 return ConsoleLog.Level.Error;
             default:
-                this.#Base.log.warn(`Invalid log level detected: ${this.#logLevel}. Defaulting to 'Info'`);
+                Log.warn(`Invalid log level detected: ${this.#logLevel}. Defaulting to 'Info'`);
                 return ConsoleLog.Level.Info;
         }
     }
