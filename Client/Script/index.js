@@ -479,7 +479,7 @@ function showHideMarkerTable(e) {
 function buildMarkerTable(markers, episode) {
     let container = buildNode('div', { class : 'tableHolder' });
     let table = buildNode('table', { class : 'hidden markerTable' });
-    table.appendChild(buildNode('thead').appendChild(rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), dateColumn('Date Added'), centeredColumn('Options'))));
+    table.appendChild(appendChildren(buildNode('thead'), rawTableRow(centeredColumn('Index'), timeColumn('Start Time'), timeColumn('End Time'), dateColumn('Date Added'), optionsColumn('Options'))));
     let rows = buildNode('tbody');
     if (markers.length == 0) {
         rows.appendChild(spanningTableRow('No markers found'));
@@ -505,7 +505,10 @@ function buildMarkerTable(markers, episode) {
  * @param {string} value The text of the column.
  */
 function timeColumn(value) {
-    return _classColumn(value, 'timeColumn');
+    // Avoid some of the jerkiness of the width used by thumbnails by making
+    // time input fields wider across the board if thumbnails are enabled.
+    const className = Settings.useThumbnails() ? 'thumbnailEnabledTimeColumn' : 'timeColumn';
+    return _classColumn(value, className);
 }
 
 /**
@@ -522,6 +525,14 @@ function centeredColumn(value) {
  */
 function dateColumn(value) {
     return _classColumn(value, 'centeredColumn timeColumn');
+}
+
+/**
+ * Return a column with a fixed width and centered contents.
+ * @param {string} value The text of the column.
+ */
+function optionsColumn(value) {
+    return _classColumn(value, 'optionsColumn centeredColumn');
 }
 
 /**
@@ -552,11 +563,11 @@ function tableRow(marker, episode) {
     }
 
     appendChildren(tr,
-        td(marker.index.toString()),
+        td(marker.index.toString(), { class : 'topAligned' }),
         td(timeData(marker.start)),
         td(timeData(marker.end)),
-        td(friendlyDate(marker), { class : 'centeredColumn' }),
-        td(optionButtons(marker.id))
+        td(friendlyDate(marker), { class : 'centeredColumn topAligned' }),
+        td(optionButtons(marker.id), { class : 'topAligned' })
     );
 
     return tr;
@@ -634,7 +645,13 @@ function onMarkerAdd() {
     const thisRow = this.parentNode.parentNode;
     const timeStart = thumbnailTimeInput(metadataId);
     const timeEnd = thumbnailTimeInput(metadataId, null, true);
-    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeStart, timeEnd, dateColumn(''), centeredColumn('-')), thisRow);
+    const thumbnailsAvailable = shouldGetThumbnails(metadataId);
+    const optionsColumn = thumbnailsAvailable ? '' : centeredColumn('-');
+    const addedRow = thisRow.parentNode.insertBefore(rawTableRow('-', timeStart, timeEnd, dateColumn(''), optionsColumn), thisRow);
+    if (thumbnailsAvailable) {
+        buildThumbnailCollapse(addedRow.children[4]);
+    }
+
     buildConfirmCancel(addedRow.children[3], 'Add', '-1', onMarkerAddConfirm, onMarkerAddCancel);
     addedRow.setAttribute('metadataId', metadataId);
     addedRow.setAttribute('markerId', '-1');
@@ -671,20 +688,52 @@ function timeInput(value, end=false) {
  */
 function thumbnailTimeInput(metadataId, value, end=false) {
     let input = timeInput(value, end);
-    if (!Settings.useThumbnails() || !PlexState.getEpisode(metadataId).hasThumbnails) {
+    if (!shouldGetThumbnails(metadataId)) {
         return input;
     }
 
     input.setAttribute('metadataId', metadataId);
     input.addEventListener('keyup', onTimeInputKeyup);
+    const src = `t/${metadataId}/${value ? parseInt(timeToMs(value) / 1000) : '0' }`;
     let img = buildNode(
         'img',
-        { src : `t/${metadataId}/${value ? parseInt(timeToMs(value) / 1000) : '0' }`, class : 'inputThumb', alt : 'Timestamp Thumbnail', width: '240px' },
+        { src : src, class : 'inputThumb', alt : 'Timestamp Thumbnail', width: '240px', style : 'height: 0' },
         0,
-        { error : function() { this.classList.add('hidden'); } });
+        {
+            error : onThumbnailPreviewLoadFailed,
+            load : onThumbnailPreviewLoad
+        });
 
     Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail');
     return appendChildren(buildNode('div', { class : 'thumbnailTimeInput'}), input, img);
+}
+
+/** Callback when we failed to load a preview thumbnail, marking it as in an error state. */
+function onThumbnailPreviewLoadFailed() {
+    this.classList.add('hiddenThumb');
+    this.setAttribute('error', '1');
+    $$('.thumbnailShowHide', this.parentNode.parentNode.parentNode).classList.add('thumbnailError');
+}
+
+/** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state. */
+function onThumbnailPreviewLoad() {
+    // For transition purposes, set the "real" height.
+    const realHeight = this.naturalHeight * (this.width / this.naturalWidth);
+    this.setAttribute('realheight', realHeight);
+    if (Settings.collapseThumbnails()) {
+        this.classList.add('hiddenThumb');
+    } else {
+        this.style.height = `${realHeight}px`;
+        this.classList.add('visibleThumb');
+    }
+}
+
+/**
+ * @param {number} metadataId The metadata id of an episode.
+ * @returns Whether we should attempt to retrieve thumbnail preview images for the given episode.
+ */
+function shouldGetThumbnails(metadataId) {
+    return Settings.useThumbnails() && PlexState.getEpisode(metadataId).hasThumbnails;
 }
 
 /**
@@ -697,6 +746,10 @@ function onTimeInputKeyup(e) {
         return;
     }
 
+    const seconds = parseInt(timeToMs(this.value) / 1000);
+    if (isNaN(seconds)) {
+        return; // Don't ask for a thumbnail if the input isn't valid.
+    }
     const url = `t/${parseInt(this.getAttribute('metadataId'))}/${parseInt(timeToMs(this.value) / 1000)}`;
     let img = $$('.inputThumb', this.parentNode);
     if (!img) {
@@ -806,7 +859,7 @@ function createIconButton(icon, altText, color, clickHandler, attributes={}) {
  * @param {AttributeMap} attributes Additional attributes to set on the button.
  */
 function _tableButtonHolder(className, clickHandler, attributes) {
-    let button = buildNode('div', { class : `button ${className}`, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });
+    let button = buildNode('div', { class : `button noSelect ${className}`, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });
     for (const [key, value] of Object.entries(attributes)) {
         button.setAttribute(key, value);
     }
@@ -976,6 +1029,7 @@ function onMarkerEdit() {
     let startTime = editRow.children[1];
     let endTime = editRow.children[2];
     let modifiedDate = editRow.children[3];
+    let options = editRow.children[4];
     startTime.setAttribute('prevtime', startTime.firstChild.innerHTML);
     endTime.setAttribute('prevtime', endTime.firstChild.innerHTML);
 
@@ -986,9 +1040,73 @@ function onMarkerEdit() {
     startTime.appendChild(thumbnailTimeInput(metadataId, startTime.getAttribute('prevtime')));
     endTime.appendChild(thumbnailTimeInput(metadataId, endTime.getAttribute('prevtime'), true));
     buildConfirmCancel(modifiedDate, 'Edit', markerId, onMarkerEditConfirm, onMarkerEditCancel);
+    if (shouldGetThumbnails(metadataId)) {
+        buildThumbnailCollapse(options);
+    }
 
     $$('input', startTime).focus();
     $$('input', startTime).select();
+}
+
+/**
+ * Build an 'expand/collapse' span that will show/hide preview thumbnails when adding/editing a marker.
+ * @param {HTMLElement} optionsData The `TD` to add the toggle to. */
+function buildThumbnailCollapse(optionsData) {
+    // Don't remove Edit/Delete options, just hide them.
+    hideChildren(optionsData);
+    const startCollapsed = Settings.collapseThumbnails();
+    const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
+    const btn = createFullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', expandContractThumbnails);
+    btn.classList.add('thumbnailShowHide');
+    optionsData.appendChild(btn);
+}
+
+/**
+ * Callback when the 'Show/Hide Thumbs' button is clicked. Adjusts the button text
+ * and begin the height transitions for the thumbnails themselves. */
+function expandContractThumbnails() {
+    const hidden = this.innerText.startsWith('Show');
+    $('.inputThumb', this.parentNode.parentNode).forEach(thumb => {
+        if (thumb.getAttribute('error') == '1') {
+            return; // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
+        }
+
+        thumb.classList.toggle('hiddenThumb');
+        thumb.style.height = hidden ? thumb.getAttribute('realheight') + 'px' : '0';
+        thumb.classList.toggle('visibleThumb');
+        $$('span', this).innerText = `${hidden ? 'Hide' : 'Show'} Thumbs`;
+    });
+}
+
+/**
+ * Removes the show/hide thumbnails button from the given element, and restores any hidden content.
+ * @param {HTMLElement} optionsData The `TD` to reset. */
+function resetThumbnailCollapse(optionsData) {
+    let span = $$('.thumbnailShowHide', optionsData);
+    if (!span) {
+        return;
+    }
+
+    span.parentElement.removeChild(span);
+    showChildren(optionsData);
+}
+
+/**
+ * Hide all the content within the given element, without hiding the element itself.
+ * @param {HTMLElement} element */
+function hideChildren(element) {
+    for (const child of element.children) {
+        child.classList.add('hidden');
+    }
+}
+
+/**
+ * Ensure all children of the given element aren't marked as hidden.
+ * @param {HTMLElement} element */
+function showChildren(element) {
+    for (const child of element.children) {
+        child.classList.remove('hidden');
+    }
 }
 
 /** Commits a marker edit, assuming it passes marker validation. */
@@ -1057,6 +1175,9 @@ function resetAfterEdit(markerId, newStart, newEnd) {
     clearEle(editRow.children[2]);
     editRow.children[1].appendChild(timeData(newStart));
     editRow.children[2].appendChild(timeData(newEnd));
+    if (shouldGetThumbnails(metadataId)) {
+        resetThumbnailCollapse(editRow.children[4]);
+    }
     editRow.classList.remove('editing');
 }
 

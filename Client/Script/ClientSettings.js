@@ -110,10 +110,14 @@ class BlockableSetting extends SettingBase {
      * @param {string} settingsKey The unique key to use when saving settings to localStorage.
      * @param {object} settings The existing settings found in localStorage
      * @param {*} defaultValue Whether this setting is enabled by default, in case we don't find it in localStorage.
+     * @param {boolean} [customData=false] Whether this BlockableSetting has more data than just enabled/disabled. If `true`,
+     * defer parsing the settings to the owning class with the expectation that they will call `enable` as appropriate.
      */
-    constructor(settingsKey, settings, defaultValue) {
+    constructor(settingsKey, settings, defaultValue, customData=false) {
         super(settingsKey);
-        this.#enabled = this.fieldOrDefault(settings, settingsKey, defaultValue);
+        if (!customData) {
+            this.#enabled = this.fieldOrDefault(settings, settingsKey, defaultValue);
+        }
     }
 
     /**
@@ -128,8 +132,25 @@ class BlockableSetting extends SettingBase {
 /** Setting for allowing the display of preview thumbnails when adding/editing markers.
  * Can be blocked by its corresponding server-side setting. */
 class PreviewThumbnailsSetting extends BlockableSetting {
+    /** Whether preview thumbnails should be collapsed by default.
+     * @type {boolean} */
+    collapsed;
+
     constructor(settings) {
-        super('useThumbnails', settings, true);
+        super('useThumbnails', settings, null /*defaultValue*/, true /*customData*/);
+        let thumbnails = this.fieldOrDefault(settings, this.settingsKey, {});
+        this.enable(this.fieldOrDefault(thumbnails, 'enabled', true));
+        this.collapsed = this.fieldOrDefault(thumbnails, 'collapsed', false);
+    }
+
+    /**
+     * Add this setting to the given setting object in preparation for serialization.
+     * @param {{string : any}} object The settings object to attach ourselves to. */
+    serialize(object) {
+        object[this.settingsKey] = {
+            enabled : this.enabledIgnoringBlock(),
+            collapsed : this.collapsed
+        };
     }
 }
 
@@ -283,11 +304,28 @@ class ClientSettingsUI {
         );
 
         if (!this.#settingsManager.thumbnailsBlockedByServer()) {
-            options.push(this.#buildSettingCheckbox(
-                'Show Thumbnails',
+            const showThumbs = this.#buildSettingCheckbox(
+                'Enable Thumbnail Previews',
                 'showThumbnailsSetting',
                 this.#settingsManager.useThumbnails(),
-                'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)'));
+                'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)');
+            options.push(showThumbs);
+            let collapsed = this.#buildSettingCheckbox(
+                'Collapse Thumbnails',
+                'collapseThumbnailsSetting',
+                this.#settingsManager.collapseThumbnails(),
+                'Keep thumbnails collapsed by default, with the option to<br>expand them when adding/editing a marker.'
+            );
+            
+            if (!this.#settingsManager.useThumbnails()) {
+                this.#toggleSettingEnabled(collapsed);
+            }
+
+            options.push(collapsed);
+            $$('input[type="checkbox"]', showThumbs).addEventListener('change', function() {
+                this.#toggleSettingEnabled($('#collapseThumbnailsSetting').parentNode);
+            }.bind(this));
+
         }
 
         if (!this.#settingsManager.extendedMarkerStatsBlocked()) {
@@ -329,6 +367,20 @@ class ClientSettingsUI {
         Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
     }
 
+    /** Enables or disabled a dialog setting
+     * @param {HTMLElement} element The .formInput div that encapsulates a setting in the dialog. */
+    #toggleSettingEnabled(element) {
+        const check = $$('input[type="checkbox"]', element);
+        const currentlyDisabled = element.classList.contains('disabledSetting');
+        if (currentlyDisabled) {
+            element.classList.remove('disabledSetting');
+            check.removeAttribute('disabled');
+        } else {
+            element.classList.add('disabledSetting');
+            check.setAttribute('disabled', '1');
+        }
+    }
+
     /**
      * Helper method that builds a label+checkbox combo for use in the settings dialog.
      * @param {string} label The string label for the setting.
@@ -366,24 +418,31 @@ class ClientSettingsUI {
             this.#settingsManager.setLastSection(parseInt($('#libraries').value));
         }
 
-        /** @type {HTMLInputElement} */
-        const thumbnails = $('#showThumbnailsSetting');
-        if (thumbnails) {
-            shouldResetView = shouldResetView || thumbnails.checked != this.#settingsManager.useThumbnails();
-            this.#settingsManager.setThumbnails(thumbnails.checked);
-        }
-
-        /** @type {HTMLInputElement} */
-        const extended = $('#extendedStatsSetting');
-        if (extended) {
-            shouldResetView = shouldResetView || extended.checked != this.#settingsManager.showExtendedMarkerInfo();
-            this.#settingsManager.setExtendedStats(extended.checked);
-        }
+        shouldResetView = this.#updateSetting('showThumbnailsSetting', 'useThumbnails', 'setThumbnails')
+                       || this.#updateSetting('collapseThumbnailsSetting', 'collapseThumbnails', 'setCollapseThumbnails')
+                       || this.#updateSetting('extendedStatsSetting', 'showExtendedMarkerInfo', 'setExtendedStats');
 
         this.#settingsManager.save();
         Overlay.dismiss();
         this.#currentCallback(shouldResetView);
         this.#currentCallback = null;
+    }
+
+    /**
+     * Reads a setting nad updates it value in the settings manager, returning whether the value changed.
+     * @param {string} id The HTML id of the checkbox
+     * @param {string} getFn The function to invoke to get the previous value.
+     * @param {string} setFn Function to invoke to set the new value.
+     */
+    #updateSetting(id, getFn, setFn) {
+        let changed = false;
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            changed = checkbox.checked != this.#settingsManager[getFn]();
+            this.#settingsManager[setFn](checkbox.checked);
+        }
+
+        return changed;
     }
 }
 
@@ -457,6 +516,12 @@ class ClientSettingsManager {
 
     /** @returns Whether thumbnails should be displayed when adding/editing markers. */
     useThumbnails() { return this.#settings.previewThumbnails.enabled(); }
+
+    /** @returns Whether thumbnails should be hidden by default, if thumbnails are enabled in the first place. */
+    collapseThumbnails() { return this.useThumbnails() && this.#settings.previewThumbnails.collapsed; }
+
+    /** Sets whether thumbnails should be hidden by default, if thumbnails are enabled in the first place. */
+    setCollapseThumbnails(collapsed) { return this.#settings.previewThumbnails.collapsed = collapsed; }
 
     /** @returns Whether the server doesn't have preview thumbnails enabled. */
     thumbnailsBlockedByServer() { return this.#settings.previewThumbnails.blocked(); }

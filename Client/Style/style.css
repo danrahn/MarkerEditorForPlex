@@ -94,6 +94,15 @@ input, select {
   background-color: #c0bdba;
 }
 
+#settingsContainer input[type=checkbox]:hover {
+  background-color: #5f6265;
+  border-color: #af4f00;
+}
+
+#settingsContainer input[type=checkbox]:checked:hover {
+  background-color: #a09d9a;
+}
+
 .settingsButtons {
   float: right;
   overflow: auto;
@@ -101,6 +110,15 @@ input, select {
 
 .settingsButtons input {
   padding: 5px;
+}
+
+.disabledSetting {
+  color: #818181;
+}
+
+.disabledSetting input[type=checkbox] {
+  background-color: #3f4245 !important;
+  border-color: #53575a !important;
 }
 
 .formInput {
@@ -275,8 +293,16 @@ table .buttonIconAndText {
   width: 150px !important;
 }
 
+.thumbnailEnabledTimeColumn {
+  width: 250px !important;
+}
+
 .centeredColumn {
   text-align: center;
+}
+
+.optionsColumn {
+  min-width: 130px; /* "It works on my machine" */
 }
 
 .showResult,
@@ -396,7 +422,31 @@ td>.timeInput {
 }
 
 .thumbnailTimeInput>.timeInput {
-  margin: 2px auto 2px auto;
+  margin: 5px auto 5px auto;
+}
+
+.thumbnailShowHide:hover {
+  text-decoration: underline;
+}
+
+.topAligned {
+  vertical-align: top;
+}
+
+.inputThumb {
+  display: block;
+}
+
+.visibleThumb {
+  transition: height 0.25s; /* Set in JS so we can calculate the "real" height here */
+}
+
+.hiddenThumb {
+  transition: height 0.25s; /* Set to 0 in JS before transitioning */
+}
+
+.thumbnailError {
+  opacity: 0.7;
 }
 
 #toggleContainer {

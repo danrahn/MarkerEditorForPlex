@@ -812,7 +812,7 @@ function getThumbnail(url, res) {
     const metadataId = parseInt(split[2]);
     const timestamp = parseInt(split[3]);
     if (isNaN(metadataId) || isNaN(timestamp)) {
-        return badRequest();
+        return badRequest(res);
     }
 
     Thumbnails.getThumbnail(metadataId, timestamp).then(data => {
