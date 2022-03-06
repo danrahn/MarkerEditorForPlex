@@ -1,4 +1,4 @@
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 import { $, $$, buildNode, appendChildren } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -339,6 +339,18 @@ class ClientSettingsUI {
 
         options.push(buildNode('hr'));
 
+        // Log level setting. This isn't a setting that's serialized via ClientSettings,
+        // instead using ConsoleLog's own storage mechanism.
+        let logLevelOptions = {};
+        for (const [level, value] of Object.entries(ConsoleLog.Level)) { logLevelOptions[level] = value; }
+        options.push(this.#buildSettingDropdown(
+            'Log Level',
+            'logLevelSetting',
+            logLevelOptions,
+            Log.getLevel(),
+            'Set the log verbosity in the browser console.'));
+
+        options.push(buildNode('hr'));
         let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
@@ -346,16 +358,10 @@ class ClientSettingsUI {
 
         options.forEach(option => container.appendChild(option));
         const buildButton = (text, id, callback, style='') => buildNode(
-            'input', {
-                type : 'button',
-                value : text,
-                id : id,
-                style : style
-            },
+            'input', { type : 'button', value : text, id : id, style : style },
             0,
-            {
-                click : callback
-            });
+            { click : callback }
+        );
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
@@ -405,6 +411,31 @@ class ClientSettingsUI {
         );
     }
 
+    /**
+     * Build a dropdown setting.
+     * @param {string} title The name of the setting.
+     * @param {string} name The internal name/id to use.
+     * @param {{label: string, number}} options The options to add to the dropdown.
+     * @param {number} [selectedValue] The item to preselect in the dropdown.
+     * @param {string} [tooltip] The tooltip text, if any.
+     */
+    #buildSettingDropdown(title, name, options, selectedValue=null, tooltip='') {
+        let labelNode = buildNode('label', { for : name }, title + ':');
+        if (tooltip) {
+            Tooltip.setTooltip(labelNode, tooltip);
+        }
+        let select = buildNode('select', { name : name, id : name });
+        for (const [label, value] of Object.entries(options)) {
+            select.appendChild(buildNode('option', { value : value }, label));
+        }
+
+        if (selectedValue != null) {
+            select.value = selectedValue;
+        }
+
+        return appendChildren(buildNode('div', { class : 'formInput' }), labelNode, select);
+    }
+
     /** Apply and save settings after the user chooses to commit their changes. */
     #applySettings() {
         let shouldResetView = false;
@@ -415,12 +446,15 @@ class ClientSettingsUI {
         const remember = $('#rememberSection').checked;
         this.#settingsManager.setRememberSection(remember);
         if (remember) {
-            this.#settingsManager.setLastSection(parseInt($('#libraries').value));
+            // setLastSection usually immediately saves out settings. No need to here though since we call it below.
+            this.#settingsManager.setLastSection(parseInt($('#libraries').value), false /*save*/);
         }
 
         shouldResetView = this.#updateSetting('showThumbnailsSetting', 'useThumbnails', 'setThumbnails')
                        || this.#updateSetting('collapseThumbnailsSetting', 'collapseThumbnails', 'setCollapseThumbnails')
                        || this.#updateSetting('extendedStatsSetting', 'showExtendedMarkerInfo', 'setExtendedStats');
+
+        Log.setLevel(parseInt($('#logLevelSetting').value));
 
         this.#settingsManager.save();
         Overlay.dismiss();
@@ -567,13 +601,16 @@ class ClientSettingsManager {
 
     /** Set the last library the user looked at. If we want to remember it,
      * save settings immediately to ensure it's persisted.
-     * @param {number} section */
-    setLastSection(section) {
+     * @param {number} section
+     * @param {boolean} [save=true] Whether to save settings after setting the section. */
+    setLastSection(section, save=true) {
         // Do nothing if we don't want to remember.
         if (this.rememberLastSection() || section == -1) {
             this.#settings.lastSection.sectionId = section;
-            Log.verbose('Selected section changed. Saving ')
-            this.#settings.save();
+            Log.verbose('Selected section changed. Saving ');
+            if (save) {
+                this.#settings.save();
+            }
         }
     }
 

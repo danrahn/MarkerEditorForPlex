@@ -68,13 +68,18 @@ input, select {
   float: left;
 }
 
-#settingsContainer input {
+#settingsContainer input,
+#settingsContainer select {
   float: right;
   border-radius: 5px;
   border: 1px solid #53575a;
   color: #c0bdba;
   outline: 0;
   background-color: #414141;
+}
+
+#settingsContainer select {
+  margin: 0;
 }
 
 #settingsContainer hr {
