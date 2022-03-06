@@ -144,7 +144,7 @@ function _buildNode(ele, attrs, content, events) {
  * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
  * generic error message.
  * @param {*} error
- * @returns {string} 
+ * @returns {string}
  */
  function errorMessage(error) {
     if (error.Error) {

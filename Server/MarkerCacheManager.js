@@ -38,7 +38,7 @@ class MarkerBreakdown {
         this.#minify();
         return JSON.parse(JSON.stringify(this.#counts));
     }
-    
+
     /** Increase the marker count for an episode that previously had `oldCount` markers.
      * @param {number} oldCount */
     add(oldCount) {
@@ -108,7 +108,7 @@ class MarkerSectionNode extends MarkerNodeBase {
 class MarkerShowNode extends MarkerNodeBase {
     /** @type {MarkerSeasonMap} */
     seasons = {};
-    
+
     /** @param {MarkerSectionNode} parent */
     constructor(parent) {
         super(parent);

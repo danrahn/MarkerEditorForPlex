@@ -1,11 +1,58 @@
+import { Log } from '../../Shared/ConsoleLog.js';
 import { $, $$, buildNode, appendChildren } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 import ThemeColors from './ThemeColors.js';
 
-/** Helper class that holds theme-related settings. */
-class ThemeSetting {
+/**
+ * Base class for implementing a client-side setting.
+ */
+class SettingBase {
+    /** Static value that tells the settings manager whether settings
+     * should be saved after initialization because a settings we expected
+     * to find wasn't present and we should save the default configuration. */
+    static needsSave = false;
 
+    /** The localStorage key to use for this setting. */
+    settingsKey = '';
+
+    /**
+     * Constructs a base setting with the given string key.
+     * @param {string} settingsKey The unique key to use when saving settings to localStorage. */
+    constructor(settingsKey) {
+        if (!settingsKey) {
+            Log.error(`'settingsKey' not set! This setting won't be saved properly.`);
+        }
+
+        this.settingsKey = settingsKey;
+    }
+
+    /**
+     * Retrieve the given `key` from `data`, or `defaultValue` if it doesn't exist.
+     * @param {object} data
+     * @param {string} key
+     * @param {*} defaultValue */
+    fieldOrDefault(data, key, defaultValue) {
+        if (!data.hasOwnProperty(key)) {
+            Log.verbose(data, `Client settings: Didn't find '${key}', defaulting to '${defaultValue}'`);
+            SettingBase.needsSave = true;
+            return defaultValue;
+        }
+
+        return data[key];
+    }
+
+    /**
+     * Serializes this setting. Every class that derives from
+     * this class must have their own overriding implementation. */
+    serialize(_) {
+        Log.error(`This class didn't implement 'serialize'! Setting won't be saved.`);
+        return;
+    }
+}
+
+/** Helper class that holds theme-related settings. */
+class ThemeSetting extends SettingBase {
     /** Whether the user is in dark mode. */
     dark;
 
@@ -15,16 +62,27 @@ class ThemeSetting {
 
     /**
      * @param {boolean} dark Whether dark theme is set.
-     * @param {boolean} userSet Whether the current theme was set by the user.
-     */
-    constructor(dark, userSet) {
-        this.dark = dark;
-        this.userSet = userSet;
+     * @param {boolean} userSet Whether the current theme was set by the user. */
+    constructor(settings) {
+        super('theme');
+        let themeData = this.fieldOrDefault(settings, this.settingsKey, {});
+        this.dark = this.fieldOrDefault(themeData, 'dark', false);
+        this.userSet = this.fieldOrDefault(themeData, 'userSet', false);
+    }
+
+    /**
+     * Add this setting to the given setting object in preparation for serialization.
+     * @param {{string : any}} object The settings object to attach ourselves to. */
+    serialize(object) {
+        object[this.settingsKey] = {
+            dark : this.dark,
+            userSet : this.userSet
+        };
     }
 }
 
 /** Generic implementation for a feature that can be blocked by a server setting. */
-class BlockableSetting {
+class BlockableSetting extends SettingBase {
     /** Whether this setting is enabled by the user */
     #enabled = false;
 
@@ -47,17 +105,72 @@ class BlockableSetting {
     /** Block this setting because the corresponding server setting is disabled. */
     block() { this.#blocked = true; }
 
-    constructor(enabled) {
-        this.#enabled = enabled;
+    /**
+     * Constructs a new BlockableSetting.
+     * @param {string} settingsKey The unique key to use when saving settings to localStorage.
+     * @param {object} settings The existing settings found in localStorage
+     * @param {*} defaultValue Whether this setting is enabled by default, in case we don't find it in localStorage.
+     */
+    constructor(settingsKey, settings, defaultValue) {
+        super(settingsKey);
+        this.#enabled = this.fieldOrDefault(settings, settingsKey, defaultValue);
+    }
+
+    /**
+     * Add this setting to the given setting object in preparation for serialization.
+     * @param {{string : any}} object The settings object to attach ourselves to. */
+    serialize(object) {
+        // When serializing, we don't care if the server blocked us, we want the user's last choice.
+        object[this.settingsKey] = this.#enabled;
     }
 }
 
+/** Setting for allowing the display of preview thumbnails when adding/editing markers.
+ * Can be blocked by its corresponding server-side setting. */
 class PreviewThumbnailsSetting extends BlockableSetting {
-    static settingsKey = 'useThumbnails';
+    constructor(settings) {
+        super('useThumbnails', settings, true);
+    }
 }
 
+/** Setting for displaying marker statistics at the show/season level.
+ * Can be blocked by its corresponding server-side setting. */
 class ExtendedMarkerStatsSetting extends BlockableSetting {
-    static settingsKey = 'extendedMarkerStats';
+    constructor(settings) {
+        super('extendedMarkerStats', settings, true);
+    }
+}
+
+/** Setting for remembering the last library the user was navigating. Helpful if
+ * the user has multiple TV show libraries, but is primarily interested in a single one. */
+class RememberLastSectionSetting extends SettingBase {
+    /** Whether we should keep track of the last library the user was navigating.
+     * @type {boolean} */
+    remember;
+    /** The last library section id the user was navigating, or -1 if we shouldn't remember.
+     * @type {number} */
+    sectionId;
+
+    /**
+     * Creates an instance of the setting that tracks the last library
+     * the user looked at (and whether we should use it).
+     * @param {object} settings The existing settings found in localStorage */
+    constructor(settings) {
+        super('rememberLastSection');
+        let rememberData = this.fieldOrDefault(settings, this.settingsKey, {});
+        this.remember = this.fieldOrDefault(rememberData, 'remember', true);
+        this.sectionId = this.fieldOrDefault(rememberData, 'sectionId', -1);
+    }
+
+    /**
+     * Add this setting to the given setting object in preparation for serialization.
+     * @param {{string : any}} object The settings object to attach ourselves to. */
+    serialize(object) {
+        object[this.settingsKey] = {
+            remember: this.remember,
+            sectionId : this.sectionId
+        };
+    }
 }
 
 /**
@@ -79,6 +192,10 @@ class ClientSettings {
      * @type {ExtendedMarkerStatsSetting} */
     extendedMarkerStats;
 
+    /** The last section the user selected.
+     * @type {RememberLastSectionSetting} */
+    lastSection;
+
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
      * Default values are used if the `localStorage` key doesn't exist. */
@@ -93,12 +210,17 @@ class ClientSettings {
             json = {};
         }
 
-        let themeData = this.#valueOrDefault(json, 'theme', { dark : false, userSet : false });
-        this.theme = new ThemeSetting(
-            this.#valueOrDefault(themeData, 'dark', false),
-            this.#valueOrDefault(themeData, 'userSet', false));
-        this.previewThumbnails = new PreviewThumbnailsSetting(this.#valueOrDefault(json, PreviewThumbnailsSetting.settingsKey, true));
-        this.extendedMarkerStats = new ExtendedMarkerStatsSetting(this.#valueOrDefault(json, ExtendedMarkerStatsSetting.settingsKey, true));
+        this.theme = new ThemeSetting(json);
+        this.previewThumbnails = new PreviewThumbnailsSetting(json);
+        this.extendedMarkerStats = new ExtendedMarkerStatsSetting(json);
+        this.lastSection = new RememberLastSectionSetting(json);
+        if (SettingBase.needsSave) {
+            Log.info('Not all expected settings were in localStorage. Saving them now.');
+            this.save();
+            SettingBase.needsSave = false;
+        } else {
+            Log.verbose(json, 'Got client settings');
+        }
     }
 
     /** Save the current settings to {@linkcode localStorage}. */
@@ -109,26 +231,12 @@ class ClientSettings {
     /** Returns a stringified version of the current client settings. */
     #serialize() {
         let json = {};
-        json.theme = this.theme;
-
-        // BlockableSettings can't be serialized by default, so grab the one field that matters explicitly.
-        json[this.previewThumbnails.settingsKey] = this.previewThumbnails.enabledIgnoringBlock();
-        json[this.extendedMarkerStats.settingsKey] = this.extendedMarkerStats.enabledIgnoringBlock();
+        this.theme.serialize(json);
+        this.previewThumbnails.serialize(json);
+        this.extendedMarkerStats.serialize(json);
+        this.lastSection.serialize(json);
+        Log.verbose(json, 'Settings to be serialized');
         return JSON.stringify(json);
-    }
-
-    /**
-     * Retrieve the given `key` from `object`, or `defaultValue` if it doesn't exist.
-     * @param {object} object
-     * @param {string} key
-     * @param {*} defaultValue
-     */
-    #valueOrDefault(object, key, defaultValue) {
-        if (!object.hasOwnProperty(key)) {
-            return defaultValue;
-        }
-
-        return object[key];
     }
 }
 
@@ -166,6 +274,14 @@ class ClientSettingsUI {
         this.#currentCallback = callback;
         let options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
+        options.push(
+            this.#buildSettingCheckbox(
+                'Remember Selected Library',
+                'rememberSection',
+                this.#settingsManager.rememberLastSection(),
+                'Remember the last library selected between sessions.')
+        );
+
         if (!this.#settingsManager.thumbnailsBlockedByServer()) {
             options.push(this.#buildSettingCheckbox(
                 'Show Thumbnails',
@@ -244,6 +360,12 @@ class ClientSettingsUI {
             $('#darkModeCheckbox').click();
         }
 
+        const remember = $('#rememberSection').checked;
+        this.#settingsManager.setRememberSection(remember);
+        if (remember) {
+            this.#settingsManager.setLastSection(parseInt($('#libraries').value));
+        }
+
         /** @type {HTMLInputElement} */
         const thumbnails = $('#showThumbnailsSetting');
         if (thumbnails) {
@@ -289,7 +411,8 @@ class ClientSettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
-    /** The callback to invoke after settings are applied. */
+    /** The callback to invoke after settings are applied.
+     * @type {(shouldResetView: boolean) => void} */
     #applyCallback;
 
     /** @param {(shouldResetView: bool) => void} onSettingsAppliedCallback */
@@ -356,10 +479,37 @@ class ClientSettingsManager {
     /**
      * Sets whether extra marker information should be displayed when navigating shows/seasons.
      * This is a no-ope if {@linkcode ExtendedMarkerStatsSetting.blocked()} is `true`.
-     * @param {boolean} showStats 
+     * @param {boolean} showStats
      */
     setExtendedStats(showStats) {
         this.#settings.extendedMarkerStats.enable(showStats);
+    }
+
+    /** @returns Whether we should remember the library the user was looking at. */
+    rememberLastSection() { return this.#settings.lastSection.remember; }
+
+    /** Set whether we should remember the library the user was looking at.
+     * @param {boolean} remember */
+    setRememberSection(remember) {
+        this.#settings.lastSection.remember = remember;
+        if (!remember) {
+            this.setLastSection(-1);
+        }
+    }
+
+    /** @returns The library the user was last looking at, or -1 if we shouldn't remember. */
+    lastSection() { return this.rememberLastSection() ? this.#settings.lastSection.sectionId : -1; }
+
+    /** Set the last library the user looked at. If we want to remember it,
+     * save settings immediately to ensure it's persisted.
+     * @param {number} section */
+    setLastSection(section) {
+        // Do nothing if we don't want to remember.
+        if (this.rememberLastSection() || section == -1) {
+            this.#settings.lastSection.sectionId = section;
+            Log.verbose('Selected section changed. Saving ')
+            this.#settings.save();
+        }
     }
 
     /** Save the currently active settings to {@linkcode localStorage} */

@@ -31,7 +31,7 @@ class MarkerBreakdownManager {
                 buildNode('br'),
                 buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
             'Cancel');
-    
+
         jsonRequest(
             'get_stats',
             { id : this.#plexState.activeSection() },

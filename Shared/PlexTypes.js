@@ -19,7 +19,7 @@ function getBaseData(item) {
         return null;
     }
 
-    return { metadataId : item.id, markerBreakdown : item.markerBreakdown };    
+    return { metadataId : item.id, markerBreakdown : item.markerBreakdown };
 }
 
 /**

@@ -51,7 +51,7 @@ class PieChartOptions extends ChartOptions {
     radius;
 
     /**
-     * Optional: An array of colors to override the default choices. 
+     * Optional: An array of colors to override the default choices.
      * @type {string[]} */
      colors;
 

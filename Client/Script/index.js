@@ -96,7 +96,12 @@ function listLibraries(libraries) {
         'Select a library to parse')
     );
 
+    const savedSection = Settings.lastSection();
+
+    // We might not find the section if we're using a different database or the library was deleted,
+    let lastSectionExists = false;
     libraries.forEach(library => {
+        lastSectionExists = lastSectionExists || library.id == savedSection;
         select.appendChild(buildNode(
             'option',
             { value: `${library.id}` },
@@ -104,10 +109,15 @@ function listLibraries(libraries) {
         );
     });
 
-    // Only a single TV show library, select it automatically
-    if (libraries.length == 1)
-    {
-        select[1].selected = true;
+    if (savedSection != -1 && !lastSectionExists) {
+        Log.info(`Found a cached library section (${savedSection}), but it doesn't exist anymore!`);
+    }
+
+    // Select a library automatically if there's only one TV show library
+    // or we have an existing cached library section.
+    let preSelect = libraries.length == 1 ? libraries[0].id : lastSectionExists ? savedSection : -1;
+    if (preSelect != -1) {
+        select.value = preSelect;
         libraryChanged.bind(select)();
     }
 }
@@ -119,6 +129,7 @@ async function libraryChanged() {
     await PlexState.setSection(section);
     clearAll();
     if (!isNaN(section) && section != -1) {
+        Settings.setLastSection(section);
         $('#container').classList.remove('hidden');
     }
 }
