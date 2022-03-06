@@ -166,4 +166,13 @@ function _buildNode(ele, attrs, content, events) {
     return 'I don\'t know what went wrong, sorry :(';
 }
 
-export { clearEle, jsonRequest, $, $$, buildNode, buildNodeNS, appendChildren, errorMessage };
+/**
+ * Return 'n text' if n is 1, otherwise 'n texts'.
+ * @param {number} n The number of items.
+ * @param {string} text The type of item.
+ */
+function plural(n, text) {
+    return `${n} ${text}${n == 1 ? '' : 's'}`;
+}
+
+export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, jsonRequest, plural };

@@ -1,5 +1,109 @@
+import { Log } from '../../../Shared/ConsoleLog.js';
 import { buildNodeNS } from './../Common.js';
 import Tooltip from './Tooltip.js';
+
+/**
+ * @typedef {string} DataLabel A label for a point in the chart.
+ * @typedef {number} DataValue The value for a point in the chart.
+ * @typedef {{ value : DataValue, label : DataLabel }} ChartDataPoint
+ * @typedef {{ percentage : [boolean=true], count : [boolean=false], name : [boolean=true] }} ChartLabelOptions
+ * */
+
+class ChartOptions {
+    /** The values to chart. */
+    points;
+
+    /**
+     * Optional: A sort function to apply to {@linkcode points}.
+     * @type {(a: ChartDataPoint, b: ChartDataPoint) => number} */
+    sortFn;
+
+    /**
+     * Whether to leave the data points as-is, bypassing {@linkcode sortFn}
+     * and the default smallest->largest sort order.
+     * @type {boolean} */
+    noSort;
+
+    /**
+     * The title of the chart.
+     * @type {string} */
+    title;
+
+    /**
+     * Whether we should hide the chart title, even if {@linkcode title} is set.
+     * @type {boolean} */
+    noTitle;
+
+    /** Initialize ChartOptions with the given data points.
+     * @param {ChartDataPoint[]} points */
+    constructor(points) {
+        if (!points) {
+            Log.warn('Attempting to create a chart without any data points!');
+            points = [{ value : 1, label : 'No Data To Chart' }];
+        }
+
+        this.points = points;
+    }
+}
+
+class PieChartOptions extends ChartOptions {
+    /** The radius of the pie chart, in pixels. */
+    radius;
+
+    /**
+     * Optional: An array of colors to override the default choices. 
+     * @type {string[]} */
+     colors;
+
+     /**
+      * Optional: A dictionary mapping labels to colors. Takes precedences over {@linkcode colors}.
+      * @type { { [label : DataLabel] : [color : string] } } */
+     colorMap;
+
+     /**
+      * Optional: Determines the information to include in chart labels.
+      * @type {ChartLabelOptions} */
+     labelOptions;
+
+     /** Initialize PieChartOptions with the two required fields, `points` and `radius`
+      * @param {ChartDataPoint[]} points
+      * @param {number} radius */
+     constructor(points, radius) {
+         super(points);
+         if (!radius) {
+             Log.error('Attempting to create a pie chart without a radius! Defaulting to 100.');
+             radius = 100;
+         }
+
+         this.radius = radius;
+     }
+}
+
+class BarChartOptions extends ChartOptions {
+    /** The width of the bar chart, in pixels.
+     * @type {number} */
+    width;
+
+    /** The height of the bar chart, in pixels.
+     * @type {number} */
+    height;
+
+    constructor(points, width, height) {
+        super(points);
+        if (!width) {
+            Log.error('Attempting to create a chart without a width! Defaulting to 100.');
+            width = 100;
+        }
+
+        if (!height) {
+            Log.error('Attempting to create a chart without a height! Defaulting to 100.');
+            height = 100;
+        }
+
+        this.width = width;
+        this.height = height;
+    }
+}
 
 /**
  * A basic charting library.
@@ -13,19 +117,7 @@ let Chart = new function()
 {
     /**
      * Create an SVG pie chart.
-     * @param {Object} data The pie chart definition
-     * @param {number} data.radius The radius of the circle.
-     * @param {{ value : number, label : string }[]} data.points The values of the to chart.
-     * @param {string[]} [data.colors] An array of colors to override the default choices.
-     * @param {{[label : string] : {color : string}}} [data.colorMap] A dictionary mapping labels to colors.
-     * Takes precedence over `data.colors`.
-     * @param {boolean} [data.noSort] If `true`, points will not be sorted before creating the chart.
-     * @param {Object} [data.labelOptions] A dictionary of flags that determine how the label is displayed.
-     * @param {boolean} [data.labelOptions.percentage=true] Show the percentage of the total (default = true).
-     * @param {boolean} [data.labelOptions.count=false] Show the raw value (default = false).
-     * @param {boolean} [data.labelOptions.name=true] Show the name of the data point (default = true).
-     * @param {string} [data.title] The title for the graph.
-     * @param {boolean} [data.noTitle=false] Whether we shouldn't add a title, even if `data.title` is set.
+     * @param {PieChartOptions} data The pie chart definition
      * @returns An SVG element of the pie chart specified by `data`.
      */
     this.pie = function(data)
@@ -83,11 +175,7 @@ let Chart = new function()
 
     /**
      * Extremely basic bar graph support
-     * @param {Object} data Object defining the bar graph.
-     * Required Fields:
-     *   `width`: The width of the chart.
-     *   `height`: The height of the chart
-     *   `points`: An array of `{ value, label }` pairs
+     * @param {BarChartOptions} data Object defining the bar graph.
      * @returns An SVG of the bar graph defined by `data`.
      */
     this.bar = function(data)
@@ -344,4 +432,4 @@ let Chart = new function()
     };
 }();
 
-export default Chart;
+export { Chart, ChartOptions, PieChartOptions, BarChartOptions };

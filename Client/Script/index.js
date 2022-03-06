@@ -1,14 +1,14 @@
-import { clearEle, jsonRequest, $, $$, buildNode, appendChildren, errorMessage } from './Common.js';
+import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, plural } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { ShowData, SeasonData, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
 
-import ClientSettingsManager from './ClientSettings.js';
-import Chart from './inc/Chart.js';
 import DateUtil from './inc/DateUtil.js';
 import Overlay from './inc/Overlay.js';
+import Tooltip from './inc/Tooltip.js';
+import ClientSettingsManager from './ClientSettings.js';
+import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import PlexClientState from './PlexClientState.js';
 import ThemeColors from './ThemeColors.js';
-import Tooltip from './inc/Tooltip.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
 
 window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
@@ -29,8 +29,11 @@ function setup()
     $('#libraries').addEventListener('change', libraryChanged);
     $('#search').addEventListener('keyup', onSearchInput);
     $('#settings').addEventListener('click', showSettings);
-    setupMarkerBreakdown();
     PlexState = new PlexClientState();
+
+    // MarkerBreakdownManager is self-contained - we don't need anything from it,
+    // and it doesn't need anything from us, so no need to keep a reference to it.
+    new MarkerBreakdownManager(PlexState);
     mainSetup();
 }
 
@@ -138,84 +141,6 @@ function clearAll() {
 function clearAndShow(ele) {
     clearEle(ele);
     ele.classList.remove('hidden');
-}
-
-/** Set up click handler and tooltip text for the marker breakdown button. */
-function setupMarkerBreakdown() {
-    const stats = $('#markerBreakdown');
-    stats.addEventListener('click', getMarkerBreakdown);
-    Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers');
-}
-
-/**
- * Kicks off a request for marker stats. This can take some time for large libraries,
- * so first initialize an overlay so the user knows something's actually happening.
- */
-function getMarkerBreakdown() {
-
-    Overlay.show(
-        appendChildren(buildNode('div'),
-            buildNode('h2', {}, 'Marker Breakdown'),
-            buildNode('br'),
-            buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
-            buildNode('br'),
-            buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
-        'Cancel');
-
-    jsonRequest('get_stats', { id : PlexState.activeSection() }, showMarkerBreakdown, markerBreakdownFailed);
-}
-
-/**
- * After successfully grabbing the marker breakdown from the server, build a pie chart
- * visualizing the number of episodes that have n markers.
- * @param {Object<string, number>} response A map of marker counts to the number of episodes that has that marker count.
- */
-function showMarkerBreakdown(response) {
-    const overlay = $('#mainOverlay');
-    if (!overlay) {
-        Log.verbose('Overlay is gone, not showing stats');
-        return; // User closed out of window
-    }
-
-    let dataPoints = [];
-    for (const [bucket, value] of Object.entries(response)) {
-        dataPoints.push({ value : value, label : plural(bucket, 'Marker') });
-    }
-
-    const chartOptions = {
-        radius : Math.min(Math.min(400, window.innerWidth / 2 - 40), window.innerHeight / 2 - 200),
-        points : dataPoints,
-        title : 'Marker Breakdown',
-        colorMap : { // Set colors for 0 and 1, use defaults for everything else
-            '0 Markers' : '#a33e3e',
-            '1 Marker'  : '#2e832e'
-        },
-        sortFn : (a, b) => parseInt(a.label) - parseInt(b.label),
-        labelOptions : { count : true, percentage : true }
-    }
-
-    const chart = Chart.pie(chartOptions);
-
-    // Our first request may be slow, and we want to show the graph immediately. Subsequent requests
-    // (or the first one if extendedMarkerStats is enabled) might instantly return cached data,
-    // so we want to include a fade in/
-    const opacity = parseFloat(getComputedStyle(overlay).opacity);
-    const delay = (1 - opacity) * 250;
-    Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
-        appendChildren(buildNode('div', { style : 'text-align: center' }), chart));
-}
-
-/**
- * Let the user know something went wrong if we failed to grab marker stats.
- * @param {Object} response JSON failure message.
- */
-function markerBreakdownFailed(response) {
-    Overlay.show(
-        appendChildren(buildNode('div'),
-            buildNode('h2', {}, 'Error'),
-            buildNode('br'),
-            buildNode('div', {}, `Failed to get marker breakdown: ${errorMessage(response)}`)
-        ), 'OK');
 }
 
 /** Invoke the settings dialog. */
@@ -1220,15 +1145,6 @@ function episodeMarkerCountFromMarkerRow(row) {
     //                        <tr><tbody>    <table>   <tableHolder>  <div>
     const tableHolderParent = row.parentNode.parentNode.parentNode.parentNode;
     return $$('.episodeResult', tableHolderParent).children[1];
-}
-
-/**
- * Return 'n text' if n is 1, otherwise 'n texts'.
- * @param {number} n The number of items.
- * @param {string} text The type of item.
- */
-function plural(n, text) {
-    return `${n} ${text}${n == 1 ? '' : 's'}`;
 }
 
 /**
