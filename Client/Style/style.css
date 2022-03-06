@@ -433,6 +433,11 @@ td>.timeInput {
   vertical-align: top;
 }
 
+.topAlignedPlainText {
+  vertical-align: top;
+  padding-top: 7px;
+}
+
 .inputThumb {
   display: block;
 }

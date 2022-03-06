@@ -563,10 +563,10 @@ function tableRow(marker, episode) {
     }
 
     appendChildren(tr,
-        td(marker.index.toString(), { class : 'topAligned' }),
+        td(marker.index.toString(), { class : 'topAlignedPlainText' }),
         td(timeData(marker.start)),
         td(timeData(marker.end)),
-        td(friendlyDate(marker), { class : 'centeredColumn topAligned' }),
+        td(friendlyDate(marker), { class : 'centeredColumn topAlignedPlainText' }),
         td(optionButtons(marker.id), { class : 'topAligned' })
     );
 
@@ -1178,7 +1178,9 @@ function resetAfterEdit(markerId, newStart, newEnd) {
     if (shouldGetThumbnails(metadataId)) {
         resetThumbnailCollapse(editRow.children[4]);
     }
+
     editRow.classList.remove('editing');
+    Tooltip.dismiss(); // Make sure we don't leave any ghost tooltips around.
 }
 
 /** Prompts the user before deleting a marker */
