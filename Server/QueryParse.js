@@ -75,5 +75,4 @@ class QueryParameterParser {
     }
 }
 
-export const Parser = QueryParameterParser;
-export const ParserException = QueryParameterException;
+export { QueryParameterParser as QueryParser, QueryParameterException as QueryParserException };

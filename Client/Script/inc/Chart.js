@@ -57,7 +57,7 @@ class PieChartOptions extends ChartOptions {
 
      /**
       * Optional: A dictionary mapping labels to colors. Takes precedences over {@linkcode colors}.
-      * @type { { [label : DataLabel] : [color : string] } } */
+      * @type {{ [label : DataLabel] : string }} */
      colorMap;
 
      /**
@@ -340,9 +340,9 @@ let Chart = new function()
 
     /**
      * Builds tooltip text for a point on the chart.
-     * @param {Object} point The `{ value, label }` data for the point.
+     * @param {ChartDataPoint} point The `{ value, label }` data for the point.
      * @param {number} total The sum of all the values in the chart.
-     * @param {Object<string, boolean>} labelOptions Label options, as described by {@linkcode Chart.pie}.
+     * @param {ChartLabelOptions} labelOptions Label options.
      * @returns Tooltip text for the given point.
      */
     let buildPieTooltip = function(point, total, labelOptions)

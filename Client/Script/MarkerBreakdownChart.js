@@ -41,7 +41,7 @@ class MarkerBreakdownManager {
 
     /**
      * Displays a pie chart of the data from the server.
-     * @param {{[markerCount : number] : [episodeCount : number] }} response The marker breakdown data */
+     * @param {{[markerCount : number] : number }} response The marker breakdown data */
     static #showMarkerBreakdown(response) {
         const overlay = $('#mainOverlay');
         if (!overlay) {

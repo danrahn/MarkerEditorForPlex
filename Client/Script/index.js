@@ -395,7 +395,8 @@ function parseEpisodes(episodes) {
 
 /**
  * Takes the given list of episode data and creates entries for each episode and its markers.
- * @param {Object<number, object[]>} data Map of episode ids to an array of serialized {@linkcode MarkerData} for the episode.
+ * @param {{[metadataId: number]: Object[]}} data Map of episode ids to an array of
+ * serialized {@linkcode MarkerData} for the episode.
  */
 function showEpisodesAndMarkers(data) {
     let episodelist = $('#episodelist');
@@ -744,6 +745,8 @@ function onMarkerAddCancel() {
     greatGrandparent.removeChild(grandparent);
 }
 
+/** @typedef {{[attribute: string]: string}} AttributeMap */
+
 /**
  * Creates a tabbable button in the marker table with an associated icon.
  * @param {string} text The text of the button.
@@ -751,7 +754,7 @@ function onMarkerAddCancel() {
  * @param {string} altText The alt-text for the button icon.
  * @param {string} color The color of the icon as a hex string (without the leading '#')
  * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
- * @param {Object<string, string>} attributes Additional attributes to set on the button.
+ * @param {AttributeMap} attributes Additional attributes to set on the button.
  */
 function createFullButton(text, icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconAndText', clickHandler, attributes);
@@ -765,7 +768,7 @@ function createFullButton(text, icon, altText, color, clickHandler, attributes={
  * Creates a tabbable button in the marker table that doesn't have an icon.
  * @param {string} text The text of the button.
  * @param {EventListener} clickHandler The button callback when its clicked.
- * @param {Object<string, string>} [attributes={}] Additional attributes to set on the button.
+ * @param {AttributeMap} [attributes={}] Additional attributes to set on the button.
  */
 function createTextButton(text, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonTextOnly', clickHandler, attributes);
@@ -778,7 +781,7 @@ function createTextButton(text, clickHandler, attributes={}) {
  * @param {string} altText The alt text for the icon image.
  * @param {string} color The color of the icon, as a hex string (without the leading '#')
  * @param {EventListener} clickHandler The button callback when its clicked.
- * @param {Object<string, string>} attributes Additional attributes to set on the button.
+ * @param {AttributeMap} attributes Additional attributes to set on the button.
  */
 function createIconButton(icon, altText, color, clickHandler, attributes={}) {
     let button = _tableButtonHolder('buttonIconOnly', clickHandler, attributes);
@@ -789,7 +792,7 @@ function createIconButton(icon, altText, color, clickHandler, attributes={}) {
  * Returns an empty button with the given class
  * @param {string} className The class name to give this button.
  * @param {EventListener} clickHandler The callback function when the button is clicked.
- * @param {Object<string, string>} attributes Additional attributes to set on the button.
+ * @param {AttributeMap} attributes Additional attributes to set on the button.
  */
 function _tableButtonHolder(className, clickHandler, attributes) {
     let button = buildNode('div', { class : `button ${className}`, tabindex : '0' }, 0, { click : clickHandler, keyup : tableButtonKeyup });

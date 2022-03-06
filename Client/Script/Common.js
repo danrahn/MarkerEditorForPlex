@@ -13,9 +13,9 @@ import { Log } from '../../Shared/ConsoleLog.js';
 /**
  * Generic method to make a request to the given endpoint that expects a JSON response.
  * @param {string} endpoint The URL to query.
- * @param {Object<string, any>} parameters URL parameters.
- * @param {Function<Object>} successFunc Callback function to invoke on success.
- * @param {Function<Object>} failureFunc Callback function to invoke on failure.
+ * @param {{[parameter: string]: any}} parameters URL parameters.
+ * @param {(response: Object) => void} successFunc Callback function to invoke on success.
+ * @param {(response: Object) => void} failureFunc Callback function to invoke on failure.
  */
 function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     let url = new URL(endpoint, window.location.href);
@@ -68,9 +68,9 @@ function $$(selector, ele=document) {
 /**
  * Helper method to create DOM elements.
  * @param {string} type The TAG to create.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
+ * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function buildNode(type, attrs, content, events) {
     let ele = document.createElement(type);
@@ -81,9 +81,9 @@ function buildNode(type, attrs, content, events) {
  * Helper method to create DOM elements with the given namespace (e.g. SVGs).
  * @param {string} ns The namespace to create the element under.
  * @param {string} type The type of element to create.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
+ * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Event listeners to add to the element.
+ * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function buildNodeNS(ns, type, attrs, content, events) {
     let ele = document.createElementNS(ns, type);
@@ -93,9 +93,9 @@ function buildNodeNS(ns, type, attrs, content, events) {
 /**
  * "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
  * @param {HTMLElement} ele The HTMLElement to attach the given properties to.
- * @param {Object<string, string>} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
+ * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {Object<string, EventListener>} [events] Event listeners to add to the element.
+ * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function _buildNode(ele, attrs, content, events) {
     if (attrs) {

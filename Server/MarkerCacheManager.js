@@ -15,7 +15,7 @@ import { ConsoleLog } from '../Shared/ConsoleLog.js';
  *     marker_id : number,
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
- * @typedef {{ [markerCount: number] : [episodeCount: number] }} MarkerBreakdownMap
+ * @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap
  */
 
 /**

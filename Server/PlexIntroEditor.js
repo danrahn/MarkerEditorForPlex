@@ -11,7 +11,7 @@ import { gzip } from 'zlib';
 import CreateDatabase from './CreateDatabase.cjs';
 import MarkerCacheManager from './MarkerCacheManager.js';
 import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
-import { Parser, ParserException } from './QueryParse.js';
+import { QueryParser, QueryParserException } from './QueryParse.js';
 import ThumbnailManager from './ThumbnailManager.js';
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
@@ -235,9 +235,11 @@ function getSvgIcon(url, res) {
     })
 }
 
+/** @typedef {(params: QueryParser, res: Http.ServerResponse) => void} EndpointForwardingFunction */
+
 /**
  * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
- * @type {Object<string, (params : Parser, res : Http.ServerResponse) => void>}
+ * @type {{[endpoint: string]: EndpointForwardingFunction}}
  */
 const EndpointMap = {
     query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
@@ -262,13 +264,13 @@ function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    const parameters = new Parser(req);
+    const parameters = new QueryParser(req);
     if (EndpointMap[endpoint]) {
         try {
             return EndpointMap[endpoint](parameters, res);
         } catch (ex) {
-            // Capture ParserException and overwrite the 500 error we would otherwise return with 400
-            if (ex instanceof ParserException) {
+            // Capture QueryParserException and overwrite the 500 error we would otherwise return with 400
+            if (ex instanceof QueryParserException) {
                 return jsonError(res, 400, ex.message);
             }
 

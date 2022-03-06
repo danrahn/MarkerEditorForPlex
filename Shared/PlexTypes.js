@@ -4,9 +4,9 @@
 
 /**
  * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
- * @typedef {Object<number, ShowData} ShowMap A map of show metadata ids to the show itself.
- * @typedef {Object<number, SeasonData} SeasonMap A map of season metadata ids to the season itself.
- * @typedef {Object<number, EpisodeData} EpisodeMap A map of episode metadata ids to the episode itself.
+ * @typedef {{[metadataId: number]: ShowData}} ShowMap A map of show metadata ids to the show itself.
+ * @typedef {{[metadataId: number]: SeasonData}} SeasonMap A map of season metadata ids to the season itself.
+ * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  */
 
