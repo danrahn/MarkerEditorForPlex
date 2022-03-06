@@ -15,7 +15,7 @@ import { Log } from '../../Shared/ConsoleLog.js';
  * @param {string} endpoint The URL to query.
  * @param {{[parameter: string]: any}} parameters URL parameters.
  * @param {(response: Object) => void} successFunc Callback function to invoke on success.
- * @param {(response: Object) => void} failureFunc Callback function to invoke on failure.
+ * @param {(response: Object) => void} [failureFunc] Callback function to invoke on failure.
  */
 function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     let url = new URL(endpoint, window.location.href);
@@ -29,7 +29,7 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
             if (failureFunc) {
                 failureFunc(response);
             } else {
-                console.error('Request failed: %o', response);
+                Log.error(response, 'Request failed');
             }
 
             return;
@@ -37,7 +37,11 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
 
         successFunc(response);
     }).catch(err => {
-        failureFunc(err);
+        if (failureFunc) {
+            failureFunc(err);
+        } else {
+            Log.error(response, 'Request failed');
+        }
     });
 }
 

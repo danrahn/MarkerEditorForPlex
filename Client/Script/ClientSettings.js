@@ -1,5 +1,5 @@
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
-import { $, $$, buildNode, appendChildren } from './Common.js';
+import { $, $$, buildNode, appendChildren, jsonRequest } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 import ThemeColors from './ThemeColors.js';
@@ -454,7 +454,14 @@ class ClientSettingsUI {
                        || this.#updateSetting('collapseThumbnailsSetting', 'collapseThumbnails', 'setCollapseThumbnails')
                        || this.#updateSetting('extendedStatsSetting', 'showExtendedMarkerInfo', 'setExtendedStats');
 
-        Log.setLevel(parseInt($('#logLevelSetting').value));
+        const logLevel = parseInt($('#logLevelSetting').value);
+        Log.setLevel(logLevel);
+
+        // Always adjust the server-side log settings, and assume if the browser is in dark mode,
+        // the server-side output is as well. In the future we could allow them to be separate,
+        // but for now assume that only one person is interacting with the application, and keep
+        // the client and server side logging levels in sync.
+        jsonRequest('log_settings', { level : logLevel, dark : Log.getDarkConsole(), trace : Log.getTrace() }, () => {});
 
         this.#settingsManager.save();
         Overlay.dismiss();

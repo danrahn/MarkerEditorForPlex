@@ -29,7 +29,7 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 `database` | Full path to the Plex database. | A valid file path. Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\database.db"`)
 `host`     | The hostname Node will listen on. Defaults to `localhost`, but could be changed to a local IP (e.g. `192.168.1.2`) if you want to modify markers on a different device on your local network. | A valid IP/hostname
 `port`     | The port the server will listen on. Defaults to `3232` | A valid port number.
-`logLevel` | Determines logging verbosity in the console. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
+`logLevel` | Determines logging verbosity in the console. Can be overridden by the client. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
 `features` | A dictionary of toggleable features for the application | [Feature Settings](#feature-settings)
 
 ### Feature Settings

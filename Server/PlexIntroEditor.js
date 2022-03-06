@@ -252,6 +252,7 @@ const EndpointMap = {
     get_episodes : (params, res) => getEpisodes(params.i('id'), res),
     get_stats    : (params, res) => allStats(params.i('id'), res),
     get_config   : (_     , res) => getConfig(res),
+    log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
 };
 
 
@@ -830,4 +831,31 @@ function getThumbnail(url, res) {
  */
 function getConfig(res) {
     jsonSuccess(res, { useThumbnails : Config.useThumbnails(), extendedMarkerStats : Config.extendedMarkerStats() });
+}
+
+/**
+ * Set the server log properties, inherited from the client.
+ * @param {number} newLevel The new log level.
+ * @param {number} darkConsole Whether to adjust log colors for a dark background.
+ * @param {number} traceLogging Whether to also print a stack trace for each log entry.
+ * @param {Http.ServerResponse} res */
+function setLogSettings(newLevel, darkConsole, traceLogging, res) {
+    const logLevelString = Object.keys(ConsoleLog.Level).find(l => ConsoleLog.Level[l] == newLevel);
+    if (logLevelString === undefined) {
+        Log.warn(newLevel, 'Attempting to set an invalid log level, ignoring');
+        // If the level is invalid, don't adjust anything else either.
+        return jsonError(res, 400, 'Invalid Log Level');
+    }
+
+    if (newLevel != Log.getLevel() || darkConsole != Log.getDarkConsole() || traceLogging != Log.getTrace()) {
+        // Force the message.
+        Log.setLevel(ConsoleLog.Level.Info);
+        const newSettings = { Level : newLevel, Dark : darkConsole, Trace : traceLogging };
+        Log.info(newSettings, 'Changing log settings due to client request');
+        Log.setLevel(newLevel);
+        Log.setDarkConsole(darkConsole);
+        Log.setTrace(traceLogging);
+    }
+
+    return jsonSuccess(res);
 }

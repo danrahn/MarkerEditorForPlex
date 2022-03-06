@@ -71,7 +71,7 @@ class ConsoleLog {
     #currentLogLevel;
 
     /** Determine whether we should add a trace to every log event, not just errors.
-     * @type {boolean} */
+     * @type {number} */
     #traceLogging;
 
     /** Tweak colors a bit based on whether the user is using a dark console theme.
@@ -153,10 +153,10 @@ class ConsoleLog {
 
     /**
      * Set text to be better suited for dark versus light backgrounds.
-     * @param {boolean} dark `true` to adjust colors for dark consoles, `false` for light. */
+     * @param {number} dark `1` to adjust colors for dark consoles, `0` for light. */
     setDarkConsole(dark) {
         this.window.localStorage.setItem("darkconsole", dark);
-        this.#darkConsole = dark;
+        this.#darkConsole = !!dark ? 1 : 0;
     }
 
     /** @returns Whether the current color scheme is best suited for dark consoles. */
@@ -166,10 +166,15 @@ class ConsoleLog {
 
     /**
      * Set whether to print stack traces for each log. Helpful when debugging.
-     * @param {boolean} trace `true` to enable trace logging, `false` otherwise. */
+     * @param {number} trace `1` to enable trace logging, `0` otherwise. */
     setTrace(trace) {
         this.window.localStorage.setItem("logtrace", trace);
-        this.#traceLogging = trace;
+        this.#traceLogging = !!trace ? 1 : 0;
+    }
+
+    /** @returns Whether stack traces are printed for each log. */
+    getTrace() {
+        return this.#traceLogging;
     }
 
     /**
@@ -296,7 +301,6 @@ class ConsoleLog {
      * This will be `traceColors` if trace logging is enabled, otherwise `consoleColors`.
      * @param {...any} [more] Any additional formatting properties that will be applied to `text`. */
     #write(outputStream, text, object, logLevel, colors, ...more) {
-        console.error;
         let textColor = `color: ${colors[logLevel][2 + this.#darkConsole]}`;
         let titleColor = `color: ${colors[logLevel][this.#darkConsole]}`;
         outputStream(text, textColor, titleColor, textColor, titleColor, textColor, ...more, object);
