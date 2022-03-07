@@ -409,7 +409,6 @@ table .buttonIconAndText {
 .tableHolder {
   max-width: 1000px;
   margin: auto;
-  display: flex;
   justify-content: center;
 }
 
@@ -464,6 +463,7 @@ td>.timeInput {
   top: 30px;
   right: 30px;
 }
+
 
 #darkModeToggle {
   position: relative;
@@ -525,11 +525,6 @@ td>.timeInput {
   scrollbar-width: thin !important;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
 /* Handle */
 ::-webkit-scrollbar-thumb {
   width: 5px;
@@ -547,4 +542,62 @@ td>.timeInput {
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
    background: rgba(129, 129, 129, 0.76); /* #818181C1 */
+}
+@media (orientation: landscape), (min-width: 767px) { /* Probably not a phone */
+  .tableHolder {
+    display: flex;
+  }
+
+  /* width*/
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+.tableHolder::-webkit-scrollbar {
+    width: 0;
+    height: 5px;
+  }
+
+/* Track */
+.tableHolder::-webkit-scrollbar-track {
+    background: transparent;
+    width: 0;
+    height: 5px;
+  }
+}
+
+@media all and (orientation: portrait) and (max-width: 767px) { /* Probably a phone */
+  .tableHolder {
+    max-width: 95vw;
+    overflow-x: auto;
+  }
+
+  /* width*/
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+
+  .tableHolder::-webkit-scrollbar {
+    width: 2px;
+    height: 2px;
+  }
+
+  /* Track */
+  .tableHolder::-webkit-scrollbar-track {
+    background: transparent;
+    width: 0;
+    height: 2px;
+  }
+
+  .tableHolder td {
+    font-size: smaller;
+  }
+
+  /* Toggle can overlap the header on mobile devices.
+   * This isn't really a mobile-friendly site, but try not to completely break it. */
+  #darkModeToggle {
+    display: none;
+  }
 }
