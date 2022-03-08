@@ -453,18 +453,19 @@ class MarkerData extends PlexData {
             return;
         }
 
-        this.start = marker.time_offset;
-        this.end = marker.end_time_offset;
+        this.start = marker.start;
+        this.end = marker.end;
         this.index = marker.index;
 
-        if (marker.thumb_url) {
+        if (marker.modified_date) {
+            let modified = marker.modified_date;
             // Check to see if it has a 'user created' flag.
             // For legacy purposes, also check whether the create date equals the modified date,
             // as previous versions of this application didn't include the 'manually created' marker.
-            this.createdByUser = marker.thumb_url[marker.thumb_url.length - 1] == '*' || marker.thumb_url == marker.created_at;
+            this.createdByUser = modified[modified.length - 1] == '*' || modified == marker.created_at;
 
             // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
-            this.modifiedDate = marker.thumb_url.substring(0, marker.thumb_url.length - 1) + 'Z';
+            this.modifiedDate = modified.substring(0, modified.length - 1) + 'Z';
         } else {
             this.createdByUser = false;
             this.modifiedDate = '';

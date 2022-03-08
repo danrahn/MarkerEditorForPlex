@@ -8,9 +8,9 @@ import { fileURLToPath } from 'url';
 import { gzip } from 'zlib';
 
 /** Server dependencies */
-import CreateDatabase from './CreateDatabase.cjs';
 import MarkerCacheManager from './MarkerCacheManager.js';
 import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
+import PlexQueryManager from './PlexQueryManager.js';
 import { QueryParser, QueryParserException } from './QueryParse.js';
 import ThumbnailManager from './ThumbnailManager.js';
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
@@ -26,18 +26,6 @@ import { MarkerData, ShowData, SeasonData, EpisodeData } from './../Shared/PlexT
 let Config;
 
 /**
- * The main database connection.
- * @type {SqliteDatabase}
- */
-let Database;
-
-/**
- * The tag id in the database that represents an intro marker.
- * @type {number}
- */
-let TagId;
-
-/**
  * Manages retrieving preview thumbnails for episodes.
  * @type {ThumbnailManager}
  */
@@ -49,6 +37,12 @@ let Thumbnails;
  */
 let MarkerCache = null;
 
+/**
+ * Manages executing queries to the Plex database.
+ * @type {PlexQueryManager}
+ */
+let QueryManager;
+
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -59,37 +53,21 @@ function run() {
         Log.info(`Verifying database '${Config.databasePath()}'...`);
 
         // Set up the database, and make sure it's the right one.
-        Database = CreateDatabase(Config.databasePath(), (err) => {
-            if (err) {
-                Log.critical(err.message);
-                Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
-                process.exit(1);
-            } else {
-                // Get the persistent tag_id for intro markers (which also acts as a validation check)
-                Database.get("SELECT `id` FROM `tags` WHERE `tag_type`=12;", (err, row) => {
-                    if (err) {
-                        Log.critical(err.message);
-                        Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
-                        process.exit(1);
-                    }
-
-                    TagId = row.id;
-                    Thumbnails = new ThumbnailManager(Database, Config.metadataPath());
-                    if (Config.extendedMarkerStats()) {
-                        MarkerCache = new MarkerCacheManager(Database, TagId);
-                        MarkerCache.buildCache(launchServer, (message) => {
-                            Log.error(message, 'Failed to build marker cache:');
-                            Log.error('Continuing to server creating, but extended marker statistics will not be available.');
-                            Config.disableExtendedMarkerStats();
-                            MarkerCache = null;
-                            launchServer();
-                        });
-                    } else {
-                        // If extended marker stats aren't enabled, just create the server now.
-                        Log.info('Creating server...');
-                        launchServer();
-                    }
+        QueryManager = new PlexQueryManager(Config.databasePath(), () => {
+            Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
+            if (Config.extendedMarkerStats()) {
+                MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
+                MarkerCache.buildCache(launchServer, (message) => {
+                    Log.error(message, 'Failed to build marker cache:');
+                    Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+                    Config.disableExtendedMarkerStats();
+                    MarkerCache = null;
+                    launchServer();
                 });
+            } else {
+                // If extended marker stats aren't enabled, just create the server now.
+                Log.info('Creating server...');
+                launchServer();
             }
         });
     } catch (ex) {
@@ -120,14 +98,17 @@ function launchServer() {
         Log.critical(err.message);
         Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
         Log.error('The server ran into an unexpected problem, exiting...');
-        process.exit(0);
+        if (QueryManager) {
+            QueryManager.close();
+        }
+        process.exit(1);
     });
 
     // Capture Ctrl+C and cleanly exit the process
     process.on('SIGINT', () => {
         Log.info('SIGINT detected, exiting...');
-        if (Database) {
-            Database.close();
+        if (QueryManager) {
+            QueryManager.close();
         }
 
         process.exit(0);
@@ -160,6 +141,7 @@ function serverMain(req, res) {
     } catch (e) {
         // Something's gone horribly wrong
         Log.error(e.toString(), `Exception thrown for ${req.url}`);
+        Log.verbose(e.stack || '(Unable to get stack trace)');
         return jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
     }
 }
@@ -235,6 +217,8 @@ function getSvgIcon(url, res) {
     })
 }
 
+/** Convert a comma separated string into an array of integers */
+const splitKeys = keys => keys.split(',').map(key => parseInt(key));
 /** @typedef {(params: QueryParser, res: Http.ServerResponse) => void} EndpointForwardingFunction */
 
 /**
@@ -242,7 +226,7 @@ function getSvgIcon(url, res) {
  * @type {{[endpoint: string]: EndpointForwardingFunction}}
  */
 const EndpointMap = {
-    query        : (params, res) => queryIds(params.custom('keys', (keys) => keys.split(',')), res),
+    query        : (params, res) => queryIds(params.custom('keys', splitKeys), res),
     edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end', 'userCreated'), res),
     add          : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
     delete       : (params, res) => deleteMarker(params.i('id'), res),
@@ -254,7 +238,6 @@ const EndpointMap = {
     get_config   : (_     , res) => getConfig(res),
     log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
 };
-
 
 /**
  * Handle POST requests, used to return JSON data queried by the client.
@@ -336,7 +319,7 @@ function returnCompressedData(res, status, data, contentType) {
 
 /**
  * Retrieve an array of markers for all requested metadata ids.
- * @param {Array<string>} keys The metadata ids to lookup.
+ * @param {number[]} keys The metadata ids to lookup.
  * @param {Http.ServerResponse} res
  */
 function queryIds(keys, res) {
@@ -345,20 +328,7 @@ function queryIds(keys, res) {
         markers[key] = [];
     });
 
-    let query = 'SELECT * FROM `taggings` WHERE `tag_id`=' + TagId + ' AND (';
-    keys.forEach(key => {
-        const intKey = parseInt(key);
-        if (isNaN(intKey)) {
-            // Don't accept bad keys, but don't fail the entire operation either.
-            Log.warn(key, 'Found bad key in queryIds, skipping');
-            return;
-        }
-
-        query += '`metadata_item_id`=' + intKey + ' OR ';
-    });
-
-    query = query.substring(0, query.length - 4) + ');';
-    Database.all(query, (err, rows) => {
+    QueryManager.getMarkersForEpisodes(keys, (err, rows) => {
         if (err) {
             Log.error(err);
             return jsonError(res, 400, 'Unable to retrieve ids');
@@ -380,15 +350,15 @@ function queryIds(keys, res) {
  * @param {Http.ServerResponse} res
  */
 function editMarker(markerId, startMs, endMs, userCreated, res) {
-    Database.get("SELECT * FROM `taggings` WHERE `id`=" + markerId + ";", (err, currentMarker) => {
-        if (err || !currentMarker || currentMarker.text != 'intro') {
-            return jsonError(res, 400, err | 'Intro marker not found');
+    QueryManager.getSingleMarker(markerId, (err, currentMarker) => {
+        if (err || !currentMarker) {
+            return jsonError(res, 400, err || 'Intro marker not found');
         }
 
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC", [currentMarker.metadata_item_id, currentMarker.tag_id], (err, rows) => {
+        QueryManager.getEpisodeMarkers(currentMarker.metadata_item_id, (err, rows) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
@@ -396,14 +366,14 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
             Log.verbose(`Markers for this episode: ${rows.length}`);
 
             let allMarkers = rows;
-            allMarkers[oldIndex].time_offset = startMs;
-            allMarkers[oldIndex].end_time_offset = endMs;
-            allMarkers.sort((a, b) => a.time_offset - b.time_offset);
+            allMarkers[oldIndex].start = startMs;
+            allMarkers[oldIndex].end = endMs;
+            allMarkers.sort((a, b) => a.start - b.start);
             let newIndex = 0;
 
             for (let index = 0; index < allMarkers.length; ++index) {
                 let marker = allMarkers[index];
-                if (marker.end_time_offset >= startMs && marker.time_offset <= endMs && marker.id != markerId) {
+                if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
                     // Overlap, this should be handled client-side
                     return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
                 }
@@ -415,19 +385,14 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
                 marker.newIndex = index;
             }
 
-            // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
-            const thumbUrl = `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
-            const query = 'UPDATE `taggings` SET `index`=?, `time_offset`=?, `end_time_offset`=?, `thumb_url`=' + thumbUrl + ' WHERE `id`=?;';
-            Database.run(query, [newIndex, startMs.toString(), endMs, markerId], (err) => {
+            QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated, (err) => {
                 if (err) {
                     return jsonError(res, 400, err);
                 }
 
                 for (const marker of allMarkers) {
                     if (marker.index != marker.newIndex) {
-
-                        // Fire and forget. Fingers crossed this does the right thing.
-                        Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
+                        QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
                     }
                 }
 
@@ -450,7 +415,7 @@ function addMarker(metadataId, startMs, endMs, res) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
 
-    Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? ORDER BY `index` ASC;", [metadataId, TagId], (err, rows) => {
+    QueryManager.getEpisodeMarkers(metadataId, (err, rows) => {
         if (err) {
             return jsonError(res, 400, err.message);
         }
@@ -464,12 +429,12 @@ function addMarker(metadataId, startMs, endMs, res) {
                 continue;
             }
 
-            if (marker.end_time_offset >= startMs && marker.time_offset <= endMs) {
+            if (marker.end >= startMs && marker.start <= endMs) {
                 // Overlap, this should be handled client-side
                 return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
             }
 
-            if (marker.time_offset > startMs) {
+            if (marker.start > startMs) {
                 newIndex = marker.index;
                 foundNewIndex = true;
                 marker.newIndex = marker.index + 1;
@@ -482,8 +447,7 @@ function addMarker(metadataId, startMs, endMs, res) {
             newIndex = allMarkers.length;
         }
 
-        Database.run("INSERT INTO `taggings` (`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`, `extra_data`) " +
-                    "VALUES (?, ?, ?, 'intro', ?, ?, CURRENT_TIMESTAMP || '*', CURRENT_TIMESTAMP, 'pv%3Aversion=5')", [metadataId, TagId, newIndex, startMs, endMs], (err) => {
+        QueryManager.addMarker(metadataId, newIndex, startMs, endMs, (err) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
@@ -491,14 +455,12 @@ function addMarker(metadataId, startMs, endMs, res) {
             // Insert succeeded, update indexes of other markers if necessary
             for (const marker of allMarkers) {
                 if (marker.index != marker.newIndex) {
-
-                    // Fire and forget. Fingers crossed this does the right thing.
-                    Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.newIndex, marker.id]);
+                    QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
                 }
             }
 
             // Return our new values directly from the table
-            Database.get("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=? AND `time_offset`=?;", [metadataId, TagId, startMs], (err, row) => {
+            QueryManager.getNewMarker(metadataId, newIndex, (err, row) => {
                 if (err) {
                     // We still succeeded, but failed to get the right data after it was inserted?
                     return jsonSuccess(res);
@@ -519,12 +481,12 @@ function addMarker(metadataId, startMs, endMs, res) {
  * @param {Http.ServerResponse} res
  */
 function deleteMarker(markerId, res) {
-    Database.get("SELECT * FROM `taggings` WHERE `id`=?", [markerId], (err, row) => {
-        if (err || !row || row.text != 'intro') {
+    QueryManager.getSingleMarker(markerId, (err, row) => {
+        if (err || !row) {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        Database.all("SELECT * FROM `taggings` WHERE `metadata_item_id`=? AND `tag_id`=?;", [row.metadata_item_id, row.tag_id], (err, rows) => {
+        QueryManager.getEpisodeMarkers(row.metadata_item_id, (err, rows) => {
             if (err) {
                 return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
             }
@@ -539,7 +501,7 @@ function deleteMarker(markerId, res) {
             const allMarkers = rows;
 
             // Now that we're done rearranging, delete the original tag.
-            Database.run("DELETE FROM `taggings` WHERE `id`=?", [markerId], (err) => {
+            QueryManager.deleteMarker(markerId, (err) => {
                 if (err) {
                     return jsonError(res, 500, 'Failed to delete intro marker');
                 }
@@ -550,7 +512,7 @@ function deleteMarker(markerId, res) {
                     // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
                     for (const marker of allMarkers) {
                         if (marker.index > deleteIndex) {
-                            Database.run("UPDATE `taggings` SET `index`=? WHERE `id`=?;", [marker.index - 1, marker.id]);
+                            QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
                         }
                     }
                 }
@@ -569,7 +531,7 @@ function deleteMarker(markerId, res) {
  * @param {Http.ServerResponse} res
  */
 function getLibraries(res) {
-    Database.all("Select `id`, `name` FROM `library_sections` WHERE `section_type`=?", [2], (err, rows) => {
+    QueryManager.getShowLibraries((err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve library sections.");
         }
@@ -589,19 +551,7 @@ function getLibraries(res) {
  * @param {Http.ServerResponse} res
  */
 function getShows(sectionId, res) {
-    // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
-    // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
-    const query =
-'SELECT shows.`id`, shows.title, shows.title_sort, shows.original_title, COUNT(shows.`id`) AS season_count, SUM(seasons.`episode_count`) AS episode_count FROM metadata_items shows\n\
- INNER JOIN (\n\
-     SELECT seasons.`id`, seasons.`parent_id` AS show_id, COUNT(episodes.`id`) AS episode_count FROM metadata_items seasons\n\
-     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.`id`\n\
-     WHERE seasons.library_section_id=? AND seasons.metadata_type=3\n\
-     GROUP BY seasons.id) seasons\n\
- WHERE shows.metadata_type=2 AND shows.`id`=seasons.show_id\n\
- GROUP BY shows.`id`;';
-
-    Database.all(query, [sectionId], (err, rows) => {
+    QueryManager.getShows(sectionId, (err, rows) => {
         if (err) {
             return jsonError(res, 400, `Could not retrieve shows from the database: ${err.message}`);
         }
@@ -622,14 +572,7 @@ function getShows(sectionId, res) {
  * @param {Http.ServerResponse} res
  */
 function getSeasons(metadataId, res) {
-    const query =
-'SELECT seasons.id, seasons.title, seasons.`index`, COUNT(episodes.id) AS episode_count FROM metadata_items seasons\n\
-     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id\n\
-     WHERE seasons.parent_id=?\n\
- GROUP BY seasons.id\n\
- ORDER BY seasons.`index` ASC;'
-
-    Database.all(query, [metadataId], (err, rows) => {
+    QueryManager.getSeasons(metadataId, (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve seasons from the database.");
         }
@@ -650,17 +593,7 @@ function getSeasons(metadataId, res) {
  * @param {Http.ServerResponse} res
  */
 function getEpisodes(metadataId, res) {
-    // Grab episodes for the given season.
-    // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
-    const query = `
-SELECT e.title AS title, e.\`index\` AS \`index\`, e.id AS id, p.title AS season, p.\`index\` AS season_index, g.title AS show, MIN(m.duration) AS duration, COUNT(e.id) AS parts FROM metadata_items e
-    INNER JOIN metadata_items p ON e.parent_id=p.id
-    INNER JOIN metadata_items g ON p.parent_id=g.id
-    INNER JOIN media_items m ON e.id=m.metadata_item_id
-WHERE e.parent_id=?
-GROUP BY e.id;`;
-
-    Database.all(query, [metadataId], (err, rows) => {
+    QueryManager.getEpisodes(metadataId, (err, rows) => {
         if (err) {
             return jsonError(res, 400, "Could not retrieve episodes from the database.");
         }
@@ -729,15 +662,7 @@ function allStats(sectionId, res) {
         return jsonSuccess(res, markerBreakdownCache[sectionId]);
     }
 
-    // Note that the method below of grabbing _all_ tags for an episode and discarding
-    // those that aren't intro markers is faster than doing an outer join on a temporary
-    // taggings table that only includes markers
-    const query = `
-SELECT e.id AS episode_id, m.tag_id AS tag_id FROM metadata_items e
-LEFT JOIN taggings m ON e.id=m.metadata_item_id
-WHERE e.library_section_id=? AND e.metadata_type=4
-ORDER BY e.id ASC;`;
-    Database.all(query, [sectionId], (err, rows) => {
+    QueryManager.markerStatsForSection(sectionId, (err, rows) => {
         if (err) {
             return jsonError(res, 400, err.message);
         }
@@ -748,7 +673,7 @@ ORDER BY e.id ASC;`;
         let countCur = 0;
         for (const row of rows) {
             if (row.episode_id == idCur) {
-                if (row.tag_id == TagId) {
+                if (row.tag_id == QueryManager.markerTagId()) {
                     ++countCur;
                 }
             } else {
@@ -758,7 +683,7 @@ ORDER BY e.id ASC;`;
 
                 ++buckets[countCur];
                 idCur = row.episode_id;
-                countCur = row.tag_id == TagId ? 1 : 0;
+                countCur = row.tag_id == QueryManager.markerTagId() ? 1 : 0;
             }
         }
 
@@ -775,7 +700,7 @@ ORDER BY e.id ASC;`;
  * @param {number} delta The change from the old marker count, -1 for marker removals, 1 for additions.
  */
 function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
-    Database.get('SELECT library_section_id FROM metadata_items WHERE id=?', [metadataId], (err, row) => {
+    QueryManager.librarySectionFromEpisode(metadataId, (err, row) => {
         if (err) {
             Log.warn(`Unable to determine the section id of metadata item ${metadataId}, wiping cache to ensure things stay in sync`);
             markerBreakdownCache = {};
