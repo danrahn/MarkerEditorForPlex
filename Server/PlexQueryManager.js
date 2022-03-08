@@ -32,16 +32,14 @@ class PlexQueryManager {
     constructor(databasePath, callback) {
         this.#database = CreateDatabase(databasePath, (err) => {
             if (err) {
-                Log.critical(err.message);
-                Log.error(`Unable to open database. Are you sure "${Config.databasePath()}" exists?`);
-                process.exit(1);
+                Log.error(`Unable to open database. Are you sure "${databasePath}" exists?`);
+                throw err;
             }
 
             this.#database.get('SELECT id FROM tags WHERE tag_type=12;', (err, row) => {
                 if (err) {
-                    Log.critical(err.message);
-                    Log.error(`Are you sure "${Config.databasePath()}" is the Plex database, and has at least one existing intro marker?`);
-                    process.exit(1);
+                    Log.error(`Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
+                    throw err;
                 }
     
                 this.#markerTagId = row.id;

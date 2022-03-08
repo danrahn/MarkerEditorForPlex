@@ -48,50 +48,35 @@ const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Initializes and starts the server */
 function run() {
-    try {
-        Config = new PlexIntroEditorConfig(ProjectRoot);
-        Log.info(`Verifying database '${Config.databasePath()}'...`);
+    setupTerminateHandlers();
+    Config = new PlexIntroEditorConfig(ProjectRoot);
+    Log.info(`Verifying database '${Config.databasePath()}'...`);
 
-        // Set up the database, and make sure it's the right one.
-        QueryManager = new PlexQueryManager(Config.databasePath(), () => {
-            Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
-            if (Config.extendedMarkerStats()) {
-                MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
-                MarkerCache.buildCache(launchServer, (message) => {
-                    Log.error(message, 'Failed to build marker cache:');
-                    Log.error('Continuing to server creating, but extended marker statistics will not be available.');
-                    Config.disableExtendedMarkerStats();
-                    MarkerCache = null;
-                    launchServer();
-                });
-            } else {
-                // If extended marker stats aren't enabled, just create the server now.
-                Log.info('Creating server...');
+    // Set up the database, and make sure it's the right one.
+    QueryManager = new PlexQueryManager(Config.databasePath(), () => {
+        Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
+        if (Config.extendedMarkerStats()) {
+            MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
+            MarkerCache.buildCache(launchServer, (message) => {
+                Log.error(message, 'Failed to build marker cache:');
+                Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+                Config.disableExtendedMarkerStats();
+                MarkerCache = null;
                 launchServer();
-            }
-        });
-    } catch (ex) {
-        Log.critical(ex.message);
-        Log.verbose(ex.stack || 'Unable to retrieve stack');
-        Log.error('Unable to read configuration. Note that backslashes must be escaped for Windows-style file paths (C:\\\\path\\\\to\\\\database.db)');
-        process.exit(1);
-    }
+            });
+        } else {
+            // If extended marker stats aren't enabled, just create the server now.
+            Log.info('Creating server...');
+            launchServer();
+        }
+    });
 }
 
 export default run;
 
-/** Creates the server. Called after verifying the config file and database. */
-function launchServer() {
-    const server = createServer(serverMain);
-
-    server.listen(Config.port(), Config.host(), () => {
-        const url = `http://${Config.host()}:${Config.port()}`;
-        Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-        if (Config.autoOpen()) {
-            Log.info('Launching browser...');
-            Open(url);
-        }
-    });
+/** Set up process listeners that will shut down the process
+ * when it encounters an unhandled exception or SIGINT. */
+function setupTerminateHandlers() {
 
     // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
     process.on('uncaughtException', (err) => {
@@ -112,6 +97,20 @@ function launchServer() {
         }
 
         process.exit(0);
+    });
+}
+
+/** Creates the server. Called after verifying the config file and database. */
+function launchServer() {
+    const server = createServer(serverMain);
+
+    server.listen(Config.port(), Config.host(), () => {
+        const url = `http://${Config.host()}:${Config.port()}`;
+        Log.info(`Server running at ${url} (Ctrl+C to exit)`);
+        if (Config.autoOpen()) {
+            Log.info('Launching browser...');
+            Open(url);
+        }
     });
 }
 
