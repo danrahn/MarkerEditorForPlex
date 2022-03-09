@@ -125,7 +125,8 @@ GROUP BY seasons.id
      * @param {number} seasonMetadataId
      * @param {MultipleRowQuery} callback */
     getEpisodes(seasonMetadataId, callback) {
-        // Multiple joins to grab the season name, show name, and episode duration (MIN so that we don't go beyond the length of the shortest episode version to be safe).
+        // Multiple joins to grab the season name, show name, and episode duration (MAX so that we capture)
+        // (the longest available episode, as Plex seems fine with ends beyond the media's length).
         const query = `
 SELECT
     e.title AS title,
@@ -134,7 +135,7 @@ SELECT
     p.title AS season,
     p.\`index\` AS season_index,
     g.title AS show,
-    MIN(m.duration) AS duration,
+    MAX(m.duration) AS duration,
     COUNT(e.id) AS parts
 FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id

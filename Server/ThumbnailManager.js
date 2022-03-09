@@ -1,4 +1,4 @@
-import { existsSync, readFile } from 'fs';
+import { readFile, statSync } from 'fs';
 import { join as joinPath } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
@@ -67,14 +67,27 @@ class ThumbnailManager {
                     return reject('Unable to retrieve media parts');
                 }
 
+                // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
+                let newest = { path : '', mtime : 0, found : 0 };
                 for (const row of rows) {
                     const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
-                    if (existsSync(bifPath)) {
-                        Log.verbose(bifPath, `Found thumbnail index file for ${metadataId}`);
-                        this.#cache[metadataId] = new EpisodeCache(true, bifPath);
-                        resolve(true);
-                        return;
+                    const stats = statSync(bifPath, { throwIfNoEntry : false });
+                    if (stats !== undefined) {
+                        if (stats.mtimeMs > newest.mtime) {
+                            newest.path = bifPath;
+                            newest.mtime = stats.mtimeMs;
+                        }
+
+                        ++newest.found;
                     }
+                }
+
+                if (newest.path.length > 0) {
+                    const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
+                    Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
+                    this.#cache[metadataId] = new EpisodeCache(true, newest.path);
+                    resolve(true);
+                    return;
                 }
 
                 Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
