@@ -6,7 +6,7 @@
 
 Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete intro markers for episodes.
 
-Some clients also support multiple intros, despite Plex not generating multiple markers themselves (web and desktop apps tested), so this project can also be used to add credit skips to episodes.
+Some clients also support multiple intros, despite Plex not generating multiple markers themselves (web, desktop, and AndroidTV apps tested), so this project can also be used to add credit skips to episodes.
 
 ## Usage
 
@@ -14,12 +14,12 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 1. Install [Node.js](https://nodejs.org/en/). This may take awhile.
 2. `git clone` this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
 3. Enter your db path in config.json
-4. `cd /path/to/start.js`
+4. `cd /path/to/app.js`
 5. `npm install`
 
 ### After initial setup
 0. **Back up your Plex database**
-1. `node start.js`
+1. `node app.js`
 
 ## Configuration file
 
@@ -50,12 +50,6 @@ Settings inside the `previewThumbnails` dictionary:
 `enabled` | Determines whether the app should attempt to retrieve preview thumbnails associated with marker timestamps | `true` or `false`
 `metadataPath` | Root path to Plex's [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A full path (e.g. `C:\\Users\\username\\AppData\\Local\\Plex Media Server`). Only required if `enabled` is `true`.
 
-## Current Status/TODO
-
-Currently, all the core behavior works, with some caveats:
-
-* The UI is far from perfect. It does the job, but isn't polished.
-* JS files are in dire need of some code cleanup/documentation.
 
 ## Remarks
 
