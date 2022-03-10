@@ -155,12 +155,15 @@ let Tooltip = new function()
 
         tooltip.style.display = "inline";
 
-        let maxHeight = document.body.clientHeight - tooltip.clientHeight - 20 - windowMargin;
-        tooltip.style.top = (Math.min(e.clientY, maxHeight) + 20) + "px";
+        const heightAdjust = tooltip.clientHeight + 20 + windowMargin;
+        const rawHeight = e.clientY + window.scrollY;
+        const maxHeight = window.innerHeight + window.scrollY - heightAdjust;
+        tooltip.style.top = (Math.min(rawHeight, maxHeight) + 20) + "px";
 
-        let avoidOverlay = e.clientY > maxHeight ? 10 : 0;
-        let maxWidth = document.body.clientWidth - tooltip.clientWidth - windowMargin - avoidOverlay;
-        tooltip.style.left = (Math.min(e.clientX, maxWidth) + avoidOverlay) + "px";
+        const avoidOverlay = rawHeight > maxHeight ? 10 : 0;
+        const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay;
+        const maxWidth = window.innerWidth + window.scrollX - widthAdjust;
+        tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + "px";
     };
 
     /** Dismisses the tooltip. */
