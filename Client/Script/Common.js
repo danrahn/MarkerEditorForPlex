@@ -75,10 +75,11 @@ function $$(selector, ele=document) {
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {object} [options={}] Additional options 
  */
-function buildNode(type, attrs, content, events) {
+function buildNode(type, attrs, content, events, options={}) {
     let ele = document.createElement(type);
-    return _buildNode(ele, attrs, content, events);
+    return _buildNode(ele, attrs, content, events, options);
 }
 
 /**
@@ -89,9 +90,9 @@ function buildNode(type, attrs, content, events) {
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
-function buildNodeNS(ns, type, attrs, content, events) {
+function buildNodeNS(ns, type, attrs, content, events, options={}) {
     let ele = document.createElementNS(ns, type);
-    return _buildNode(ele, attrs, content, events);
+    return _buildNode(ele, attrs, content, events, options);
 }
 
 /**
@@ -100,8 +101,9 @@ function buildNodeNS(ns, type, attrs, content, events) {
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {object} [options]
  */
-function _buildNode(ele, attrs, content, events) {
+function _buildNode(ele, attrs, content, events, options) {
     if (attrs) {
         for (let [key, value] of Object.entries(attrs)) {
             ele.setAttribute(key, value);
@@ -110,7 +112,11 @@ function _buildNode(ele, attrs, content, events) {
 
     if (events) {
         for (let [event, func] of Object.entries(events)) {
-            ele.addEventListener(event, func);
+            if (options.thisArg) {
+                ele.addEventListener(event, func.bind(options.thisArg, ele));
+            } else {
+                ele.addEventListener(event, func);
+            }
         }
     }
 
@@ -179,4 +185,31 @@ function plural(n, text) {
     return `${n} ${text}${n == 1 ? '' : 's'}`;
 }
 
-export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, jsonRequest, plural };
+/**
+ * Pads 0s to the front of `val` until it reaches the length `pad`.
+ * @param {number} val The value to pad.
+ * @param {number} pad The minimum length of the string to return. */
+function pad0(val, pad) {
+    val = val.toString();
+    return '0'.repeat(Math.max(0, pad - val.length)) + val;
+}
+
+/**
+ * Convert milliseconds to a user-friendly [h:]mm:ss.000 string.
+ * @param {number} ms */
+function msToHms(ms) {
+    let seconds = ms / 1000;
+    const hours = parseInt(seconds / 3600);
+    const minutes = parseInt(seconds / 60) % 60;
+    seconds = parseInt(seconds) % 60;
+    const thousandths = ms % 1000;
+    let time = pad0(minutes, 2) + ":" + pad0(seconds, 2) + "." + pad0(thousandths, 3);
+    if (hours > 0)
+    {
+        time = hours + ":" + time;
+    }
+
+    return time;
+}
+
+export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, jsonRequest, msToHms, pad0, plural };

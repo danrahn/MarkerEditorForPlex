@@ -166,7 +166,7 @@ GROUP BY e.id;`;
         });
     
         // Strip trailing ' OR '
-        query = query.substring(0, query.length - 4) + ');';
+        query = query.substring(0, query.length - 4) + ') ORDER BY `index` ASC;';
 
         this.#database.all(query, [this.#markerTagId], callback);
     }

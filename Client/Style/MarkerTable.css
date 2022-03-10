@@ -1,0 +1,157 @@
+/** CSS Specific to (or main for) the marker table */
+
+table {
+  display: table;
+  border-collapse: collapse;
+  white-space: normal;
+  line-height: normal;
+  font-weight: normal;
+  border-spacing: 0;
+  margin: auto;
+  max-width: 95vw;
+  font-size: 11pt;
+  margin-bottom: 10px;
+}
+
+tbody {
+  vertical-align: middle;
+}
+
+tr {
+  display: table-row;
+  padding: 5px;
+}
+
+td {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+thead tr {
+  background-color: transparent !important;
+}
+
+td>.timeInput {
+  margin-left: 0;
+}
+
+table .buttonIconAndText {
+  margin: 3px 1px 3px 1px;
+}
+  
+#episodelist table {
+  margin-top: 10px;
+}
+
+.tableHolder {
+  max-width: 1000px;
+  margin: auto;
+  justify-content: center;
+}
+
+.spanningTableRow {
+  text-align: center;
+}
+
+.timeColumn {
+  width: 150px !important;
+}
+
+.thumbnailEnabledTimeColumn {
+  width: 250px !important;
+}
+
+.centeredColumn {
+  text-align: center;
+}
+
+.userModifiedMarker {
+  font-weight: bold;
+}
+
+.optionsColumn {
+  min-width: 130px; /* "It works on my machine" */
+}
+
+.topAligned {
+  vertical-align: top;
+}
+
+.topAlignedPlainText {
+  vertical-align: top;
+  padding-top: 7px;
+}
+
+.timeInput {
+  font-family: monospace;
+  width: 130px;
+}
+
+.thumbnailTimeInput {
+  text-align: center;
+}
+
+.thumbnailTimeInput>.timeInput {
+  margin: 5px auto 5px auto;
+}
+
+.thumbnailShowHide:hover {
+  text-decoration: underline;
+}
+
+.inputThumb {
+  display: block;
+}
+
+.visibleThumb {
+  transition: height 0.25s; /* Set in JS so we can calculate the "real" height here */
+}
+
+.hiddenThumb {
+  transition: height 0.25s; /* Set to 0 in JS before transitioning */
+}
+
+.thumbnailError {
+  opacity: 0.7;
+}
+
+@media (orientation: landscape), (min-width: 767px) { /* Probably not a phone */
+  .tableHolder {
+    display: flex;
+  }
+  
+  .tableHolder::-webkit-scrollbar {
+    width: 0;
+    height: 5px;
+  }
+  
+  /* Track */
+  .tableHolder::-webkit-scrollbar-track {
+    background: transparent;
+    width: 0;
+    height: 5px;
+  }
+}
+  
+@media all and (orientation: portrait) and (max-width: 767px) { /* Probably a phone */
+  .tableHolder {
+    max-width: 95vw;
+    overflow-x: auto;
+  }
+  
+  .tableHolder::-webkit-scrollbar {
+    width: 2px;
+    height: 2px;
+  }
+  
+  /* Track */
+  .tableHolder::-webkit-scrollbar-track {
+    background: transparent;
+    width: 0;
+    height: 2px;
+  }
+  
+  .tableHolder td {
+    font-size: smaller;
+  }
+}

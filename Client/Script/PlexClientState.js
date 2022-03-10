@@ -1,7 +1,12 @@
 import { jsonRequest, errorMessage } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { ShowData, SeasonData, EpisodeData } from '../../Shared/PlexTypes.js';
+import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
+
 import Overlay from './inc/Overlay.js';
+
+import ClientEpisodeData from './ClientEpisodeData.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
 
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
@@ -121,14 +126,15 @@ class PlexClientState
 
     /**
       * Add the given episode to the active season's episode cache.
-      * @param {EpisodeData} episode */
+      * @param {ClientEpisodeData} episode */
     addEpisode(episode) {
         this.#activeSeason.addEpisode(episode);
     }
 
     /**
       * Retrieve an episode from the active season's episode cache.
-      * @param {number} metadataId */
+      * @param {number} metadataId
+      * @returns {ClientEpisodeData} */
     getEpisode(metadataId) {
         return this.#activeSeason.getEpisode(metadataId);
     }

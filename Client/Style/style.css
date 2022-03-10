@@ -207,41 +207,6 @@ input:focus-visible {
   margin: auto;
 }
 
-table {
-  display: table;
-  border-collapse: collapse;
-  white-space: normal;
-  line-height: normal;
-  font-weight: normal;
-  border-spacing: 0;
-  margin: auto;
-  max-width: 95vw;
-  font-size: 11pt;
-  margin-bottom: 10px;
-}
-
-#episodelist table {
-  margin-top: 10px;
-}
-
-tbody {
-  vertical-align: middle;
-}
-
-tr {
-  display: table-row;
-  padding: 5px;
-}
-
-td {
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-thead tr {
-  background-color: transparent !important;
-}
-
 .button {
   padding: 0 3px 0 3px;
   display: inline-block;
@@ -285,29 +250,9 @@ thead tr {
   margin: 0;
 }
 
-table .buttonIconAndText {
-  margin: 3px 1px 3px 1px;
-}
-
 .buttonIconAndText>span {
   margin-left: 5px;
   vertical-align: middle;
-}
-
-.timeColumn {
-  width: 150px !important;
-}
-
-.thumbnailEnabledTimeColumn {
-  width: 250px !important;
-}
-
-.centeredColumn {
-  text-align: center;
-}
-
-.optionsColumn {
-  min-width: 130px; /* "It works on my machine" */
 }
 
 .showResult,
@@ -402,68 +347,11 @@ table .buttonIconAndText {
   border-color:#ff7f00;
 }
 
-.userModifiedMarker {
-  font-weight: bold;
-}
-
-.tableHolder {
-  max-width: 1000px;
-  margin: auto;
-  justify-content: center;
-}
-
-.timeInput {
-  font-family: monospace;
-  width: 130px;
-}
-
-td>.timeInput {
-  margin-left: 0;
-}
-
-.thumbnailTimeInput {
-  text-align: center;
-}
-
-.thumbnailTimeInput>.timeInput {
-  margin: 5px auto 5px auto;
-}
-
-.thumbnailShowHide:hover {
-  text-decoration: underline;
-}
-
-.topAligned {
-  vertical-align: top;
-}
-
-.topAlignedPlainText {
-  vertical-align: top;
-  padding-top: 7px;
-}
-
-.inputThumb {
-  display: block;
-}
-
-.visibleThumb {
-  transition: height 0.25s; /* Set in JS so we can calculate the "real" height here */
-}
-
-.hiddenThumb {
-  transition: height 0.25s; /* Set to 0 in JS before transitioning */
-}
-
-.thumbnailError {
-  opacity: 0.7;
-}
-
 #toggleContainer {
   position: absolute;
   top: 30px;
   right: 30px;
 }
-
 
 #darkModeToggle {
   position: relative;
@@ -543,56 +431,20 @@ td>.timeInput {
 ::-webkit-scrollbar-thumb:hover {
    background: rgba(129, 129, 129, 0.76); /* #818181C1 */
 }
-@media (orientation: landscape), (min-width: 767px) { /* Probably not a phone */
-  .tableHolder {
-    display: flex;
-  }
 
+@media (orientation: landscape), (min-width: 767px) { /* Probably not a phone */
   /* width*/
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-
-.tableHolder::-webkit-scrollbar {
-    width: 0;
-    height: 5px;
-  }
-
-/* Track */
-.tableHolder::-webkit-scrollbar-track {
-    background: transparent;
-    width: 0;
-    height: 5px;
-  }
 }
 
 @media all and (orientation: portrait) and (max-width: 767px) { /* Probably a phone */
-  .tableHolder {
-    max-width: 95vw;
-    overflow-x: auto;
-  }
-
   /* width*/
   ::-webkit-scrollbar {
     width: 3px;
     height: 3px;
-  }
-
-  .tableHolder::-webkit-scrollbar {
-    width: 2px;
-    height: 2px;
-  }
-
-  /* Track */
-  .tableHolder::-webkit-scrollbar-track {
-    background: transparent;
-    width: 0;
-    height: 2px;
-  }
-
-  .tableHolder td {
-    font-size: smaller;
   }
 
   /* Toggle can overlap the header on mobile devices.
