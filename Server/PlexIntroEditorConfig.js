@@ -164,24 +164,46 @@ class PlexIntroEditorConfig extends ConfigBase {
 
     /** Sets the server side log level taken from the config file */
     #setLogLevel() {
-        Log.setLevel(this.#convertLogLevel());
+        const logSettings = this.#convertLogString();
+        Log.setLevel(logSettings.level);
+        Log.setDarkConsole(logSettings.dark);
+    }
+
+    /**
+     * Converts the string log level from the config into actual log settings.
+     * If the string starts with 'dark', intialize the console to be dark and parse
+     * the rest of the string as the actual log level.
+     * @returns {{dark: number, level: [ConsoleLog.Level]}}
+     */
+    #convertLogString() {
+        let dark = 0;
+        let level = this.#logLevel.toLowerCase();
+        if (level.startsWith('dark')) {
+            dark = 1;
+            level = level.substring(4);
+        }
+
+        return {
+            dark : dark,
+            level : this.#convertLogLevel(level)
+        }
     }
 
     /**
      * Converts the string log level from the config into the ConsoleLog.Level enum value.
-     * @returns {ConsoleLog.Level}
-     */
-    #convertLogLevel() {
-        switch(this.#logLevel.toLowerCase()) {
-            case "tmi":
+     * @param {string} logString The string to parse.
+     * @returns {ConsoleLog.Level} */
+    #convertLogLevel(logString) {
+        switch(logString) {
+            case 'tmi':
                 return ConsoleLog.Level.Tmi;
-            case "verbose":
+            case 'verbose':
                 return ConsoleLog.Level.Verbose;
-            case "info":
+            case 'info':
                 return ConsoleLog.Level.Info;
-            case "warn":
+            case 'warn':
                 return ConsoleLog.Level.Warn;
-            case "error":
+            case 'error':
                 return ConsoleLog.Level.Error;
             default:
                 Log.warn(`Invalid log level detected: ${this.#logLevel}. Defaulting to 'Info'`);

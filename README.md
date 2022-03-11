@@ -8,6 +8,10 @@ Plex does not let users modify or add intro markers, relying solely on their own
 
 Some clients also support multiple intros, despite Plex not generating multiple markers themselves (web, desktop, and AndroidTV apps tested), so this project can also be used to add credit skips to episodes.
 
+## Known Issues
+
+It appears that after adding a new episode to a season and Plex's intro detection runs again, it will wipe out any existing markers. Work is planned to address this in as smooth of a way as possible.
+
 ## Usage
 
 ### First Run Steps
@@ -29,7 +33,7 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 `database` | Full path to the Plex database. | A valid file path. Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\database.db"`)
 `host`     | The hostname Node will listen on. Defaults to `localhost`, but could be changed to a local IP (e.g. `192.168.1.2`) if you want to modify markers on a different device on your local network. | A valid IP/hostname
 `port`     | The port the server will listen on. Defaults to `3232` | A valid port number.
-`logLevel` | Determines logging verbosity in the console. Can be overridden by the client. | `"TMI"`, `"Verbose"`, `"Info"`, `"Warn"`, `"Error"`
+`logLevel` | Determines the initial logging verbosity in the console (which can be overridden by the client). Can be prefixed with `Dark` to use dark-themed colors. | `"(Dark)?(TMI\|Verbose\|Info\|Warn\|Error)"`
 `features` | A dictionary of toggleable features for the application | [Feature Settings](#feature-settings)
 
 ### Feature Settings
