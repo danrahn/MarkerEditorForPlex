@@ -4,6 +4,7 @@
 
 /**
  * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
+ * @typedef {{id: number, name: string}} LibrarySection A library in the Plex database.
  * @typedef {{[metadataId: number]: ShowData}} ShowMap A map of show metadata ids to the show itself.
  * @typedef {{[metadataId: number]: SeasonData}} SeasonMap A map of season metadata ids to the season itself.
  * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
@@ -348,4 +349,4 @@ class MarkerData extends PlexData {
     }
 }
 
-export { ShowData, SeasonData, EpisodeData, MarkerData }
+export { PlexData, ShowData, SeasonData, EpisodeData, MarkerData }

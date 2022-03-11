@@ -5,6 +5,7 @@ import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
 import Overlay from './inc/Overlay.js';
 
 import ClientEpisodeData from './ClientEpisodeData.js';
+import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
 
@@ -12,17 +13,16 @@ import ClientEpisodeData from './ClientEpisodeData.js';
 * A class that keeps track of the currently UI state of Plex Intro Editor,
 * including search results and the active show/season.
 */
-class PlexClientState
-{
+class PlexClientState {
     /** @type {number} */
     #activeSection = -1;
     /** @type {Object<number, ShowMap>} */
     #shows = {};
     /** @type {ShowData[]} */
     #activeSearch = [];
-    /** @type {ShowData} */
+    /** @type {ShowResultRow} */
     #activeShow;
-    /** @type {SeasonData} */
+    /** @type {SeasonResultRow} */
     #activeSeason;
 
     constructor() {}
@@ -47,28 +47,30 @@ class PlexClientState
 
     /**
       * Sets the show with the given metadataId as active.
-      * @param {number} metadataId
+      * @param {ShowResultRow} showResultRow
       * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found. */
-    setActiveShow(metadataId) {
-        let show = this.#shows[this.#activeSection][metadataId];
-        if (!show) {
+    setActiveShow(showResultRow) {
+        // We could/should just use showResultRow.show() directly, but this verifies that we've been
+        // given a show we expect.
+        const metadataId = showResultRow.show().metadataId;
+        if (!this.#shows[this.#activeSection][metadataId]) {
             return false;
         }
 
-        if (this.#activeShow && this.#activeShow.metadataId != metadataId) {
+        if (this.#activeShow && this.#activeShow.show().metadataId != metadataId) {
             this.clearActiveShow();
         }
 
         if (!this.#activeShow) {
-            this.#activeShow = show;
+            this.#activeShow = showResultRow;
         }
 
-        return this.#activeShow;
+        return true;
     }
 
     /** @returns {ShowData} The active show, or null if no show is active. */
     getActiveShow() {
-        return this.#activeShow;
+        return this.#activeShow.show();
     }
 
     /** Clears out the currently active show and other dependent data (i.e. {@linkcode #activeSeason}). */
@@ -78,7 +80,7 @@ class PlexClientState
         // through their entire library with hundreds/thousands of seasons.
         if (this.#activeShow) {
             this.clearActiveSeason();
-            this.#activeShow.clearSeasons();
+            this.#activeShow.show().clearSeasons();
             this.#activeShow = null;
         }
     }
@@ -86,7 +88,7 @@ class PlexClientState
     /** Clears out the currently active season and its episode data. */
     clearActiveSeason() {
         if (this.#activeSeason) {
-            this.#activeSeason.clearEpisodes();
+            this.#activeSeason.season().clearEpisodes();
             this.#activeSeason = null;
         }
     }
@@ -95,40 +97,40 @@ class PlexClientState
       * Adds the given season to the current show.
       * @param {SeasonData} season */
     addSeason(season) {
-        this.#activeShow.addSeason(season);
+        this.#activeShow.show().addSeason(season);
     }
 
     /**
       * Sets the season with the given metadata id as active.
-      * @param {number} metadataId The metadata of the season.
+      * @param {SeasonResultRow} seasonResultRow The metadata of the season.
       * @returns {SeasonData|false} The season with the given metadata id, or `false` if the season could not be found. */
-    setActiveSeason(metadataId) {
-        let season = this.#activeShow.getSeason(metadataId);
-        if (!season) {
+    setActiveSeason(seasonResultRow) {
+        const metadataId = seasonResultRow.season().metadataId;
+        if (!this.#activeShow.show().getSeason(metadataId)) {
             return false;
         }
 
-        if (this.#activeSeason && this.#activeSeason.metadataId != metadataId) {
+        if (this.#activeSeason && this.#activeSeason.season().metadataId != metadataId) {
             this.clearActiveSeason();
         }
 
         if (!this.#activeSeason) {
-            this.#activeSeason = season;
+            this.#activeSeason = seasonResultRow;
         }
 
-        return this.#activeSeason;
+        return true;
     }
 
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
-        return this.#activeSeason;
+        return this.#activeSeason.season();
     }
 
     /**
       * Add the given episode to the active season's episode cache.
       * @param {ClientEpisodeData} episode */
     addEpisode(episode) {
-        this.#activeSeason.addEpisode(episode);
+        this.#activeSeason.season().addEpisode(episode);
     }
 
     /**
@@ -136,7 +138,38 @@ class PlexClientState
       * @param {number} metadataId
       * @returns {ClientEpisodeData} */
     getEpisode(metadataId) {
-        return this.#activeSeason.getEpisode(metadataId);
+        return this.#activeSeason.season().getEpisode(metadataId);
+    }
+
+    /**
+     * Updates the marker breakdown cache after a marker is added/removed, and signals to the UI
+     * to update things on their end.
+     * @param {ClientEpisodeData} episode The episode a marker was added to/removed from.
+     * @param {number} delta 1 if a marker was added, -1 if removed. */
+    updateBreakdownCache(episode, delta) {
+        const newCount = episode.markerCount();
+        const oldCount = newCount - delta;
+        for (const media of [this.#activeShow, this.#activeSeason]) {
+            const breakdown = media.mediaItem().markerBreakdown;
+            if (!(oldCount in breakdown)) {
+                Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
+                breakdown[oldCount] = 1;
+            }
+
+            --breakdown[oldCount];
+            if (breakdown[oldCount] == 0) {
+                delete breakdown[oldCount];
+            }
+
+            if (!(newCount in breakdown)) {
+                breakdown[newCount] = 0;
+            }
+    
+            ++breakdown[newCount];
+        }
+
+        this.#activeSeason.updateMarkerBreakdown();
+        this.#activeShow.updateMarkerBreakdown();
     }
 
     /**

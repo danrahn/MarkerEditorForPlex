@@ -190,6 +190,7 @@ class MarkerEdit {
     resetAfterEdit() {
         this.markerRow.reset();
         this.editing = false;
+        Tooltip.dismiss();
     }
 
     /**

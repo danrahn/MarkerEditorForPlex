@@ -94,8 +94,7 @@ tr:nth-child(even):hover {
 
 .showResultSeasons,
 .showResultEpisodes,
-.showResultOriginalTitle,
-.seasonTitle {
+.resultRowAltTitle {
     color: #444;
 }
 

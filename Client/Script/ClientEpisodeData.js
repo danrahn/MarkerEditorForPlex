@@ -1,5 +1,6 @@
 import { EpisodeData, MarkerData } from "../../Shared/PlexTypes.js";
 import MarkerTable from "./MarkerTable.js";
+import { EpisodeResultRow } from "./ResultRow.js";
 
 /**
  * An extension of the client/server-agnostic EpisodeData to include client-specific functionality
@@ -18,9 +19,10 @@ class ClientEpisodeData extends EpisodeData {
 
     /**
      * Creates the marker table for this episode.
+     * @param {EpisodeResultRow} parentRow The UI associated with this episode.
      * @param {{[metadataId: number]: Object[]}} serializedMarkers Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode. */
-    createMarkerTable(serializedMarkers) {
+    createMarkerTable(parentRow, serializedMarkers) {
         if (this.#markerTable != null) {
             Log.warn('The marker table already exists, we shouldn\'t be creating a new one!');
         }
@@ -30,7 +32,7 @@ class ClientEpisodeData extends EpisodeData {
             markers.push(new MarkerData().setFromJson(marker));
         }
 
-        this.#markerTable = new MarkerTable(markers, this.metadataId);
+        this.#markerTable = new MarkerTable(markers, parentRow);
     }
 
     /** @returns {HTMLElement} The HTML of the marker table. */

@@ -137,6 +137,10 @@ input, select {
   cursor: pointer;
 }
 
+.instructions {
+  padding: 0 10px 0 10px;
+}
+
 #intro {
   max-width: 1000px;
   text-align: center;
@@ -332,6 +336,7 @@ input:focus-visible {
   background: rgba(0,100,0,0.2);
   font-weight: bold;
   line-height: 23px;
+  cursor: default;
 }
 
 .selected:hover {

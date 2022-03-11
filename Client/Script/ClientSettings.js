@@ -2,6 +2,7 @@ import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 import { $, $$, buildNode, appendChildren, jsonRequest } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
+import { PlexUI } from './index.js';
 import ThemeColors from './ThemeColors.js';
 
 /**
@@ -289,10 +290,8 @@ class ClientSettingsUI {
      * * Show extended marker information: Toggles whether we show marker breakdowns at the
      *   show and season level, not just at the episode level. Only visible if app settings
      *   have extended marker stats enabled.
-     * @param {Function<boolean>} callback The callback to invoke if settings are applied.
      */
-    showSettings(callback) {
-        this.#currentCallback = callback;
+    showSettings() {
         let options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
         options.push(
@@ -465,8 +464,7 @@ class ClientSettingsUI {
 
         this.#settingsManager.save();
         Overlay.dismiss();
-        this.#currentCallback(shouldResetView);
-        this.#currentCallback = null;
+        PlexUI.onSettingsApplied(shouldResetView);
     }
 
     /**
@@ -511,14 +509,8 @@ class ClientSettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
-    /** The callback to invoke after settings are applied.
-     * @type {(shouldResetView: boolean) => void} */
-    #applyCallback;
-
-    /** @param {(shouldResetView: bool) => void} onSettingsAppliedCallback */
-    constructor(onSettingsAppliedCallback) {
+    constructor() {
         $('#settings').addEventListener('click', this.#showSettings.bind(this));
-        this.#applyCallback = onSettingsAppliedCallback;
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
         this.#themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -676,7 +668,7 @@ class ClientSettingsManager {
     }
 
     /** Display the settings dialog. */
-    #showSettings() { this.#uiManager.showSettings(this.#applyCallback); }
+    #showSettings() { this.#uiManager.showSettings(); }
 
     /**
      * Callback invoked when the system browser theme changes.

@@ -7,6 +7,7 @@ import Overlay from './inc/Overlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ExistingMarkerRow, MarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import TableElements from './TableElements.js';
+import { EpisodeResultRow } from './ResultRow.js';
 
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.
@@ -18,9 +19,9 @@ class MarkerTable {
     #html;
 
     /**
-     * The metadata id of the episode this marker table belongs to.
-     * @type {number} */
-    #episodeId;
+     * The episode UI that this table is attached to.
+     * @type {EpisodeResultRow} */
+    #parentRow;
 
     /**
      * The array of existing markers for this episode.
@@ -34,9 +35,9 @@ class MarkerTable {
 
     /**
      * @param {MarkerData[]} markers The markers to add to this table.
-     * @param {number} episodeId The metadata id of the episode this marker table belongs to. */
-    constructor(markers, episodeId) {
-        this.#episodeId = episodeId;
+     * @param {EpisodeResultRow} parentRow The episode UI that this table is attached to. */
+    constructor(markers, parentRow) {
+        this.#parentRow = parentRow;
         this.#markers = markers;
         let container = buildNode('div', { class : 'tableHolder' });
         let table = buildNode('table', { class : 'hidden markerTable' });
@@ -82,7 +83,7 @@ class MarkerTable {
      *  * Not overlap with any existing marker. The database technically supports overlapping markers (multiple versions of an episode with
      *    slightly different intro detection), but since the markers apply to the episode regardless of the specific version, there's no
      *    reason to actually allow overlapping markers.
-     * @param {number} metadataId The metadata id of the episode we're modifying.
+     * @param {number} marker The id of the marker we're modifying, or -1 if it's an in-progress marker.
      * @param {number} startTime The start time of the marker, in milliseconds.
      * @param {number} endTime The end time of the marker, in milliseconds. */
     checkValues(markerId, startTime, endTime) {
@@ -138,7 +139,7 @@ class MarkerTable {
         this.#rows.splice(markerData.index, 0, newRow);
         this.#markers.splice(markerData.index, 0, markerData);
         tableBody.insertBefore(newRow.row(), tableBody.children[newRow.rowIndex()]);
-        this.#updateMarkerCount();
+        this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
     }
 
     /**
@@ -222,7 +223,7 @@ class MarkerTable {
             marker.index = index;
         });
 
-        this.#updateMarkerCount();
+        this.#parentRow.updateMarkerBreakdown(-1 /*delta*/);
     }
 
     /**
@@ -255,7 +256,7 @@ class MarkerTable {
     /**
      * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row. */
     #onMarkerAdd() {
-        const addRow = new NewMarkerRow(this.#episodeId);
+        const addRow = new NewMarkerRow(this.#parentRow.episode().metadataId);
         const tbody = this.#tbody();
         tbody.insertBefore(addRow.row(), tbody.lastChild);
         this.#rows.push(addRow);
