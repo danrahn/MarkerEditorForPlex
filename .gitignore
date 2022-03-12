@@ -1,2 +1,5 @@
 .vscode/*
 node_modules/*
+
+# Ignore the backup database
+Backup/*

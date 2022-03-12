@@ -80,7 +80,7 @@ class ExistingMarkerRow extends MarkerRow {
 
     /** @param {MarkerData} marker The marker to base this row off of. */
     constructor(marker) {
-        super(marker.metadataItemId);
+        super(marker.episodeId);
         this.#markerData = marker;
         this.buildRow();
     }

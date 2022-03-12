@@ -1,7 +1,11 @@
 /**
- * @typedef {(err: Error, rows: any[]) => void} MultipleRowQuery
- * @typedef {(err: Error, row: any) => void} SingleRowQuery
- * @typedef {(err: Error) => void} NoResultQuery
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string,
+ *             episode_id : number, season_id : number, show_id : number, section_id : number }} RawMarkerData
+ * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
+ * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
+ * @typedef {(err: Error?, row: any) => void} SingleRowQuery
+ * @typedef {(err: Error?, row: RawMarkerData) => void} SingleMarkerQuery
+ * @typedef {(err: Error?) => void} NoResultQuery
  */
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
@@ -22,7 +26,22 @@ class PlexQueryManager {
     /** @type {SqliteDatabase} */
     #database;
 
-    #defaultMarkerFields = 'id, metadata_item_id, \`index\`, time_offset AS start, end_time_offset AS end, thumb_url AS modified_date, created_at';
+    /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
+    #extendedMarkerFields = `
+    taggings.id,
+    taggings.\`index\`,
+    taggings.time_offset AS start,
+    taggings.end_time_offset AS end,
+    taggings.thumb_url AS modified_date,
+    taggings.created_at,
+    episodes.id AS episode_id,
+    seasons.id AS season_id,
+    seasons.parent_id AS show_id,
+    seasons.library_section_id AS section_id
+FROM taggings
+    INNER JOIN metadata_items episodes ON taggings.metadata_item_id = episodes.id
+    INNER JOIN metadata_items seasons ON episodes.parent_id = seasons.id
+`;
 
     /**
      * Initializes the manager and attempts to retrieve the marker tag_id.
@@ -30,7 +49,7 @@ class PlexQueryManager {
      * @param {string} databasePath
      * @param {() => void} callback */
     constructor(databasePath, callback) {
-        this.#database = CreateDatabase(databasePath, (err) => {
+        this.#database = CreateDatabase(databasePath, false /*allowCreate*/, (err) => {
             if (err) {
                 Log.error(`Unable to open database. Are you sure "${databasePath}" exists?`);
                 throw err;
@@ -149,12 +168,10 @@ GROUP BY e.id;`;
 
     /**
      * Retrieve all markers for the given episodes.
-     *
-     * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number[]} episodeIds
-     * @param {MultipleRowQuery} callback */
+     * @param {MultipleMarkerQuery} callback */
     getMarkersForEpisodes(episodeIds, callback) {
-        let query = `SELECT ${this.#defaultMarkerFields} FROM taggings WHERE tag_id=? AND (`;
+        let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
         episodeIds.forEach(episodeId => {
             if (isNaN(episodeId)) {
                 // Don't accept bad keys, but don't fail the entire operation either.
@@ -162,25 +179,90 @@ GROUP BY e.id;`;
                 return;
             }
     
-            query += '`metadata_item_id`=' + episodeId + ' OR ';
+            query += 'metadata_item_id=' + episodeId + ' OR ';
         });
     
         // Strip trailing ' OR '
-        query = query.substring(0, query.length - 4) + ') ORDER BY `index` ASC;';
+        query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
 
         this.#database.all(query, [this.#markerTagId], callback);
     }
 
     /**
      * Retrieve all markers for a single episode.
-     *
-     * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} episodeId
-     * @param {MultipleRowQuery} callback */
+     * @param {MultipleMarkerQuery} callback */
     getEpisodeMarkers(episodeId, callback) {
+        this.#getMarkersForMetadataItem(episodeId, `taggings.metadata_item_id`, callback);
+    }
+
+    /**
+     * Retrieve all markers for a single season.
+     * @param {number} seasonId
+     * @param {MultipleMarkerQuery} callback */
+    getSeasonMarkers(seasonId, callback) {
+        this.#getMarkersForMetadataItem(seasonId, `seasons.id`, callback);
+    }
+
+    /**
+     * Retrieve all markers for a single show.
+     * @param {number} showId
+     * @param {MultipleMarkerQuery} callback */
+    getShowMarkers(showId, callback) {
+        this.#getMarkersForMetadataItem(showId, `seasons.parent_id`, callback);
+    }
+
+    /**
+     * Retrieve all markers tied to the given metadataId.
+     * @param {number} metadataId
+     * @param {(err: Error?, rows: RawMarkerData[]?, typeInfo: { metadata_type: number, section_id: number }) => void} callback */
+    getMarkersAuto(metadataId, callback) {
+        this.#mediaTypeFromId(metadataId, (err, typeInfo) => {
+            if (err) { return callback(err, null, null); }
+            let where = '';
+            switch (typeInfo.metadata_type) {
+                case 2: where = `seasons.parent_id`; break;
+                case 3: where = `seasons.id`; break;
+                case 4: where = `taggings.metadata_item_id`; break;
+                default:
+                    return callback(new Error(`Item ${metadataId} is not an episode, season, or series`), null, null);
+            }
+
+            this.#getMarkersForMetadataItem(metadataId, where, (err, markers) => {
+                callback(err, markers, typeInfo);
+            });
+        });
+    }
+
+    /**
+     * Retrieve the media type and section id for item with the given metadata id.
+     * @param {number} metadataId
+     * @param {SingleRowQuery} callback */
+    #mediaTypeFromId(metadataId, callback) {
+        this.#database.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId], (err, row) => {
+            if (err) {
+                return callback(err, null);
+            }
+
+            if (!row) {
+                return callback(new Error(`Metadata item ${metadataId} not found in database.`), null);
+            }
+
+            callback(null, row);
+        });
+    }
+
+    /**
+     * Retrieve all markers tied to the given metadataId.
+     * @param {number} metadataId
+     * @param {string} whereClause The field to match against `metadataId`.
+     * @param {MultipleMarkerQuery} callback */
+    #getMarkersForMetadataItem(metadataId, whereClause, callback) {
         this.#database.all(
-            `SELECT ${this.#defaultMarkerFields} from taggings WHERE metadata_item_id=? AND tag_id=? ORDER BY \`index\` ASC;`,
-            [episodeId, this.#markerTagId],
+            `SELECT ${this.#extendedMarkerFields}
+            WHERE ${whereClause}=? AND taggings.tag_id=?
+            ORDER BY taggings.\`index\` ASC;`,
+            [metadataId, this.#markerTagId],
             callback);
     }
 
@@ -189,29 +271,87 @@ GROUP BY e.id;`;
      *
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} markerId
-     * @param {SingleRowQuery} callback */
+     * @param {SingleMarkerQuery} callback */
     getSingleMarker(markerId, callback) {
         this.#database.get(
-            `SELECT ${this.#defaultMarkerFields} FROM taggings WHERE id=? AND text='intro';`,
-            [markerId],
+            `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
+            [markerId, this.#markerTagId],
             callback);
     }
 
     /**
-     * Add a marker to the database.
+     * Add a marker to the database, taking care of reindexing if necessary.
      * @param {number} metadataId The metadata id of the episode to add the marker to.
-     * @param {number} index The index of the marker in the marker table.
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
-     * @param {NoResultQuery} callback */
-    addMarker(metadataId, index, startMs, endMs, callback) {
-        this.#database.run(
-            'INSERT INTO taggings ' +
-                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-            'VALUES ' +
-                '(?, ?, ?, "intro", ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5");',
-            [metadataId, this.#markerTagId, index, startMs.toString(), endMs],
-            callback);
+     * @param {(allMarkers: RawMarkerData[], newMarker: RawMarkerData) => void} successCallback
+     * @param {(userError: boolean, errorMessage: string) => void} failureCallback
+     * @param {boolean} [allowOverlap=false] Whether to allow overlapping markers to be added to the database. */
+    addMarker(metadataId, startMs, endMs, successCallback, failureCallback, allowOverlap=false) {
+        this.getEpisodeMarkers(metadataId, (err, allMarkers) => {
+            if (err) {
+                return failureCallback(false, err.message);
+            }
+
+            const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
+            if (!allowOverlap && newIndex == -1) {
+                return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
+            }
+
+            const addQuery = 
+                'INSERT INTO taggings ' +
+                    '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+                'VALUES ' +
+                    '(?, ?, ?, "intro", ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5");';
+            const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+            this.#database.run(addQuery, parameters, (err) => {
+                if (err) {
+                    return failureCallback(false, err.message);
+                }
+
+                // Insert succeeded, update indexes of other markers if necessary
+                for (const marker of allMarkers) {
+                    if (marker.index != marker.newIndex) {
+                        this.updateMarkerIndex(marker.id, marker.newIndex);
+                    }
+                }
+
+                this.getNewMarker(metadataId, newIndex, (err, newMarker) => {
+                    if (err) {
+                        return failureCallback(false, 'Unable to retrieve newly added marker.');
+                    }
+
+                    successCallback(allMarkers, newMarker);
+                });
+            });
+        });
+    }
+
+    /**
+     * Finds the new indexes for the given markers, given the start and end time of the
+     * new marker to be inserted. New indexes are stored in the marker's `newIndex` field,
+     * and the index for the new marker is returned directly. If overlapping markers are
+     * not allowed, -1 is returned if overlap is detected.
+     * @param {[]} markers
+     * @param {number} newStart The start time of the new marker, in millseconds.
+     * @param {number} newEnd The end time of the new marker, in milliseconds.
+     * @param {boolean} [allowOverlap=false] Whether we're okay with the new marker overlapping with an existing one. */
+    #reindexForAdd(markers, newStart, newEnd, allowOverlap=false) {
+        let pseudoData = { start : newStart, end : newEnd };
+        markers.push(pseudoData);
+        markers.sort((a, b) => a.start - b.start).forEach((marker, index) => {
+            marker.newIndex = index;
+        });
+
+        pseudoData.index = pseudoData.newIndex;
+        if (allowOverlap) {
+            return pseudoData.newIndex;
+        }
+
+        const newIndex = pseudoData.newIndex;
+        const startOverlap = newIndex != 0 && markers[newIndex - 1].end >= pseudoData.start;
+        const endOverlap = newIndex != markers.length - 1 && markers[newIndex + 1].start <= pseudoData.end;
+        return (startOverlap || endOverlap) ? -1 : newIndex;
     }
 
     /**
@@ -259,10 +399,10 @@ GROUP BY e.id;`;
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} metadataId The metadata id of the episode the marker belongs to.
      * @param {number} index The index of the marker in the marker table.
-     * @param {SingleRowQuery} callback */
+     * @param {SingleMarkerQuery} callback */
     getNewMarker(metadataId, index, callback) {
         this.#database.get(
-            `SELECT ${this.#defaultMarkerFields} FROM taggings WHERE metadata_item_id=? AND tag_id=? AND \`index\`=?;`,
+            `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.\`index\`=?;`,
             [metadataId, this.#markerTagId, index],
             callback);
     }
@@ -292,6 +432,13 @@ WHERE e.library_section_id=? AND e.metadata_type=4
 ORDER BY e.id ASC;`;
 
         this.#database.all(query, [sectionId], callback);
+    }
+
+    /**
+     * Return the ids and UUIDs for all sections in the database.
+     * @param {MultipleRowQuery} callback */
+    sectionUuids(callback) {
+        this.#database.all('SELECT id, uuid FROM library_sections;', callback);
     }
 }
 

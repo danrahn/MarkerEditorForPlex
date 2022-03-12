@@ -304,14 +304,29 @@ class MarkerData extends PlexData {
     createDate;
 
     /**
-     * The Plex metadata id of the episode this marker is attached to.
-     * @type {number} */
-    metadataItemId;
-
-    /**
      * The Plex taggings id for this marker.
      * @type {number} */
     id;
+
+    /**
+     * The Plex metadata id of the episode this marker is attached to.
+     * @type {number} */
+    episodeId;
+
+    /**
+     * The Plex metadata id of the season this marker is attached to.
+     * @type {number} */
+    seasonId;
+    
+    /**
+     * The Plex metadata id of the show this marker is attached to.
+     * @type {number} */
+    showId;
+
+    /**
+     * The section id of the episode this marker is attached to.
+     * @type {number} */
+    sectionId;
 
     /**
      * Creates a new MarkerData from the given marker, if provided.
@@ -344,8 +359,11 @@ class MarkerData extends PlexData {
         // if the marker was created by the user.
         this.createDate = marker.created_at + (this.createdByUser ? 'Z' : '');
 
-        this.metadataItemId = marker.metadata_item_id;
         this.id = marker.id;
+        this.episodeId = marker.episode_id;
+        this.seasonId = marker.season_id;
+        this.showId = marker.show_id;
+        this.sectionId = marker.section_id;
     }
 }
 

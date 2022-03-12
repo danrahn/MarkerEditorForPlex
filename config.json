@@ -6,6 +6,7 @@
     "features" : {
         "autoOpen" : true,
         "extendedMarkerStats" : true,
+        "backupActions" : false,
         "previewThumbnails" : {
             "enabled" : true,
             "metadataPath" : "/path/to/server/data/directory"

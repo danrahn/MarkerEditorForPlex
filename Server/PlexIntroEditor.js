@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { gzip } from 'zlib';
 
 /** Server dependencies */
+import MarkerBackupManager from './MarkerBackupManager.js';
 import MarkerCacheManager from './MarkerCacheManager.js';
 import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
 import PlexQueryManager from './PlexQueryManager.js';
@@ -43,6 +44,12 @@ let MarkerCache = null;
  */
 let QueryManager;
 
+/**
+ * Records marker actions in a database to be restored if Plex removes them, or reverted
+ * if changes in Plex's marker schema causes these markers to break the database.
+ * @type {MarkerBackupManager} */
+let BackupManager;
+
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -54,22 +61,33 @@ function run() {
 
     // Set up the database, and make sure it's the right one.
     QueryManager = new PlexQueryManager(Config.databasePath(), () => {
-        Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
-        if (Config.extendedMarkerStats()) {
-            MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
-            MarkerCache.buildCache(launchServer, (message) => {
-                Log.error(message, 'Failed to build marker cache:');
-                Log.error('Continuing to server creating, but extended marker statistics will not be available.');
-                Config.disableExtendedMarkerStats();
-                MarkerCache = null;
-                launchServer();
-            });
+        Log.info('Database Verified.');
+        if (Config.backupActions()) {
+            Log.info('Initializing marker backup database...');
+            BackupManager = new MarkerBackupManager(QueryManager, ProjectRoot, afterQueryInit);
         } else {
-            // If extended marker stats aren't enabled, just create the server now.
-            Log.info('Creating server...');
-            launchServer();
+            afterQueryInit();
         }
     });
+}
+
+/** Called after the query manager (and optionally the marker recorder) is initialized. */
+function afterQueryInit() {
+    Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
+    if (Config.extendedMarkerStats()) {
+        MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
+        MarkerCache.buildCache(launchServer, (message) => {
+            Log.error(message, 'Failed to build marker cache:');
+            Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+            Config.disableExtendedMarkerStats();
+            MarkerCache = null;
+            launchServer();
+        });
+    } else {
+        // If extended marker stats aren't enabled, just create the server now.
+        Log.info('Creating server...');
+        launchServer();
+    }
 }
 
 export default run;
@@ -83,19 +101,16 @@ function setupTerminateHandlers() {
         Log.critical(err.message);
         Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
         Log.error('The server ran into an unexpected problem, exiting...');
-        if (QueryManager) {
-            QueryManager.close();
-        }
+        QueryManager?.close();
+        BackupManager?.close();
         process.exit(1);
     });
 
     // Capture Ctrl+C and cleanly exit the process
     process.on('SIGINT', () => {
         Log.info('SIGINT detected, exiting...');
-        if (QueryManager) {
-            QueryManager.close();
-        }
-
+        QueryManager?.close();
+        BackupManager?.close();
         process.exit(0);
     });
 }
@@ -236,6 +251,8 @@ const EndpointMap = {
     get_stats    : (params, res) => allStats(params.i('id'), res),
     get_config   : (_     , res) => getConfig(res),
     log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
+    purge_check  : (params, res) => purgeCheck(params.i('id'), res), 
+    restore      : (params, res) => restoreMarker(...params.ints('markerId', 'sectionId'), res),
 };
 
 /**
@@ -334,7 +351,7 @@ function queryIds(keys, res) {
         }
 
         rows.forEach(row => {
-            markers[row.metadata_item_id].push(new MarkerData(row));
+            markers[row.episode_id].push(new MarkerData(row));
         });
 
         return jsonSuccess(res, markers);
@@ -357,7 +374,7 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        QueryManager.getEpisodeMarkers(currentMarker.metadata_item_id, (err, rows) => {
+        QueryManager.getEpisodeMarkers(currentMarker.episode_id, (err, rows) => {
             if (err) {
                 return jsonError(res, 400, err);
             }
@@ -395,7 +412,13 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
                     }
                 }
 
-                return jsonSuccess(res, { metadataItemId : currentMarker.metadata_item_id, id : markerId, start : startMs, end : endMs, index : newIndex });
+                const newMarker = new MarkerData(currentMarker);
+                const oldStart = newMarker.start;
+                const oldEnd = newMarker.end;
+                newMarker.start = startMs;
+                newMarker.end = endMs;
+                BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
+                return jsonSuccess(res, { episodeId : currentMarker.episode_id, id : markerId, start : startMs, end : endMs, index : newIndex });
             });
 
         });
@@ -414,64 +437,19 @@ function addMarker(metadataId, startMs, endMs, res) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
 
-    QueryManager.getEpisodeMarkers(metadataId, (err, rows) => {
-        if (err) {
-            return jsonError(res, 400, err.message);
-        }
+    const successFunc = (allMarkers, newMarker) => {
+        updateMarkerBreakdownCache(metadataId, allMarkers.length - 1, 1 /*delta*/);
+        MarkerCache?.addMarkerToCache(metadataId, newMarker.id);
+        const markerData = new MarkerData(newMarker);
+        BackupManager?.recordAdd(markerData);
+        jsonSuccess(res, markerData);
+    };
 
-        let allMarkers = rows;
-        let newIndex = 0;
-        let foundNewIndex = false;
-        for (let marker of allMarkers) {
-            if (foundNewIndex) {
-                marker.newIndex = marker.index + 1;
-                continue;
-            }
+    const failureFunc = (userError, message) => {
+        return jsonError(res, userError ? 400 : 500, message);
+    };
 
-            if (marker.end >= startMs && marker.start <= endMs) {
-                // Overlap, this should be handled client-side
-                return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-            }
-
-            if (marker.start > startMs) {
-                newIndex = marker.index;
-                foundNewIndex = true;
-                marker.newIndex = marker.index + 1;
-            } else {
-                marker.newIndex = marker.index;
-            }
-        }
-
-        if (!foundNewIndex) {
-            newIndex = allMarkers.length;
-        }
-
-        QueryManager.addMarker(metadataId, newIndex, startMs, endMs, (err) => {
-            if (err) {
-                return jsonError(res, 400, err);
-            }
-
-            // Insert succeeded, update indexes of other markers if necessary
-            for (const marker of allMarkers) {
-                if (marker.index != marker.newIndex) {
-                    QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
-                }
-            }
-
-            // Return our new values directly from the table
-            QueryManager.getNewMarker(metadataId, newIndex, (err, row) => {
-                if (err) {
-                    // We still succeeded, but failed to get the right data after it was inserted?
-                    return jsonSuccess(res);
-                }
-
-                MarkerCache?.addMarkerToCache(metadataId, row.id);
-                jsonSuccess(res, new MarkerData(row));
-            });
-
-            updateMarkerBreakdownCache(metadataId, allMarkers.length, 1 /*delta*/);
-        });
-    });
+    QueryManager.addMarker(metadataId, startMs, endMs, successFunc, failureFunc);
 }
 
 /**
@@ -482,10 +460,15 @@ function addMarker(metadataId, startMs, endMs, res) {
 function deleteMarker(markerId, res) {
     QueryManager.getSingleMarker(markerId, (err, row) => {
         if (err || !row) {
+            Log.error(err.message, `Failed to get marker to delete`);
+            return jsonError(res, 500, "Error getting intro marker.");
+        }
+
+        if (!row) {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        QueryManager.getEpisodeMarkers(row.metadata_item_id, (err, rows) => {
+        QueryManager.getEpisodeMarkers(row.episode_id, (err, rows) => {
             if (err) {
                 return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
             }
@@ -517,9 +500,11 @@ function deleteMarker(markerId, res) {
                 }
 
                 MarkerCache?.removeMarkerFromCache(markerId);
-                updateMarkerBreakdownCache(row.metadata_item_id, rows.length, -1 /*delta*/);
+                updateMarkerBreakdownCache(row.episode_id, rows.length, -1 /*delta*/);
 
-                return jsonSuccess(res, new MarkerData(row));
+                const deletedMarker = new MarkerData(row);
+                BackupManager?.recordDelete(deletedMarker);
+                return jsonSuccess(res, deletedMarker);
             });
         });
     });
@@ -782,4 +767,45 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
     }
 
     return jsonSuccess(res);
+}
+
+
+/**
+ * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
+ * @param {number} metadataId The episode/season/show id
+ * @param {Http.ServerResponse} res */
+ function purgeCheck(metadataId, res) {
+    if (!BackupManager || !Config.backupActions()) {
+        return jsonError(res, 400, 'Feature not enabled');
+    }
+
+    BackupManager.checkForPurges(metadataId, (err, markers) => {
+        if (err) {
+            return jsonError(res, 500, err.message);
+        }
+
+        Log.info(markers, `Found ${markers.length} missing markers:`);
+        jsonSuccess(res, markers);
+    });
+}
+
+/**
+ * Attempts to restore the last known state of the marker with the given id.
+ * @param {number} oldMarkerId
+ * @param {number} sectionId
+ * @param {Http.ServerResponse} res */
+function restoreMarker(oldMarkerId, sectionId, res) {
+    if (!BackupManager || Config.backupActions()) {
+        return jsonError(res, 400, 'Feature not enabled');
+    }
+
+    BackupManager.restoreMarker(oldMarkerId, sectionId, (err, restoredMarker) => {
+        if (err) {
+            return jsonError(res, 500, err);
+        }
+
+        const markerData = new MarkerData(restoredMarker);
+        MarkerCache?.addMarkerToCache(markerData.episodeId, markerData.id);
+        jsonSuccess(res, markerData);
+    });
 }

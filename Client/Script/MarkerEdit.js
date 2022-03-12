@@ -131,7 +131,8 @@ class MarkerEdit {
         }
 
         let failureFunc = (response) => {
-            Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.\n\nServer response:\n${errorMessage(response)}`, 'OK');
+            Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.<br><br>
+            Server response:<br>${errorMessage(response)}`, 'OK');
         }
     
         jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, this.onMarkerAddSuccess.bind(this), failureFunc);
@@ -142,7 +143,7 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerAddSuccess(response) {
         const newMarker = new MarkerData().setFromJson(response);
-        PlexState.getEpisode(newMarker.metadataItemId).addMarker(newMarker, this.markerRow.row());
+        PlexState.getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
     }
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
@@ -176,7 +177,7 @@ class MarkerEdit {
      * @param {Object} response The response from the server, a serialized version of a minimal {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        PlexState.getEpisode(partialMarker.metadataItemId).editMarker(partialMarker);
+        PlexState.getEpisode(partialMarker.episodeId).editMarker(partialMarker);
         this.resetAfterEdit();
     }
 

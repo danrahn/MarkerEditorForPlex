@@ -72,6 +72,9 @@ class PlexFeatures extends ConfigBase {
     /** Setting for gathering all markers before launch to compile additional statistics. */
     extendedMarkerStats = true;
 
+    /** Setting for logging all marker actions, for future use in restoring and/or purging user edited markers. */
+    backupActions = false;
+
     /** Setting for displaying timestamped preview thumbnails when editing or adding markers.
      * @type {PreviewThumbnails} */
     previewThumbnails = {};
@@ -90,6 +93,7 @@ class PlexFeatures extends ConfigBase {
 
         this.autoOpen = this.#getOrDefault('autoOpen', true);
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
+        this.backupActions = this.#getOrDefault('backupActions', false); // Disabled by default pending further testing.
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', { enabled : false, metadataPath : '' });
         if (this.previewThumbnails.enabled && !this.previewThumbnails.metadataPath || !existsSync(this.previewThumbnails.metadataPath)) {
             throw new Error(`Preview thumbnails are enabled, but the metadata path '${this.previewThumbnails.metadataPath}' does not exist.`);
@@ -161,6 +165,7 @@ class PlexIntroEditorConfig extends ConfigBase {
     metadataPath() { return this.#features.previewThumbnails.metadataPath; }
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
+    backupActions() { return this.#features.backupActions; }
 
     /** Sets the server side log level taken from the config file */
     #setLogLevel() {
