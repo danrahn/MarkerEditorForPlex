@@ -229,6 +229,14 @@ class SeasonResultRow extends ResultRow {
      * @type {SeasonResultRow} */
     #seasonTitle;
 
+    /** @typedef {!import('../../Server/MarkerBackupManager').MarkerAction} MarkerAction */
+
+    /**
+     * The set of purged markers found for episodes in this season. Aggregated at the season level
+     * to avoid individual requests for each episode.
+     * @type {{[episodeId: number]: MarkerAction}} */
+    #purgeData = {};
+
     constructor(season) {
         super(season, 'seasonResult');
     }
@@ -269,12 +277,21 @@ class SeasonResultRow extends ResultRow {
 
     /** Click handler for clicking a show row. Initiates a request for all episodes in the given season. */
     #seasonClick() {
-        const season = this.season();
         if (!PlexState.setActiveSeason(this)) {
             Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
             return;
         }
 
+        if (Settings.backupEnabled()) {
+            this.#purgeCheck();
+        } else {
+            this.#getEpisodes();
+        }
+    }
+
+    /** Make a request for all episodes in this season. */
+    #getEpisodes() {
+        const season = this.season();
         let failureFunc = response => {
             Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${errorMessage(response)}`, 'OK');
         };
@@ -337,6 +354,41 @@ class SeasonResultRow extends ResultRow {
         if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
         super.updateMarkerBreakdown();
     }
+
+    /** Makes a request to the server for all purged markers in this season. Forwards to `#getEpisodes` on failure. */
+    #purgeCheck() {
+        let failureFunc = response => {
+            Log.error(errorMessage(response), `Unable to check for purged markers`);
+            this.#getEpisodes();
+        }
+    
+        jsonRequest('purge_check', { id : this.season().metadataId }, this.#onPurgeResponse.bind(this), failureFunc.bind(this));
+    }
+
+    /**
+     * Takes the array of purged markers found and adds them to `#purgeData`.
+     * @param {MarkerAction[]} purgedMarkers */
+    #onPurgeResponse(purgedMarkers) {
+        this.#purgeData = {};
+        for (const purged of purgedMarkers) {
+            if (!this.#purgeData[purged.episode_id]) {
+                this.#purgeData[purged.episode_id] = [];
+            }
+
+            this.#purgeData[purged.episode_id].push(purged);
+        }
+
+        this.#getEpisodes();
+    }
+
+    /**
+     * Retreieves markers that we think should exist, but don't.
+     * Returns an empty array if no purged markers are found, or the feature is not enabled.
+     * @param {number} episodeId
+     * @returns {MarkerAction[]} */
+    getPurgedMarkers(episodeId) {
+        return this.#purgeData[episodeId] ?? [];
+    }
 }
 
 /**
@@ -348,6 +400,9 @@ class EpisodeResultRow extends ResultRow {
      * episodes in the season need to be shown/hidden.
      * @type {SeasonResultRow} */
     #seasonRow;
+
+    /** Tracks whether this episode has has markers that we think have been purged from the Plex database. */
+    #hasPurgedMarkers = false;
 
     constructor(episode, seasonRow) {
         super(episode);
@@ -381,6 +436,15 @@ class EpisodeResultRow extends ResultRow {
             ep.markerTable(),
             buildNode('hr', { class : 'episodeSeparator' })
         );
+        
+        const purgeData = this.#seasonRow.getPurgedMarkers(ep.metadataId);
+        if (purgeData.length > 0) {
+            this.#hasPurgedMarkers = true;
+            const markerCount = $$('.episodeResultMarkers', row);
+            markerCount.innerText += ' (!)';
+            markerCount.title = ''; // Don't overlap with the row title.
+            Tooltip.setTooltip(markerCount, `Found ${purgeData.length} purged markers for this episode.`);
+        }
 
         this.setHtml(row);
         return row;
@@ -411,7 +475,8 @@ class EpisodeResultRow extends ResultRow {
      * Updates the marker statistics both in the UI and the client state.
      * @param {number} delta 1 if a marker was added to this episode, -1 if one was removed. */
     updateMarkerBreakdown(delta) {
-        $$('.episodeResult', this.html()).children[1].innerText = plural(this.episode().markerCount(), 'Marker');
+        const text = plural(this.episode().markerCount(), 'Marker') + (this.#hasPurgedMarkers ? ' (!)' : '');
+        $$('.episodeResultMarkers', this.html()).innerText = text;
         if (Settings.showExtendedMarkerInfo()) {
             PlexState.updateBreakdownCache(this.episode(), delta);
         }
