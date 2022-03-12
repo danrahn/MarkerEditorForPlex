@@ -438,9 +438,9 @@ function addMarker(metadataId, startMs, endMs, res) {
     }
 
     const successFunc = (allMarkers, newMarker) => {
-        updateMarkerBreakdownCache(metadataId, allMarkers.length - 1, 1 /*delta*/);
-        MarkerCache?.addMarkerToCache(metadataId, newMarker.id);
         const markerData = new MarkerData(newMarker);
+        updateMarkerBreakdownCache(markerData, allMarkers.length - 1, 1 /*delta*/);
+        MarkerCache?.addMarkerToCache(newMarker);
         BackupManager?.recordAdd(markerData);
         jsonSuccess(res, markerData);
     };
@@ -458,29 +458,27 @@ function addMarker(metadataId, startMs, endMs, res) {
  * @param {Http.ServerResponse} res
  */
 function deleteMarker(markerId, res) {
-    QueryManager.getSingleMarker(markerId, (err, row) => {
-        if (err || !row) {
+    QueryManager.getSingleMarker(markerId, (err, markerToDelete) => {
+        if (err || !markerToDelete) {
             Log.error(err.message, `Failed to get marker to delete`);
             return jsonError(res, 500, "Error getting intro marker.");
         }
 
-        if (!row) {
+        if (!markerToDelete) {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        QueryManager.getEpisodeMarkers(row.episode_id, (err, rows) => {
+        QueryManager.getEpisodeMarkers(markerToDelete.episode_id, (err, allMarkers) => {
             if (err) {
                 return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
             }
 
             let deleteIndex = 0;
-            for (const row of rows) {
-                if (row.id == markerId) {
-                    deleteIndex = row.index;
+            for (const marker of allMarkers) {
+                if (marker.id == markerId) {
+                    deleteIndex = marker.index;
                 }
             }
-
-            const allMarkers = rows;
 
             // Now that we're done rearranging, delete the original tag.
             QueryManager.deleteMarker(markerId, (err) => {
@@ -489,7 +487,7 @@ function deleteMarker(markerId, res) {
                 }
 
                 // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
-                if (deleteIndex < rows.length - 1) {
+                if (deleteIndex < allMarkers.length - 1) {
 
                     // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
                     for (const marker of allMarkers) {
@@ -499,10 +497,9 @@ function deleteMarker(markerId, res) {
                     }
                 }
 
+                const deletedMarker = new MarkerData(markerToDelete);
                 MarkerCache?.removeMarkerFromCache(markerId);
-                updateMarkerBreakdownCache(row.episode_id, rows.length, -1 /*delta*/);
-
-                const deletedMarker = new MarkerData(row);
+                updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
                 BackupManager?.recordDelete(deletedMarker);
                 return jsonSuccess(res, deletedMarker);
             });
@@ -679,26 +676,29 @@ function allStats(sectionId, res) {
 
 /**
  * Ensure our marker bucketing stays up to date after the user adds or deletes markers.
- * @param {number} metadataId The metadata id of the episode to adjust.
+ * @param {MarkerData} marker The marker that changed.
  * @param {number} oldMarkerCount The old marker count bucket.
  * @param {number} delta The change from the old marker count, -1 for marker removals, 1 for additions.
  */
-function updateMarkerBreakdownCache(metadataId, oldMarkerCount, delta) {
-    QueryManager.librarySectionFromEpisode(metadataId, (err, row) => {
-        if (err) {
-            Log.warn(`Unable to determine the section id of metadata item ${metadataId}, wiping cache to ensure things stay in sync`);
-            markerBreakdownCache = {};
-            return;
-        }
+function updateMarkerBreakdownCache(marker, oldMarkerCount, delta) {
+    const section = marker.sectionId;
+    if (!markerBreakdownCache[section]) {
+        return;
+    }
 
-        const section = row.library_section_id;
-        if (!markerBreakdownCache[section]) {
-            return;
-        }
+    if (!(oldMarkerCount in markerBreakdownCache[section])) {
+        Log.warn(`updateMarkerBreakdownCache: no bucket for oldMarkerCount. That's not right!`);
+        markerBreakdownCache[section][oldMarkerCount] = 1; // Bring it down to zero I guess.
+    }
 
-        markerBreakdownCache[section][oldMarkerCount] -= 1;
-        markerBreakdownCache[section][oldMarkerCount + delta] += 1;
-    });
+    markerBreakdownCache[section][oldMarkerCount] -= 1;
+
+    const newMarkerCount = oldMarkerCount + delta;
+    if (!(newMarkerCount in markerBreakdownCache[section])) {
+        markerBreakdownCache[section][newMarkerCount] = 0;
+    }
+
+    markerBreakdownCache[section][newMarkerCount] += 1;
 }
 
 /**
@@ -804,8 +804,7 @@ function restoreMarker(oldMarkerId, sectionId, res) {
             return jsonError(res, 500, err);
         }
 
-        const markerData = new MarkerData(restoredMarker);
-        MarkerCache?.addMarkerToCache(markerData.episodeId, markerData.id);
-        jsonSuccess(res, markerData);
+        MarkerCache?.addMarkerToCache(restoredMarker);
+        jsonSuccess(res, new MarkerData(restoredMarker));
     });
 }
