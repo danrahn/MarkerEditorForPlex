@@ -364,7 +364,8 @@ INSERT INTO actions
                 if (err) { return callback(err, null); }
                 let pruned = [];
                 for (const action of actions) {
-                    if (!markerMap[action.marker_id]) {
+                    // Don't add markers that exist in the database, or whose last recorded action was a delete.
+                    if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
                         pruned.push(action);
                     }
                 }
@@ -400,10 +401,10 @@ INSERT INTO actions
         // ignoring those whose last operation was a delete.
         const query = `
 SELECT *, MAX(id) FROM actions
-WHERE ${mediaType}_id=? AND section_uuid=? AND op!=?
+WHERE ${mediaType}_id=? AND section_uuid=?
 GROUP BY marker_id, ${mediaType}_id, section_uuid
 ORDER BY id DESC;`
-        const parameters = [metadataId, this.#uuids[sectionId], MarkerOp.Delete];
+        const parameters = [metadataId, this.#uuids[sectionId]];
         this.#actions.all(query, parameters, (err, actions) => {
             if (err) { return callback(err.message, null); }
             callback(null, actions);
