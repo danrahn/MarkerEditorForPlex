@@ -401,7 +401,7 @@ INSERT INTO actions
         // ignoring those whose last operation was a delete.
         const query = `
 SELECT *, MAX(id) FROM actions
-WHERE ${mediaType}_id=? AND section_uuid=?
+WHERE ${mediaType}_id=? AND section_uuid=? AND restored_id IS NULL
 GROUP BY marker_id, ${mediaType}_id, section_uuid
 ORDER BY id DESC;`
         const parameters = [metadataId, this.#uuids[sectionId]];
