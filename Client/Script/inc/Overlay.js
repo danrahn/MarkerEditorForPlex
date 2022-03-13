@@ -3,6 +3,7 @@ import { Log } from '../../../Shared/ConsoleLog.js';
 
 import Animation from './Animate.js';
 import Tooltip from './Tooltip.js';
+import ThemeColors from '../ThemeColors.js';
 
 /**
  * Class to display overlays on top of a webpage.
@@ -166,14 +167,12 @@ let Overlay = new function()
         let close = buildNode(
             "img",
             {
-                src : 'i/c1c1c1/cancel.svg',
-                style : "position: fixed; top: 10px; right: 20px; width: 25px"
+                src : `i/${ThemeColors.get('standard')}/cancel.svg`,
+                class : 'overlayCloseButton'
             },
             0,
             {
-                click : Overlay.dismiss,
-                mouseover : function() { this.src = 'i/e1e1e1/cancel.svg'; },
-                mouseout : function() { this.src = 'i/c1c1c1/cancel.svg'; }
+                click : Overlay.dismiss
             });
         Tooltip.setTooltip(close, "Close");
         $("#mainOverlay").appendChild(close);

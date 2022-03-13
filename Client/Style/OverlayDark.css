@@ -1,0 +1,11 @@
+#mainOverlay {
+    background-color: rgba(0,0,0,0.6);
+}
+
+#overlayContainer {
+    color: rgb(196, 196, 196);
+}
+
+.darkerOverlay {
+    background-color: rgba(0,0,0,0.3);
+}

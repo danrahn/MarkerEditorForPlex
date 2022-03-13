@@ -6,7 +6,6 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0,0,0,0.6);
     overflow: auto;
     z-index: 3; /* Show over nav */
 }
@@ -14,11 +13,6 @@
 #overlayContainer {
     width: auto;
     height: auto;
-    color: rgb(196, 196, 196);
-}
-
-.darkerOverlay {
-    background-color: rgba(0,0,0,0.3);
 }
 
 .fullOverlay {
@@ -67,6 +61,18 @@
     position: relative;
     top: 50%;
     transform: translateY(-50%);
+}
+
+.overlayCloseButton {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    width: 25px;
+    opacity: 0.6;
+}
+
+.overlayCloseButton:hover {
+    opacity: 1;
 }
 
 /* Desktop/Landscape */

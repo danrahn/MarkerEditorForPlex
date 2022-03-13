@@ -247,13 +247,6 @@ class MarkerTable {
     }
 
     /**
-     * After a marker is added/removed, update the count header for the episode.
-     * TODO: Is it worth also updating tooltips if extended marker stats are enabled? */
-    #updateMarkerCount() {
-        $$('.episodeResult', this.#html.parentElement).children[1].innerText = plural(this.markerCount(), 'Marker');
-    }
-
-    /**
      * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row. */
     #onMarkerAdd() {
         const addRow = new NewMarkerRow(this.#parentRow.episode().metadataId);

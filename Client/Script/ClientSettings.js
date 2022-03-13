@@ -490,9 +490,9 @@ class ClientSettingsUI {
  * Main manager that keeps track of client-side settings.
  */
 class ClientSettingsManager {
-    /** a `link` element that is used to swap between light and dark theme.
-     * @type {HTMLElement} */
-    #themeStyle;
+    /** `link` elements that are used to swap between light and dark themes.
+     * @type {HTMLLinkElement[]} */
+    #themeStyles;
 
     /** The current client settings.
      * @type {ClientSettings} */
@@ -520,9 +520,14 @@ class ClientSettingsManager {
             this.#settings.theme.dark = this.#themeQuery != 'not all' && this.#themeQuery.matches;
         }
 
-        const href = `Client/Style/theme${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
-        this.#themeStyle = buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
-        $$('head').appendChild(this.#themeStyle);
+        const styleNode = (link) => {
+            const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
+            return buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
+        };
+        this.#themeStyles = [styleNode('theme'), styleNode('Overlay')];
+        for (const style of this.#themeStyles) {
+            $$('head').appendChild(style);
+        }
 
         this.#checkbox = $('#darkModeCheckbox');
         this.#checkbox.checked = this.isDarkTheme();
@@ -642,10 +647,10 @@ class ClientSettingsManager {
             return false;
         }
 
-        if (isDark) {
-            this.#themeStyle.href = 'Client/Style/themeDark.css';
-        } else {
-            this.#themeStyle.href = 'Client/Style/themeLight.css';
+        let cssFind = isDark ? 'Light.css' : 'Dark.css';
+        let cssRep = isDark ? 'Dark.css' : 'Light.css';
+        for (const style of this.#themeStyles) {
+            style.href = style.href.replace(cssFind, cssRep);
         }
 
         this.#adjustIcons();
