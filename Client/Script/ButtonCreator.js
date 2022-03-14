@@ -19,7 +19,7 @@ class ButtonCreator {
     static fullButton(text, icon, altText, color, clickHandler, attributes={}, thisArg=null) {
         let button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes, thisArg);
         return appendChildren(button,
-            buildNode('img', { src : ButtonCreator.#iconSrc(icon, color), alt : altText, theme : color }),
+            buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }),
             buildNode('span', {}, text));
     }
 
@@ -34,7 +34,7 @@ class ButtonCreator {
     static iconButton(icon, altText, color, clickHandler, thisArg=null) {
         let button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, { title : altText }, thisArg);
         return appendChildren(button,
-            buildNode('img', { src : ButtonCreator.#iconSrc(icon, color), alt : altText, theme : color }));
+            buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }));
     }
     /**
      * Creates a tabbable button in the marker table that doesn't have an icon.
@@ -47,13 +47,6 @@ class ButtonCreator {
         return appendChildren(button, buildNode('span', {}, text));
     }
 
-    /**
-     * Retrieve a thumbnail to an SVG icon.
-     * @param {string} icon The name of the icon to retrieve.
-     * @param {string} color The color category to use for the icon. */
-    static #iconSrc(icon, color) {
-        return `/i/${ThemeColors.get(color)}/${icon}.svg`;
-    }
 
     /**
      * Returns an empty button with the given class
@@ -69,7 +62,13 @@ class ButtonCreator {
             { click : clickHandler, keyup : ButtonCreator.tableButtonKeyup },
             { thisArg : thisArg });
         for (const [attribute, value] of Object.entries(attributes)) {
-            button.setAttribute(attribute, value);
+            if (attribute == 'class') { // Don't clash with the other classes set above.
+                for (const className of value.split(' ')) {
+                    button.classList.add(className);
+                }
+            } else {
+                button.setAttribute(attribute, value);
+            }
         }
 
         return button;

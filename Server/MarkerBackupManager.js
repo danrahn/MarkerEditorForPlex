@@ -445,8 +445,25 @@ ORDER BY id DESC;`
 
             // Apply the latest data we have.
             const restore = rows[0];
-            this.#plexQueries.addMarker(restore.episodeId, restore.start, restore.end, successFunc, failureFunc, true /*allowOverlap*/);
+            this.#plexQueries.addMarker(restore.episode_id, restore.start, restore.end, successFunc, failureFunc, true /*allowOverlap*/);
         });
+    }
+
+    /**
+     * Ignores a purged marker to exclude it from purge queries.
+     * @param {number} oldMarkerId The id of the old marker we're trying to restore.
+     * @param {number} sectionId The id of the section the old marker belonged to.
+     * @param {(err: Error?) => void} callback */
+    ignorePurgedMarker(oldMarkerId, sectionId, callback) {
+        if (!(sectionId in this.#uuids)) {
+            callback(`Unable to restore marker - unexpected section id: ${sectionId}`);
+            return;
+        }
+
+        // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
+        // while also letting us know that there isn't a real marker that
+        const query = 'UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?;';
+        this.#actions.run(query, [oldMarkerId, this.#uuids[sectionId]], callback);
     }
 }
 

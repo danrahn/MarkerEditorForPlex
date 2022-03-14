@@ -29,6 +29,15 @@ class ThemeColors {
     static get(category) {
         return ThemeColors.#dict[this.#isDark ? 0 : 1][category];
     }
+
+    /**
+     * Get the URL to the given icon with the given color category.
+     * @param {string} iconName The name of the icon to retrieve
+     * @param {string} category The color category for the icon.
+     */
+    static getIcon(iconName, category) {
+        return `/i/${ThemeColors.get(category)}/${iconName}.svg`;
+    }
 }
 
 export default ThemeColors;

@@ -167,7 +167,7 @@ let Overlay = new function()
         let close = buildNode(
             "img",
             {
-                src : `i/${ThemeColors.get('standard')}/cancel.svg`,
+                src : ThemeColors.getIcon('cancel', 'standard'),
                 class : 'overlayCloseButton'
             },
             0,

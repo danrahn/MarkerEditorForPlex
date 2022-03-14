@@ -253,6 +253,7 @@ const EndpointMap = {
     log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
     purge_check  : (params, res) => purgeCheck(params.i('id'), res), 
     restore      : (params, res) => restoreMarker(...params.ints('markerId', 'sectionId'), res),
+    ignore_purge : (params, res) => ignorePurgedMarker(...params.ints('markerId', 'sectionId'), res),
 };
 
 /**
@@ -799,7 +800,7 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
  * @param {number} sectionId
  * @param {Http.ServerResponse} res */
 function restoreMarker(oldMarkerId, sectionId, res) {
-    if (!BackupManager || Config.backupActions()) {
+    if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
@@ -810,5 +811,24 @@ function restoreMarker(oldMarkerId, sectionId, res) {
 
         MarkerCache?.addMarkerToCache(restoredMarker);
         jsonSuccess(res, new MarkerData(restoredMarker));
+    });
+}
+
+/**
+ * Ignores the purged marker with the given id, preventing the user from seeing it again.
+ * @param {number} oldMarkerId
+ * @param {number} sectionId
+ * @param {Http.ServerResponse} res */
+function ignorePurgedMarker(oldMarkerId, sectionId, res) {
+    if (!BackupManager || !Config.backupActions()) {
+        return jsonError(res, 400, 'Feature not enabled');
+    }
+
+    BackupManager.ignorePurgedMarker(oldMarkerId, sectionId, (err) => {
+        if (err) {
+            return jsonError(res, 500, err.message);
+        }
+
+        jsonSuccess(res);
     });
 }

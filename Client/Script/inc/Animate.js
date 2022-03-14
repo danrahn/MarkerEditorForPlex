@@ -105,7 +105,8 @@ let Animation = new function()
         this.queue(func, element, ...args);
     };
 
-    /** Our animation queue allows us to keep track of the current animations that are pending execution */
+    /** Our animation queue allows us to keep track of the current animations that are pending execution
+     * @type {{[id: number]: AnimationParams[][]}} */
     let animationQueue = {};
 
     /**
@@ -142,12 +143,19 @@ let Animation = new function()
             }
         }
 
+        /** @type {AnimationParams[][]} */
         let queue = animationQueue[element.id];
-        queue[0].shift();
+        let justFired = queue[0].shift();
         if (queue[0].length == 0)
         {
+            Log.info(justFired.args);
             // Clear it from our dictionary to save some space
             /*@__PURE__*/Log.tmi(`No more animations in the current group for ${element.id}, removing it from the queue`);
+            if (justFired.args.length >= 4 && typeof(justFired.args[3]) == 'function') // This is in major need of explicitness
+            {
+                justFired.args[3]();
+            }
+
             queue.shift();
         }
         else
@@ -369,14 +377,19 @@ function Color(r, g, b, a)
             // Cheap (character-count-wise) conversion from "#ABC" to "#AABBCC"
             r = r[0] + r[1] + r[1] + r[2] + r[2] + r[3] + r[3];
         }
+        else if (r.length == 5)
+        {
+            // Alpha-channel #ABCD to #AABBCCDD
+            r = r[0] + r[1] + r[1] + r[2] + r[2] + r[3] + r[3] + r[4] + r[4];
+        }
 
         // Assume rgb string
-        result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(r);
+        result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i.exec(r);
 
         this.r = parse(result[1], 16);
         this.g = parse(result[2], 16);
         this.b = parse(result[3], 16);
-        this.a = 1;
+        this.a = result[4] ? (parse(result[4], 16) / 255): 1;
     }
     else
     {

@@ -10,6 +10,7 @@ import Overlay from "./inc/Overlay.js";
 import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
 import { UISection } from "./PlexClientUI.js";
+import PurgeTable from "./PurgeTable.js";
 
 /** Represents a single row of a show/season/episode in the results page. */
 class ResultRow {
@@ -437,17 +438,32 @@ class EpisodeResultRow extends ResultRow {
             buildNode('hr', { class : 'episodeSeparator' })
         );
         
-        const purgeData = this.#seasonRow.getPurgedMarkers(ep.metadataId);
-        if (purgeData.length > 0) {
-            this.#hasPurgedMarkers = true;
-            const markerCount = $$('.episodeResultMarkers', row);
-            markerCount.innerText += ' (!)';
-            markerCount.title = ''; // Don't overlap with the row title.
-            Tooltip.setTooltip(markerCount, `Found ${purgeData.length} purged markers for this episode.`);
-        }
+        this.#setupPurgeCallback(row);
 
         this.setHtml(row);
         return row;
+    }
+
+    /** Adds the click handler to the 'X markers' text that will display purged markers for the episode. */
+    #setupPurgeCallback(row) {
+        const episode = this.episode();
+        const purgeData = this.#seasonRow.getPurgedMarkers(episode.metadataId);
+        if (purgeData.length <= 0) {
+            return;
+        }
+
+        this.#hasPurgedMarkers = true;
+        const markerCount = $$('.episodeResultMarkers', row);
+        markerCount.innerText += ' (!)';
+        markerCount.title = ''; // Don't overlap with the row title.
+        Tooltip.setTooltip(markerCount, `Found ${purgeData.length} purged markers for this episode.<br>Click for details.`);
+        markerCount.addEventListener('click', this.#onEpisodePurgeClick.bind(this, purgeData));
+    }
+
+    /** Launches the purge table overlay.
+     * @param {MarkerAction[]} purgeData */
+    #onEpisodePurgeClick(purgeData) {
+        new PurgeTable(PlexState.activeSection(), purgeData).show();
     }
 
     /**
@@ -455,6 +471,10 @@ class EpisodeResultRow extends ResultRow {
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
     #showHideMarkerTableEvent(e) {
+        if (this.#hasPurgedMarkers && e.target.classList.contains('episodeResultMarkers')) {
+            return; // Don't show/hide if we're repurposing the marker display.
+        }
+
         const expanded = !$$('table', this.episode().markerTable()).classList.contains('hidden');
         if (e.ctrlKey) {
             this.#seasonRow.showHideMarkerTables(expanded);

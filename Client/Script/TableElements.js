@@ -57,6 +57,11 @@ class TableElements {
         return TableElements.#classColumn(value, className);
     }
 
+    /** Returns a time column that doesn't take thumbnails into consideration. */
+    static shortTimeColumn(value) {
+        return TableElements.#classColumn(value, 'timeColumn');
+    }
+
     /**
      * Returns a column with a fixed width and centered contents.
      * @param {string} value The text of the column. */
