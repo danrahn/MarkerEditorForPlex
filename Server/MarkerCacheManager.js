@@ -232,25 +232,70 @@ class MarkerCacheManager {
         }
     }
 
+    /**
+     * Retrieve marker breakdown stats for the given show.
+     * @param {number} metadataId The metadata id for the TV Show */
     getShowStats(metadataId) {
         let show = this.#showFromId(metadataId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
+            // Attempt to update the cache after the fact.
+            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
             return null;
         }
 
         return show.markerBreakdown.data();
     }
 
+    /**
+     * Retrieve marker breakdown stats for a given steason of a show.
+     * @param {number} showId The metadata id of the show that `seasonId` belongs to.
+     * @param {number} seasonId The metadata id of the season. */
     getSeasonStats(showId, seasonId) {
         // Like getShowStats, just the show's metadataId is okay.
         let show = this.#showFromId(showId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
+            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
             return null;
         }
 
+        // Show exists, but season is new? Try to update.
+        if (!show.seasons[seasonId]) {
+            this.#tryUpdateCache(MarkerCacheManager.#seasonMarkerQuery, metadataId);
+        }
+
         return show.seasons[seasonId]?.markerBreakdown.data();
+    }
+
+    /**
+     * Attempts to add additional markers to a show/series if none were previously found.
+     * This can happen if the user is (inadvisably) running PMS and adding shows/episodes
+     * after the initial startup of this server.
+     * @param {string} query The query to run on the database
+     * @param {number} metadataId */
+    #tryUpdateCache(query, metadataId) {
+        this.#database.all(query, [metadataId], (err, rows) => {
+            if (err) {
+                return Log.error(`Unable to update marker cache for metadata item ${metadataId}`);
+            }
+
+            if (this.#showFromId(metadataId)) {
+                return Log.verbose('getShowStats: Multiple update requests fired for this item, ignoring this one.');
+            }
+
+            let markerCount = 0;
+            for (const row of rows) {
+                this.#addMarkerData(row);
+                if (row.tag_id != this.#tagId) {
+                    continue;
+                }
+
+                ++markerCount;
+            }
+
+            Log.info(`tryUpdateCache: Cached ${markerCount} markers for metadata item ${metadataId}`);
+        });
     }
 
     #showFromId(showId) {
@@ -319,7 +364,7 @@ class MarkerCacheManager {
      * One thing to note is that we join _all_ tags for an episode, not just markers. While
      * seemingly excessive, it's significantly faster than doing an outer join on a temporary
      * taggings table that's been filtered to only include markers. */
-    static #markerQuery = `
+    static #markerQueryBase = `
 SELECT
     marker.id AS id,
     episode.id AS episode_id,
@@ -331,7 +376,21 @@ FROM metadata_items episode
     INNER JOIN metadata_items season ON episode.parent_id=season.id
     LEFT JOIN taggings marker ON episode.id=marker.metadata_item_id
 WHERE episode.metadata_type=4
+    `;
+
+    static #markerQuerySort = `
 ORDER BY episode.id ASC;`;
+
+    static #markerQuery = MarkerCacheManager.#markerQueryBase + MarkerCacheManager.#markerQuerySort;
+
+    static #showMarkerQuery = MarkerCacheManager.#markerQueryBase + `
+AND season.parent_id=?
+` + MarkerCacheManager.#markerQuerySort;
+
+    static #seasonMarkerQuery = MarkerCacheManager.#markerQueryBase + `
+AND season.id=?
+` + MarkerCacheManager.#markerQuerySort;
+
 }
 
 export default MarkerCacheManager;

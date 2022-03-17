@@ -250,7 +250,7 @@ class PlexClientState {
                     resolve();
                 },
                 (res) => {
-                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${errorMessage(res)}`);
+                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${errorMessage(res)}`, 'OK');
                 });
         });
     }
