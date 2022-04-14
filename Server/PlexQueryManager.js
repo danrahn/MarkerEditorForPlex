@@ -161,7 +161,8 @@ FROM metadata_items e
     INNER JOIN metadata_items g ON p.parent_id=g.id
     INNER JOIN media_items m ON e.id=m.metadata_item_id
 WHERE e.parent_id=?
-GROUP BY e.id;`;
+GROUP BY e.id
+ORDER BY e.\`index\` ASC;`;
 
         this.#database.all(query, [seasonMetadataId], callback);
     }

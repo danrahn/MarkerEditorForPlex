@@ -100,7 +100,9 @@ class ResultRow {
     episodeDisplay(currentDisplay=null) {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        if (!Settings.showExtendedMarkerInfo()) {
+        if (!Settings.showExtendedMarkerInfo() || !mediaItem.markerBreakdown) {
+            // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
+            // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
             return baseText;
         }
 
@@ -331,9 +333,16 @@ class SeasonResultRow extends ResultRow {
         this.#seasonTitle = new SeasonResultRow(PlexState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow(true));
         addRow(buildNode('hr'));
+
+        // Returned data doesn't guarantee order. Create the rows, then sort by index
+        let episodeRows = [];
         for (const metadataId of Object.keys(data)) {
-            const resultRow = new EpisodeResultRow(PlexState.getEpisode(parseInt(metadataId)), this);
-            addRow(resultRow.buildRow(data[metadataId]));
+            episodeRows.push(new EpisodeResultRow(PlexState.getEpisode(parseInt(metadataId)), this));
+        }
+
+        episodeRows.sort((a, b) => a.episode().index - b.episode().index);
+        for (const resultRow of episodeRows) {
+            addRow(resultRow.buildRow(data[resultRow.episode().metadataId]));
             this.#episodes.push(resultRow);
         }
     }
