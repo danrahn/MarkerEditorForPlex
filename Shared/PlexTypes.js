@@ -349,7 +349,10 @@ class MarkerData extends PlexData {
             this.createdByUser = modified[modified.length - 1] == '*' || modified == marker.created_at;
 
             // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
-            this.modifiedDate = modified.substring(0, modified.length - 1) + 'Z';
+            this.modifiedDate = modified.substring(0, modified.length - 1);
+            if (!this.modifiedDate.endsWith('Z')) {
+                this.modifiedDate += 'Z';
+            }
         } else {
             this.createdByUser = false;
             this.modifiedDate = '';
@@ -357,7 +360,7 @@ class MarkerData extends PlexData {
 
         // Plex stores timestamps in local time for some reason, so only "convert" to UTC time
         // if the marker was created by the user.
-        this.createDate = marker.created_at + (this.createdByUser ? 'Z' : '');
+        this.createDate = marker.created_at + ((this.createdByUser && !marker.created_at.endsWith('Z')) ? 'Z' : '');
 
         this.id = marker.id;
         this.episodeId = marker.episode_id;
