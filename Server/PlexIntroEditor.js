@@ -66,6 +66,7 @@ function run() {
             Log.info('Initializing marker backup database...');
             BackupManager = new MarkerBackupManager(QueryManager, ProjectRoot, afterQueryInit);
         } else {
+            Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
             afterQueryInit();
         }
     });
@@ -76,7 +77,7 @@ function afterQueryInit() {
     Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
     if (Config.extendedMarkerStats()) {
         MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
-        MarkerCache.buildCache(launchServer, (message) => {
+        MarkerCache.buildCache(afterMarkerCacheManagerInit, (message) => {
             Log.error(message, 'Failed to build marker cache:');
             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
             Config.disableExtendedMarkerStats();
@@ -86,6 +87,23 @@ function afterQueryInit() {
     } else {
         // If extended marker stats aren't enabled, just create the server now.
         Log.info('Creating server...');
+        launchServer();
+    }
+}
+
+/** Called after the marker cache manager is initialized and checks for purged markers if the backup manager is enabled. */
+function afterMarkerCacheManagerInit() {
+    if (Config.backupActions()) {
+        BackupManager.buildAllPurges(MarkerCache, (err) => {
+            if (err) {
+                Log.error(err); // Log this, but don't fail. Maybe it will work next time.
+            } else {
+                Log.info(`Looked for purged markers, found ${BackupManager.purgeCount()}`);
+            }
+
+            launchServer();
+        });
+    } else {
         launchServer();
     }
 }

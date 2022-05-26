@@ -269,6 +269,13 @@ class MarkerCacheManager {
     }
 
     /**
+     * Return whether a marker with the given id exists in the database
+     * @param {number} markerId */
+    markerExists(markerId) {
+        return !!this.#allMarkers[markerId];
+    }
+
+    /**
      * Attempts to add additional markers to a show/series if none were previously found.
      * This can happen if the user is (inadvisably) running PMS and adding shows/episodes
      * after the initial startup of this server.

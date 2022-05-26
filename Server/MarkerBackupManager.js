@@ -10,6 +10,7 @@ import { Log } from "../Shared/ConsoleLog.js";
 import { MarkerData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
+import MarkerCacheManager from "./MarkerCacheManager.js";
 import PlexQueryManager from "./PlexQueryManager.js";
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
@@ -104,10 +105,15 @@ CREATE TABLE IF NOT EXISTS actions (
 
 /**
  * A full row in the Actions table
- * @typedef {{id: number, op: MarkerOp, marker_id: number, episode_id: number, show_id: number,
- *            start: number, end: number, old_start: number?, old_end: number?, modified_at: string?,
- *            created_at: string, recorded_at: string, extra_data: string, section_uuid: string,
- *            restores_id: number?, restored_id: number? }} MarkerAction
+ * @typedef {{id: number, op: MarkerOp, marker_id: number, episode_id: number, season_id: number,
+ *            show_id: number, start: number, end: number, old_start: number?, old_end: number?,
+ *            modified_at: string?, created_at: string, recorded_at: string, extra_data: string,
+ *            section_uuid: string, restores_id: number?, restored_id: number? }} MarkerAction
+ */
+
+/**
+ * A map of purged markers
+ * @typedef {{ [sectionUUID: string] : { [showId: number] : { [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } } } }} PurgeMap
  */
 
 /** Single-row table that indicates the current version of the actions table. */
@@ -164,6 +170,9 @@ class MarkerBackupManager {
      * Used to properly map a marker action to the right library, regardless of the underlying database used.
      * @type {{[sectionId: number], string}} */
     #uuids = {};
+
+    /** @type {PurgeMap} */
+    #purgeCache = null;
 
     /**
      * @param {PlexQueryManager} plexQueries The query manager for the Plex database
@@ -373,6 +382,90 @@ INSERT INTO actions
                 callback(null, pruned);
             })
         });
+    }
+
+    /**
+     * Queries the backup database for markers from all sections of the server and checks
+     * whether they exist in the Plex database.
+     * @param {MarkerCacheManager} cacheManager
+     * @param {(err: string?) => void} callback */
+    buildAllPurges(cacheManager, callback) {
+        this.#plexQueries.sectionUuids((err, sections) => {
+            if (err) {
+                return callback('Could not get sections for purge query.');
+            }
+
+            let uuidString = '';
+            for (const section of sections) {
+                uuidString += `section_uuid="${section.uuid}" OR `;
+            }
+
+            uuidString = uuidString.substring(0, uuidString.length - 4);
+
+            const query = `
+SELECT *, MAX(id) FROM actions
+WHERE (${uuidString}) AND restored_id IS NULL
+GROUP BY marker_id, section_uuid
+ORDER BY id DESC;`
+
+            this.#actions.all(query, (err, actions) => {
+                if (err) { return callback(err.message); }
+                for (const action of actions) {
+                    if (!cacheManager.markerExists(action.marker_id)) {
+                        this.#addToPurgeMap(action);
+                    }
+                }
+
+                callback();
+            });
+        });
+    }
+
+    /**
+     * Add the given marker action to the purge map.
+     * @param {MarkerAction} action */
+    #addToPurgeMap(action) {
+        if (!this.#purgeCache) {
+            this.#purgeCache = {};
+        }
+
+        if (!this.#purgeCache[action.section_uuid]) {
+            this.#purgeCache[action.section_uuid] = {};
+        }
+
+        let section = this.#purgeCache[action.section_uuid];
+        if (!section[action.show_id]) {
+            section[action.show_id] = {};
+        }
+        let show = section[action.show_id];
+        if (!show[action.season_id]) {
+            show[action.season_id] = {};
+        }
+        let season = show[action.season_id];
+        if (!season[action.episode_id]) {
+            season[action.episode_id] = {};
+        }
+        season[action.episode_id][action.marker_id] = action;
+    }
+
+    /** @returns The number of purged markers found for the entire server. */
+    purgeCount() {
+        if (!this.#purgeCache) {
+            return 0; // Didn't initialize main purge cache, return 0
+        }
+
+        let count = 0;
+        for (const section of Object.values(this.#purgeCache)) {
+            for (const show of Object.values(section)) {
+                for (const season of Object.values(show)) {
+                    for (const episode of Object.values(season)) {
+                        count += Object.values(episode).length;
+                    }
+                }
+            }
+        }
+
+        return count;
     }
 
     /**
