@@ -469,6 +469,34 @@ ORDER BY id DESC;`
     }
 
     /**
+     * Retrieve purged markers for the given library section.
+     * @param {number} sectionId The section to parse.
+     * @returns {MarkerAction[]} Array of purged `MarkerAction`s.
+     * @throws {Error} If the cache is not initialized or the section does not exist. */
+    purgesForSection(sectionId) {
+        if (!this.#purgeCache) {
+            throw new Error('Purge cache not initialized, cannot query for purges.');
+        }
+
+        if (!(sectionId in this.#uuids)) {
+            throw new Error('Section does not exist!');
+        }
+
+        let purges = [];
+        for (const show of Object.values(this.#purgeCache[this.#uuids[sectionId]])) {
+            for (const season of Object.values(show)) {
+                for (const episode of Object.values(season)) {
+                    for (const purgedMarker of Object.values(episode)) {
+                        purges.push(purgedMarker);
+                    }
+                }
+            }
+        }
+
+        return purges;
+    }
+
+    /**
      * @param {number} mediaType The metadata_type from the Plex database.
      * @returns The corresponding string for the media type.
      * @throws {TypeError} if `mediaType` is not an episode, season, or series. */

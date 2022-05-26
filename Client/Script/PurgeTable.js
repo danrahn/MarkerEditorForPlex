@@ -67,7 +67,7 @@ class PurgeRow {
                 'Ignore Marker',
                 'red',
                 this.#onIgnore.bind(this),
-                { title : 'Permanately ignore this marker in the future' })
+                { title : 'Permanently ignore this marker in the future' })
         );
     }
 

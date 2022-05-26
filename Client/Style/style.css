@@ -147,22 +147,18 @@ input, select {
   margin: auto;
 }
 
-#markerBreakdownHolder {
+.inlineButtonHolder {
   display: block;
   margin: auto;
   text-align: center;
 }
 
-#markerBreakdown {
+.inlineButton {
   margin-top: 10px;
   width: 335px;
   border-radius: 5px;
   padding: 1px 5px 1px 5px;
   background: transparent;
-}
-
-#markerBreakdownButtons>.button {
-  padding: 5px;
 }
 
 #libraryList {

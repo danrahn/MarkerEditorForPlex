@@ -7,6 +7,7 @@ import ClientSettingsManager from './ClientSettings.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexClientUI } from './PlexClientUI.js';
+import PurgedMarkerManager from './PurgedMarkerManager.js';
 
 window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
 
@@ -59,6 +60,8 @@ function mainSetup() {
 
     let gotConfig = (config) => {
         Settings.parseServerConfig(config);
+        new PurgedMarkerManager(PlexState, Settings.backupEnabled() && Settings.showExtendedMarkerInfo());
+
         jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
     }
 

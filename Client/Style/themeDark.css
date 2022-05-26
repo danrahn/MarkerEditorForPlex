@@ -30,15 +30,15 @@ hr {
 
 #libraries:hover,
 #search:hover,
-#markerBreakdown:hover {
+.inlineButton:hover {
   border-color: #909090;
 }
 
-#markerBreakdown {
+.inlineButton {
   color: #a1a1a1;
 }
 
-#markerBreakdown:hover {
+.inlineButton:hover {
   color: #c1c1c1;
 }
 

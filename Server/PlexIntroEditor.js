@@ -269,7 +269,8 @@ const EndpointMap = {
     get_stats    : (params, res) => allStats(params.i('id'), res),
     get_config   : (_     , res) => getConfig(res),
     log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
-    purge_check  : (params, res) => purgeCheck(params.i('id'), res), 
+    purge_check  : (params, res) => purgeCheck(params.i('id'), res),
+    all_purges   : (params, res) => allPurges(params.i('sectionId'), res),
     restore      : (params, res) => restoreMarker(...params.ints('markerId', 'sectionId'), res),
     ignore_purge : (params, res) => ignorePurgedMarker(...params.ints('markerId', 'sectionId'), res),
 };
@@ -810,6 +811,22 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
         Log.info(markers, `Found ${markers.length} missing markers:`);
         jsonSuccess(res, markers);
     });
+}
+
+/**
+ * Find all purged markers for the given library section.
+ * @param {number} sectionId The library section
+ * @param {Http.ServerResponse} res */
+function allPurges(sectionId, res) {
+    if (!BackupManager || !Config.backupActions()) {
+        return jsonError(res, 400, 'Feature not enabled');
+    }
+
+    try {
+        jsonSuccess(res, BackupManager.purgesForSection(sectionId));
+    } catch (e) {
+        return jsonError(res, 400, e.message);
+    }
 }
 
 /**
