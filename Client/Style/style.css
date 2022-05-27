@@ -55,8 +55,6 @@ input, select {
   min-width: 200px;
   max-width: 400px;
   padding: 20px;
-  background-color: rgba(0,0,0,0.6);
-  color: #c4c4c4;
 }
 
 #settingsContainer h3 {
@@ -72,18 +70,16 @@ input, select {
 #settingsContainer select {
   float: right;
   border-radius: 5px;
-  border: 1px solid #53575a;
-  color: #c0bdba;
   outline: 0;
-  background-color: #414141;
+}
+
+#settingsContainer input[type=button]:hover,
+#settingsContainer select:hover {
+    border-color: #af4f00;
 }
 
 #settingsContainer select {
   margin: 0;
-}
-
-#settingsContainer hr {
-  border: 1px solid #53575a;
 }
 
 #settingsContainer input[type=checkbox] {
@@ -92,20 +88,6 @@ input, select {
   padding: 6px;
   margin: auto;
   display: inline-block;
-  background-color: #3f4245;
-}
-
-#settingsContainer input[type=checkbox]:checked {
-  background-color: #c0bdba;
-}
-
-#settingsContainer input[type=checkbox]:hover {
-  background-color: #5f6265;
-  border-color: #af4f00;
-}
-
-#settingsContainer input[type=checkbox]:checked:hover {
-  background-color: #a09d9a;
 }
 
 .settingsButtons {
@@ -115,15 +97,6 @@ input, select {
 
 .settingsButtons input {
   padding: 5px;
-}
-
-.disabledSetting {
-  color: #818181;
-}
-
-.disabledSetting input[type=checkbox] {
-  background-color: #3f4245 !important;
-  border-color: #53575a !important;
 }
 
 .formInput {
