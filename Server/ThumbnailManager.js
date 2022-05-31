@@ -199,6 +199,9 @@ class ThumbnailManager {
                 if (index > maxIndex) {
                     Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
                     index = maxIndex;
+                } else if (index < 0) {
+                    Log.warn('Received negative thumbnail request. Retrieving first thumbnail instead.');
+                    index = 0;
                 }
 
                 const thumbStart = getOffset(index);
