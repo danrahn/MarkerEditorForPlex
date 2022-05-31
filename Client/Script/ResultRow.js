@@ -2,8 +2,6 @@ import { $$, appendChildren, buildNode, errorMessage, jsonRequest, pad0, plural 
 import { Log } from "../../Shared/ConsoleLog.js";
 import { PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
-import { PlexUI } from "./index.js";
-
 import Tooltip from "./inc/Tooltip.js";
 import Overlay from "./inc/Overlay.js";
 
@@ -11,7 +9,7 @@ import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
 import SettingsManager from "./ClientSettings.js";
 import PlexClientState from "./PlexClientState.js";
-import { UISection } from "./PlexClientUI.js";
+import { PlexUI, UISection } from "./PlexUI.js";
 import PurgedMarkerManager from "./PurgedMarkerManager.js";
 
 /** Represents a single row of a show/season/episode in the results page. */
@@ -174,8 +172,8 @@ class ShowResultRow extends ResultRow {
         let row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to results', () => {
-                PlexUI.clearAndShowSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.showSections(UISection.Shows);
+                PlexUI.Get().clearAndShowSections(UISection.Seasons | UISection.Episodes);
+                PlexUI.Get().showSections(UISection.Shows);
             });
         }
 
@@ -244,10 +242,11 @@ class ShowResultRow extends ResultRow {
      * Takes the seasons retrieved for a show and creates and entry for each season.
      * @param {Object[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
     #showSeasons(seasons) {
-        PlexUI.clearAndShowSections(UISection.Seasons);
-        PlexUI.hideSections(UISection.Shows);
+        const plexUI = PlexUI.Get();
+        plexUI.clearAndShowSections(UISection.Seasons);
+        plexUI.hideSections(UISection.Shows);
 
-        const addRow = row => PlexUI.addRow(UISection.Seasons, row);
+        const addRow = row => plexUI.addRow(UISection.Seasons, row);
         addRow(new ShowResultRow(this.show()).buildRow(true /*selected*/));
         addRow(buildNode('hr'));
         for (const serializedSeason of seasons) {
@@ -321,8 +320,8 @@ class SeasonResultRow extends ResultRow {
         let row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', () => {
-                PlexUI.clearAndShowSections(UISection.Episodes);
-                PlexUI.showSections(UISection.Seasons);
+                PlexUI.Get().clearAndShowSections(UISection.Episodes);
+                PlexUI.Get().showSections(UISection.Seasons);
             });
         }
 
@@ -407,9 +406,10 @@ class SeasonResultRow extends ResultRow {
      * @param {{[metadataId: number]: Object[]}} data Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode. */
     #showEpisodesAndMarkers(data) {
-        PlexUI.clearSections(UISection.Episodes);
-        PlexUI.hideSections(UISection.Seasons);
-        const addRow = row => PlexUI.addRow(UISection.Episodes, row);
+        const plexUI = PlexUI.Get();
+        plexUI.clearSections(UISection.Episodes);
+        plexUI.hideSections(UISection.Seasons);
+        const addRow = row => plexUI.addRow(UISection.Episodes, row);
         const clientState = PlexClientState.GetState();
         this.#showTitle = new ShowResultRow(clientState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));

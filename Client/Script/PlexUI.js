@@ -25,7 +25,10 @@ const UISection = {
  * Handles UI interactions of the application, including
  * setting up search/dropdown listeners, and building show/season/episode result rows.
  */
-class PlexClientUI {
+class PlexUI {
+    /** @type {PlexUI} */
+    static #plexUI;
+
     /** The library selection dropdown.
      * @type {HTMLSelectElement} */
     #dropdown = $('#libraries');
@@ -55,8 +58,32 @@ class PlexClientUI {
      * @type {number} */
     #searchTimer;
 
-    /** Constructs a new PlexClientUI and begins listening for change events. */
+    /** Creates the singleton PlexUI for this session. */
+    static Initialize() {
+        if (PlexUI.#plexUI) {
+            Log.error('We should only have a single SettingsManager instance!');
+            return;
+        }
+
+        PlexUI.#plexUI = new PlexUI();
+    }
+
+    /** @returns {PlexUI} */
+    static Get() {
+        if (!PlexUI.#plexUI) {
+            Log.error(`Accessing settings before it's been initialized'! Initializing now...`);
+            PlexUI.Initialize();
+        }
+
+        return this.#plexUI;
+    }
+
+    /** Constructs a new PlexUI and begins listening for change events. */
     constructor() {
+        if (PlexUI.#plexUI) {
+            throw new Error(`Don't create a new PlexUI when the singleton already exists!`);
+        }
+
         this.#dropdown.addEventListener('change', this.#libraryChanged.bind(this));
         this.#searchBox.addEventListener('keyup', this.#onSearchInput.bind(this));
     }
@@ -167,7 +194,7 @@ class PlexClientUI {
     /**
      * Handle search box input. Invoke a search immediately if 'Enter' is pressed, otherwise
      * set a timeout to invoke a search after a quarter of a second has passed.
-     * @this {PlexClientUI}
+     * @this {PlexUI}
      * @param {KeyboardEvent} e */
     #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
@@ -227,4 +254,4 @@ class PlexClientUI {
     }
 }
 
-export { PlexClientUI, UISection }
+export { PlexUI, UISection }

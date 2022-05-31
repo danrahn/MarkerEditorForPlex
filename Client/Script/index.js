@@ -6,15 +6,12 @@ import Overlay from './inc/Overlay.js';
 import SettingsManager from './ClientSettings.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import PlexClientState from './PlexClientState.js';
-import { PlexClientUI } from './PlexClientUI.js';
+import { PlexUI } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
 
 window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
 
 window.addEventListener('load', setup);
-
-/** @type {PlexClientUI} */
-let PlexUI;
 
 /** Initial setup on page load. */
 function setup()
@@ -22,7 +19,7 @@ function setup()
     $('#showInstructions').addEventListener('click', showHideInstructions);
     SettingsManager.Initialize();
     PlexClientState.Initialize();
-    PlexUI = new PlexClientUI();
+    PlexUI.Initialize();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
@@ -57,16 +54,16 @@ function mainSetup() {
         settings.parseServerConfig(config);
         new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
 
-        jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
+        const plexUI = PlexUI.Get();
+        jsonRequest('get_sections', {}, plexUI.init.bind(plexUI), failureFunc);
     }
 
     let noConfig = () => {
         Log.warn('Unable to get app config, assume everything is disabled.');
         SettingsManager.Get().parseServerConfig({});
-        jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
+        const plexUI = PlexUI.Get();
+        jsonRequest('get_sections', {}, plexUI.init.bind(plexUI), failureFunc);
     }
 
     jsonRequest('get_config', {}, gotConfig, noConfig);
 }
-
-export { PlexUI }

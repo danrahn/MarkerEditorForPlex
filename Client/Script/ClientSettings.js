@@ -1,8 +1,10 @@
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 import { $, $$, buildNode, appendChildren, jsonRequest } from './Common.js';
+
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
-import { PlexUI } from './index.js';
+
+import { PlexUI } from './PlexUI.js';
 import ThemeColors from './ThemeColors.js';
 
 /**
@@ -465,7 +467,7 @@ class ClientSettingsUI {
 
         this.#settingsManager.save();
         Overlay.dismiss();
-        PlexUI.onSettingsApplied(shouldResetView);
+        PlexUI.Get().onSettingsApplied(shouldResetView);
     }
 
     /**
