@@ -6,6 +6,7 @@ import Overlay from "./inc/Overlay.js";
 
 import PlexClientState from "./PlexClientState.js";
 import { ShowResultRow } from "./ResultRow.js";
+import { Log } from "../../Shared/ConsoleLog.js";
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
 
@@ -26,12 +27,6 @@ const UISection = {
  * setting up search/dropdown listeners, and building show/season/episode result rows.
  */
 class PlexClientUI {
-
-    /**
-     * The client state of the application.
-     * @type {PlexClientState} */
-    #clientState;
-
     /** The library selection dropdown.
      * @type {HTMLSelectElement} */
     #dropdown = $('#libraries');
@@ -61,11 +56,8 @@ class PlexClientUI {
      * @type {number} */
     #searchTimer;
 
-    /**
-     * Constructs a new PlexClientUI and begins listenening for change events.
-     * @param {PlexClientState} clientState */
-    constructor(clientState) {
-        this.#clientState = clientState;
+    /** Constructs a new PlexClientUI and begins listening for change events. */
+    constructor() {
         this.#dropdown.addEventListener('change', this.#libraryChanged.bind(this));
         this.#searchBox.addEventListener('keyup', this.#onSearchInput.bind(this));
     }
@@ -130,7 +122,7 @@ class PlexClientUI {
     /** Clears data from the show, season, and episode lists. */
     clearAllSections() {
         this.clearAndShowSections(UISection.Shows | UISection.Seasons | UISection.Episodes)
-        this.#clientState.clearActiveShow();
+        PlexClientState.GetState().clearActiveShow();
     }
 
     /**
@@ -165,7 +157,7 @@ class PlexClientUI {
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
         const section = parseInt(this.#dropdown.value);
-        await this.#clientState.setSection(section);
+        await PlexClientState.GetState().setSection(section);
         this.clearAllSections();
         if (!isNaN(section) && section != -1) {
             Settings.setLastSection(section);
@@ -207,15 +199,15 @@ class PlexClientUI {
     #search() {
         // Remove any existing show/season/marker data
         this.clearAllSections();
-        this.#clientState.search(this.#searchBox.value, this.#afterSearchCompleted.bind(this));
+        PlexClientState.GetState().search(this.#searchBox.value, this.#afterSearchCompleted.bind(this));
     }
 
     /** After a show search has completed, creates a DOM entry entry for each match. */
     #afterSearchCompleted() {
         this.clearAndShowSections(UISection.Shows);
-        this.#clientState.clearActiveShow();
+        PlexClientState.GetState().clearActiveShow();
         let showList = this.#uiSections[UISection.Shows];
-        const searchResults = this.#clientState.getSearchResults();
+        const searchResults = PlexClientState.GetState().getSearchResults();
         if (searchResults.length == 0) {
             showList.appendChild(buildNode('div', { class : 'showResult' }, 'No results found.'));
             return;

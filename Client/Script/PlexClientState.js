@@ -27,17 +27,26 @@ class PlexClientState {
     /**@type {PlexClientState} */
     static #clientState;
 
-    /** Creates the singleton PlexClientState instance. */
-    constructor() {
+    /** Create the singleton PlexClientState instance. */
+    static Initialize() {
         if (PlexClientState.#clientState) {
             throw new Error('We should only have a single PlexClientState instance!');
         }
 
-        PlexClientState.#clientState = this;
+        PlexClientState.#clientState = new PlexClientState();
     }
 
+    constructor() {}
+
     /** @returns {PlexClientState} */
-    static GetState() { return this.#clientState; }
+    static GetState() {
+        if (!this.#clientState) {
+            Log.error(`Accessing client state before it's been initialized'! Initializing now...`);
+            PlexClientState.Initialize();
+        }
+
+        return this.#clientState;
+    }
 
     /**
       * Set the currently active library.

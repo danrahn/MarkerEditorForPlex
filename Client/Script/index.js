@@ -13,9 +13,6 @@ window.Log = Log; // Let the user interact with the class to tweak verbosity/oth
 
 window.addEventListener('load', setup);
 
-/** @type {PlexClientState} */
-let PlexState;
-
 /** @type {PlexClientUI} */
 let PlexUI;
 
@@ -27,12 +24,12 @@ function setup()
 {
     $('#showInstructions').addEventListener('click', showHideInstructions);
     Settings = new ClientSettingsManager();
-    PlexState = new PlexClientState();
-    PlexUI = new PlexClientUI(PlexState);
+    PlexClientState.Initialize();
+    PlexUI = new PlexClientUI();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
-    new MarkerBreakdownManager(PlexState);
+    new MarkerBreakdownManager();
     mainSetup();
 }
 
@@ -60,7 +57,7 @@ function mainSetup() {
 
     let gotConfig = (config) => {
         Settings.parseServerConfig(config);
-        new PurgedMarkerManager(PlexState, Settings.backupEnabled() && Settings.showExtendedMarkerInfo());
+        new PurgedMarkerManager(Settings.backupEnabled() && Settings.showExtendedMarkerInfo());
 
         jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
     }
@@ -74,4 +71,4 @@ function mainSetup() {
     jsonRequest('get_config', {}, gotConfig, noConfig);
 }
 
-export { PlexState, PlexUI, Settings }
+export { PlexUI, Settings }

@@ -6,13 +6,8 @@ import PlexClientState from "./PlexClientState.js";
 
 class MarkerBreakdownManager {
 
-    /** @type {PlexClientState} */
-    #plexState;
-
-    /** Create a new manager for the given client state.
-     * @param {PlexClientState} plexState */
-    constructor(plexState) {
-        this.#plexState = plexState;
+    /** Create a new marker breakdown manager for this session. */
+    constructor() {
         const stats = $('#markerBreakdown');
         stats.addEventListener('click', this.#getBreakdown.bind(this));
         Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers');
@@ -34,7 +29,7 @@ class MarkerBreakdownManager {
 
         jsonRequest(
             'get_stats',
-            { id : this.#plexState.activeSection() },
+            { id : PlexClientState.GetState().activeSection() },
             MarkerBreakdownManager.#showMarkerBreakdown,
             MarkerBreakdownManager.#markerBreakdownFailed);
     }

@@ -2,13 +2,14 @@ import { $$, appendChildren, buildNode, errorMessage, jsonRequest, pad0, plural 
 import { Log } from "../../Shared/ConsoleLog.js";
 import { PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
-import { PlexState, PlexUI, Settings } from "./index.js";
+import { PlexUI, Settings } from "./index.js";
 
 import Tooltip from "./inc/Tooltip.js";
 import Overlay from "./inc/Overlay.js";
 
 import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
+import PlexClientState from "./PlexClientState.js";
 import { UISection } from "./PlexClientUI.js";
 import PurgedMarkerManager from "./PurgedMarkerManager.js";
 
@@ -183,7 +184,7 @@ class ShowResultRow extends ResultRow {
 
     /** Click handler for clicking a show row. Initiates a request for season details. */
     #showClick() {
-        if (!PlexState.setActiveShow(this)) {
+        if (!PlexClientState.GetState().setActiveShow(this)) {
             Overlay.show('Unable to retrieve data for that show. Please try again later.', 'OK');
             return;
         }
@@ -251,7 +252,7 @@ class ShowResultRow extends ResultRow {
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
             addRow(new SeasonResultRow(season, this).buildRow());
-            PlexState.addSeason(season);
+            PlexClientState.GetState().addSeason(season);
         }
     }
 }
@@ -361,7 +362,7 @@ class SeasonResultRow extends ResultRow {
             return; // Don't show/hide if we're repurposing the marker display.
         }
 
-        if (!PlexState.setActiveSeason(this)) {
+        if (!PlexClientState.GetState().setActiveSeason(this)) {
             Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
             return;
         }
@@ -389,7 +390,7 @@ class SeasonResultRow extends ResultRow {
     #parseEpisodes(episodes) {
         let queryString = [];
         for (const episode of episodes) {
-            PlexState.addEpisode(new ClientEpisodeData().setFromJson(episode));
+            PlexClientState.GetState().addEpisode(new ClientEpisodeData().setFromJson(episode));
             queryString.push(episode.metadataId);
         }
     
@@ -408,17 +409,18 @@ class SeasonResultRow extends ResultRow {
         PlexUI.clearSections(UISection.Episodes);
         PlexUI.hideSections(UISection.Seasons);
         const addRow = row => PlexUI.addRow(UISection.Episodes, row);
-        this.#showTitle = new ShowResultRow(PlexState.getActiveShow());
+        const clientState = PlexClientState.GetState();
+        this.#showTitle = new ShowResultRow(clientState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));
         addRow(buildNode('hr'));
-        this.#seasonTitle = new SeasonResultRow(PlexState.getActiveSeason(), this.#showTitle);
+        this.#seasonTitle = new SeasonResultRow(clientState.getActiveSeason(), this.#showTitle);
         addRow(this.#seasonTitle.buildRow(true));
         addRow(buildNode('hr'));
 
         // Returned data doesn't guarantee order. Create the rows, then sort by index
         let episodeRows = [];
         for (const metadataId of Object.keys(data)) {
-            episodeRows.push(new EpisodeResultRow(PlexState.getEpisode(parseInt(metadataId)), this));
+            episodeRows.push(new EpisodeResultRow(clientState.getEpisode(parseInt(metadataId)), this));
         }
 
         episodeRows.sort((a, b) => a.episode().index - b.episode().index);
@@ -588,7 +590,7 @@ class EpisodeResultRow extends ResultRow {
         const text = plural(this.episode().markerCount(), 'Marker') + (this.#hasPurgedMarkers ? ' (!)' : '');
         $$('.episodeResultMarkers', this.html()).innerText = text;
         if (Settings.showExtendedMarkerInfo()) {
-            PlexState.updateBreakdownCache(this.episode(), delta);
+            PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
         }
     }
 }

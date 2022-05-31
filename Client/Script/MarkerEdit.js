@@ -1,13 +1,14 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, msToHms } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import { PlexState, Settings } from "./index.js";
+import { Settings } from "./index.js";
 
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 
 import ButtonCreator from "./ButtonCreator.js";
 import { MarkerRow } from "./MarkerTableRow.js";
+import PlexClientState from "./PlexClientState.js";
 
 
 /**
@@ -44,7 +45,7 @@ class MarkerEdit {
 
     /**
      * Return a text input meant for time input. If this edit session isn't for an added marker,
-     * set the input's intial value to the marker's corresponding value.
+     * set the input's initial value to the marker's corresponding value.
      * @param {boolean} [isEnd=false] Whether the time input is for the end of a marker.
      * @returns {HTMLElement} A text input for a marker. */
     getTimeInput(isEnd) {
@@ -125,7 +126,7 @@ class MarkerEdit {
         const startTime = MarkerEdit.timeToMs(inputs[0].value);
         const endTime = MarkerEdit.timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
-        const episode = PlexState.getEpisode(metadataId);
+        const episode = PlexClientState.GetState().getEpisode(metadataId);
         if (!episode.checkValues(this.markerRow.markerId(), startTime, endTime)) {
             return;
         }
@@ -143,12 +144,12 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerAddSuccess(response) {
         const newMarker = new MarkerData().setFromJson(response);
-        PlexState.getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
+        PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
     }
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
     onMarkerAddCancel() {
-        PlexState.getEpisode(this.markerRow.episodeId()).cancelMarkerAdd(this.markerRow.row());
+        PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).cancelMarkerAdd(this.markerRow.row());
     }
 
     /** Commits a marker edit, assuming it passes marker validation. */
@@ -157,7 +158,7 @@ class MarkerEdit {
         const startTime = MarkerEdit.timeToMs(inputs[0].value);
         const endTime = MarkerEdit.timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
-        const episode = PlexState.getEpisode(metadataId);
+        const episode = PlexClientState.GetState().getEpisode(metadataId);
         const userCreated = this.markerRow.createdByUser();
         const markerId = this.markerRow.markerId();
         if (!episode.checkValues(markerId, startTime, endTime)) {
@@ -177,7 +178,7 @@ class MarkerEdit {
      * @param {Object} response The response from the server, a serialized version of a minimal {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        PlexState.getEpisode(partialMarker.episodeId).editMarker(partialMarker);
+        PlexClientState.GetState().getEpisode(partialMarker.episodeId).editMarker(partialMarker);
         this.resetAfterEdit();
     }
 
@@ -205,7 +206,7 @@ class MarkerEdit {
         }
 
         e.preventDefault();
-        input.value = msToHms(PlexState.getEpisode(this.markerRow.episodeId()).duration);
+        input.value = msToHms(PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).duration);
     }
 
     /**

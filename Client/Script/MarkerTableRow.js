@@ -2,13 +2,14 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import { PlexState, Settings } from "./index.js";
+import { Settings } from "./index.js";
 
 import Overlay from "./inc/Overlay.js";
 
 import ButtonCreator from "./ButtonCreator.js";
 import { MarkerEdit, ThumbnailMarkerEdit } from "./MarkerEdit.js";
 import TableElements from "./TableElements.js";
+import PlexClientState from "./PlexClientState.js";
 
 class MarkerRow {
     /**
@@ -31,7 +32,7 @@ class MarkerRow {
      * @param {number} episodeId The metadata id of the episode this marker belongs to. */
     constructor(episodeId) {
         this.#episodeId = episodeId;
-        if (Settings.useThumbnails() && PlexState.getEpisode(this.#episodeId).hasThumbnails) {
+        if (Settings.useThumbnails() && PlexClientState.GetState().getEpisode(this.#episodeId).hasThumbnails) {
             this.#editor = new ThumbnailMarkerEdit(this);
         } else {
             this.#editor = new MarkerEdit(this);
@@ -212,7 +213,7 @@ class ExistingMarkerRow extends MarkerRow {
     #onMarkerDeleteSuccess(response) {
         Overlay.dismiss();
         const deletedMarker = new MarkerData().setFromJson(response);
-        PlexState.getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());
+        PlexClientState.GetState().getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());
     }
 }
 
