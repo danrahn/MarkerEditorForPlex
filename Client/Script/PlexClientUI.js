@@ -1,9 +1,8 @@
 import { $, buildNode, clearEle } from "./Common.js";
 
-import { Settings } from "./index.js";
-
 import Overlay from "./inc/Overlay.js";
 
+import SettingsManager from "./ClientSettings.js";
 import PlexClientState from "./PlexClientState.js";
 import { ShowResultRow } from "./ResultRow.js";
 import { Log } from "../../Shared/ConsoleLog.js";
@@ -74,7 +73,7 @@ class PlexClientUI {
         }
 
         this.#dropdown.appendChild(buildNode('option', { value : '-1' }, 'Select a library to parse'));
-        const savedSection = Settings.lastSection();
+        const savedSection = SettingsManager.Get().lastSection();
 
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
@@ -160,7 +159,7 @@ class PlexClientUI {
         await PlexClientState.GetState().setSection(section);
         this.clearAllSections();
         if (!isNaN(section) && section != -1) {
-            Settings.setLastSection(section);
+            SettingsManager.Get().setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
         }
     }

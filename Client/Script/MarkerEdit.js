@@ -1,12 +1,11 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, msToHms } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import { Settings } from "./index.js";
-
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 
 import ButtonCreator from "./ButtonCreator.js";
+import SettingsManager from "./ClientSettings.js";
 import { MarkerRow } from "./MarkerTableRow.js";
 import PlexClientState from "./PlexClientState.js";
 
@@ -310,7 +309,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             child.classList.add('hidden');
         }
 
-        const startCollapsed = Settings.collapseThumbnails();
+        const startCollapsed = SettingsManager.Get().collapseThumbnails();
         const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
         const btn = ButtonCreator.fullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', this.#expandContractThumbnails, {}, this);
         btn.classList.add('thumbnailShowHide');
@@ -369,7 +368,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #onThumbnailPreviewLoad(img) {
         const realHeight = img.naturalHeight * (img.width / img.naturalWidth);
         img.setAttribute('realheight', realHeight);
-        if (Settings.collapseThumbnails()) {
+        if (SettingsManager.Get().collapseThumbnails()) {
             img.classList.add('hiddenThumb');
         } else {
             img.style.height = `${realHeight}px`;

@@ -271,12 +271,12 @@ class ClientSettings {
  * settings dialog and saving any changes that were made.
  */
 class ClientSettingsUI {
-    /** The owning `ClientSettingsManager`.
-     * @type {ClientSettingsManager} */
+    /** The owning `SettingsManager`.
+     * @type {SettingsManager} */
     #settingsManager;
 
     /**
-     * @param {ClientSettingsManager} settingsManager
+     * @param {SettingsManager} settingsManager
      */
     constructor(settingsManager) {
         this.#settingsManager = settingsManager;
@@ -489,7 +489,12 @@ class ClientSettingsUI {
 /**
  * Main manager that keeps track of client-side settings.
  */
-class ClientSettingsManager {
+class SettingsManager {
+    /**
+     * The singleton settings manager for the current session.
+     * @type {SettingsManager} */
+    static #settingsManager;
+
     /** `link` elements that are used to swap between light and dark themes.
      * @type {HTMLLinkElement[]} */
     #themeStyles;
@@ -510,7 +515,31 @@ class ClientSettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
+    /** Creates the singleton SettingsManager for this session */
+    static Initialize() {
+        if (SettingsManager.#settingsManager) {
+            Log.error('We should only have a single SettingsManager instance!');
+            return;
+        }
+
+        SettingsManager.#settingsManager = new SettingsManager();
+    }
+
+    /** @returns {SettingsManager} */
+    static Get() {
+        if (!SettingsManager.#settingsManager) {
+            Log.error(`Accessing settings before it's been initialized'! Initializing now...`);
+            SettingsManager.Initialize();
+        }
+
+        return this.#settingsManager;
+    }
+
     constructor() {
+        if (SettingsManager.#settingsManager) {
+            throw new Error(`Don't create a new SettingsManager when the singleton already exists!`);
+        }
+
         $('#settings').addEventListener('click', this.#showSettings.bind(this));
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
@@ -701,4 +730,4 @@ class ClientSettingsManager {
     }
 }
 
-export default ClientSettingsManager;
+export default SettingsManager;

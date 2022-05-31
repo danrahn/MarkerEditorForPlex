@@ -2,13 +2,14 @@ import { $$, appendChildren, buildNode, errorMessage, jsonRequest, pad0, plural 
 import { Log } from "../../Shared/ConsoleLog.js";
 import { PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
-import { PlexUI, Settings } from "./index.js";
+import { PlexUI } from "./index.js";
 
 import Tooltip from "./inc/Tooltip.js";
 import Overlay from "./inc/Overlay.js";
 
 import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
+import SettingsManager from "./ClientSettings.js";
 import PlexClientState from "./PlexClientState.js";
 import { UISection } from "./PlexClientUI.js";
 import PurgedMarkerManager from "./PurgedMarkerManager.js";
@@ -52,7 +53,7 @@ class ResultRow {
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {
         // No updates necessary if extended breakdown stats aren't enabled
-        if (!Settings.showExtendedMarkerInfo()) {
+        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
             return;
         }
 
@@ -101,7 +102,7 @@ class ResultRow {
     episodeDisplay(currentDisplay=null) {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        if (!Settings.showExtendedMarkerInfo() || !mediaItem.markerBreakdown) {
+        if (!SettingsManager.Get().showExtendedMarkerInfo() || !mediaItem.markerBreakdown) {
             // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
             // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
             return baseText;
@@ -189,7 +190,7 @@ class ShowResultRow extends ResultRow {
             return;
         }
 
-        if (Settings.backupEnabled()) {
+        if (SettingsManager.Get().backupEnabled()) {
             this.#purgeCheck();
         } else {
             this.#getSeasons();
@@ -367,7 +368,7 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        if (Settings.backupEnabled()) {
+        if (SettingsManager.Get().backupEnabled()) {
             this.#purgeCheck();
         } else {
             this.#getEpisodes();
@@ -589,7 +590,7 @@ class EpisodeResultRow extends ResultRow {
     updateMarkerBreakdown(delta) {
         const text = plural(this.episode().markerCount(), 'Marker') + (this.#hasPurgedMarkers ? ' (!)' : '');
         $$('.episodeResultMarkers', this.html()).innerText = text;
-        if (Settings.showExtendedMarkerInfo()) {
+        if (SettingsManager.Get().showExtendedMarkerInfo()) {
             PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
         }
     }

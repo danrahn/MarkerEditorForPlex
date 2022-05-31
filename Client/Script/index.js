@@ -3,7 +3,7 @@ import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
-import ClientSettingsManager from './ClientSettings.js';
+import SettingsManager from './ClientSettings.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexClientUI } from './PlexClientUI.js';
@@ -16,14 +16,11 @@ window.addEventListener('load', setup);
 /** @type {PlexClientUI} */
 let PlexUI;
 
-/** @type {ClientSettingsManager} */
-let Settings;
-
 /** Initial setup on page load. */
 function setup()
 {
     $('#showInstructions').addEventListener('click', showHideInstructions);
-    Settings = new ClientSettingsManager();
+    SettingsManager.Initialize();
     PlexClientState.Initialize();
     PlexUI = new PlexClientUI();
 
@@ -56,19 +53,20 @@ function mainSetup() {
     };
 
     let gotConfig = (config) => {
-        Settings.parseServerConfig(config);
-        new PurgedMarkerManager(Settings.backupEnabled() && Settings.showExtendedMarkerInfo());
+        const settings = SettingsManager.Get();
+        settings.parseServerConfig(config);
+        new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
 
         jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
     }
 
     let noConfig = () => {
         Log.warn('Unable to get app config, assume everything is disabled.');
-        Settings.parseServerConfig({});
+        SettingsManager.Get().parseServerConfig({});
         jsonRequest('get_sections', {}, PlexUI.init.bind(PlexUI), failureFunc);
     }
 
     jsonRequest('get_config', {}, gotConfig, noConfig);
 }
 
-export { PlexUI, Settings }
+export { PlexUI }

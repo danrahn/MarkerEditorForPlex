@@ -30,13 +30,18 @@ class PlexClientState {
     /** Create the singleton PlexClientState instance. */
     static Initialize() {
         if (PlexClientState.#clientState) {
-            throw new Error('We should only have a single PlexClientState instance!');
+            Log.error('We should only have a single PlexClientState instance!');
+            return;
         }
 
         PlexClientState.#clientState = new PlexClientState();
     }
 
-    constructor() {}
+    constructor() {
+        if (PlexClientState.#clientState) {
+            throw new Error(`Don't create a new PlexClientState when the singleton already exists!`);
+        }
+    }
 
     /** @returns {PlexClientState} */
     static GetState() {
