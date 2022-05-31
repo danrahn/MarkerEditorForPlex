@@ -64,6 +64,16 @@ let Tooltip = new function()
         }
     };
 
+    /**
+     * Retrieve the current tooltip text for the given element,
+     * or an empty string if it does not exist.
+     * @param {HTMLElement} element
+     */
+    this.getText = function(element)
+    {
+        return element.getAttribute("tt") || "";
+    }
+
     /** @type {number} `timerId` to keep track of the tooltip delay timeout. */
     let tooltipTimer = null;
 

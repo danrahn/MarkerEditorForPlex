@@ -10,7 +10,7 @@ import Overlay from "./inc/Overlay.js";
 import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
 import { UISection } from "./PlexClientUI.js";
-import PurgeTable from "./PurgeTable.js";
+import PurgedMarkerManager from "./PurgedMarkerManager.js";
 
 /** Represents a single row of a show/season/episode in the results page. */
 class ResultRow {
@@ -129,7 +129,7 @@ class ResultRow {
             return true;
         }
 
-        let mainText = buildNode('span', {}, innerText);
+        let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
         Tooltip.setTooltip(mainText, tooltipText);
         return mainText;
     }
@@ -139,6 +139,8 @@ class ResultRow {
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
+    /** @type {{[seasonId: number]: MarkerAction}} */
+    #purgeData = {};
     /** @param {ShowData} show */
     constructor(show) {
         super(show, 'showResult');
@@ -186,6 +188,47 @@ class ShowResultRow extends ResultRow {
             return;
         }
 
+        if (Settings.backupEnabled()) {
+            this.#purgeCheck();
+        } else {
+            this.#getSeasons();
+        }
+    }
+
+    /** Check for purged markers in the seasons of this show. */
+    #purgeCheck() {
+        let failureFunc = response => {
+            Log.error(errorMessage(response), `Unable to check for purged markers`);
+            this.#getSeasons();
+        }
+    
+        jsonRequest('purge_check', { id : this.show().metadataId }, this.#onPurgeResponse.bind(this), failureFunc.bind(this));
+
+    }
+
+    /**
+     * Called when we successfully found purged markers (if any) for the seasons in this show.
+     * @param {MarkerAction[]} purgedMarkers */
+    #onPurgeResponse(purgedMarkers) {
+        this.#purgeData = {};
+        for (const purged of purgedMarkers) {
+            if (!this.#purgeData[purged.season_id]) {
+                this.#purgeData[purged.season_id] = [];
+            }
+
+            this.#purgeData[purged.season_id].push(purged);
+        }
+
+        this.#getSeasons();
+    }
+
+    /** @returns {MarkerAction[]} */
+    getPurgedMarkers(seasonId) {
+        return this.#purgeData[seasonId] ?? [];
+    }
+
+    /** Get season details for this show */
+    #getSeasons() {
         const show = this.show();
         let failureFunc = response => {
             Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br><br>` +
@@ -207,7 +250,7 @@ class ShowResultRow extends ResultRow {
         addRow(buildNode('hr'));
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
-            addRow(new SeasonResultRow(season).buildRow());
+            addRow(new SeasonResultRow(season, this).buildRow());
             PlexState.addSeason(season);
         }
     }
@@ -232,6 +275,12 @@ class SeasonResultRow extends ResultRow {
      * @type {SeasonResultRow} */
     #seasonTitle;
 
+    /** @type {ShowResultRow} */
+    #showRow;
+
+    /** @type {boolean} */
+    #hasPurgedMarkers = false;
+
     /** @typedef {!import('../../Server/MarkerBackupManager').MarkerAction} MarkerAction */
 
     /**
@@ -240,8 +289,9 @@ class SeasonResultRow extends ResultRow {
      * @type {{[episodeId: number]: MarkerAction}} */
     #purgeData = {};
 
-    constructor(season) {
+    constructor(season, showRow) {
         super(season, 'seasonResult');
+        this.#showRow = showRow;
     }
 
     /**
@@ -274,12 +324,43 @@ class SeasonResultRow extends ResultRow {
             });
         }
 
+        this.#setupPurgeCallback(row);
+
         this.setHtml(row);
         return row;
     }
 
-    /** Click handler for clicking a show row. Initiates a request for all episodes in the given season. */
-    #seasonClick() {
+    /** @param {HTMLElement} row */
+    #setupPurgeCallback(row) {
+        const season = this.season();
+        const purgeData = this.#showRow.getPurgedMarkers(season.metadataId);
+        if (purgeData.length <= 0) {
+            return;
+        }
+
+        this.#hasPurgedMarkers = true;
+        const markerCount = $$('.episodeDisplayText', row);
+        markerCount.innerText += ' (!)';
+        Tooltip.setText(markerCount, Tooltip.getText(markerCount) + '<br>Click for purge details');
+        markerCount.title = '';
+        markerCount.addEventListener('click', this.#onSeasonPurgeClick.bind(this, purgeData));
+    }
+
+    /**
+     * Show the purge overlay for this season.
+     * @param {MarkerAction[]} purgeData */
+    #onSeasonPurgeClick(purgeData) {
+        PurgedMarkerManager.GetManager().showSingleSeason(purgeData);
+    }
+
+    /**
+     * Click handler for clicking a show row. Initiates a request for all episodes in the given season.
+     * @param {MouseEvent} e */
+    #seasonClick(e) {
+        if (this.#hasPurgedMarkers && e.target.classList.contains('episodeDisplayText')) {
+            return; // Don't show/hide if we're repurposing the marker display.
+        }
+
         if (!PlexState.setActiveSeason(this)) {
             Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
             return;
@@ -330,7 +411,7 @@ class SeasonResultRow extends ResultRow {
         this.#showTitle = new ShowResultRow(PlexState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));
         addRow(buildNode('hr'));
-        this.#seasonTitle = new SeasonResultRow(PlexState.getActiveSeason());
+        this.#seasonTitle = new SeasonResultRow(PlexState.getActiveSeason(), this.#showTitle);
         addRow(this.#seasonTitle.buildRow(true));
         addRow(buildNode('hr'));
 
@@ -392,7 +473,7 @@ class SeasonResultRow extends ResultRow {
     }
 
     /**
-     * Retreieves markers that we think should exist, but don't.
+     * Retrieves markers that we think should exist, but don't.
      * Returns an empty array if no purged markers are found, or the feature is not enabled.
      * @param {number} episodeId
      * @returns {MarkerAction[]} */
@@ -472,7 +553,7 @@ class EpisodeResultRow extends ResultRow {
     /** Launches the purge table overlay.
      * @param {MarkerAction[]} purgeData */
     #onEpisodePurgeClick(purgeData) {
-        new PurgeTable(PlexState.activeSection(), purgeData).show();
+        PurgedMarkerManager.GetManager().showSingleEpisode(purgeData);
     }
 
     /**

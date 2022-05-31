@@ -119,10 +119,8 @@ input[type=button]:hover {
 }
 
 .overlayButton {
-    color: #c1c1c1;
-    border-color: #c1c1c1;
-    background-color: rgba(40, 40, 40, 0.8);
-    border: 1px solid #616161;
+    border: 1px solid #53575a;
+    background-color: #fec;
 }
 
 .overlayButton:focus {
@@ -130,7 +128,8 @@ input[type=button]:hover {
 }
 
 .overlayButton:hover {
-    border-color: white !important;
+    border-color: black !important;
+    background-color: #fea;
 }
 
 .confirmDelete {

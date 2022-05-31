@@ -10,7 +10,7 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 
 ## Known Issues
 
-It appears that after adding a new episode to a season and Plex's intro detection runs again, it will wipe out any existing markers. Work is planned to address this in as smooth of a way as possible (see `backupActions` in [Feature Settings](#feature-settings) below).
+It appears that after adding a new episode to a season and Plex's intro detection runs again, it will wipe out any existing markers. There is a way to restore them in this application with the right settings enabled, but it's not heavily tested, and some UI interactions still need to be hooked up.
 
 ## Usage
 
@@ -44,7 +44,7 @@ Settings inside the `features` dictionary:
 ---|---|---
 `autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
 `extendedMarkerStats` | Whether to gather all markers in the database to compile per library/show/season marker data. Potentially compute and memory expensive for very large libraries, as it keeps a record for every episode/marker in the database. | `true` or `false`
-`backupActions` | Writes all marker actions to a separate database. The eventual goal is to allow restoring/purging previous edits, but it isn't currently hooked up to anything. | `true` or `false`
+`backupActions` | Writes all marker actions to a separate database to allow for restoring previous edits that Plex destroyed. | `true` or `false`
 `previewThumbnails` | Controls preview thumbnail retrieval | [Preview Thumbnails Settings](#preview-thumbnails-settings)
 
 #### Preview Thumbnails Settings

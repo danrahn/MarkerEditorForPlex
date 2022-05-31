@@ -129,7 +129,7 @@ let Animation = new function()
      * Should only be called after an animation completes.
      * @param {HTMLElement} element The element that completed an animation.
      */
-    let fireNext = function(element)
+    let fireNext = function(element, removeElement=false)
     {
         // In some rare cases, 'element' no longer exists, but it's been recreated and reattached to the DOM.
         // Update it here if necessary.
@@ -148,12 +148,17 @@ let Animation = new function()
         let justFired = queue[0].shift();
         if (queue[0].length == 0)
         {
-            Log.info(justFired.args);
+            Log.tmi(justFired.args, 'Just executed');
             // Clear it from our dictionary to save some space
             /*@__PURE__*/Log.tmi(`No more animations in the current group for ${element.id}, removing it from the queue`);
             if (justFired.args.length >= 4 && typeof(justFired.args[3]) == 'function') // This is in major need of explicitness
             {
                 justFired.args[3]();
+            }
+
+            if (removeElement)
+            {
+                element.parentNode.removeChild(element);
             }
 
             queue.shift();
@@ -330,22 +335,8 @@ let Animation = new function()
 
             if (i == steps)
             {
-                if (deleteAfterTransition)
-                {
-                    if (element.isConnected) {
-                        // Clear out queue in advance, since we can't do anything else with the element gone.
-                        delete animationQueue[element.id];
-                        element.parentNode.removeChild(element);
-                        return;
-                    } else {
-                        // If we're already not connected, don't delete the queue, since we may have
-                        // added additional animations meant for a difference instance of this element.
-                        Log.verbose('Animate.deleteAfterTransition: Element has already been removed from the DOM');
-                    }
-                }
-
                 // Always need to call this once a particular animation is done!
-                fireNext(element);
+                fireNext(element, deleteAfterTransition);
             }
             else
             {

@@ -7,7 +7,7 @@ import CreateDatabase from "./CreateDatabase.cjs";
 
 // Client/Server shared dependencies
 import { Log } from "../Shared/ConsoleLog.js";
-import { MarkerData } from "../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
 import MarkerCacheManager from "./MarkerCacheManager.js";
@@ -108,12 +108,14 @@ CREATE TABLE IF NOT EXISTS actions (
  * @typedef {{id: number, op: MarkerOp, marker_id: number, episode_id: number, season_id: number,
  *            show_id: number, start: number, end: number, old_start: number?, old_end: number?,
  *            modified_at: string?, created_at: string, recorded_at: string, extra_data: string,
- *            section_uuid: string, restores_id: number?, restored_id: number? }} MarkerAction
+ *            section_uuid: string, restores_id: number?, restored_id: number?, episodeData: EpisodeData? }} MarkerAction
  */
 
+/** @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow */
+/** @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection */
 /**
  * A map of purged markers
- * @typedef {{ [sectionUUID: string] : { [showId: number] : { [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } } } }} PurgeMap
+ * @typedef {{ [sectionUUID: string] : PurgeSection }} PurgeMap
  */
 
 /** Single-row table that indicates the current version of the actions table. */
@@ -369,19 +371,54 @@ INSERT INTO actions
             }
 
             const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
+            let episodeMap = {};
             this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id, (err, actions) => {
                 if (err) { return callback(err, null); }
                 let pruned = [];
                 for (const action of actions) {
                     // Don't add markers that exist in the database, or whose last recorded action was a delete.
                     if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
+                        if (!episodeMap[action.episode_id]) {
+                            episodeMap[action.episode_id] = [];
+                        }
+
+                        episodeMap[action.episode_id].push(action);
                         pruned.push(action);
                     }
                 }
 
-                callback(null, pruned);
-            })
+                this.#populateEpisodeData(episodeMap, pruned, callback);
+            });
         });
+    }
+
+    /**
+     * Find episode data for the given episodes, invoking the given callback on success.
+     * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap 
+     * @param {*} retVal Return value passed to `callback`
+     * @param {(any, any) => void} callback
+     */
+    #populateEpisodeData(episodeMap, retVal, callback) {
+        if (Object.keys(episodeMap).length != 0) {
+            this.#plexQueries.getEpisodesFromList(Object.keys(episodeMap), (err, episodes) => {
+                if (err) { callback(err); }
+                for (const episode of episodes) {
+                    if (!episodeMap[episode.id]) {
+                        Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
+                        continue;
+                    }
+
+                    const episodeData = new EpisodeData(episode);
+                    for (const markerAction of episodeMap[episode.id]) {
+                        markerAction.episodeData = episodeData;
+                    }
+                }
+
+                callback(null, retVal);
+            });
+        } else {
+            callback(null, retVal);
+        }
     }
 
     /**
@@ -416,6 +453,11 @@ ORDER BY id DESC;`
                     }
                 }
 
+                if (!this.#purgeCache) {
+                    // No purged markers found, but we should initialize an empty
+                    // cache to indicate that.
+                    this.#purgeCache = {};
+                }
                 callback();
             });
         });
@@ -448,6 +490,29 @@ ORDER BY id DESC;`
         season[action.episode_id][action.marker_id] = action;
     }
 
+    /**
+     * Remove the given marker action from the purge cache.
+     * @param {MarkerAction} action */
+    #removeFromPurgeMap(action) {
+        if (!this.#purgeCache) { return; }
+        if (!this.#purgeCache[action.section_uuid]) { return; }
+        let section = this.#purgeCache[action.section_uuid];
+        if (!section[action.show_id]) { return; }
+        let show = section[action.show_id];
+        if (!show[action.season_id]) { return; }
+        let season = show[action.season_id];
+        if (!season[action.episode_id]) { return; }
+        let episode = season[action.episode_id];
+        if (!episode[action.marker_id]) { return; }
+
+        if (episode[action.marker_id]) { delete episode[action.marker_id]; }
+
+        if (Object.keys(episode).length == 0) { delete season[action.episode_id]; }
+        if (Object.keys(season).length == 0) { delete show[action.season_id]; }
+        if (Object.keys(show).length == 0) { delete this.#purgeCache[action.section_uuid][action.show_id]; }
+        if (Object.keys(this.#purgeCache[action.section_uuid]).length == 0) { delete this.#purgeCache[action.section_uuid]; }
+    }
+
     /** @returns The number of purged markers found for the entire server. */
     purgeCount() {
         if (!this.#purgeCache) {
@@ -459,7 +524,7 @@ ORDER BY id DESC;`
             for (const show of Object.values(section)) {
                 for (const season of Object.values(show)) {
                     for (const episode of Object.values(season)) {
-                        count += Object.values(episode).length;
+                        count += Object.keys(episode).length;
                     }
                 }
             }
@@ -471,9 +536,9 @@ ORDER BY id DESC;`
     /**
      * Retrieve purged markers for the given library section.
      * @param {number} sectionId The section to parse.
-     * @returns {MarkerAction[]} Array of purged `MarkerAction`s.
+     * @returns {PurgeSection} Tree of purged `MarkerAction`s.
      * @throws {Error} If the cache is not initialized or the section does not exist. */
-    purgesForSection(sectionId) {
+    purgesForSection(sectionId, callback) {
         if (!this.#purgeCache) {
             throw new Error('Purge cache not initialized, cannot query for purges.');
         }
@@ -482,18 +547,30 @@ ORDER BY id DESC;`
             throw new Error('Section does not exist!');
         }
 
-        let purges = [];
-        for (const show of Object.values(this.#purgeCache[this.#uuids[sectionId]])) {
+        const uuid = this.#uuids[sectionId];
+
+        if (!this.#purgeCache[uuid]) {
+            return callback(null, {});
+        }
+
+        let needsEpisodeData = {};
+        for (const show of Object.values(this.#purgeCache[uuid])) {
             for (const season of Object.values(show)) {
                 for (const episode of Object.values(season)) {
-                    for (const purgedMarker of Object.values(episode)) {
-                        purges.push(purgedMarker);
+                    for (const markerAction of Object.values(episode)) {
+                        if (!markerAction.episodeData) {
+                            if (!needsEpisodeData[markerAction.episode_id]) {
+                                needsEpisodeData[markerAction.episode_id] = [];
+                            }
+
+                            needsEpisodeData[markerAction.episode_id].push(markerAction);
+                        }
                     }
                 }
             }
         }
 
-        return purges;
+        this.#populateEpisodeData(needsEpisodeData, this.#purgeCache[uuid], callback);
     }
 
     /**
@@ -507,7 +584,7 @@ ORDER BY id DESC;`
             case 4: return 'episode';
             default:
                 Log.error(`The caller should have verified a valid value already.`);
-                throw new TypeError(`columnFromMedaiType: Unexpected media type ${mediaType}`);
+                throw new TypeError(`columnFromMediaType: Unexpected media type ${mediaType}`);
         }
     }
 
@@ -533,58 +610,119 @@ ORDER BY id DESC;`
     }
 
     /**
-     * Attempts to restore the marker specified by the given id
-     * @param {number} oldMarkerId The id of the old marker we're trying to restore.
+     * Attempts to restore the markers specified by the given ids
+     * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
      * @param {number} sectionId The id of the section the old marker belonged to.
      * @param {(err: Error?, restoredValues: RawMarkerData?) => void} callback */
-    restoreMarker(oldMarkerId, sectionId, callback) {
+    restoreMarkers(oldMarkerIds, sectionId, callback) {
         if (!(sectionId in this.#uuids)) {
             callback(`Unable to restore marker - unexpected section id: ${sectionId}`, null);
             return;
         }
 
-        const query = 'SELECT * FROM actions WHERE marker_id=? AND section_uuid=? ORDER BY id DESC;';
-        this.#actions.all(query, [oldMarkerId, this.#uuids[sectionId]], (err, rows) => {
-            if (err) {
-                callback(err.message, null);
-                return;
+        Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
+        let query = 'SELECT * FROM actions WHERE (';
+        for (const oldMarkerId of oldMarkerIds) {
+            const markerId = parseInt(oldMarkerId);
+            if (isNaN(markerId)) {
+                return callback(`Trying to restore an invalid marker id ${oldMarkerId}`);
             }
 
+            query += `marker_id=${markerId} OR `;
+        }
+
+        query = query.substring(0, query.length - 4);
+        query += `) AND section_uuid="${this.#uuids[sectionId]}" ORDER BY id DESC;`;
+
+        this.#actions.all(query, (err, rows) => {
+            if (err) { return callback(err.message, null); }
             if (rows.length == 0) {
-                callback(`No markers found with id ${oldMarkerId} to restore.`, null);
-                return;
+                return callback(`No markers found with ids ${oldMarkerIds} to restore.`, null);
             }
 
-            const successFunc = (_, newMarker) => {
-                this.recordRestore(newMarker, oldMarkerId, sectionId);
-                callback(null, newMarker);
-            }
+            let queriesLeft = oldMarkerIds.length;
+            let foundMarkers = {};
+            let restoredMarkers = [];
 
-            const failureFunc = (_, message) => {
-                callback(message, null);
-            }
+            for (const markerAction of rows) {
+                if (foundMarkers[markerAction.marker_id]) {
+                    continue;
+                }
 
-            // Apply the latest data we have.
-            const restore = rows[0];
-            this.#plexQueries.addMarker(restore.episode_id, restore.start, restore.end, successFunc, failureFunc, true /*allowOverlap*/);
+                foundMarkers[markerAction.marker_id] = true;
+
+                const successFunc = (_, newMarker) => {
+                    Log.tmi(`Marker id ${markerAction.marker_id} restored.`);
+                    --queriesLeft;
+                    this.recordRestore(newMarker, markerAction.marker_id, sectionId);
+                    this.#removeFromPurgeMap(markerAction);
+                    restoredMarkers.push(newMarker);
+                    if (queriesLeft == 0) {
+                        callback(null, restoredMarkers);
+                    }
+                }
+
+                const failureFunc = (_, message) => {
+                    Log.error(`Failed to restore marker ${markerAction.marker_id}: ${message}`);
+                    --queriesLeft;
+                    if (queriesLeft == 0) {
+                        callback(null, restoredMarkers);
+                    }
+                }
+
+                Log.tmi(`Attempting to restore marker id ${markerAction.episode_id}`);
+                this.#plexQueries.addMarker(markerAction.episode_id, markerAction.start, markerAction.end, successFunc, failureFunc, true /*allowOverlap*/);
+            }
         });
     }
 
     /**
-     * Ignores a purged marker to exclude it from purge queries.
-     * @param {number} oldMarkerId The id of the old marker we're trying to restore.
-     * @param {number} sectionId The id of the section the old marker belonged to.
+     * Ignores purged markers to exclude them from purge queries.
+     * @param {number[]} oldMarkerIds The ids of the old markers we're trying to ignore.
+     * @param {number} sectionId The id of the section the old markers belonged to.
      * @param {(err: Error?) => void} callback */
-    ignorePurgedMarker(oldMarkerId, sectionId, callback) {
+    ignorePurgedMarkers(oldMarkerIds, sectionId, callback) {
         if (!(sectionId in this.#uuids)) {
             callback(`Unable to restore marker - unexpected section id: ${sectionId}`);
             return;
         }
 
+        let idSet = {};
+        Log.verbose(`Attempting to ignore ${oldMarkerIds} marker(s).`);
+
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
         // while also letting us know that there isn't a real marker that
-        const query = 'UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?;';
-        this.#actions.run(query, [oldMarkerId, this.#uuids[sectionId]], callback);
+        let query = 'UPDATE actions SET restored_id=-1 WHERE (';
+        for (const oldMarkerId of oldMarkerIds) {
+            const markerId = parseInt(oldMarkerId);
+            if (isNaN(markerId)) {
+                return callback(`Trying to restore an invalid marker id ${oldMarkerId}`);
+            }
+
+            idSet[oldMarkerId] = true;
+
+            query += `marker_id=${markerId} OR `;
+        }
+
+        query = query.substring(0, query.length - 4);
+        query += ') AND section_uuid=?';
+        this.#actions.run(query, [this.#uuids[sectionId]], (err) => {
+            if (err) { callback(err); }
+            
+            // Inefficient, but I'm lazy
+            for (const show of Object.values(this.#purgeCache[this.#uuids[sectionId]])) {
+                for (const season of Object.values(show)) {
+                    for (const episode of Object.values(season)) {
+                        for (const markerAction of Object.values(episode)) {
+                            if (idSet[markerAction.marker_id]) {
+                                this.#removeFromPurgeMap(markerAction);
+                            }
+                        }
+                    }
+                }
+            }
+            callback();
+        });
     }
 }
 

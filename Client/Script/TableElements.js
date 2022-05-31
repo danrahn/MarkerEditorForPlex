@@ -59,7 +59,7 @@ class TableElements {
 
     /** Returns a time column that doesn't take thumbnails into consideration. */
     static shortTimeColumn(value) {
-        return TableElements.#classColumn(value, 'timeColumn');
+        return TableElements.#classColumn(value, 'shortTimeColumn');
     }
 
     /**

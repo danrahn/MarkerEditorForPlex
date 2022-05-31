@@ -24,8 +24,20 @@ class PlexClientState {
     #activeShow;
     /** @type {SeasonResultRow} */
     #activeSeason;
+    /**@type {PlexClientState} */
+    static #clientState;
 
-    constructor() {}
+    /** Creates the singleton PlexClientState instance. */
+    constructor() {
+        if (PlexClientState.#clientState) {
+            throw new Error('We should only have a single PlexClientState instance!');
+        }
+
+        PlexClientState.#clientState = this;
+    }
+
+    /** @returns {PlexClientState} */
+    static GetState() { return this.#clientState; }
 
     /**
       * Set the currently active library.

@@ -57,6 +57,10 @@ table .buttonIconAndText {
   width: 150px !important;
 }
 
+.shortTimeColumn {
+  width: 80px !important;
+}
+
 .thumbnailEnabledTimeColumn {
   width: 250px !important;
 }

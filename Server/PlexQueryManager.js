@@ -168,6 +168,46 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
+     * @param {number[]} episodeMetadataIds
+     * @param {MultipleRowQuery} callback */
+    getEpisodesFromList(episodeMetadataIds, callback) {
+        let query = `
+    SELECT
+        e.title AS title,
+        e.\`index\` AS \`index\`,
+        e.id AS id,
+        p.title AS season,
+        p.\`index\` AS season_index,
+        g.title AS show,
+        MAX(m.duration) AS duration,
+        COUNT(e.id) AS parts
+    FROM metadata_items e
+        INNER JOIN metadata_items p ON e.parent_id=p.id
+        INNER JOIN metadata_items g ON p.parent_id=g.id
+        INNER JOIN media_items m ON e.id=m.metadata_item_id
+    WHERE (`;
+
+        for (const episodeId of episodeMetadataIds) {
+            // We should have already ensured only integers are passed in here, but be safe.
+            const metadataId = parseInt(episodeId);
+            if (isNaN(metadataId)) {
+                Log.warn(`Can't get episode information for non-integer id ${episodeId}`);
+                continue;
+            }
+
+            query += `e.id=${metadataId} OR `;
+        }
+
+        query = query.substring(0, query.length - 4);
+        query += `)
+    GROUP BY e.id
+    ORDER BY e.\`index\` ASC;`;
+
+        this.#database.all(query, callback);
+    }
+
+    /**
      * Retrieve all markers for the given episodes.
      * @param {number[]} episodeIds
      * @param {MultipleMarkerQuery} callback */

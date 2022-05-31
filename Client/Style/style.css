@@ -380,6 +380,30 @@ input:focus-visible {
   transform: translateX(30px);
 }
 
+#purgeContainer h1, h2 {
+  text-align: center;
+}
+
+#purgeContainer hr {
+  width: 60%;
+  min-width: 600px;
+  margin-top: 15px;
+}
+
+#purgeContainer .buttonContainer {
+  text-align: center;
+  width: auto;
+}
+
+#purgeContainer .buttonContainer input[type=button] {
+  border-radius: 3px;
+  padding: 4px;
+}
+
+.markerTable {
+  margin-top: 15px;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

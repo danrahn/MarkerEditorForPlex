@@ -258,21 +258,21 @@ const splitKeys = keys => keys.split(',').map(key => parseInt(key));
  * @type {{[endpoint: string]: EndpointForwardingFunction}}
  */
 const EndpointMap = {
-    query        : (params, res) => queryIds(params.custom('keys', splitKeys), res),
-    edit         : (params, res) => editMarker(...params.ints('id', 'start', 'end', 'userCreated'), res),
-    add          : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
-    delete       : (params, res) => deleteMarker(params.i('id'), res),
-    get_sections : (_     , res) => getLibraries(res),
-    get_section  : (params, res) => getShows(params.i('id'), res),
-    get_seasons  : (params, res) => getSeasons(params.i('id'), res),
-    get_episodes : (params, res) => getEpisodes(params.i('id'), res),
-    get_stats    : (params, res) => allStats(params.i('id'), res),
-    get_config   : (_     , res) => getConfig(res),
-    log_settings : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
-    purge_check  : (params, res) => purgeCheck(params.i('id'), res),
-    all_purges   : (params, res) => allPurges(params.i('sectionId'), res),
-    restore      : (params, res) => restoreMarker(...params.ints('markerId', 'sectionId'), res),
-    ignore_purge : (params, res) => ignorePurgedMarker(...params.ints('markerId', 'sectionId'), res),
+    query         : (params, res) => queryIds(params.custom('keys', splitKeys), res),
+    edit          : (params, res) => editMarker(...params.ints('id', 'start', 'end', 'userCreated'), res),
+    add           : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
+    delete        : (params, res) => deleteMarker(params.i('id'), res),
+    get_sections  : (_     , res) => getLibraries(res),
+    get_section   : (params, res) => getShows(params.i('id'), res),
+    get_seasons   : (params, res) => getSeasons(params.i('id'), res),
+    get_episodes  : (params, res) => getEpisodes(params.i('id'), res),
+    get_stats     : (params, res) => allStats(params.i('id'), res),
+    get_config    : (_     , res) => getConfig(res),
+    log_settings  : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
+    purge_check   : (params, res) => purgeCheck(params.i('id'), res),
+    all_purges    : (params, res) => allPurges(params.i('sectionId'), res),
+    restore_purge : (params, res) => restoreMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
+    ignore_purge  : (params, res) => ignorePurgedMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
 };
 
 /**
@@ -822,44 +822,54 @@ function allPurges(sectionId, res) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    try {
-        jsonSuccess(res, BackupManager.purgesForSection(sectionId));
-    } catch (e) {
-        return jsonError(res, 400, e.message);
-    }
-}
-
-/**
- * Attempts to restore the last known state of the marker with the given id.
- * @param {number} oldMarkerId
- * @param {number} sectionId
- * @param {Http.ServerResponse} res */
-function restoreMarker(oldMarkerId, sectionId, res) {
-    if (!BackupManager || !Config.backupActions()) {
-        return jsonError(res, 400, 'Feature not enabled');
-    }
-
-    BackupManager.restoreMarker(oldMarkerId, sectionId, (err, restoredMarker) => {
+    BackupManager.purgesForSection(sectionId, (err, purges) => {
         if (err) {
-            return jsonError(res, 500, err);
+            return jsonError(res, 400, err.message);
         }
 
-        MarkerCache?.addMarkerToCache(restoredMarker);
-        jsonSuccess(res, new MarkerData(restoredMarker));
+        return jsonSuccess(res, purges);
     });
 }
 
 /**
- * Ignores the purged marker with the given id, preventing the user from seeing it again.
- * @param {number} oldMarkerId
+ * Attempts to restore the last known state of the markers with the given ids.
+ * @param {number[]} oldMarkerIds
  * @param {number} sectionId
  * @param {Http.ServerResponse} res */
-function ignorePurgedMarker(oldMarkerId, sectionId, res) {
+function restoreMarkers(oldMarkerIds, sectionId, res) {
     if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.ignorePurgedMarker(oldMarkerId, sectionId, (err) => {
+    BackupManager.restoreMarkers(oldMarkerIds, sectionId, (err, restoredMarkers) => {
+        if (err) {
+            return jsonError(res, 500, err);
+        }
+
+        if (restoredMarkers.length == 0) {
+            return jsonError(res, 400, 'Unable to restore any markers');
+        }
+
+        Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
+        for (const restoredMarker of restoredMarkers) {
+            MarkerCache?.addMarkerToCache(restoredMarker);
+        }
+
+        jsonSuccess(res, { succeeded : restoredMarkers.length, failed : oldMarkerIds.length - restoredMarkers.length });
+    });
+}
+
+/**
+ * Ignores the purged markers with the given ids, preventing the user from seeing them again.
+ * @param {number[]} oldMarkerIds
+ * @param {number} sectionId
+ * @param {Http.ServerResponse} res */
+function ignorePurgedMarkers(oldMarkerIds, sectionId, res) {
+    if (!BackupManager || !Config.backupActions()) {
+        return jsonError(res, 400, 'Feature not enabled');
+    }
+
+    BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId, (err) => {
         if (err) {
             return jsonError(res, 500, err.message);
         }
