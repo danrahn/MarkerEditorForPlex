@@ -1,6 +1,6 @@
 /** External dependencies */
 import { promises as Fs } from 'fs';
-import { createServer } from 'http';
+import { createServer, Server as httpServer } from 'http';
 import { lookup } from 'mime-types';
 import Open from 'open';
 import { dirname } from 'path';
@@ -20,6 +20,10 @@ import ThumbnailManager from './ThumbnailManager.js';
 import { Log, ConsoleLog } from './../Shared/ConsoleLog.js';
 import { MarkerData, ShowData, SeasonData, EpisodeData } from './../Shared/PlexTypes.js';
 
+/**
+ * HTTP server instance.
+ * @type {httpServer} */
+let Server;
 
 /**
  * User configuration.
@@ -119,25 +123,79 @@ function setupTerminateHandlers() {
         Log.critical(err.message);
         Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
         Log.error('The server ran into an unexpected problem, exiting...');
-        QueryManager?.close();
-        BackupManager?.close();
+        cleanupForShutdown();
         process.exit(1);
     });
 
-    // Capture Ctrl+C and cleanly exit the process
-    process.on('SIGINT', () => {
-        Log.info('SIGINT detected, exiting...');
-        QueryManager?.close();
-        BackupManager?.close();
-        process.exit(0);
-    });
+    // Capture Ctrl+C (and other interrupts) and cleanly exit the process
+    process.on('SIGINT', handleClose);
+    process.on('SIGQUIT', handleClose);
+    process.on('SIGTERM', handleClose);
+}
+
+/**
+ * Shut down the server and exit the process (if we're not restarting).
+ * @param {String} signal The signal that initiated this shutdown.
+ * @param {boolean} [restart=false] Whether we should restart the server after closing */
+function handleClose(signal, restart=false) {
+    Log.info(`${signal} detected, exiting...`);
+    cleanupForShutdown();
+    const exitFn = (error, restart) => {
+        if (restart) {
+            Log.info('Restarting server...');
+            run();
+        } else {
+            Log.info('Exiting process.');
+            process.exit(error ? 1 : 0);
+        }
+    };
+
+    if (Server) {
+        Server.close((err) => {
+            if (err) {
+                Log.error(err, 'Failed to cleanly shut down HTTP server');
+            } else {
+                Log.info('Successfully shut down HTTP server.');
+            }
+
+            exitFn(err, restart);
+        });
+    } else {
+        // Didn't even get to server creation, immediately terminate/restart
+        exitFn(0, restart);
+    }
+}
+
+/** Properly close out open resources in preparation for shutting down the process. */
+function cleanupForShutdown() {
+    QueryManager?.close();
+    QueryManager = null;
+    BackupManager?.close();
+    BackupManager = null;
+    MarkerCache = null;
+    Thumbnails = null;
+    Config = null;
+}
+
+/** Shuts down the server after a user-initiated shutdown request.
+ * @param {Http.ServerResponse} res */
+function userShutdown(res) {
+    jsonSuccess(res);
+    handleClose('User Shutdown');
+}
+
+/** Restarts the server after a user-initiated restart request.
+ * @param {Http.ServerResponse} res */
+function userRestart(res) {
+    jsonSuccess(res);
+    handleClose('User Restart', true /*restart*/);
 }
 
 /** Creates the server. Called after verifying the config file and database. */
 function launchServer() {
-    const server = createServer(serverMain);
+    Server = createServer(serverMain);
 
-    server.listen(Config.port(), Config.host(), () => {
+    Server.listen(Config.port(), Config.host(), () => {
         const url = `http://${Config.host()}:${Config.port()}`;
         Log.info(`Server running at ${url} (Ctrl+C to exit)`);
         if (Config.autoOpen()) {
@@ -273,6 +331,8 @@ const EndpointMap = {
     all_purges    : (params, res) => allPurges(params.i('sectionId'), res),
     restore_purge : (params, res) => restoreMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
     ignore_purge  : (params, res) => ignorePurgedMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
+    shutdown      : (_     , res) => userShutdown(res),
+    restart       : (_     , res) => userRestart(res)
 };
 
 /**

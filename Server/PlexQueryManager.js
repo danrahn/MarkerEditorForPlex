@@ -70,7 +70,11 @@ FROM taggings
     /** On process exit, close the database connection. */
     close() {
         if (this.#database) {
-            this.#database.close();
+            this.#database.close((err) => {
+                if (err) { Log.error('Database close failed', err); }
+                else { Log.verbose('Shut down Plex database connection.'); }
+                this.#database = null;
+            });
         }
     }
 

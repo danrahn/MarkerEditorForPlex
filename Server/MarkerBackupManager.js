@@ -234,7 +234,11 @@ class MarkerBackupManager {
 
     /** Closes the database connection. */
     close() {
-        this.#actions?.close();
+        this.#actions?.close((err) => {
+            if (err) { Log.error('Backup marker database close failed', err); }
+            else { Log.verbose('Shut down backup database connection.'); }
+            this.#actions = null;
+        });
     }
 
     /**
@@ -249,7 +253,7 @@ class MarkerBackupManager {
                 this.#upgradeSchema(nextVersion, finalCallback);
             } else {
                 Log.info('Successfully upgraded database schema.');
-                Log.info('Initalized backup database');
+                Log.info('Initialized backup database');
                 finalCallback();
             }
         });
