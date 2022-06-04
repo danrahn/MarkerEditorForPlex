@@ -110,6 +110,14 @@ input[type=button]:hover,
   border-color: #A0A0A0;
 }
 
+#shutdownServer:hover {
+  background-color: #a00a !important;
+}
+
+#restartServer:hover {
+  background-color: #a80a !important;
+}
+
 .selected {
   background: rgba(0,100,0,0.2);
 }

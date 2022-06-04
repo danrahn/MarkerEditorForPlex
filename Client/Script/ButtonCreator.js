@@ -31,8 +31,14 @@ class ButtonCreator {
      * @param {EventListener} clickHandler The button callback when its clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button.
      * @param {*} [thisArg=null] The argument to bind as `this` in `clickHandler`, if any. */
-    static iconButton(icon, altText, color, clickHandler, thisArg=null) {
-        let button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, { title : altText }, thisArg);
+    static iconButton(icon, altText, color, clickHandler, attributes={}, thisArg=null) {
+        if (!attributes.title) {
+            attributes.title = altText;
+        }
+        let button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes, thisArg);
+        attributes.src = ThemeColors.getIcon(icon, color);
+        attributes.alt = altText;
+        attributes.theme = color;
         return appendChildren(button,
             buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }));
     }

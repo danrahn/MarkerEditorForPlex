@@ -54,6 +54,12 @@ let QueryManager;
  * @type {MarkerBackupManager} */
 let BackupManager;
 
+/**
+ * Indicates whether we're in the middle of shutting down the server, and
+ * should therefore immediately fail all incoming requests.
+ * @type {boolean} */
+let InShutdown = false;
+
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -138,11 +144,13 @@ function setupTerminateHandlers() {
  * @param {String} signal The signal that initiated this shutdown.
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
 function handleClose(signal, restart=false) {
+    InShutdown = true;
     Log.info(`${signal} detected, exiting...`);
     cleanupForShutdown();
     const exitFn = (error, restart) => {
         if (restart) {
             Log.info('Restarting server...');
+            InShutdown = false;
             run();
         } else {
             Log.info('Exiting process.');
@@ -212,6 +220,17 @@ function launchServer() {
 function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
+
+    if (InShutdown) {
+        Log.warn('Got a request when attempting to shut down the server, returning 503.');
+        if (method == 'get') {
+            // GET methods don't return JSON
+            res.statusCode = 503;
+            return res.end();
+        }
+
+        return jsonError(res, 503, 'Server is shutting down');
+    }
 
     // Don't get into node_modules or parent directories
     if (req.url.toLowerCase().indexOf('node_modules') != -1 || req.url.indexOf('/..') != -1) {

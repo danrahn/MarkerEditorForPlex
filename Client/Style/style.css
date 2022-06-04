@@ -55,6 +55,7 @@ input, select {
   min-width: 200px;
   max-width: 400px;
   padding: 20px;
+  position: relative;
 }
 
 #settingsContainer h3 {
@@ -88,6 +89,41 @@ input, select {
   padding: 6px;
   margin: auto;
   display: inline-block;
+}
+
+#shutdownServer,
+#restartServer {
+  position: absolute;
+  top: 27px;
+  display: inline;
+  float: none;
+  transition: background-color 0.5s;
+}
+
+#shutdownServer img,
+#restartServer img {
+  padding: 3px;
+}
+
+#shutdownServer {
+  right: 20px;
+}
+
+#restartServer {
+  right: 60px;
+}
+
+#shutdownRestartOverlay {
+  text-align: center;
+  margin: auto;
+}
+
+#shutdownRestartOverlay input {
+  float: none;
+}
+
+#shutdownRestartOverlay .settingsButtons {
+  width: 100%;
 }
 
 .settingsButtons {

@@ -1,5 +1,6 @@
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
-import { $, $$, buildNode, appendChildren, jsonRequest } from './Common.js';
+import ButtonCreator from './ButtonCreator.js';
+import { $, $$, buildNode, appendChildren, jsonRequest, errorMessage, clearEle } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -295,6 +296,10 @@ class ClientSettingsUI {
      *   have extended marker stats enabled.
      */
     showSettings() {
+        Overlay.build({ dismissible : true, centered : false, noborder: true }, this.#optionsUI());
+    }
+
+    #optionsUI() {
         let options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
         options.push(
@@ -354,6 +359,8 @@ class ClientSettingsUI {
 
         options.push(buildNode('hr'));
         let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
+            ButtonCreator.iconButton('restart', 'Restart Server', 'standard', this.#restartServer.bind(this), { id : 'restartServer' }),
+            ButtonCreator.iconButton('cancel', 'Shutdown Server', 'standard', this.#shutdownServer.bind(this), { id : 'shutdownServer'}),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
@@ -367,12 +374,129 @@ class ClientSettingsUI {
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                buildButton('Cancel', 'cancelSettings', Overlay.dismiss, 'margin-right: 10px'),
+                buildButton('Cancel', 'cancelSettings', Overlay.dismiss),
                 buildButton('Apply', 'applySettings', this.#applySettings.bind(this))
             )
         );
 
-        Overlay.build({ dismissible : true, centered : false, noborder: true }, container);
+        return container;
+    }
+
+    /**
+     * Transition to a confirmation UI when the user attempts to restart or shut down the server.
+     * @param {string} message Overlay message to display
+     * @param {string} confirmText Confirmation button text.
+     * @param {Function} confirmCallback Callback invoked when shutdown/restart is confirmed. */
+    #shutdownRestartCommon(message, confirmText, confirmCallback) {
+        Log.tmi(`Transitioning to ${confirmText} confirmation`);
+        let container = buildNode('div', { id : 'shutdownRestartOverlay' });
+        appendChildren(container,
+            buildNode('div', { id : 'shutdownRestartMessage' }, message),
+            buildNode('hr'),
+            appendChildren(
+                buildNode('div', { class : 'formInput' }),
+                    appendChildren(buildNode('div', { class : 'settingsButtons' }),
+                        buildNode('input', { type : 'button', value : 'Cancel', id : 'srCancel' }, 0, { click : this.#onShutdownRestartCancel.bind(this) }),
+                        buildNode('input', { type : 'button', value : confirmText, id : 'srConfirm' }, 0, { click : confirmCallback })))
+            );
+
+        this.#transitionOverlay(container); 
+    }
+
+    /** Transition to a confirmation UI when the user attempts to restart the server. */
+    #restartServer() {
+        this.#shutdownRestartCommon(
+            'Are you sure you want to restart the server?',
+            'Restart',
+            this.#onRestartConfirm.bind(this));
+    }
+
+    /** Switch back to the settings UI if the user cancelled a restart/shutdown. */
+    #onShutdownRestartCancel() {
+        Log.tmi('Shutdown/restart cancelled.');
+        this.#transitionOverlay(this.#optionsUI(), { dismissible : true, centered : false, noborder: true });
+    }
+
+    /**
+     * Callback when we successfully told the server to restart.
+     * Transitions to a new UI that will restart the page automatically in 30 seconds,
+     * with the option to restart immediately. */
+    #onRestartConfirm() {
+        Log.info('Attempting to restart server.');
+        const successFunc = () => {
+            $('#shutdownRestartMessage').innerText = 'Server is restarting now.';
+            let cancelBtn = $('#srCancel');
+            const btnContainer = cancelBtn.parentElement;
+            btnContainer.removeChild(cancelBtn);
+            cancelBtn = buildNode('input', { type : 'button', value : 'Refreshing in 30', id : 'srCancel' });
+            btnContainer.appendChild(cancelBtn);
+
+            const refreshCountdown = () => {
+                if (!cancelBtn.isConnected) {
+                    return;
+                }
+
+                const nextValue = parseInt(cancelBtn.value.substring(cancelBtn.value.lastIndexOf(' ') + 1)) - 1;
+                if (nextValue < 1) {
+                    window.location.reload();
+                    return;
+                }
+
+                cancelBtn.value = `Refreshing in ${nextValue}`;
+                setTimeout(refreshCountdown, 1000);
+            };
+
+            setTimeout(refreshCountdown, 1000);
+
+            let confirmBtn = $('#srConfirm');
+            btnContainer.removeChild(confirmBtn);
+            confirmBtn = buildNode('input', { type : 'button', value : 'Refresh Now', id : 'srConfirm' }, 0, { click : () => window.location.reload() });
+            confirmBtn.addEventListener('click', () => window.location.reload());
+            btnContainer.appendChild(confirmBtn);
+        };
+
+        const failureFunc = (response) => {
+            $('#shutdownRestartMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
+            $('#srConfirm').value = 'Try Again.';
+        };
+
+        jsonRequest('restart', {}, successFunc, failureFunc);
+    }
+
+    /** Transition to a confirmation UI when the user attempts to shut down the server. */
+    #shutdownServer() {
+        this.#shutdownRestartCommon(
+            'Are you sure you want to shut down the server?',
+            'Shutdown',
+            this.#onShutdownConfirm.bind(this));
+    }
+
+    /**
+     * Callback when we successfully told the server to shut down.
+     * Removes buttons and keeps the undismissible overlay up, since we can't do anything anymore.*/
+    #onShutdownConfirm() {
+        Log.info('Attempting to shut down server.');
+        const successFunc = () => {
+            $('#shutdownRestartMessage').innerText = 'Server is shutting down now.';
+            const btnHolder = $('#srCancel').parentElement;
+            clearEle(btnHolder);
+        };
+
+        const failureFunc = (response) => {
+            $('#shutdownRestartMessage').innerText = `Failed to shut down server: ${errorMessage(response)}`;
+            $('#srConfirm').value = 'Try Again.';
+        };
+
+        jsonRequest('shutdown', {}, successFunc, failureFunc);
+    }
+
+    /**
+     * Dismisses the current overlay and brings in a new one.
+     * @param {HTMLElement} newOverlayContainer The new overlay to display.
+     * @param {*} [options={}] The new overlay's options, if any. */
+    #transitionOverlay(newOverlayContainer, options={}) {
+        Overlay.dismiss();
+        setTimeout(() => Overlay.build(options, newOverlayContainer), 250);
     }
 
     /** Enables or disabled a dialog setting

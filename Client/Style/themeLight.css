@@ -136,6 +136,14 @@ input[type=button]:hover {
     background-color: #912121;
 }
 
+#shutdownServer:hover {
+    background-color: #f66a !important;
+}
+
+#restartServer:hover {
+    background-color: #fb0a !important;
+}
+
 ::-webkit-scrollbar-track:hover {
     background: #EECC99;
-  }
+}

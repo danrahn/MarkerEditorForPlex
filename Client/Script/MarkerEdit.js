@@ -112,8 +112,8 @@ class MarkerEdit {
         let destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback, this),
-            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback, this)
+            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback, {}, this),
+            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback, {}, this)
         );
     }
 
