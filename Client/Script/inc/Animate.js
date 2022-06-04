@@ -69,13 +69,12 @@ let Animation = new function()
         }
 
         /*@__PURE__*/Log.tmi(animationQueue[element.id], "Firing animation for " + element.id + " immediately", true /*freeze*/);
-        animationQueue[element.id][0].timers = [];
         for (let i = 0; i < animations.length; ++i)
         {
-            animationQueue[element.id][0].timers.push(setTimeout(function(func, element, prop, ...args)
+            setTimeout(function(func, element, prop, ...args)
             {
                 func(element, prop, ...args);
-            }, delay, animations[i].func, element, animations[i].prop, ...animations[i].args));
+            }, delay, animations[i].func, element, animations[i].prop, ...animations[i].args);
         }
     };
 
@@ -92,11 +91,6 @@ let Animation = new function()
         if (queue)
         {
             /*@__PURE__*/Log.tmi(queue, `FireNow - queue not empty, attempting to cancel current animations for ${element.id}`, true /*freeze*/);
-            for (let i = 0; i < queue[0].timers.length; ++i)
-            {
-                clearTimeout(queue[0].timers[i]);
-            }
-
             // If the queue is not empty, remove everything but the first element (which needs to exist and know it's canceled)
             queue.splice(1);
             queue[0].canceled = true;
@@ -156,7 +150,7 @@ let Animation = new function()
                 justFired.args[3]();
             }
 
-            if (removeElement)
+            if (removeElement && !queue[0].canceled)
             {
                 element.parentNode.removeChild(element);
             }
@@ -179,10 +173,9 @@ let Animation = new function()
         {
             /*@__PURE__*/Log.tmi(`Firing next animation for ${element.id}`);
             let nextAnimations = queue[0];
-            nextAnimations.timers = [];
             for (let i = 0; i < nextAnimations.length; ++i)
             {
-                nextAnimations.timers[i] = setTimeout((element, nextAnimation) =>
+                setTimeout((element, nextAnimation) =>
                 {
                     nextAnimation.func(element, nextAnimation.prop, ...nextAnimation.args);
                 }, nextAnimations[i].delay, element, nextAnimations[i]);
