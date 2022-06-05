@@ -134,9 +134,16 @@ function setupTerminateHandlers() {
     });
 
     // Capture Ctrl+C (and other interrupts) and cleanly exit the process
-    process.on('SIGINT', handleClose);
-    process.on('SIGQUIT', handleClose);
-    process.on('SIGTERM', handleClose);
+    const signalCallback = (sig) => handleClose(sig);
+    process.on('SIGINT', signalCallback);
+    process.on('SIGQUIT', signalCallback);
+    process.on('SIGTERM', signalCallback);
+
+    // On Windows, Ctrl+Break immediately shuts down without cleanup
+    process.on('SIGBREAK', () => {
+        Log.warn('Ctrl+Break detected, shutting down immediately.');
+        process.exit(1);
+    });
 }
 
 /**
