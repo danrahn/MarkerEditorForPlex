@@ -3,8 +3,6 @@ import { join } from 'path';
 
 import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
 
-/** @typedef {{enabled : boolean, metadataPath : string}} PreviewThumbnails */
-
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.
  * @typedef {{json : Object, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
@@ -50,10 +48,11 @@ class ConfigBase {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
             }
 
-            Log.warn(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
+            Log.info(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
             return defaultValue;
         }
 
+        Log.verbose(`Setting ${key} to ${this.#json[key]}`);
         return this.#json[key];
     }
 }
@@ -73,11 +72,11 @@ class PlexFeatures extends ConfigBase {
     extendedMarkerStats = true;
 
     /** Setting for logging all marker actions, for future use in restoring and/or purging user edited markers. */
-    backupActions = false;
+    backupActions = true;
 
     /** Setting for displaying timestamped preview thumbnails when editing or adding markers.
-     * @type {PreviewThumbnails} */
-    previewThumbnails = {};
+     * @type {boolean} */
+    previewThumbnails = true;
 
     /** Sets the application features based on the given json.
      * @param {object} json */
@@ -87,17 +86,13 @@ class PlexFeatures extends ConfigBase {
         this.#Base = baseClass;
         if (!json) {
             Log.warn('Features not found in config, setting defaults');
-            this.previewThumbnails = { enabled : false, metadataPath : '' };
             return;
         }
 
         this.autoOpen = this.#getOrDefault('autoOpen', true);
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
-        this.backupActions = this.#getOrDefault('backupActions', false); // Disabled by default pending further testing.
-        this.previewThumbnails = this.#getOrDefault('previewThumbnails', { enabled : false, metadataPath : '' });
-        if (this.previewThumbnails.enabled && !this.previewThumbnails.metadataPath || !existsSync(this.previewThumbnails.metadataPath)) {
-            throw new Error(`Preview thumbnails are enabled, but the metadata path '${this.previewThumbnails.metadataPath}' does not exist.`);
-        }
+        this.backupActions = this.#getOrDefault('backupActions', true);
+        this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`
@@ -115,6 +110,11 @@ class PlexIntroEditorConfig extends ConfigBase {
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
      #Base = {}
+
+    /** The path to the root of Plex's data directory.
+     * https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/
+     * @type {String} */
+    #dataPath;
 
     /** The file path to the Plex database
      * @type {string} */
@@ -146,10 +146,60 @@ class PlexIntroEditorConfig extends ConfigBase {
 
         this.#logLevel = this.#getOrDefault('logLevel', "Info");
         this.#setLogLevel();
-        this.#dbPath = this.#getOrDefault('database');
+        this.#dataPath = this.#getOrDefault('dataPath', this.#getDefaultPlexDataPath());
+        this.#dbPath = this.#getOrDefault('database', join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+        this.#verifyPathExists(this.#dbPath, 'database');
         this.#host = this.#getOrDefault('host', 'localhost');
         this.#port = this.#getOrDefault('port', 3232);
         this.#features = new PlexFeatures(this.#Base.json.features);
+
+        // We only need the data path if preview thumbnails are enabled, so don't
+        // fail if we're not using them.
+        if (this.#features.previewThumbnails) {
+            this.#verifyPathExists(this.#dataPath, 'dataPath');
+        }
+    }
+
+    /**
+     * Ensures the given file/path exists, throwing an error if it doesn't.
+     * @param {PathLike} file
+     * @param {string} key The setting the path is associated with. */
+    #verifyPathExists(file, key) {
+        if (!existsSync(file)) {
+            throw new Error(`Path for ${key} ('${file}') does not exist, cannot continue.`);
+        }
+    }
+
+    /**
+     * Attempts to retrieve the default Plex data directory for the current platform,
+     * returning null if it was not able to.
+     * @returns {string?} */
+    #getDefaultPlexDataPath() {
+        const platform = process.platform;
+        switch (platform) {
+            case 'win32':
+                if (!process.env['LOCALAPPDATA']) {
+                    return null;
+                }
+
+                return join(process.env['LOCALAPPDATA'], 'Plex Media Server');
+            case 'darwin':
+                return '~/Library/Application Support/Plex Media Server';
+            case 'linux':
+            case 'aix':
+            case 'openbsd':
+            case 'sunos':
+                if (!process.env['PLEX_HOME']) {
+                    return null;
+                }
+
+                return join(process.env['PLEX_HOME'], 'Library/Application Support/Plex Media Server');
+            case 'freebsd':
+                return '/usr/local/plexdata/Plex Media Server';
+            default:
+                Log.warn(`Found unexpected platform '${platform}', cannot find default data path.`);
+                return null;
+        }
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`} */
@@ -161,8 +211,8 @@ class PlexIntroEditorConfig extends ConfigBase {
     host() { return this.#host; }
     port() { return this.#port; }
     autoOpen() { return this.#features.autoOpen; }
-    useThumbnails() { return this.#features.previewThumbnails.enabled; }
-    metadataPath() { return this.#features.previewThumbnails.metadataPath; }
+    useThumbnails() { return this.#features.previewThumbnails; }
+    metadataPath() { return this.#dataPath; }
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     backupActions() { return this.#features.backupActions; }
@@ -176,7 +226,7 @@ class PlexIntroEditorConfig extends ConfigBase {
 
     /**
      * Converts the string log level from the config into actual log settings.
-     * If the string starts with 'dark', intialize the console to be dark and parse
+     * If the string starts with 'dark', initialize the console to be dark and parse
      * the rest of the string as the actual log level.
      * @returns {{dark: number, level: [ConsoleLog.Level]}}
      */

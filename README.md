@@ -10,13 +10,13 @@ Some clients also support multiple intros, despite Plex not generating multiple 
 
 ## Known Issues
 
-It appears that after adding a new episode to a season and Plex's intro detection runs again, it will wipe out any existing markers. There is a way to restore them in this application with the right settings enabled, but it's not heavily tested, and some UI interactions still need to be hooked up.
+After adding a new episode to a season and Plex's intro detection runs again, it will wipe out any existing markers. There is a way to restore them in this application with the right settings enabled, but it's not heavily tested, and some UI interactions still need to be hooked up/fine-tuned.
 
 ## Usage
 
 ### First Run Steps
 1. Install [Node.js](https://nodejs.org/en/). This may take awhile.
-2. `git clone` this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
+2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
 3. Enter your db path in config.json
 4. `cd /path/to/app.js`
 5. `npm install`
@@ -28,32 +28,25 @@ It appears that after adding a new episode to a season and Plex's intro detectio
 ## Configuration file
 
 ### Main Settings
-| Key | Description | Possible Values
----|---|---
-`database` | Full path to the Plex database. | A valid file path. Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\database.db"`)
-`host`     | The hostname Node will listen on. Defaults to `localhost`, but could be changed to a local IP (e.g. `192.168.1.2`) if you want to modify markers on a different device on your local network. | A valid IP/hostname
-`port`     | The port the server will listen on. Defaults to `3232` | A valid port number.
-`logLevel` | Determines the initial logging verbosity in the console (which can be overridden by the client). Can be prefixed with `Dark` to use dark-themed colors. | `"(Dark)?(TMI\|Verbose\|Info\|Warn\|Error)"`
-`features` | A dictionary of toggleable features for the application | [Feature Settings](#feature-settings)
+| Key | Description | Default | Possible Values
+---|---|---|---
+`dataPath` | Full path to the Plex [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/). Optional if preview thumbnails are disabled and a database path is provided below. | Windows/macOS/Linux defaults as specified [here](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A valid file path.  Note that backslashes in Windows paths will have to be escaped (`"C:\\path\\to\\data\\directory"`).
+`database` | Full path to the Plex database. Optional if `plexDataPath` is provided (or the default path is found). | Expected db path relative to `dataPath` | A valid file path. Can point to a copy of the real database for initial testing.
+`host`     | The hostname Node will listen on. Defaults to `localhost`, but could be changed to a local IP (e.g. `192.168.1.2`) if you want to modify markers on a different device on your local network. | `localhost` | A valid IP/hostname.
+`port`     | The port the server will listen on. Defaults to `3232` | `3232` | A valid port number.
+`logLevel` | Determines the initial logging verbosity in the console (which can be overridden by the client). Can be prefixed with `Dark` to use dark-themed colors. | `Info` | `"(Dark)?(TMI\|Verbose\|Info\|Warn\|Error)"`
+`features` | A dictionary of toggleable features for the application | | [Feature Settings](#feature-settings)
 
 ### Feature Settings
 
-Settings inside the `features` dictionary:
+Settings inside the `features` dictionary (all are enabled by default):
 
 | Key | Description | Possible Values
 ---|---|---
 `autoOpen` | Whether to automatically open the server in the browser on launch. | `true` or `false`
-`extendedMarkerStats` | Whether to gather all markers in the database to compile per library/show/season marker data. Potentially compute and memory expensive for very large libraries, as it keeps a record for every episode/marker in the database. | `true` or `false`
+`extendedMarkerStats` | Whether to gather all markers in the database to compile per-library/-show/-season marker data. Potentially compute and memory expensive for very large libraries, as it keeps a record for every episode/marker in the database. | `true` or `false`
 `backupActions` | Writes all marker actions to a separate database to allow for restoring previous edits that Plex destroyed. | `true` or `false`
-`previewThumbnails` | Controls preview thumbnail retrieval | [Preview Thumbnails Settings](#preview-thumbnails-settings)
-
-#### Preview Thumbnails Settings
-
-Settings inside the `previewThumbnails` dictionary:
-| Key | Description | Possible Values
----|---|---
-`enabled` | Determines whether the app should attempt to retrieve preview thumbnails associated with marker timestamps | `true` or `false`
-`metadataPath` | Root path to Plex's [data directory](https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/) | A full path (e.g. `C:\\Users\\username\\AppData\\Local\\Plex Media Server`). Only required if `enabled` is `true`.
+`previewThumbnails` | Controls preview thumbnail retrieval | `true` or `false`
 
 
 ## Remarks

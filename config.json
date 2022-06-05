@@ -1,5 +1,6 @@
 {
-    "database" : "path/to/com.plexapp.plugins.library.db",
+    "dataPath" : "/optional/path/to/data/directory",
+    "database" : "/optional/path/to/com.plexapp.plugins.library.db",
     "host" : "localhost",
     "port" : 3232,
     "logLevel" : "DarkInfo",
@@ -7,9 +8,6 @@
         "autoOpen" : true,
         "extendedMarkerStats" : true,
         "backupActions" : true,
-        "previewThumbnails" : {
-            "enabled" : true,
-            "metadataPath" : "/path/to/server/data/directory"
-        }
+        "previewThumbnails" : true
     }
 }
