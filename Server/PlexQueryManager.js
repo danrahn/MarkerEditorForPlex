@@ -120,7 +120,7 @@ GROUP BY shows.id;`;
     }
 
     /**
-     * Retrieve all seaons in the given show.
+     * Retrieve all seasons in the given show.
      *
      * Fields returned: `id`, `title`, `index`, `episode_count`.
      * @param {number} showMetadataId
@@ -312,7 +312,7 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve a single marker with the given maraker id.
+     * Retrieve a single marker with the given marker id.
      *
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} markerId
@@ -378,7 +378,7 @@ ORDER BY e.\`index\` ASC;`;
      * and the index for the new marker is returned directly. If overlapping markers are
      * not allowed, -1 is returned if overlap is detected.
      * @param {[]} markers
-     * @param {number} newStart The start time of the new marker, in millseconds.
+     * @param {number} newStart The start time of the new marker, in milliseconds.
      * @param {number} newEnd The end time of the new marker, in milliseconds.
      * @param {boolean} [allowOverlap=false] Whether we're okay with the new marker overlapping with an existing one. */
     #reindexForAdd(markers, newStart, newEnd, allowOverlap=false) {

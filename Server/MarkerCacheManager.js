@@ -248,7 +248,7 @@ class MarkerCacheManager {
     }
 
     /**
-     * Retrieve marker breakdown stats for a given steason of a show.
+     * Retrieve marker breakdown stats for a given season of a show.
      * @param {number} showId The metadata id of the show that `seasonId` belongs to.
      * @param {number} seasonId The metadata id of the season. */
     getSeasonStats(showId, seasonId) {

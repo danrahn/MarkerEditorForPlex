@@ -223,7 +223,7 @@ class MarkerBackupManager {
 
                             this.#upgradeSchema(version, callback);
                         } else {
-                            Log.info(fullPath, 'Initalized backup database');
+                            Log.info(fullPath, 'Initialized backup database');
                             callback();
                         }
                     })

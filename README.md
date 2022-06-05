@@ -17,7 +17,9 @@ After adding a new episode to a season and Plex's intro detection runs again, it
 ### First Run Steps
 1. Install [Node.js](https://nodejs.org/en/). This may take awhile.
 2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
-3. Enter your db path in config.json
+3. Modify config.json:
+    * Edit Plex data path/database path (or remove to let the application attempt to find them automatically).
+    * Enable/disable features outlined below as desired.
 4. `cd /path/to/app.js`
 5. `npm install`
 

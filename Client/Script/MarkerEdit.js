@@ -80,7 +80,7 @@ class MarkerEdit {
     }
 
     /**
-     * Replace the static marker start/end times with editiable text fields. */
+     * Replace the static marker start/end times with editable text fields. */
     #buildTimeEdit() {
         let start = this.markerRow.row().children[1];
         clearEle(start);
