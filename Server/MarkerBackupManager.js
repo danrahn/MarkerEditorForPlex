@@ -184,9 +184,10 @@ class MarkerBackupManager {
     constructor(plexQueries, projectRoot, callback) {
         this.#plexQueries = plexQueries;
 
+        Log.info('MarkerBackupManager: Initializing marker backup database...');
         plexQueries.sectionUuids((err, sections) => {
             if (err) {
-                Log.error(`Unable to get existing library sections. Can't properly backup marker actions`);
+                Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
                 throw err;
             }
 
@@ -196,34 +197,37 @@ class MarkerBackupManager {
 
             const dbPath = joinPath(projectRoot, 'Backup');
             if (!existsSync(dbPath)) {
-                Log.verbose('Backup path does not exist, creating it.');
+                Log.verbose('MarkerBackupManager: Backup path does not exist, creating it.');
                 mkdirSync(dbPath);
             }
 
             const fullPath = joinPath(dbPath, 'markerActions.db');
             if (!existsSync(fullPath)) {
                 // Not strictly necessary, but nice for logging.
-                Log.info(`No backup marker database found, creating it (${fullPath}).`);
+                Log.info(`MarkerBackupManager: No backup marker database found, creating it (${fullPath}).`);
+            } else {
+                Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
             }
 
             this.#actions = CreateDatabase(fullPath, true /*allowCreate*/, (err) => {
                 if (err) {
-                    Log.error('Unable to create/open backup database, exiting...');
+                    Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
                     throw err;
                 }
 
+                Log.tmi('MarkerBackupManager: Opened database, checking schema');
                 this.#actions.exec(CheckVersionTable, (err) => { if (err) { throw err; }
                     this.#actions.get('SELECT version FROM schema_version;', (err, row) => { if (err) { throw err; }
                         const version = row ? row.version : 0;
                         if (version != CurrentSchemaVersion) {
                             if (version != 0) {
                                 // Only log if this isn't a new database, i.e. version isn't 0.
-                                Log.info(`Old database schema detected (${version}), attempting to upgrade.`);
+                                Log.info(`MarkerBackupManager: Old database schema detected (${version}), attempting to upgrade.`);
                             }
 
                             this.#upgradeSchema(version, callback);
                         } else {
-                            Log.info(fullPath, 'Initialized backup database');
+                            Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
                             callback();
                         }
                     })
@@ -234,9 +238,10 @@ class MarkerBackupManager {
 
     /** Closes the database connection. */
     close() {
+        Log.verbose('MarkerBackupManager: Shutting down backup database connection...');
         this.#actions?.close((err) => {
-            if (err) { Log.error('Backup marker database close failed', err); }
-            else { Log.verbose('Shut down backup database connection.'); }
+            if (err) { Log.error('MarkerBackupManager: Backup marker database close failed', err); }
+            else { Log.verbose('MarkerBackupManager: Shut down backup database connection.'); }
             this.#actions = null;
         });
     }
@@ -247,13 +252,13 @@ class MarkerBackupManager {
      * @param {() => void} finalCallback The function to invoke once the database is up to date. */
     #upgradeSchema(oldVersion, finalCallback) {
         const nextVersion = oldVersion + 1;
-        Log.info(`Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
+        Log.info(`MarkerBackupManager: Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
         this.#actions.exec(SchemaUpgrades[oldVersion], (err) => { if (err) { throw err; }
             if (nextVersion != CurrentSchemaVersion) {
                 this.#upgradeSchema(nextVersion, finalCallback);
             } else {
-                Log.info('Successfully upgraded database schema.');
-                Log.info('Initialized backup database');
+                Log.info('MarkerBackupManager: Successfully upgraded database schema.');
+                Log.info('MarkerBackupManager: Initialized backup database');
                 finalCallback();
             }
         });
@@ -264,7 +269,7 @@ class MarkerBackupManager {
      * @param {MarkerData} marker */
     recordAdd(marker) {
         if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'Unable to record added marker - unexpected section id');
+            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
             return;
         }
 
@@ -276,9 +281,9 @@ INSERT INTO actions
         const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.start, marker.end, this.#uuids[marker.sectionId]];
         this.#actions.run(query, parameters, (err) => {
             if (err) {
-                Log.error(err.message, 'Unable to record added marker');
+                Log.error(err.message, 'MarkerBackupManager: Unable to record added marker');
             } else {
-                Log.verbose(`Marker add of id ${marker.id} added to backup.`);
+                Log.verbose(`MarkerBackupManager: Marker add of id ${marker.id} added to backup.`);
             }
         });
     }
@@ -288,7 +293,7 @@ INSERT INTO actions
      * @param {MarkerData} marker */
     recordEdit(marker, oldStart, oldEnd) {
         if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'Unable to record edited marker - unexpected section id');
+            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record edited marker - unexpected section id');
             return;
         }
 
@@ -300,9 +305,9 @@ INSERT INTO actions
         const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.start, marker.end, oldStart, oldEnd, marker.createDate, this.#uuids[marker.sectionId]];
         this.#actions.run(query, parameters, (err) => {
             if (err) {
-                Log.error(err.message, 'Unable to record edited marker');
+                Log.error(err.message, 'MarkerBackupManager: Unable to record edited marker');
             } else {
-                Log.verbose(`Marker edit of id ${marker.id} added to backup.`);
+                Log.verbose(`MarkerBackupManager: Marker edit of id ${marker.id} added to backup.`);
             }
         });
     }
@@ -312,7 +317,7 @@ INSERT INTO actions
      * @param {MarkerData} marker */
     recordDelete(marker) {
         if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'Unable to record deleted marker - unexpected section id');
+            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record deleted marker - unexpected section id');
             return;
         }
 
@@ -324,9 +329,9 @@ INSERT INTO actions
         const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId]];
         this.#actions.run(query, parameters, (err) => {
             if (err) {
-                Log.error(err.message, 'Unable to record deleted marker');
+                Log.error(err.message, 'MarkerBackupManager: Unable to record deleted marker');
             } else {
-                Log.verbose(`Marker delete of id ${marker.id} added to backup.`);
+                Log.verbose(`MarkerBackupManager: Marker delete of id ${marker.id} added to backup.`);
             }
         });
     }
@@ -347,7 +352,7 @@ INSERT INTO actions
         const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], oldMarkerId];
         this.#actions.run(query, parameters, (err) => {
             if (err) {
-                Log.error(err.message, 'Unable to record restoration of marker');
+                Log.error(err.message, 'MarkerBackupManager: Unable to record restoration of marker');
                 return;
             }
 
@@ -355,7 +360,7 @@ INSERT INTO actions
             const updateParameters = [newMarker.id, oldMarkerId, this.#uuids[sectionId]];
             this.#actions.run(updateQuery, updateParameters, (err) => {
                 if (err) {
-                    Log.error(err.message, 'Failed to set restored_id on purged marker');
+                    Log.error(err.message, 'MarkerBackupManager: Failed to set restored_id on purged marker');
                 }
             });
         });
@@ -408,7 +413,7 @@ INSERT INTO actions
                 if (err) { callback(err); }
                 for (const episode of episodes) {
                     if (!episodeMap[episode.id]) {
-                        Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
+                        Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
                         continue;
                     }
 
@@ -437,8 +442,10 @@ INSERT INTO actions
             }
 
             let uuidString = '';
+            let parameters = [];
             for (const section of sections) {
-                uuidString += `section_uuid="${section.uuid}" OR `;
+                parameters.push(section.uuid);
+                uuidString += `section_uuid=? OR `;
             }
 
             uuidString = uuidString.substring(0, uuidString.length - 4);
@@ -449,7 +456,7 @@ WHERE (${uuidString}) AND restored_id IS NULL
 GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`
 
-            this.#actions.all(query, (err, actions) => {
+            this.#actions.all(query, parameters, (err, actions) => {
                 if (err) { return callback(err.message); }
                 for (const action of actions) {
                     if (!cacheManager.markerExists(action.marker_id)) {
@@ -587,7 +594,7 @@ ORDER BY id DESC;`
             case 3: return 'season';
             case 4: return 'episode';
             default:
-                Log.error(`The caller should have verified a valid value already.`);
+                Log.error(`MarkerBackupManager: The caller should have verified a valid value already.`);
                 throw new TypeError(`columnFromMediaType: Unexpected media type ${mediaType}`);
         }
     }
@@ -624,21 +631,24 @@ ORDER BY id DESC;`
             return;
         }
 
-        Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
+        Log.verbose(`MarkerBackupManager: Attempting to restore ${oldMarkerIds.length} marker(s).`);
         let query = 'SELECT * FROM actions WHERE (';
+        let parameters = [];
         for (const oldMarkerId of oldMarkerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {
                 return callback(`Trying to restore an invalid marker id ${oldMarkerId}`);
             }
 
-            query += `marker_id=${markerId} OR `;
+            parameters.push(markerId);
+            query += `marker_id=? OR `;
         }
 
         query = query.substring(0, query.length - 4);
-        query += `) AND section_uuid="${this.#uuids[sectionId]}" ORDER BY id DESC;`;
+        parameters.push(this.#uuids[sectionId]);
+        query += `) AND section_uuid=? ORDER BY id DESC;`;
 
-        this.#actions.all(query, (err, rows) => {
+        this.#actions.all(query, parameters, (err, rows) => {
             if (err) { return callback(err.message, null); }
             if (rows.length == 0) {
                 return callback(`No markers found with ids ${oldMarkerIds} to restore.`, null);
@@ -656,7 +666,7 @@ ORDER BY id DESC;`
                 foundMarkers[markerAction.marker_id] = true;
 
                 const successFunc = (_, newMarker) => {
-                    Log.tmi(`Marker id ${markerAction.marker_id} restored.`);
+                    Log.tmi(`MarkerBackupManager: Marker id ${markerAction.marker_id} restored.`);
                     --queriesLeft;
                     this.recordRestore(newMarker, markerAction.marker_id, sectionId);
                     this.#removeFromPurgeMap(markerAction);
@@ -667,14 +677,14 @@ ORDER BY id DESC;`
                 }
 
                 const failureFunc = (_, message) => {
-                    Log.error(`Failed to restore marker ${markerAction.marker_id}: ${message}`);
+                    Log.error(`MarkerBackupManager: Failed to restore marker ${markerAction.marker_id}: ${message}`);
                     --queriesLeft;
                     if (queriesLeft == 0) {
                         callback(null, restoredMarkers);
                     }
                 }
 
-                Log.tmi(`Attempting to restore marker id ${markerAction.episode_id}`);
+                Log.tmi(`MarkerBackupManager: Attempting to restore marker id ${markerAction.episode_id}`);
                 this.#plexQueries.addMarker(markerAction.episode_id, markerAction.start, markerAction.end, successFunc, failureFunc, true /*allowOverlap*/);
             }
         });
@@ -692,11 +702,12 @@ ORDER BY id DESC;`
         }
 
         let idSet = {};
-        Log.verbose(`Attempting to ignore ${oldMarkerIds} marker(s).`);
+        Log.verbose(`MarkerBackupManager: Attempting to ignore ${oldMarkerIds} marker(s).`);
 
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
         // while also letting us know that there isn't a real marker that
         let query = 'UPDATE actions SET restored_id=-1 WHERE (';
+        let parameters = [];
         for (const oldMarkerId of oldMarkerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {
@@ -704,13 +715,14 @@ ORDER BY id DESC;`
             }
 
             idSet[oldMarkerId] = true;
-
-            query += `marker_id=${markerId} OR `;
+            parameters.push(markerId);
+            query += `marker_id=? OR `;
         }
 
         query = query.substring(0, query.length - 4);
+        parameters.push(this.#uuids[sectionId]);
         query += ') AND section_uuid=?';
-        this.#actions.run(query, [this.#uuids[sectionId]], (err) => {
+        this.#actions.run(query, parameters, (err) => {
             if (err) { callback(err); }
             
             // Inefficient, but I'm lazy

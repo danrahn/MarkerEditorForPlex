@@ -49,18 +49,21 @@ FROM taggings
      * @param {string} databasePath
      * @param {() => void} callback */
     constructor(databasePath, callback) {
+        Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
         this.#database = CreateDatabase(databasePath, false /*allowCreate*/, (err) => {
             if (err) {
-                Log.error(`Unable to open database. Are you sure "${databasePath}" exists?`);
+                Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
                 throw err;
             }
 
+            Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
             this.#database.get('SELECT id FROM tags WHERE tag_type=12;', (err, row) => {
                 if (err) {
-                    Log.error(`Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
+                    Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
                     throw err;
                 }
     
+                Log.info('PlexQueryManager: Database verified');
                 this.#markerTagId = row.id;
                 callback();
             });
@@ -69,10 +72,11 @@ FROM taggings
 
     /** On process exit, close the database connection. */
     close() {
+        Log.verbose(`PlexQueryManager: Shutting down Plex database connection...`);
         if (this.#database) {
             this.#database.close((err) => {
-                if (err) { Log.error('Database close failed', err); }
-                else { Log.verbose('Shut down Plex database connection.'); }
+                if (err) { Log.error('PlexQueryManager: Database close failed', err); }
+                else { Log.verbose('PlexQueryManager: Shut down Plex database connection.'); }
                 this.#database = null;
             });
         }
@@ -192,15 +196,17 @@ ORDER BY e.\`index\` ASC;`;
         INNER JOIN media_items m ON e.id=m.metadata_item_id
     WHERE (`;
 
+        let parameters = [];
         for (const episodeId of episodeMetadataIds) {
             // We should have already ensured only integers are passed in here, but be safe.
             const metadataId = parseInt(episodeId);
             if (isNaN(metadataId)) {
-                Log.warn(`Can't get episode information for non-integer id ${episodeId}`);
+                Log.warn(`PlexQueryManager: Can't get episode information for non-integer id ${episodeId}`);
                 continue;
             }
 
-            query += `e.id=${metadataId} OR `;
+            parameters.push(metadataId);
+            query += `e.id=? OR `;
         }
 
         query = query.substring(0, query.length - 4);
@@ -208,7 +214,7 @@ ORDER BY e.\`index\` ASC;`;
     GROUP BY e.id
     ORDER BY e.\`index\` ASC;`;
 
-        this.#database.all(query, callback);
+        this.#database.all(query, parameters, callback);
     }
 
     /**
@@ -220,7 +226,7 @@ ORDER BY e.\`index\` ASC;`;
         episodeIds.forEach(episodeId => {
             if (isNaN(episodeId)) {
                 // Don't accept bad keys, but don't fail the entire operation either.
-                Log.warn(episodeId, 'Found bad key in queryIds, skipping');
+                Log.warn(episodeId, 'PlexQueryManager: Found bad key in queryIds, skipping');
                 return;
             }
     
@@ -433,7 +439,7 @@ ORDER BY e.\`index\` ASC;`;
         // Fire and forget. Fingers crossed this does the right thing.
         this.#database.run('UPDATE taggings SET `index`=? WHERE id=?;', [newIndex, markerId], (err) => {
             if (err) {
-                Log.error(`Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
+                Log.error(`PlexQueryManager: Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
             }
         });
     }

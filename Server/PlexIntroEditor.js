@@ -67,13 +67,10 @@ const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 function run() {
     setupTerminateHandlers();
     Config = new PlexIntroEditorConfig(ProjectRoot);
-    Log.info(`Verifying database '${Config.databasePath()}'...`);
 
     // Set up the database, and make sure it's the right one.
     QueryManager = new PlexQueryManager(Config.databasePath(), () => {
-        Log.info('Database Verified.');
         if (Config.backupActions()) {
-            Log.info('Initializing marker backup database...');
             BackupManager = new MarkerBackupManager(QueryManager, ProjectRoot, afterQueryInit);
         } else {
             Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
