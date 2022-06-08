@@ -144,6 +144,10 @@ input[type=button]:hover {
     background-color: #fb0a !important;
 }
 
+#pauseServer:hover {
+    background-color: #8afa !important;
+}
+
 ::-webkit-scrollbar-track:hover {
     background: #EECC99;
 }

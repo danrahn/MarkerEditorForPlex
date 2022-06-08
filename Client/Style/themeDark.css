@@ -118,6 +118,10 @@ input[type=button]:hover,
   background-color: #a80a !important;
 }
 
+#pauseServer:hover {
+  background-color: #46aa !important;
+}
+
 .selected {
   background: rgba(0,100,0,0.2);
 }

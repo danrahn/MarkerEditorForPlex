@@ -91,8 +91,7 @@ input, select {
   display: inline-block;
 }
 
-#shutdownServer,
-#restartServer {
+.serverStateButton {
   position: absolute;
   top: 27px;
   display: inline;
@@ -100,9 +99,8 @@ input, select {
   transition: background-color 0.5s;
 }
 
-#shutdownServer img,
-#restartServer img {
-  padding: 3px;
+.serverStateButton img {
+  padding: 3px 0 3px 0;
 }
 
 #shutdownServer {
@@ -110,7 +108,11 @@ input, select {
 }
 
 #restartServer {
-  right: 60px;
+  right: 50px;
+}
+
+#pauseServer {
+  right: 80px;
 }
 
 #shutdownRestartOverlay {

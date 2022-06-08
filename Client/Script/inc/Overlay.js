@@ -1,4 +1,4 @@
-import { $, buildNode } from '../Common.js';
+import { $, buildNode, clearEle } from '../Common.js';
 import { Log } from '../../../Shared/ConsoleLog.js';
 
 import Animation from './Animate.js';
@@ -42,6 +42,24 @@ let Overlay = new function()
             )
         );
     };
+
+    /**
+     * Sets the overlay's message. Only valid if the current overlay was shown via `Overlay.show`.
+     * @param {string|HTMLElement} message The new message to display */
+    this.setMessage = function(message) {
+        const div = $('#overlayMessage');
+        if (!div) {
+            Log.error('No overlay message div found!');
+            return;
+        }
+
+        if (message instanceof HTMLElement) {
+            clearEle(div);
+            div.appendChild(message);
+        } else {
+            div.innerHTML = message;
+        }
+    }
 
     /**
      * Dismiss the overlay and remove it from the DOM.

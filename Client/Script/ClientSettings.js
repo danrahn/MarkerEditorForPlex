@@ -6,6 +6,7 @@ import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { PlexUI } from './PlexUI.js';
+import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
 
 /**
@@ -357,10 +358,17 @@ class ClientSettingsUI {
             Log.getLevel(),
             'Set the log verbosity in the browser console.'));
 
+        const icon = (icon, text, fn) => {
+            const id = text.toLowerCase() + 'Server';
+            text = text + ' Server';
+            return ButtonCreator.iconButton(icon, text, 'standard', fn, { id : id, class : 'serverStateButton' });
+        }
+
         options.push(buildNode('hr'));
         let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
-            ButtonCreator.iconButton('restart', 'Restart Server', 'standard', this.#restartServer.bind(this), { id : 'restartServer' }),
-            ButtonCreator.iconButton('cancel', 'Shutdown Server', 'standard', this.#shutdownServer.bind(this), { id : 'shutdownServer'}),
+            icon('pause', 'Pause', this.#pauseServer.bind(this)),
+            icon('restart', 'Restart', this.#restartServer.bind(this)),
+            icon('cancel', 'Shutdown', this.#shutdownServer.bind(this)),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
@@ -387,32 +395,58 @@ class ClientSettingsUI {
      * @param {string} message Overlay message to display
      * @param {string} confirmText Confirmation button text.
      * @param {Function} confirmCallback Callback invoked when shutdown/restart is confirmed. */
-    #shutdownRestartCommon(message, confirmText, confirmCallback) {
+    serverStateCommon(message, confirmText, confirmCallback) {
         Log.tmi(`Transitioning to ${confirmText} confirmation`);
         let container = buildNode('div', { id : 'shutdownRestartOverlay' });
         appendChildren(container,
-            buildNode('div', { id : 'shutdownRestartMessage' }, message),
+            buildNode('div', { id : 'serverStateMessage' }, message),
             buildNode('hr'),
             appendChildren(
                 buildNode('div', { class : 'formInput' }),
                     appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                        buildNode('input', { type : 'button', value : 'Cancel', id : 'srCancel' }, 0, { click : this.#onShutdownRestartCancel.bind(this) }),
+                        buildNode('input', { type : 'button', value : 'Cancel', id : 'srCancel' }, 0, { click : this.#onServerStateCancel.bind(this) }),
                         buildNode('input', { type : 'button', value : confirmText, id : 'srConfirm' }, 0, { click : confirmCallback })))
             );
 
         this.#transitionOverlay(container); 
     }
 
+    /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */
+    #pauseServer() {
+        this.serverStateCommon(
+            'Are you sure you want to pause the server?<br>' +
+            'This will disconnect from the Plex database to allow you to resume Plex. When you want to continue ' +
+            'editing markers, shut down Plex again and Resume.',
+            'Pause',
+            this.#onPauseConfirm.bind(this)
+        );
+    }
+
+    /** Callback when we successfully paused the server. Shows a new static overlay
+     *  that allows the user to resume the server. */
+    #onPauseConfirm() {
+        Log.info('Attempting to pause server.');
+        const successFunc = () => {
+            ServerPausedOverlay.Show();
+        }
+
+        const failureFunc = (response) => {
+            Overlay.show(`Failed to pause server: ${errorMessage(response)}`, 'OK');
+        }
+
+        jsonRequest('suspend', {}, successFunc, failureFunc);
+    }
+
     /** Transition to a confirmation UI when the user attempts to restart the server. */
     #restartServer() {
-        this.#shutdownRestartCommon(
+        this.serverStateCommon(
             'Are you sure you want to restart the server?',
             'Restart',
             this.#onRestartConfirm.bind(this));
     }
 
     /** Switch back to the settings UI if the user cancelled a restart/shutdown. */
-    #onShutdownRestartCancel() {
+    #onServerStateCancel() {
         Log.tmi('Shutdown/restart cancelled.');
         this.#transitionOverlay(this.#optionsUI(), { dismissible : true, centered : false, noborder: true });
     }
@@ -424,7 +458,7 @@ class ClientSettingsUI {
     #onRestartConfirm() {
         Log.info('Attempting to restart server.');
         const successFunc = () => {
-            $('#shutdownRestartMessage').innerText = 'Server is restarting now.';
+            $('#serverStateMessage').innerText = 'Server is restarting now.';
             let cancelBtn = $('#srCancel');
             const btnContainer = cancelBtn.parentElement;
             btnContainer.removeChild(cancelBtn);
@@ -456,7 +490,7 @@ class ClientSettingsUI {
         };
 
         const failureFunc = (response) => {
-            $('#shutdownRestartMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
+            $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
             $('#srConfirm').value = 'Try Again.';
         };
 
@@ -465,7 +499,7 @@ class ClientSettingsUI {
 
     /** Transition to a confirmation UI when the user attempts to shut down the server. */
     #shutdownServer() {
-        this.#shutdownRestartCommon(
+        this.serverStateCommon(
             'Are you sure you want to shut down the server?',
             'Shutdown',
             this.#onShutdownConfirm.bind(this));
@@ -477,13 +511,13 @@ class ClientSettingsUI {
     #onShutdownConfirm() {
         Log.info('Attempting to shut down server.');
         const successFunc = () => {
-            $('#shutdownRestartMessage').innerText = 'Server is shutting down now.';
+            $('#serverStateMessage').innerText = 'Server is shutting down now.';
             const btnHolder = $('#srCancel').parentElement;
             clearEle(btnHolder);
         };
 
         const failureFunc = (response) => {
-            $('#shutdownRestartMessage').innerText = `Failed to shut down server: ${errorMessage(response)}`;
+            $('#serverStateMessage').innerText = `Failed to shut down server: ${errorMessage(response)}`;
             $('#srConfirm').value = 'Try Again.';
         };
 

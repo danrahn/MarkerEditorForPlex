@@ -1,4 +1,5 @@
 import { Log } from '../../Shared/ConsoleLog.js';
+import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /**
  * Removes all children from the given element.
@@ -26,6 +27,15 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
     fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
         Log.verbose(response, `Response from ${url}`);
         if (!response || response.Error) {
+
+            // Global check to see if we failed because the server is suspended.
+            // If so, show the undismissible 'Server Paused' overlay.
+            if (response.Error && response.Error == 'Server is suspended') {
+                Log.info('Action was not completed because the server is suspended.');
+                ServerPausedOverlay.Show();
+                return;
+            }
+
             if (failureFunc) {
                 failureFunc(response);
             } else {

@@ -55,10 +55,24 @@ let QueryManager;
 let BackupManager;
 
 /**
+ * Set of possible server states. */
+const ServerState = {
+    /** Server is booting up. */
+    FirstBoot : 0,
+    /** Server is booting up after a restart. */
+    ReInit : 1,
+    /** Server is running normally. */
+    Running : 2,
+    /** Server is in a suspended state. */
+    Suspended : 3,
+    /** The server is in the process of shutting down. Either permanently or during a restart. */
+    ShuttingDown : 4,
+}
+/**
  * Indicates whether we're in the middle of shutting down the server, and
  * should therefore immediately fail all incoming requests.
  * @type {boolean} */
-let InShutdown = false;
+let CurrentState = ServerState.FirstBoot;
 
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -120,6 +134,10 @@ export default run;
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
 function setupTerminateHandlers() {
+    // Only need to do this on first boot, not if we're restarting/resuming
+    if (CurrentState != ServerState.FirstBoot) {
+        return;
+    }
 
     // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
     process.on('uncaughtException', (err) => {
@@ -148,13 +166,14 @@ function setupTerminateHandlers() {
  * @param {String} signal The signal that initiated this shutdown.
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
 function handleClose(signal, restart=false) {
-    InShutdown = true;
+    CurrentState = ServerState.ShuttingDown;
     Log.info(`${signal} detected, exiting...`);
     cleanupForShutdown();
     const exitFn = (error, restart) => {
         if (restart) {
             Log.info('Restarting server...');
-            InShutdown = false;
+            CurrentState = ServerState.ReInit;
+            Server = null;
             run();
         } else {
             Log.info('Exiting process.');
@@ -187,6 +206,13 @@ function cleanupForShutdown() {
     MarkerCache = null;
     Thumbnails = null;
     Config = null;
+
+    // Either we failed to resume the server, or we got a shutdown request in the middle of
+    // resuming. Send a failure response now so the server can close cleanly.
+    if (ResumeResponse) {
+        jsonError(ResumeResponse, 500, 'Failed to resume server.');
+        ResumeResponse = null;
+    }
 }
 
 /** Shuts down the server after a user-initiated shutdown request.
@@ -203,18 +229,85 @@ function userRestart(res) {
     handleClose('User Restart', true /*restart*/);
 }
 
+/** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database.
+ * @param {Http.ServerResponse} res */
+function userSuspend(res) {
+    Log.verbose('Attempting to pause the server');
+    if (CurrentState != ServerState.Running) {
+        return jsonError(res, 400, 'Server is either already suspended or shutting down.');
+    }
+
+    CurrentState = ServerState.Suspended;
+    cleanupForShutdown();
+    jsonSuccess(res);
+}
+
+/**
+ * The response to our resume event. Kept at the global scope
+ * to avoid passing it through the mess of init callbacks initiated by `run()`.
+ * @type {Http.ServerResponse} */
+let ResumeResponse;
+
+/**
+ * Resumes the server after being disconnected from the Plex database.
+ * @param {Http.ServerResponse} res */
+function userResume(res) {
+    Log.verbose('Attempting to resume the server');
+    if (CurrentState != ServerState.Suspended) {
+        Log.verbose(`userResume: Server isn't suspended (${CurrentState})`);
+        return jsonSuccess(res, { message : 'Server is not suspended.' });
+    }
+
+    if (ResumeResponse) {
+        Log.verbose('userResume: Already in a resume operation');
+        return jsonSuccess(res, { message : 'Server is already resuming.' });
+    }
+
+    ResumeResponse = res;
+
+    run();
+}
+
 /** Creates the server. Called after verifying the config file and database. */
 function launchServer() {
+    if (!shouldCreateServer()) {
+        return;
+    }
+
     Server = createServer(serverMain);
 
     Server.listen(Config.port(), Config.host(), () => {
         const url = `http://${Config.host()}:${Config.port()}`;
         Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-        if (Config.autoOpen()) {
+        if (Config.autoOpen() && CurrentState == ServerState.FirstBoot) {
             Log.info('Launching browser...');
             Open(url);
         }
+
+        CurrentState = ServerState.Running;
     });
+}
+
+/**
+ * Return whether we should attempt to create the server. Will only return false
+ * if we're resuming from a previous suspension.
+ * @returns {boolean} */
+function shouldCreateServer() {
+    if (!Server) {
+        return true;
+    }
+
+    if (CurrentState != ServerState.Suspended) {
+        Log.warn('Calling launchServer when server already exists!');
+    }
+
+    CurrentState = ServerState.Running;
+    if (ResumeResponse) {
+        jsonSuccess(ResumeResponse, { message : 'Server resumed' });
+        ResumeResponse = null;
+    }
+
+    return false;
 }
 
 /**
@@ -225,7 +318,7 @@ function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
-    if (InShutdown) {
+    if (CurrentState == ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');
         if (method == 'get') {
             // GET methods don't return JSON
@@ -273,6 +366,13 @@ function handleGet(req, res) {
     if (url.startsWith('/i/')) {
         return getSvgIcon(url, res);
     } else if (url.startsWith('/t/')) {
+        if (CurrentState == ServerState.Suspended) {
+            // We're disconnected from the backing data, can't return anything.
+            res.statusCode = 400;
+            res.end(`Server is suspended, can't retrieve thumbnail.`);
+            return;
+        }
+
         return getThumbnail(url, res);
     }
 
@@ -355,7 +455,9 @@ const EndpointMap = {
     restore_purge : (params, res) => restoreMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
     ignore_purge  : (params, res) => ignorePurgedMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
     shutdown      : (_     , res) => userShutdown(res),
-    restart       : (_     , res) => userRestart(res)
+    restart       : (_     , res) => userRestart(res),
+    suspend       : (_     , res) => userSuspend(res),
+    resume        : (_     , res) => userResume(res),
 };
 
 /**
@@ -367,6 +469,10 @@ function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
+    if (CurrentState == ServerState.Suspended && endpoint != 'resume') {
+        return jsonError(res, 400, 'Server is suspended');
+    }
+
     const parameters = new QueryParser(req);
     if (EndpointMap[endpoint]) {
         try {
