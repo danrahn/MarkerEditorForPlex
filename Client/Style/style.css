@@ -45,12 +45,6 @@ input, select {
   overflow: auto;
 }
 
-#showInstructions {
-  margin: 5px auto 5px auto;
-  display: inline-block;
-  cursor: pointer;
-}
-
 .instructions {
   padding: 0 10px 0 10px;
 }
@@ -262,10 +256,24 @@ input:focus-visible {
   border-color:#ff7f00;
 }
 
+#helpContainer {
+  position: absolute;
+  top: 30px;
+}
+
+#helpBtn {
+  opacity: 0.8;
+  cursor: pointer;
+}
+  
+#helpBtn:hover {
+  opacity: 1;
+}
+
 #toggleContainer {
   position: absolute;
   top: 30px;
-  right: 30px;
+  right: 60px;
 }
 
 #darkModeToggle {
@@ -345,6 +353,10 @@ input:focus-visible {
   margin-top: 15px;
 }
 
+#helpOverlayHolder {
+  text-align: center;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
@@ -377,6 +389,10 @@ input:focus-visible {
     width: 10px;
     height: 10px;
   }
+
+  #helpContainer {
+    right: 30px;
+  }
 }
 
 @media all and (orientation: portrait) and (max-width: 767px) { /* Probably a phone */
@@ -390,5 +406,11 @@ input:focus-visible {
    * This isn't really a mobile-friendly site, but try not to completely break it. */
   #darkModeToggle {
     display: none;
+  }
+
+  /* The help button runs into the same issues as the theme toggle.
+   * We don't want to hide it though, so just adjust its right margin to give it more room. */
+  #helpContainer {
+    right: 10px;
   }
 }

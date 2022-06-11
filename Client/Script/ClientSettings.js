@@ -741,6 +741,7 @@ class SettingsManager {
         // index.html hard-codes the dark theme icon. Adjust if necessary.
         if (!this.isDarkTheme()) {
             $('#settings').src = '/i/212121/settings.svg';
+            $('#helpBtn').src = '/i/212121/help.svg';
         }
     }
 

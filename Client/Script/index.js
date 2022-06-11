@@ -8,6 +8,7 @@ import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
+import ShowHelpOverlay from './HelpOverlay.js';
 
 window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
 
@@ -16,7 +17,7 @@ window.addEventListener('load', setup);
 /** Initial setup on page load. */
 function setup()
 {
-    $('#showInstructions').addEventListener('click', showHideInstructions);
+    $('#helpBtn').addEventListener('click', ShowHelpOverlay);
     SettingsManager.Initialize();
     PlexClientState.Initialize();
     PlexUI.Initialize();
@@ -25,18 +26,6 @@ function setup()
     // and it doesn't need anything from us, so no need to keep a reference to it.
     new MarkerBreakdownManager();
     mainSetup();
-}
-
-/**
- * Toggle the visibility of the instructions.
- * @this HTMLElement */
-function showHideInstructions() {
-    $('.instructions').forEach(instruction => instruction.classList.toggle('hidden'));
-    if (this.innerHTML[0] == '+') {
-        this.innerHTML = '- Click to hide details';
-    } else {
-        this.innerHTML = '+ Click here for details';
-    }
 }
 
 /**
