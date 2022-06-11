@@ -82,12 +82,11 @@ class ButtonCreator {
 
     /**
      * Treat 'Enter' on a table "button" as a click.
-     * @param {HTMLElement} button
      * @param {KeyboardEvent} e */
-    static tableButtonKeyup(button, e) {
+    static tableButtonKeyup(e) {
         if (e.key == 'Enter') {
             e.preventDefault();
-            button.click();
+            this.click();
         }
     }
 }

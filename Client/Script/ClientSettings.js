@@ -297,9 +297,24 @@ class ClientSettingsUI {
      *   have extended marker stats enabled.
      */
     showSettings() {
-        Overlay.build({ dismissible : true, centered : false, noborder: true }, this.#optionsUI());
+        Overlay.build(
+            { dismissible : true, centered : false, noborder: true, setup : this.#focusOnShow('darkModeSetting') },
+            this.#optionsUI());
     }
 
+    /**
+     * Return a setup object to pass into Overlay.build's setup parameter to set focus to a given element.
+     * @param {string} id The id of the element to set focus on when displaying an overlay. */
+    #focusOnShow(id) {
+        return {
+            fn : () => $(`#${id}`).focus(),
+            args : []
+        };
+    }
+
+    /**
+     * Retrieve the overlay UI container
+     * @returns {HTMLElement} */
     #optionsUI() {
         let options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
@@ -377,8 +392,8 @@ class ClientSettingsUI {
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-            ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { id : 'applySettings' }),
-            ButtonCreator.textButton('Cancel', Overlay.dismiss, { id : 'cancelSettings' })
+            ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'confirmSetting' }),
+            ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'cancelSetting' })
             )
         );
 
@@ -399,17 +414,17 @@ class ClientSettingsUI {
             appendChildren(
                 buildNode('div', { class : 'formInput' }),
                     appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                        buildNode('input', { type : 'button', value : 'Cancel', id : 'srCancel' }, 0, { click : this.#onServerStateCancel.bind(this) }),
-                        buildNode('input', { type : 'button', value : confirmText, id : 'srConfirm' }, 0, { click : confirmCallback })))
+                        ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
+                        ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
             );
 
-        this.#transitionOverlay(container); 
+        this.#transitionOverlay(container, { setup : this.#focusOnShow('srCancel') }); 
     }
 
     /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */
     #pauseServer() {
         this.serverStateCommon(
-            'Are you sure you want to pause the server?<br>' +
+            'Are you sure you want to pause the server?<br><br>' +
             'This will disconnect from the Plex database to allow you to resume Plex. When you want to continue ' +
             'editing markers, shut down Plex again and Resume.',
             'Pause',
@@ -443,7 +458,7 @@ class ClientSettingsUI {
     /** Switch back to the settings UI if the user cancelled a restart/shutdown. */
     #onServerStateCancel() {
         Log.tmi('Shutdown/restart cancelled.');
-        this.#transitionOverlay(this.#optionsUI(), { dismissible : true, centered : false, noborder: true });
+        this.#transitionOverlay(this.#optionsUI(), { dismissible : true, centered : false, noborder: true, setup : this.#focusOnShow('darkModeSetting') });
     }
 
     /**

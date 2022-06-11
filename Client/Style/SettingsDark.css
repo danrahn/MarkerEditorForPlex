@@ -52,10 +52,12 @@
     background-color: #46aa !important;
 }
 
-#applySettings:hover {
+.confirmSetting:hover,
+.confirmSetting:focus {
     background-color: #040;
 }
 
-#cancelSettings:hover {
+.cancelSetting:hover,
+.cancelSetting:focus {
     background-color: #400;
 }

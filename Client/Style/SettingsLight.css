@@ -34,10 +34,12 @@
     border-color: #53575a !important;
 }
 
-#applySettings:hover {
+.confirmSetting:hover,
+.confirmSetting:focus {
     background-color: #9E9;
 }
 
-#cancelSettings:hover {
+.cancelSetting:hover,
+.cancelSetting:focus {
     background-color: #FAA;
 }

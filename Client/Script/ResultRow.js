@@ -107,7 +107,9 @@ class ResultRow {
         }
 
         let atLeastOne = 0;
-        let tooltipText = `${baseText}<br>`;
+        // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
+        // for slightly larger text than the default.
+        let tooltipText = `<span class="largerTooltip">${baseText}<br>`;
         const keys = Object.keys(mediaItem.markerBreakdown).sort((a, b) => parseInt(a) - parseInt(b));
         for (const key of keys) {
             const episodeCount = mediaItem.markerBreakdown[key];
@@ -118,7 +120,9 @@ class ResultRow {
         }
 
         if (atLeastOne == 0) {
-            tooltipText = `${baseText}<br>None have markers.`;
+            tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
+        } else {
+            tooltipText += '</span>';
         }
 
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);

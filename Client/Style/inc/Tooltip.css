@@ -9,3 +9,7 @@
     position: absolute;
     z-index: 99; /* always on top */
 }
+
+.largerTooltip {
+    font-size: 12pt;
+}
