@@ -65,7 +65,7 @@ class ButtonCreator {
             'div',
             { class : `button noSelect ${className}`, tabindex : '0' },
             0,
-            { click : clickHandler, keyup : ButtonCreator.tableButtonKeyup },
+            { click : clickHandler, keyup : thisArg ? ButtonCreator.tableButtonKeyupWithContext : ButtonCreator.tableButtonKeyup },
             { thisArg : thisArg });
         for (const [attribute, value] of Object.entries(attributes)) {
             if (attribute == 'class') { // Don't clash with the other classes set above.
@@ -82,12 +82,20 @@ class ButtonCreator {
 
     /**
      * Treat 'Enter' on a table "button" as a click.
+     * @param {HTMLElement} button
      * @param {KeyboardEvent} e */
-    static tableButtonKeyup(e) {
+    static tableButtonKeyupWithContext(button, e) {
         if (e.key == 'Enter') {
             e.preventDefault();
-            this.click();
+            button.click();
         }
+    }
+
+    /**
+     * Treat 'Enter' on a table "button" as a click.
+     * @param {KeyboardEvent} e */
+    static tableButtonKeyup(e) {
+        ButtonCreator.tableButtonKeyupWithContext(this, e);
     }
 }
 
