@@ -105,21 +105,8 @@ tr:nth-child(even):hover {
   border-color: #c1c1c1;
 }
 
-input[type=button]:hover,
-#settingsContainer input[type=button]:hover {
+input[type=button]:hover {
   border-color: #A0A0A0;
-}
-
-#shutdownServer:hover {
-  background-color: #a00a !important;
-}
-
-#restartServer:hover {
-  background-color: #a80a !important;
-}
-
-#pauseServer:hover {
-  background-color: #46aa !important;
 }
 
 .selected {
@@ -149,4 +136,9 @@ input[type=button]:hover,
 
 ::-webkit-scrollbar-track:hover {
   background: black;
+}
+
+#tooltip {
+  background-color: rgba(50, 50, 50, .7);
+  color: #c1c1c1;
 }

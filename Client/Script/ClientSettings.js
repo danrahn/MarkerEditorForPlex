@@ -374,16 +374,11 @@ class ClientSettingsUI {
         );
 
         options.forEach(option => container.appendChild(option));
-        const buildButton = (text, id, callback, style='') => buildNode(
-            'input', { type : 'button', value : text, id : id, style : style },
-            0,
-            { click : callback }
-        );
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                buildButton('Cancel', 'cancelSettings', Overlay.dismiss),
-                buildButton('Apply', 'applySettings', this.#applySettings.bind(this))
+            ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { id : 'applySettings' }),
+            ButtonCreator.textButton('Cancel', Overlay.dismiss, { id : 'cancelSettings' })
             )
         );
 
@@ -713,7 +708,7 @@ class SettingsManager {
             const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
             return buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
         };
-        this.#themeStyles = [styleNode('theme'), styleNode('Overlay')];
+        this.#themeStyles = [styleNode('theme'), styleNode('Overlay'), styleNode('Settings')];
         for (const style of this.#themeStyles) {
             $$('head').appendChild(style);
         }

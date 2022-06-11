@@ -151,3 +151,8 @@ input[type=button]:hover {
 ::-webkit-scrollbar-track:hover {
     background: #EECC99;
 }
+
+#tooltip {
+    background-color: rgba(255, 240, 200, 0.8);
+    color: #212121;
+}
