@@ -4,6 +4,7 @@ import { Log } from '../../../Shared/ConsoleLog.js';
 import Animation from './Animate.js';
 import Tooltip from './Tooltip.js';
 import ThemeColors from '../ThemeColors.js';
+import ButtonCreator from '../ButtonCreator.js';
 
 /**
  * Class to display overlays on top of a webpage.
@@ -16,7 +17,7 @@ let Overlay = new function()
 {
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
-     * @param {string} message The message to display.
+     * @param {string|HTMLElement} message The message to display.
      * @param {string} buttonText The text of the button.
      * @param {Function} [buttonFunc=Overlay.dismiss] The function to invoke when the button is pressed.
      * Defaults to dismissing the overlay.
@@ -26,20 +27,10 @@ let Overlay = new function()
     {
         this.build({ dismissible : dismissible, centered : false },
             buildNode("div", { id : "overlayMessage", class : "overlayDiv" }, message),
-            buildNode(
-                "input",
-                {
-                    type : "button",
-                    id : "overlayBtn",
-                    class : "overlayInput overlayButton",
-                    value : buttonText,
-                    style : "width: 100px"
-                },
-                0,
-                {
-                    click : buttonFunc
-                }
-            )
+            ButtonCreator.textButton(
+                buttonText,
+                buttonFunc,
+                { id : 'overlayBtn', class : 'overlayInput overlayButton', style : 'width: 100px'})
         );
     };
 

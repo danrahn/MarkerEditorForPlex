@@ -75,6 +75,12 @@
     opacity: 1;
 }
 
+#overlayBtn {
+    margin: auto;
+    text-align: center;
+    display: block;
+}
+
 /* Desktop/Landscape */
 @media (orientation: landscape), (min-width: 767px) {
     .fullOverlay {
