@@ -8,6 +8,7 @@ import ButtonCreator from "./ButtonCreator.js";
 import SettingsManager from "./ClientSettings.js";
 import { MarkerRow } from "./MarkerTableRow.js";
 import PlexClientState from "./PlexClientState.js";
+import { Log } from "../../Shared/ConsoleLog.js";
 
 
 /**
@@ -71,6 +72,31 @@ class MarkerEdit {
             0,
             events,
             { thisArg : this });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
+                e.preventDefault();
+            }
+        });
+
+        // The above keydown should catch most bad inputs, but the user can still
+        // paste something invalid in. This is overkill considering there's already
+        // validation before attempting to submit a timestamp, but it's better to
+        // prevent the user from doing something bad as early as possible.
+        input.addEventListener('paste', function(e) {
+            let text = e.clipboardData.getData('text/plain');
+            if (!/^[\d:.]*$/.test(text)) {
+                const newText = text.replace(/[^\d:.]/g, '');
+                e.preventDefault();
+                try {
+                    document.execCommand('insertText', false, newText);
+                } catch (ex) {
+                    Log.warn(ex, `MarkerEdit: Failed to execute insertText command`);
+                    // Most browsers still support execCommand even though it's deprecated, but if we did fail, try a direct replacement
+                    this.value = this.value.substring(0, this.selectionStart) + newText + this.value.substring(this.selectionEnd);
+                }
+            }
+        });
 
         if (isEnd) {
             Tooltip.setTooltip(input, 'Ctrl+Shift+E to replace with the end of an episode.');
