@@ -459,6 +459,10 @@ ORDER BY id DESC;`
             this.#actions.all(query, parameters, (err, actions) => {
                 if (err) { return callback(err.message); }
                 for (const action of actions) {
+                    if (action.op == MarkerOp.Delete) {
+                        continue; // Last action was a user delete, ignore it.
+                    }
+
                     if (!cacheManager.markerExists(action.marker_id)) {
                         this.#addToPurgeMap(action);
                     }

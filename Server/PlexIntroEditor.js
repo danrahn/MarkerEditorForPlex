@@ -239,6 +239,7 @@ function userSuspend(res) {
 
     CurrentState = ServerState.Suspended;
     cleanupForShutdown();
+    Log.info('Server successfully suspended.');
     jsonSuccess(res);
 }
 
