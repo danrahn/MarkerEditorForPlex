@@ -638,10 +638,7 @@ class PurgeOverlay {
         clearEle(this.#html);
         appendChildren(this.#html,
             buildNode('h1', {}, emptyOnInit ? 'No Purged Markers Found' : 'No More Purged Markers'),
-            buildNode('input',
-            { type : 'button', class : 'overlayInput overlayButton', value : 'OK' },
-            0,
-            { click : Overlay.dismiss }));
+            ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' }));
         Animation.queue({ opacity : 1 }, this.#html, 500);
     }
 

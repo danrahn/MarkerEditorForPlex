@@ -357,6 +357,14 @@ input:focus-visible {
   text-align: center;
 }
 
+#overlayDeleteMarker {
+  margin-right: 10px;
+}
+
+#deleteMarkerCancel {
+  margin-left: 10px;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

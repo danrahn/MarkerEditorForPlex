@@ -159,31 +159,11 @@ class ExistingMarkerRow extends MarkerRow {
         let header = buildNode('h2', {}, 'Are you sure?');
         let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this intro marker?');
     
-        let okayButton = buildNode(
-            'input',
-            {
-                type : 'button',
-                value : 'Delete',
-                class : 'overlayButton confirmDelete',
-                id : 'overlayDeleteMarker',
-                markerId : this.#markerData.id
-            },
-            0,
-            { click : this.#onMarkerDelete },
-            { thisArg : this }
-        );
+        let okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
+        let okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
     
-        let cancelButton = buildNode(
-            'input',
-            {
-                id : 'deleteMarkerCancel',
-                type : 'button',
-                value : 'Cancel',
-                class : 'overlayButton'
-            },
-            0,
-            { click : Overlay.dismiss }
-        );
+        let cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
+        let cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
     
         let outerButtonContainer = buildNode("div", { class : "formInput", style : "text-align: center" });
         let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });

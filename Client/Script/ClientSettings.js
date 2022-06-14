@@ -472,7 +472,7 @@ class ClientSettingsUI {
             let cancelBtn = $('#srCancel');
             const btnContainer = cancelBtn.parentElement;
             btnContainer.removeChild(cancelBtn);
-            cancelBtn = buildNode('input', { type : 'button', value : 'Refreshing in 30', id : 'srCancel' });
+            cancelBtn = ButtonCreator.textButton('Refreshing in 30', () => {}, { id : 'srCancel' });
             btnContainer.appendChild(cancelBtn);
 
             const refreshCountdown = () => {
@@ -480,13 +480,13 @@ class ClientSettingsUI {
                     return;
                 }
 
-                const nextValue = parseInt(cancelBtn.value.substring(cancelBtn.value.lastIndexOf(' ') + 1)) - 1;
+                const nextValue = parseInt(cancelBtn.innerText.substring(cancelBtn.innerText.lastIndexOf(' ') + 1)) - 1;
                 if (nextValue < 1) {
                     window.location.reload();
                     return;
                 }
 
-                cancelBtn.value = `Refreshing in ${nextValue}`;
+                cancelBtn.innerHTML = `<span>Refreshing in ${nextValue}</span>`;
                 setTimeout(refreshCountdown, 1000);
             };
 
@@ -494,8 +494,7 @@ class ClientSettingsUI {
 
             let confirmBtn = $('#srConfirm');
             btnContainer.removeChild(confirmBtn);
-            confirmBtn = buildNode('input', { type : 'button', value : 'Refresh Now', id : 'srConfirm' }, 0, { click : () => window.location.reload() });
-            confirmBtn.addEventListener('click', () => window.location.reload());
+            confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload() }, { id : 'srConfirm' });
             btnContainer.appendChild(confirmBtn);
         };
 
