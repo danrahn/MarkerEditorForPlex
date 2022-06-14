@@ -164,9 +164,26 @@ class PurgeNonActionInfo {
         if (!this.#enterOperation()) { return; }
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
-        $$('.restoreButton', this.#parent).src = ThemeColors.getIcon('loading', 'green');
+        $$('.restoreButton img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
         const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
-        jsonRequest('restore_purge', parameters, this.#restoreInfo.successFn, this.#restoreInfo.failureFn);
+        jsonRequest('restore_purge', parameters, this.#onRestoreSuccess.bind(this), this.#onRestoreFailed.bind(this));
+    }
+
+    /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
+    #resetConfirmImg(className) {
+        $$(`.${className} img`).src = ThemeColors.getIcon('confirm', 'green');
+    }
+
+    /** Callback invoked when we successfully restored markers. */
+    #onRestoreSuccess() {
+        this.#resetConfirmImg('restoreButton');
+        this.#resetRestoreInfo.successFn();
+    }
+
+    /** Callback invoked when we failed to restore markers. */
+    #onRestoreFailed() {
+        this.#resetConfirmImg('restoreButton');
+        this.#resetRestoreInfo.failureFn();
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -186,7 +203,19 @@ class PurgeNonActionInfo {
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
         $$('.ignoreButton', this.#parent).src = ThemeColors.getIcon('loading', 'green');
         const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
-        jsonRequest('ignore_purge', parameters, this.#ignoreConfirmInfo.successFn, this.#ignoreConfirmInfo.failureFn);
+        jsonRequest('ignore_purge', parameters, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this));
+    }
+
+    /** Callback invoked when we successfully ignored markers. */
+    #onIgnoreSuccess() {
+        this.#resetConfirmImg('ignoreConfirm');
+        this.#ignoreConfirmInfo.successFn();
+    }
+
+    /** Callback invoked when we failed to ignore markers. */
+    #onIgnoreFailed() {
+        this.#resetConfirmImg('ignoreConfirm');
+        this.#ignoreConfirmInfo.failureFn();
     }
 
     /** Resets the operation view after the user cancels the ignore operation. */
@@ -275,7 +304,6 @@ class PurgeNonActionInfo {
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself. */
     #onRestoreSuccess() {
-        $$('.restoreButton', this.#html).src = ThemeColors.getIcon('confirm', 'green');
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 500);
         Animation.queueDelayed({ color : 'transparent', backgroundColor : 'transparent', height : '0px' }, this.#html, 500, 500, false, this.#removeSelfAfterAnimation.bind(this));
     }
@@ -309,7 +337,6 @@ class PurgeNonActionInfo {
     /** Callback when the user decides to cancel the ignore operation, resetting the row to its original state. */
     #onIgnoreCancel() {
         this.#restoreTableData();
-        $$('.restoreButton', this.#html).src = ThemeColors.getIcon('confirm', 'green'); // Just in case.
     }
 
     /** Callback when a marker was successfully ignored. Flash the row and remove it. */
@@ -413,14 +440,12 @@ class BulkPurgeAction {
 
     /** Callback invoked when markers were successfully restored. */
     #onRestoreSuccess() {
-        $$('.restoreButton img', this.#html).src = ThemeColors.getIcon('confirm', 'green');
         this.#onActionSuccess();
     }
 
     /** Callback invoked when markers were unsuccessfully restored. */
     #onRestoreFail() {
         this.#options.resetViewState();
-        $$('.restoreButton img', this.#html).src = ThemeColors.getIcon('confirm', 'green');
         Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 250);
         Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true);
     }
@@ -428,13 +453,11 @@ class BulkPurgeAction {
     /** Callback invoked when markers were successfully ignored. */
     #onIgnoreSuccess() {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
-        $$('.ignoreConfirm img', this.#html).src = ThemeColors.getIcon('confirm', 'green');
         this.#onActionSuccess();
     }
 
     /** Callback invoked when we failed to ignore this marker group. */
     #onIgnoreFailed() {
-        $$('.ignoreConfirm img', this.#html).src = ThemeColors.getIcon('confirm', 'green');
         Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 500);
         Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#options.resetViewState.bind(this.#options));
     }
@@ -638,7 +661,8 @@ class PurgeOverlay {
         clearEle(this.#html);
         appendChildren(this.#html,
             buildNode('h1', {}, emptyOnInit ? 'No Purged Markers Found' : 'No More Purged Markers'),
-            ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' }));
+            appendChildren(buildNode('div', { class : 'buttonContainer' }),
+                ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' })));
         Animation.queue({ opacity : 1 }, this.#html, 500);
     }
 
