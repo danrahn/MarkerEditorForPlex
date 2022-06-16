@@ -177,13 +177,13 @@ class PurgeNonActionInfo {
     /** Callback invoked when we successfully restored markers. */
     #onRestoreSuccess() {
         this.#resetConfirmImg('restoreButton');
-        this.#resetRestoreInfo.successFn();
+        this.#restoreInfo.successFn();
     }
 
     /** Callback invoked when we failed to restore markers. */
     #onRestoreFailed() {
         this.#resetConfirmImg('restoreButton');
-        this.#resetRestoreInfo.failureFn();
+        this.#restoreInfo.failureFn();
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -201,7 +201,7 @@ class PurgeNonActionInfo {
         if (!this.#enterOperation()) { return; }
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
-        $$('.ignoreButton', this.#parent).src = ThemeColors.getIcon('loading', 'green');
+        $$('.ignoreConfirm img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
         const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
         jsonRequest('ignore_purge', parameters, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this));
     }
