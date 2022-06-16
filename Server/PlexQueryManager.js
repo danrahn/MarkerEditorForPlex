@@ -9,9 +9,39 @@
  */
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
+/** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
 
 import { Log } from "../Shared/ConsoleLog.js";
 import CreateDatabase from "./CreateDatabase.cjs";
+
+/** Helper class used to align RawMarkerData and MarkerAction fields that are
+ *  relevant for restoring purged markers. */
+class TrimmedMarker {
+    static #newMarkerId = -1;
+    /** @type {number} */ id;
+    /** @type {number} */ episodeId;
+    /** @type {number} */ start;
+    /** @type {number} */ end;
+    /** @type {number} */ index;
+    /** @type {number} */ newIndex;
+
+    constructor(id, eid, start, end, index) {
+        this.id = id, this.episodeId = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
+    }
+
+    /** Return whether this is an existing marker */
+    existing() { return this.id != TrimmedMarker.#newMarkerId; }
+
+    /** @param {RawMarkerData} marker */
+    static fromRaw(marker) {
+        return new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index);
+    }
+
+    /** @param {MarkerAction} action */
+    static fromBackup(action) {
+        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1);
+    }
+}
 
 /**
  * The PlexQueryManager handles the underlying queries made to the Plex database to retrieve
@@ -336,20 +366,19 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
      * @param {(allMarkers: RawMarkerData[], newMarker: RawMarkerData) => void} successCallback
-     * @param {(userError: boolean, errorMessage: string) => void} failureCallback
-     * @param {boolean} [allowOverlap=false] Whether to allow overlapping markers to be added to the database. */
-    addMarker(metadataId, startMs, endMs, successCallback, failureCallback, allowOverlap=false) {
+     * @param {(userError: boolean, errorMessage: string) => void} failureCallback */
+    addMarker(metadataId, startMs, endMs, successCallback, failureCallback) {
         this.getEpisodeMarkers(metadataId, (err, allMarkers) => {
             if (err) {
                 return failureCallback(false, err.message);
             }
 
             const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
-            if (!allowOverlap && newIndex == -1) {
+            if (newIndex == -1) {
                 return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
             }
 
-            const addQuery = 
+            const addQuery =
                 'INSERT INTO taggings ' +
                     '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
                 'VALUES ' +
@@ -367,12 +396,115 @@ ORDER BY e.\`index\` ASC;`;
                     }
                 }
 
-                this.getNewMarker(metadataId, newIndex, (err, newMarker) => {
+                this.getNewMarker(metadataId, startMs, endMs, (err, newMarker) => {
                     if (err) {
                         return failureCallback(false, 'Unable to retrieve newly added marker.');
                     }
 
                     successCallback(allMarkers, newMarker);
+                });
+            });
+        });
+    }
+
+    /**
+     * Restore multiple markers at once.
+     * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
+     * @param {(err: string?, newMarkers: RawMarkerData[]?) => void} callback */
+    bulkRestore(actions, callback) {
+        // One query + postprocessing is faster than a query for each episode
+        this.getMarkersForEpisodes(Object.keys(actions), (err, markerList) => {
+            if (err) { return callback(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`); }
+
+            /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
+            let existingMarkers = {};
+            for (const marker of markerList) {
+                if (!existingMarkers[marker.episode_id]) {
+                    existingMarkers[marker.episode_id] = [];
+                }
+
+                Log.tmi(marker, 'Adding existing marker');
+                existingMarkers[marker.episode_id].push(TrimmedMarker.fromRaw(marker));
+            }
+
+            let expectedInserts = 0;
+            let transaction = 'BEGIN TRANSACTION;\n';
+            for (const [episodeId, markerActions] of Object.entries(actions)) {
+                // Calculate new indexes
+                for (const action of markerActions) {
+                    if (!existingMarkers[episodeId]) {
+                        existingMarkers[episodeId] = [];
+                    }
+
+                    // Ignore identical markers, though we should probably have better
+                    // messaging, or not show them to the user at all.
+                    if (!existingMarkers[episodeId].some(marker => marker.start == action.start && marker.end == action.end)) {
+                        Log.tmi(action, 'Adding marker to restore');
+                        existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
+                    } else {
+                        Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
+                    }
+                }
+
+                // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
+                existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
+                    marker.newIndex = index;
+                });
+
+                for (const marker of Object.values(existingMarkers[episodeId])) {
+                    if (marker.existing()) {
+                        continue;
+                    }
+
+                    ++expectedInserts;
+                    transaction += 
+                        'INSERT INTO taggings ' +
+                            '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+                        'VALUES ' +
+                            `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+                }
+
+                // updateMarkerIndex, without actually executing it.
+                for (const marker of Object.values(existingMarkers[episodeId])) {
+                    if (marker.index != marker.newIndex && marker.existing()) {
+                        Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
+                        transaction += 'UPDATE taggings SET `index`=' + marker.newIndex + ' WHERE id=' + marker.id + ';\n';
+                    }
+                }
+            }
+
+            transaction += 'COMMIT TRANSACTION;';
+            Log.tmi('Built full restore query:\n' + transaction);
+            this.#database.exec(transaction, (err) => {
+                if (err) { return callback(`Unable to restore all markers:\n\n${err.message}`); }
+                Log.verbose('Successfully restored markers to Plex database');
+
+                // All markers were added successfully. Now query them all to return back to the backup manager
+                // so it can update caches accordingly.
+                let params = [this.#markerTagId];
+                let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
+                for (const newMarkers of Object.values(existingMarkers)) {
+                    for (const newMarker of newMarkers) {
+                        if (newMarker.existing()) {
+                            continue;
+                        }
+
+                        query += '(taggings.metadata_item_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?) OR ';
+                        params.push(newMarker.episodeId, newMarker.start, newMarker.end);
+                    }
+                }
+
+                query = query.substring(0, query.length - 4) + ')';
+                this.#database.all(query, params, (err, newMarkers) => {
+                    // If we failed, the server really should restart. We added the markers successfully,
+                    // but we can't updates our caches since we couldn't retrieve them.
+                    if (err) { return callback(); }
+
+                    if (newMarkers.length != expectedInserts) {
+                        Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
+                    }
+
+                    callback(null, newMarkers);
                 });
             });
         });
@@ -385,9 +517,8 @@ ORDER BY e.\`index\` ASC;`;
      * not allowed, -1 is returned if overlap is detected.
      * @param {[]} markers
      * @param {number} newStart The start time of the new marker, in milliseconds.
-     * @param {number} newEnd The end time of the new marker, in milliseconds.
-     * @param {boolean} [allowOverlap=false] Whether we're okay with the new marker overlapping with an existing one. */
-    #reindexForAdd(markers, newStart, newEnd, allowOverlap=false) {
+     * @param {number} newEnd The end time of the new marker, in milliseconds.*/
+    #reindexForAdd(markers, newStart, newEnd) {
         let pseudoData = { start : newStart, end : newEnd };
         markers.push(pseudoData);
         markers.sort((a, b) => a.start - b.start).forEach((marker, index) => {
@@ -395,10 +526,6 @@ ORDER BY e.\`index\` ASC;`;
         });
 
         pseudoData.index = pseudoData.newIndex;
-        if (allowOverlap) {
-            return pseudoData.newIndex;
-        }
-
         const newIndex = pseudoData.newIndex;
         const startOverlap = newIndex != 0 && markers[newIndex - 1].end >= pseudoData.start;
         const endOverlap = newIndex != markers.length - 1 && markers[newIndex + 1].start <= pseudoData.end;
@@ -451,10 +578,10 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId The metadata id of the episode the marker belongs to.
      * @param {number} index The index of the marker in the marker table.
      * @param {SingleMarkerQuery} callback */
-    getNewMarker(metadataId, index, callback) {
+    getNewMarker(metadataId, startMs, endMs, callback) {
         this.#database.get(
-            `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.\`index\`=?;`,
-            [metadataId, this.#markerTagId, index],
+            `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
+            [metadataId, this.#markerTagId, startMs, endMs],
             callback);
     }
 

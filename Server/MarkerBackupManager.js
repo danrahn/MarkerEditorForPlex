@@ -652,45 +652,53 @@ ORDER BY id DESC;`
         parameters.push(this.#uuids[sectionId]);
         query += `) AND section_uuid=? ORDER BY id DESC;`;
 
-        this.#actions.all(query, parameters, (err, rows) => {
+        this.#actions.all(query, parameters, (err, /**@type {MarkerAction[]}*/ rows) => {
             if (err) { return callback(err.message, null); }
             if (rows.length == 0) {
                 return callback(`No markers found with ids ${oldMarkerIds} to restore.`, null);
             }
 
-            let queriesLeft = oldMarkerIds.length;
             let foundMarkers = {};
-            let restoredMarkers = [];
 
+            /** @type {{ [episode_id: number] : MarkerAction[] }} */
+            let toRestore = {};
             for (const markerAction of rows) {
                 if (foundMarkers[markerAction.marker_id]) {
                     continue;
                 }
 
                 foundMarkers[markerAction.marker_id] = true;
-
-                const successFunc = (_, newMarker) => {
-                    Log.tmi(`MarkerBackupManager: Marker id ${markerAction.marker_id} restored.`);
-                    --queriesLeft;
-                    this.recordRestore(newMarker, markerAction.marker_id, sectionId);
-                    this.#removeFromPurgeMap(markerAction);
-                    restoredMarkers.push(newMarker);
-                    if (queriesLeft == 0) {
-                        callback(null, restoredMarkers);
-                    }
+                if (!toRestore[markerAction.episode_id]) {
+                    toRestore[markerAction.episode_id] = [];
                 }
 
-                const failureFunc = (_, message) => {
-                    Log.error(`MarkerBackupManager: Failed to restore marker ${markerAction.marker_id}: ${message}`);
-                    --queriesLeft;
-                    if (queriesLeft == 0) {
-                        callback(null, restoredMarkers);
-                    }
-                }
-
-                Log.tmi(`MarkerBackupManager: Attempting to restore marker id ${markerAction.episode_id}`);
-                this.#plexQueries.addMarker(markerAction.episode_id, markerAction.start, markerAction.end, successFunc, failureFunc, true /*allowOverlap*/);
+                toRestore[markerAction.episode_id].push(markerAction);
             }
+
+            const restoreCallback = (err, newMarkers) => {
+                if (err) { callback(err); }
+                if (!newMarkers) {
+                    // no error, but no new markers - we added them successfully but couldn't
+                    // subsequently retrieve them. What should we do?
+                    callback(`Markers restored, but couldn't update caches. It's recommended to start the server to pick up any changes.`);
+                }
+
+                for (const newMarker of newMarkers) {
+                    let oldAction = toRestore[newMarker.episode_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
+                    if (oldAction.length != 1) {
+                        Log.warn(`Unable to match new marker against old marker action, some things may be out of sync.`);
+                        continue;
+                    }
+
+                    oldAction = oldAction[0];
+                    this.recordRestore(newMarker, oldAction.marker_id, sectionId);
+                    this.#removeFromPurgeMap(oldAction);
+                }
+
+                callback(null, newMarkers);
+            }
+
+            this.#plexQueries.bulkRestore(toRestore, restoreCallback);
         });
     }
 
