@@ -510,7 +510,7 @@ function jsonError(res, code, error) {
 function jsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
     if (Log.getLevel() <= ConsoleLog.Level.Tmi) {
-        Log.tmi(data ? JSON.stringify(data) : 'true', 'Success');
+        Log.tmi(data ? JSON.parse(JSON.stringify(data)) : 'true', 'Success');
     } else {
         Log.verbose(true, 'Success')
     }

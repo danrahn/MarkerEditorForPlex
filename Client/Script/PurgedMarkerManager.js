@@ -171,7 +171,7 @@ class PurgeNonActionInfo {
 
     /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
     #resetConfirmImg(className) {
-        $$(`.${className} img`).src = ThemeColors.getIcon('confirm', 'green');
+        $$(`.${className} img`, this.#parent).src = ThemeColors.getIcon('confirm', 'green');
     }
 
     /** Callback invoked when we successfully restored markers. */
