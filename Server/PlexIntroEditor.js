@@ -83,7 +83,7 @@ function run() {
     Config = new PlexIntroEditorConfig(ProjectRoot);
 
     // Set up the database, and make sure it's the right one.
-    QueryManager = new PlexQueryManager(Config.databasePath(), () => {
+    QueryManager = new PlexQueryManager(Config.databasePath(), Config.pureMode(), () => {
         if (Config.backupActions()) {
             BackupManager = new MarkerBackupManager(QueryManager, ProjectRoot, afterQueryInit);
         } else {

@@ -78,6 +78,10 @@ class PlexFeatures extends ConfigBase {
      * @type {boolean} */
     previewThumbnails = true;
 
+    /** Setting to control whether we use the unused thumb_url column of the Plex database to store
+     *  additional information about markers that are added/edited. */
+    pureMode = false;
+
     /** Sets the application features based on the given json.
      * @param {object} json */
     constructor(json) {
@@ -93,6 +97,7 @@ class PlexFeatures extends ConfigBase {
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.backupActions = this.#getOrDefault('backupActions', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
+        this.pureMode = this.#getOrDefault('pureMode', false);
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`
@@ -216,6 +221,7 @@ class PlexIntroEditorConfig extends ConfigBase {
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     backupActions() { return this.#features.backupActions; }
+    pureMode() { return this.#features.pureMode; }
 
     /** Sets the server side log level taken from the config file */
     #setLogLevel() {

@@ -41,7 +41,7 @@ After adding a new episode to a season and Plex's intro detection runs again, it
 
 ### Feature Settings
 
-Settings inside the `features` dictionary (all are enabled by default):
+Settings inside the `features` dictionary (all but `pureMode` are enabled by default):
 
 | Key | Description | Possible Values
 ---|---|---
@@ -49,6 +49,7 @@ Settings inside the `features` dictionary (all are enabled by default):
 `extendedMarkerStats` | Whether to gather all markers in the database to compile per-library/-show/-season marker data. Potentially compute and memory expensive for very large libraries, as it keeps a record for every episode/marker in the database. | `true` or `false`
 `backupActions` | Writes all marker actions to a separate database to allow for restoring previous edits that Plex destroyed. | `true` or `false`
 `previewThumbnails` | Controls preview thumbnail retrieval | `true` or `false`
+`pureMode` | Controls whether additional marker information is written to an unused database column when adding/editing markers. Enabling this prevents hacky storing of information, at the cost of some reduced minor functionality. | `true` or `false`
 
 
 ## Remarks

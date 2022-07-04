@@ -8,6 +8,7 @@
         "autoOpen" : true,
         "extendedMarkerStats" : true,
         "backupActions" : true,
-        "previewThumbnails" : true
+        "previewThumbnails" : true,
+        "pureMode" : false
     }
 }

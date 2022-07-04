@@ -56,6 +56,10 @@ class PlexQueryManager {
     /** @type {SqliteDatabase} */
     #database;
 
+    /** Whether to commandeer the thumb_url column for extra marker information.
+     *  If "pure" mode is enabled, we don't use the field. */
+    #pureMode = false;
+
     /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
     #extendedMarkerFields = `
     taggings.id,
@@ -78,8 +82,9 @@ FROM taggings
      * Forcefully exits the process on failure, as we can't continue with an invalid database.
      * @param {string} databasePath
      * @param {() => void} callback */
-    constructor(databasePath, callback) {
+    constructor(databasePath, pureMode, callback) {
         Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
+        this.#pureMode = pureMode;
         this.#database = CreateDatabase(databasePath, false /*allowCreate*/, (err) => {
             if (err) {
                 Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
@@ -378,11 +383,12 @@ ORDER BY e.\`index\` ASC;`;
                 return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
             }
 
+            const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
             const addQuery =
                 'INSERT INTO taggings ' +
                     '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
                 'VALUES ' +
-                    '(?, ?, ?, "intro", ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5");';
+                    '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
             const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
             this.#database.run(addQuery, parameters, (err) => {
                 if (err) {
@@ -457,11 +463,12 @@ ORDER BY e.\`index\` ASC;`;
                     }
 
                     ++expectedInserts;
+                    const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
                     transaction += 
                         'INSERT INTO taggings ' +
                             '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
                         'VALUES ' +
-                            `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+                            `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, ${thumbUrl}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
                 }
 
                 // updateMarkerIndex, without actually executing it.
@@ -541,7 +548,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
      * @param {NoResultQuery} callback */
     editMarker(markerId, index, startMs, endMs, userCreated, callback) {
-        const thumbUrl = `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+        const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         this.#database.run(
