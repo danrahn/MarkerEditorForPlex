@@ -1046,12 +1046,14 @@ function restoreMarkers(oldMarkerIds, sectionId, res) {
             return jsonError(res, 400, 'Unable to restore any markers');
         }
 
+        let markerData = [];
         Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
         for (const restoredMarker of restoredMarkers) {
             MarkerCache?.addMarkerToCache(restoredMarker);
+            markerData.push(new MarkerData(restoredMarker));
         }
 
-        jsonSuccess(res, { succeeded : restoredMarkers.length, failed : oldMarkerIds.length - restoredMarkers.length });
+        jsonSuccess(res, { markers : markerData });
     });
 }
 

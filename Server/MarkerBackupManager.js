@@ -628,7 +628,7 @@ ORDER BY id DESC;`
      * Attempts to restore the markers specified by the given ids
      * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
      * @param {number} sectionId The id of the section the old marker belonged to.
-     * @param {(err: Error?, restoredValues: RawMarkerData?) => void} callback */
+     * @param {(err: Error?, restoredValues: RawMarkerData[]?) => void} callback */
     restoreMarkers(oldMarkerIds, sectionId, callback) {
         if (!(sectionId in this.#uuids)) {
             callback(`Unable to restore marker - unexpected section id: ${sectionId}`, null);
@@ -675,7 +675,7 @@ ORDER BY id DESC;`
                 toRestore[markerAction.episode_id].push(markerAction);
             }
 
-            const restoreCallback = (err, newMarkers) => {
+            const restoreCallback = (/**@type {string?}*/ err, /**@type {RawMarkerData[]?}*/ newMarkers) => {
                 if (err) { callback(err); }
                 if (!newMarkers) {
                     // no error, but no new markers - we added them successfully but couldn't

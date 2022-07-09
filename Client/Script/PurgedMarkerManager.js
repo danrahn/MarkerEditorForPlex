@@ -174,10 +174,11 @@ class PurgeNonActionInfo {
         $$(`.${className} img`, this.#parent).src = ThemeColors.getIcon('confirm', 'green');
     }
 
-    /** Callback invoked when we successfully restored markers. */
-    #onRestoreSuccess() {
+    /** Callback invoked when we successfully restored markers.
+     * @param {{ markers : MarkerData[] }} response The response from the server. */
+    #onRestoreSuccess(response) {
         this.#resetConfirmImg('restoreButton');
-        this.#restoreInfo.successFn();
+        this.#restoreInfo.successFn(response.markers);
     }
 
     /** Callback invoked when we failed to restore markers. */
@@ -302,10 +303,26 @@ class PurgeNonActionInfo {
         return holder;
     }
 
-    /** Callback when a marker was successfully restored. Flashes the row and then removes itself. */
-    #onRestoreSuccess() {
+    /** Sends a notification to the client state that a marker has been restored/ignored.
+     * @param {MarkerData[]?} newMarker The newly restored marker as a single element array, or null if the purged marker was ignored. */
+    #notifyPurgeChange(newMarker=null) {
+        PlexClientState.GetState().notifyPurgeChange({
+            [this.#markerAction.show_id] : {
+                [this.#markerAction.season_id] : {
+                    [this.#markerAction.episode_id] : {
+                        [this.#markerAction.marker_id] : this.#markerAction
+                    }
+                }
+            }
+        }, newMarker);
+    }
+
+    /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
+     * @param {MarkerData[]} newMarker The newly restored marker, in the form of a single-element array. */
+    #onRestoreSuccess(newMarker) {
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 500);
         Animation.queueDelayed({ color : 'transparent', backgroundColor : 'transparent', height : '0px' }, this.#html, 500, 500, false, this.#removeSelfAfterAnimation.bind(this));
+        this.#notifyPurgeChange(newMarker);
     }
 
     /** Callback when a marker failed to be restored. Flashes the row and then resets back to its original state. */
@@ -343,6 +360,7 @@ class PurgeNonActionInfo {
     #onIgnoreSuccess() {
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}4` }, this.#html, 500);
         Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#removeSelfAfterAnimation.bind(this));
+        this.#notifyPurgeChange();
     }
 
     /** Callback when a marker failed to be ignored. Flash the row and reset it back to its original state. */
@@ -438,9 +456,10 @@ class BulkPurgeAction {
     /** @returns {HTMLElement} The HTML that encapsulates this action. */
     html() { return this.#html; }
 
-    /** Callback invoked when markers were successfully restored. */
-    #onRestoreSuccess() {
-        this.#onActionSuccess();
+    /** Callback invoked when markers were successfully restored.
+     * @param {MarkerData[]} newMarkers Array of newly restored markers. */
+    #onRestoreSuccess(newMarkers) {
+        this.#onActionSuccess(newMarkers);
     }
 
     /** Callback invoked when markers were unsuccessfully restored. */
@@ -488,6 +507,8 @@ const DisplayType = {
  * into a single table.
  */
 class PurgeTable {
+    /** @type {number} */
+    #showId;
     /** @type {PurgeShow} */
     #purgeShow;
     /** @type {HTMLElement} */
@@ -505,7 +526,8 @@ class PurgeTable {
      * @param {() => void} removedCallback Callback invoked when all markers are ignored or restored.
      * @param {DisplayType=DisplayType.All} displayType The type of overlay being shown.
      */
-    constructor(purgeShow, removedCallback, displayType=DisplayType.All) {
+    constructor(showId, purgeShow, removedCallback, displayType=DisplayType.All) {
+        this.#showId = showId;
         this.#purgeShow = purgeShow;
         this.#removedCallback = removedCallback;
         this.#displayType = displayType;
@@ -564,10 +586,14 @@ class PurgeTable {
     /** @returns {boolean} Whether this section has been removed due to successful restores/ignores. */
     removed() { return this.#removed; }
 
-    /** Callback invoked when all markers in the table have been handled. */
-    #onBulkActionSuccess() {
+    /** Callback invoked when all markers in the table have been handled.
+     * @param {MarkerData[]} newMarkers The newly restored markers, or null if the purged markers were ignored. */
+    #onBulkActionSuccess(newMarkers=null) {
         this.#removed = true;
         Animation.queue({ opacity : 0, height : '0px' }, this.#html, 250, true, this.#removedCallback);
+        let allMarkers = [];
+        this.#forMarker(marker => allMarkers.push(marker));
+        PlexClientState.GetState().notifyPurgeChange({ [this.#showId] : this.#purgeShow }, newMarkers);
     }
 
     /**
@@ -622,12 +648,12 @@ class PurgeOverlay {
         let container = buildNode('div', { id : 'purgeContainer' });
         appendChildren(container,
             buildNode('h1', {}, 'Purged Markers'),
-            new BulkPurgeAction('purge_all', 'Restore All Markers', 'Ignore All Markers', this.#onBulkActionSuccess.bind(this), this.#getAllMarkerIds.bind(this)).html()
+            new BulkPurgeAction('purge_all', 'Restore All Markers', 'Ignore All Markers', this.#onBulkActionSuccess.bind(this, true), this.#getAllMarkerIds.bind(this)).html()
         );
 
         // Table for every show that has purged markers
-        for (const show of Object.values(this.#purgeSection)) {
-            const table = new PurgeTable(show, this.#showRemovedCallback.bind(this));
+        for (const [showId, show] of Object.entries(this.#purgeSection)) {
+            const table = new PurgeTable(showId, show, this.#showRemovedCallback.bind(this));
             this.#shows.push(table);
             container.appendChild(table.html());
         }
@@ -651,9 +677,12 @@ class PurgeOverlay {
         this.#onBulkActionSuccess();
     }
 
-    /** Callback invoked when all tables in the overlay have been handled. */
-    #onBulkActionSuccess() {
+    /** Callback invoked when all tables in the overlay have been handled.
+     * @param {MarkerData[]} newMarkers Array of newly restored markers, or null if the purged markers were ignored.
+    */
+    #onBulkActionSuccess(newMarkers=null) {
         Animation.queue({ opacity : 0 }, this.#html, 500, false, this.#clearOverlayAfterPurge.bind(this));
+        PlexClientState.GetState().notifyPurgeChange(this.#purgeSection, newMarkers);
     }
 
     /** Clears out the now-useless overlay and lets the user know there are no more purged markers to handle. */
@@ -751,7 +780,7 @@ class PurgedMarkerManager {
         }
 
         const html = appendChildren(buildNode('div', { id : 'purgeContainer' }),
-            new PurgeTable(purgeMap, Overlay.dismiss, displayType).html());
+            new PurgeTable(firstMarker.showId, purgeMap, Overlay.dismiss, displayType).html());
         Overlay.build({ dismissible : true, closeButton : true }, html);
     }
 

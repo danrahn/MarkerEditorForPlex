@@ -8,6 +8,8 @@ import ClientEpisodeData from './ClientEpisodeData.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
+/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeShow} PurgeShow */
+/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
 
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
@@ -243,6 +245,14 @@ class PlexClientState {
 
         this.#activeSearch = result;
         successFunc();
+    }
+
+    /**
+     * Notify various parts of the app that purged markers have been restored/ignored.
+     * @param {PurgeSection} unpurged Map of markers purged markers that are no longer purged.
+     * @param {MarkerData[]?} newMarkers List of newly restored markers. Null if purged markers were ignored. */
+    notifyPurgeChange(unpurged, newMarkers) {
+        // TODO
     }
 
     /** Comparator that sorts shows by sort title, falling back to the regular title if needed.
