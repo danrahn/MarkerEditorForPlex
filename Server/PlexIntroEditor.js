@@ -1,7 +1,7 @@
 /** External dependencies */
 import { promises as Fs } from 'fs';
 import { createServer, Server as httpServer } from 'http';
-import { lookup } from 'mime-types';
+import { contentType, lookup } from 'mime-types';
 import Open from 'open';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -377,7 +377,7 @@ function handleGet(req, res) {
         return getThumbnail(url, res);
     }
 
-    let mimetype = lookup(url);
+    let mimetype = contentType(lookup(url));
     if (!mimetype) {
         res.statusCode = 404;
         res.end('Bad MIME type!');
@@ -422,7 +422,8 @@ function getSvgIcon(url, res) {
         // Could send this back compressed, but most of these are so small
         // that it doesn't make a tangible difference.
         contents = contents.replace(/FILL_COLOR/g, `#${color}`);
-        res.setHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
+        res.setHeader('Content-Type', contentType('image/svg+xml'));
+        res.setHeader('x-content-type-options', 'nosniff');
         res.end(Buffer.from(contents, 'utf-8'));
     }).catch(err => {
         Log.error(err, 'Failed to read icon');
@@ -499,7 +500,7 @@ function handlePost(req, res) {
  */
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
-    returnCompressedData(res, code, JSON.stringify({ Error : error }), 'application/json');
+    returnCompressedData(res, code, JSON.stringify({ Error : error }), contentType('application/json'));
 }
 
 /**
@@ -515,7 +516,7 @@ function jsonSuccess(res, data) {
         Log.verbose(true, 'Success')
     }
 
-    returnCompressedData(res, 200, JSON.stringify(data || { success : true }), 'application/json');
+    returnCompressedData(res, 200, JSON.stringify(data || { success : true }), contentType('application/json'));
 }
 
 /**
@@ -529,14 +530,15 @@ function returnCompressedData(res, status, data, contentType) {
     gzip(data, (err, buffer) => {
         if (err) {
             Log.warn('Failed to compress data, sending uncompressed');
-            res.writeHead(status, { 'Content-Type' : contentType });
+            res.writeHead(status, { 'Content-Type' : contentType, 'x-content-type-options' : 'nosniff' });
             res.end(data);
             return;
         }
 
         res.writeHead(status, {
             'Content-Encoding' : 'gzip',
-            'Content-Type' : contentType
+            'Content-Type' : contentType,
+            'x-content-type-options' : 'nosniff'
         });
 
         res.end(buffer);
@@ -936,7 +938,11 @@ function getThumbnail(url, res) {
     }
 
     Thumbnails.getThumbnail(metadataId, timestamp).then(data => {
-        res.writeHead(200, { 'Content-Type' : 'image/jpeg', 'Content-Length' : data.length });
+        res.writeHead(200, {
+            'Content-Type' : 'image/jpeg',
+            'Content-Length' : data.length,
+            'x-content-type-options' : 'nosniff'
+        });
         res.end(data);
     }).catch((err) => {
         Log.error(err, 'Failed to retrieve thumbnail');

@@ -296,8 +296,8 @@ input:focus-visible {
   left: 0;
   bottom: 0;
   background-color: #a1a1a1;
-  transition: 0.3s;
   -webkit-transition: 0.3s;
+  transition: 0.3s;
   cursor: pointer;
   border-radius: 16px;
 }
@@ -310,8 +310,8 @@ input:focus-visible {
   bottom: 2px;
   background-color: black;
   border-radius: 50%;
-  transition: 0.3s;
   -webkit-transition: 0.3s;
+  transition: 0.3s;
   content: "";
 }
 
@@ -355,6 +355,8 @@ input:focus-visible {
 
 #helpOverlayHolder {
   text-align: center;
+  max-width: 600px;
+  margin: auto;
 }
 
 #overlayDeleteMarker {
