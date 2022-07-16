@@ -143,7 +143,7 @@ class ResultRow {
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
-    /** @type {{[seasonId: number]: MarkerAction}} */
+    /** @type {{[seasonId: number]: MarkerAction[]}} */
     #purgeData = {};
     /** @param {ShowData} show */
     constructor(show) {
@@ -577,6 +577,11 @@ class EpisodeResultRow extends ResultRow {
             this.#seasonRow.showHideMarkerTables(expanded);
         } else {
             this.showHideMarkerTable(expanded);
+
+            // Only want to scroll into view if we're showing a single episode
+            if (!expanded) {
+                this.scrollTableIntoView();
+            }
         }
     }
 
@@ -586,6 +591,14 @@ class EpisodeResultRow extends ResultRow {
     showHideMarkerTable(hide) {
         $$('table', this.episode().markerTable()).classList[hide ? 'add' : 'remove']('hidden');
         $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
+
+        // Should really only be necessary on hide, but hide tooltips on both show and hide
+        Tooltip.dismiss();
+    }
+
+    /** Scroll the marker table into view */
+    scrollTableIntoView() {
+        $$('table', this.episode().markerTable()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
     }
 
     /**
