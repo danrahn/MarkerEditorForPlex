@@ -1,11 +1,12 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 import ButtonCreator from "./ButtonCreator.js";
-import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, pad0 } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, pad0 } from "./Common.js";
 import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 import PlexClientState from "./PlexClientState.js";
+import { PurgedServer, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus } from "./PurgedMarkerCache.js"
 import TableElements from "./TableElements.js";
 import ThemeColors from "./ThemeColors.js";
 
@@ -716,6 +717,16 @@ class PurgeOverlay {
 class PurgedMarkerManager {
     static #manager;
 
+    /**
+     * Hierarchical cache of known purged markers in the current server.
+     * @type {PurgedServer} */
+    #serverPurgeInfo = new PurgedServer();
+
+    /**
+     * Maps metadata ids (whether it's a show, season, or episode) to their associated PurgedGroup.
+     * @type {AgnosticPurgeCache} */
+    #purgeCache = new AgnosticPurgeCache();
+
     /** Create a new manager for the given client state.
      * @param {boolean} findAllEnabled Whether the user can search for all purged markers for a given section. */
     constructor(findAllEnabled) {
@@ -739,6 +750,77 @@ class PurgedMarkerManager {
         const section = PlexClientState.GetState().activeSection();
         jsonRequest('all_purges', { sectionId : section }, this.#onMarkersFound.bind(this), this.#onMarkersFailed.bind(this));
     };
+
+    /** Retrieve all purged markers for the show with the given metadata id.
+     * @param {number} showId */
+    async getPurgedShowMarkers(showId) {
+        let section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection());
+        let show = section.getOrAdd(showId);
+
+        if (show.status == PurgeCacheStatus.Complete) {
+            return Promise.resolve(show);
+        } else if (show.status == PurgeCacheStatus.PartiallyInitialized) {
+            // Partial state, this shouldn't happen! Overwrite.
+            show = section.addNewGroup(show.id);
+        }
+
+        let thisArg = this;
+        return new Promise((resolve, reject) => {
+            /** @this {PurgedMarkerManager} */
+            const successFunc = function(/**@type {MarkerAction[]}*/ response) {
+                for (const action of response) {
+                    this.#addToCache(action);
+                }
+
+                show.status = PurgeCacheStatus.Complete;
+                resolve(response); // TODO: Change this to `show`.
+            }.bind(thisArg);
+
+            const failureFunc = function(response) {
+                reject(errorMessage(response));
+            };
+
+            jsonRequest('purge_check', { id : showId }, successFunc, failureFunc);
+        });
+    }
+
+    /**
+     * Retrieve the purged markers for the given season.
+     * @param {number} seasonId
+     * @returns {PurgedSeason} */
+    getPurgedSeasonMarkers(seasonId) {
+        const purged = this.#purgeCache.get(seasonId);
+        Log.assert(purged, '[this.#purgeCache.get(seasonId)] - Attempting to retrieve a season\'s purged markers requires grabbing the show\'s purged markers.');
+        return purged;
+    }
+
+    /**
+     * Retrieve the purged markers for the given episode.
+     * @param {number} episodeId
+     * @returns {PurgedEpisode} */
+    getPurgedEpisodeMarkers(episodeId) {
+        const purged = this.#purgeCache.get(episodeId);
+        Log.assert(purged, '[this.#purgeCache.get(episodeId)] - Attempting to retrieve an episode\'s purged markers requires grabbing the show\'s purged markers.');
+        return purged;
+    }
+
+    /**
+     * Add the given marker action to the purge caches.
+     * @param {MarkerAction} action */
+    #addToCache(action) {
+        let section = this.#serverPurgeInfo.getOrAdd(action.section_id);
+        let show = section.getOrAdd(action.show_id);
+        let season = show.getOrAdd(action.season_id);
+        let episode = season.getOrAdd(action.episode_id);
+        this.#purgeCache.lazySet(show.id, show);
+        this.#purgeCache.lazySet(season.id, season);
+        this.#purgeCache.lazySet(episode.id, episode);
+        if (episode.get(action.marker_id)) {
+            Log.warn(`PurgedMarkerManager: Attempting to add a marker to the cache that already exists (${action.marker_id})! Overwriting.`);
+        }
+
+        episode.addNewMarker(action);
+    }
 
     /**
      * Invoke the purge overlay for a single season's purged marker(s).

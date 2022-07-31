@@ -241,6 +241,16 @@ class ConsoleLog {
     }
 
     /**
+     * Verify that the given condition is true, logging a warning if it's not.
+     * @param {boolean} condition The condition to test.
+     * @param {string} text The warning to give if the assertion fails. */
+    assert(condition, text) {
+        if (!condition) {
+            Log.warn(`Assertion Failed: ${text}`);
+        }
+    }
+
+    /**
      * Core logging routine. Prefixes a formatted timestamp based on the level
      * @param {any} obj The object or string to log.
      * @param {string} [description] A description for the object being logged.
