@@ -304,17 +304,17 @@ class PurgeNonActionInfo {
     }
 
     /** Sends a notification to the client state that a marker has been restored/ignored.
-     * @param {MarkerData[]?} newMarker The newly restored marker as a single element array, or null if the purged marker was ignored. */
-    #notifyPurgeChange(newMarker=null) {
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction({
-            [this.#markerAction.show_id] : {
-                [this.#markerAction.season_id] : {
-                    [this.#markerAction.episode_id] : {
-                        [this.#markerAction.marker_id] : this.#markerAction
-                    }
-                }
-            }
-        }, [newMarker]);
+     * @param {MarkerData[]?} newMarkerArr The newly restored marker as a single element array, or null if the purged marker was ignored. */
+    #notifyPurgeChange(newMarkerArr=null) {
+        let dummyLibrary = new PurgedSection();
+        let dummyShow = new PurgedShow(this.#markerAction.show_id, dummyLibrary);
+        let dummySeason = new PurgedSeason(this.#markerAction.season_id, dummyShow);
+        let dummyEpisode = new PurgedEpisode(this.#markerAction.episode_id, dummySeason);
+        dummyLibrary.addInternal(dummyShow.id, dummyShow);
+        dummyShow.addInternal(dummySeason.id, dummySeason);
+        dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
+        dummyEpisode.addInternal(this.#markerAction.marker_id, this.#markerAction);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
     }
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
@@ -839,8 +839,11 @@ class PurgedMarkerManager {
         purgedSection.forEach(function(/**@type {MarkerAction}*/ marker) {
             /** @type {PurgedEpisode} */
             const episode = this.#purgeCache.get(marker.episode_id);
-            if (episode ) {
+            if (episode) {
                 episode.removeIfPresent(marker.marker_id);
+                if (episode.count <= 0) { delete this.#purgeCache[marker.episode_id]; }
+                if (this.#purgeCache.get(marker.season_id).count <= 0) { delete this.#purgeCache[marker.season_id]; }
+                if (this.#purgeCache.get(marker.show_id).count <= 0) { delete this.#purgeCache[marker.show_id]; }
             }
         }.bind(this));
         PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers);

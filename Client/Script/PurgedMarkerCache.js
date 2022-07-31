@@ -125,7 +125,13 @@ class PurgedGroup {
 
         this.count += delta;
         if (this.status == PurgeCacheStatus.Uninitialized) { this.status = PurgeCacheStatus.PartiallyInitialized; }
-        if (this.parent) { this.parent.updateCount(delta); }
+        if (this.parent) {
+            this.parent.updateCount(delta);
+            // Sections are special-cased, but we want to delete other entries
+            if (!(this instanceof PurgedSection) && this.count <= 0) {
+                delete this.parent.data[this.id];
+            }
+        }
     }
 }
 
