@@ -252,7 +252,30 @@ class PlexClientState {
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged.
      * @param {MarkerData[]?} newMarkers List of newly restored markers. Null if purged markers were ignored. */
     notifyPurgeChange(unpurged, newMarkers) {
-        // TODO
+        // TODO:
+        // * Adjust "(!)" text if restoration removes all purged markers for a given item
+        // * Adjust tooltips to note the new number of purged markers (or remove entirely if there aren't any left)
+        // * Remove purged event listeners if all purged markers are removed
+        // * Determine if any special handling needs to be done after restoring purged markers that aren't
+        //   part of the active view (e.g. search results?)
+
+        if (!this.#activeShow) {
+            return;
+        }
+
+        // V1 - Add applicable markers to any visible table. Does not consider "(!)" text.
+        const showData = unpurged.get(this.#activeShow.mediaItem().metadataId);
+        if (!showData) {
+            // The currently active show didn't have any purged markers adjusted.
+            return;
+        }
+
+        const seasonData = showData.get(this.#activeSeason.mediaItem().metadataId);
+        if (!seasonData) {
+            return;
+        }
+
+        this.#activeSeason.notifyPurgeChange(newMarkers);
     }
 
     /** Comparator that sorts shows by sort title, falling back to the regular title if needed.

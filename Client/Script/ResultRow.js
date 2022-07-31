@@ -1,6 +1,6 @@
 import { $$, appendChildren, buildNode, errorMessage, jsonRequest, pad0, plural } from "./Common.js";
 import { Log } from "../../Shared/ConsoleLog.js";
-import { PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
+import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
 import Tooltip from "./inc/Tooltip.js";
 import Overlay from "./inc/Overlay.js";
@@ -47,6 +47,12 @@ class ResultRow {
 
     /** @returns The base media item associated with this row. */
     mediaItem() { return this.#mediaItem; }
+
+    /** @returns The number of purged markers associated with this row. */
+    getPurgeCount() { return PurgedMarkerManager.GetManager().getPurgeCount(this.#mediaItem.metadataId); }
+
+    /** @returns Whether this media item has any purged markers. */
+    hasPurgedMarkers() { return this.getPurgeCount() > 0; }
 
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {
@@ -238,9 +244,9 @@ class ShowResultRow extends ResultRow {
  */
 class SeasonResultRow extends ResultRow {
     /**
-     * An array of {@linkcode EpisodeResultRow}s for keeping track of marker tables to show/expand if needed.
-     * @type {EpisodeResultRow[]} */
-    #episodes = [];
+     * A dictionary of {@linkcode EpisodeResultRow}s for keeping track of marker tables to show/expand if needed.
+     * @type {{[episodeId: number]: EpisodeResultRow}} */
+    #episodes = {};
 
     /**
      * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in episode view.
@@ -251,9 +257,6 @@ class SeasonResultRow extends ResultRow {
      * The placeholder {@linkcode SeasonResultRow} that displays the season name/stats when in episode view.
      * @type {SeasonResultRow} */
     #seasonTitle;
-
-    /** @type {boolean} */
-    #hasPurgedMarkers = false;
 
     constructor(season) {
         super(season, 'seasonResult');
@@ -297,18 +300,37 @@ class SeasonResultRow extends ResultRow {
 
     /** @param {HTMLElement} row */
     #setupPurgeCallback(row) {
-        const season = this.season();
-        const purgeData = PurgedMarkerManager.GetManager().getPurgedSeasonMarkers(season.metadataId);
-        if (!purgeData || purgeData.count <= 0) {
+        if (!this.hasPurgedMarkers()) {
             return;
         }
 
-        this.#hasPurgedMarkers = true;
         const markerCount = $$('.episodeDisplayText', row);
         markerCount.innerText += ' (!)';
-        Tooltip.setText(markerCount, Tooltip.getText(markerCount) + '<br>Click for purge details');
+        const purgeCount = this.getPurgeCount();
+        const markerText = purgeCount == 1 ? 'marker' : 'markers';
+        Tooltip.setTooltip(markerCount, Tooltip.getText(markerCount) +
+            `<br>Found ${purgeCount} purged ${markerText} for this season.<br>Click for details.`);
         markerCount.title = '';
         markerCount.addEventListener('click', this.#onSeasonPurgeClick.bind(this));
+    }
+
+    /**
+     * Updates various UI states after purged markers are restored/ignored
+     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
+    notifyPurgeChange(newMarkers) {
+        if (!newMarkers) {
+            return; // For now we just add new markers to relevant tables, so nothing to do if we don't have any
+        }
+
+        // newMarkers isn't pruned to only relevant ones, so check first
+        for (const marker of newMarkers) {
+            const episode = this.#episodes[marker.episodeId];
+            if (!episode) {
+                continue;
+            }
+
+            episode.episode().addMarker(marker, null /*oldRow*/);
+        }
     }
 
     /**
@@ -321,7 +343,7 @@ class SeasonResultRow extends ResultRow {
      * Click handler for clicking a show row. Initiates a request for all episodes in the given season.
      * @param {MouseEvent} e */
     #seasonClick(e) {
-        if (this.#hasPurgedMarkers && e.target.classList.contains('episodeDisplayText')) {
+        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeDisplayText')) {
             return; // Don't show/hide if we're repurposing the marker display.
         }
 
@@ -385,7 +407,7 @@ class SeasonResultRow extends ResultRow {
         episodeRows.sort((a, b) => a.episode().index - b.episode().index);
         for (const resultRow of episodeRows) {
             addRow(resultRow.buildRow(data[resultRow.episode().metadataId]));
-            this.#episodes.push(resultRow);
+            this.#episodes[resultRow.episode().metadataId] = resultRow;
         }
     }
 
@@ -393,7 +415,7 @@ class SeasonResultRow extends ResultRow {
      * Show or hide all marker tables associated with the episodes in this season.
      * @param {boolean} hide Whether to hide or show all marker tables. */
     showHideMarkerTables(hide) {
-        for (const episode of this.#episodes) {
+        for (const episode of Object.values(this.#episodes)) {
             episode.showHideMarkerTable(hide);
         }
     }
@@ -417,9 +439,6 @@ class EpisodeResultRow extends ResultRow {
      * episodes in the season need to be shown/hidden.
      * @type {SeasonResultRow} */
     #seasonRow;
-
-    /** Tracks whether this episode has has markers that we think have been purged from the Plex database. */
-    #hasPurgedMarkers = false;
 
     constructor(episode, seasonRow) {
         super(episode);
@@ -462,17 +481,16 @@ class EpisodeResultRow extends ResultRow {
 
     /** Adds the click handler to the 'X markers' text that will display purged markers for the episode. */
     #setupPurgeCallback(row) {
-        const episode = this.episode();
-        const purgeData = PurgedMarkerManager.GetManager().getPurgedEpisodeMarkers(episode.metadataId);
-        if (!purgeData || purgeData.count <= 0) {
+        if (!this.hasPurgedMarkers()) {
             return;
         }
 
-        this.#hasPurgedMarkers = true;
         const markerCount = $$('.episodeResultMarkers', row);
         markerCount.innerText += ' (!)';
         markerCount.title = ''; // Don't overlap with the row title.
-        Tooltip.setTooltip(markerCount, `Found ${purgeData.length} purged markers for this episode.<br>Click for details.`);
+        const purgeCount = this.getPurgeCount();
+        const markerText = purgeCount == 1 ? 'marker' : 'markers';
+        Tooltip.setTooltip(markerCount, `Found ${purgeCount} purged ${markerText} for this episode.<br>Click for details.`);
         markerCount.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
     }
 
@@ -486,7 +504,7 @@ class EpisodeResultRow extends ResultRow {
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
     #showHideMarkerTableEvent(e) {
-        if (this.#hasPurgedMarkers && e.target.classList.contains('episodeResultMarkers')) {
+        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeResultMarkers')) {
             return; // Don't show/hide if we're repurposing the marker display.
         }
 
@@ -523,7 +541,7 @@ class EpisodeResultRow extends ResultRow {
      * Updates the marker statistics both in the UI and the client state.
      * @param {number} delta 1 if a marker was added to this episode, -1 if one was removed. */
     updateMarkerBreakdown(delta) {
-        const text = plural(this.episode().markerCount(), 'Marker') + (this.#hasPurgedMarkers ? ' (!)' : '');
+        const text = plural(this.episode().markerCount(), 'Marker') + (this.hasPurgedMarkers() ? ' (!)' : '');
         $$('.episodeResultMarkers', this.html()).innerText = text;
         if (SettingsManager.Get().showExtendedMarkerInfo()) {
             PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);

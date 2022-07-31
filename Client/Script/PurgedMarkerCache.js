@@ -133,12 +133,28 @@ class PurgedGroup {
             }
         }
     }
+
+    /**
+     * Clones all data in this object into newGroup
+     * @param {PurgedGroup} newGroup
+     * @returns `newGroup` */
+    deepCloneInternal(newGroup) {
+        for (const [key, value] of Object.entries(this.data)) {
+            newGroup.data[key] = value.deepClone();
+            newGroup.data[key].parent = newGroup;
+        }
+
+        newGroup.count = this.count;
+        return newGroup;
+    }
 }
 
 /** A PurgedGroup representing an entire server. */
 class PurgedServer extends PurgedGroup {
     /** @returns {PurgedSection} */
     addNewGroup(key) { return this.addInternal(key, new PurgedSection(key, this)); }
+    /** @returns {PurgedServer} */
+    deepClone() { return this.deepCloneInternal(new PurgedServer(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedSection} */ get(/**@type {number} */id) { return this.data[id]; }
@@ -150,6 +166,8 @@ class PurgedServer extends PurgedGroup {
  * TODO: Really need a better name for this. PurgeSection vs PurgedSection */
 class PurgedSection extends PurgedGroup {
     addNewGroup(key) { return this.addInternal(key, new PurgedShow(key, this)); }
+    /** @returns {PurgedSection} */
+    deepClone() { return this.deepCloneInternal(new PurgedSection(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedShow} */ get(/**@type {number} */id) { return super.get(id); }
@@ -160,6 +178,8 @@ class PurgedSection extends PurgedGroup {
  * A PurgedGroup that represents a single show of a library section. */
 class PurgedShow extends PurgedGroup {
     addNewGroup(key) { return this.addInternal(key, new PurgedSeason(key, this)); }
+    /** @returns {PurgedShow} */
+    deepClone() { return this.deepCloneInternal(new PurgedShow(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedSeason} */ get(/**@type {number} */id) { return super.get(id); }
@@ -170,6 +190,8 @@ class PurgedShow extends PurgedGroup {
  * A PurgedGroup that represents a single season of a show. */
 class PurgedSeason extends PurgedGroup {
     addNewGroup(key) { return this.addInternal(key, new PurgedEpisode(key, this)); }
+    /** @returns {PurgedSeason} */
+    deepClone() { return this.deepCloneInternal(new PurgedSeason(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedEpisode} */ get(/**@type {number} */id) { return super.get(id); }
@@ -181,6 +203,17 @@ class PurgedSeason extends PurgedGroup {
 class PurgedEpisode extends PurgedGroup {
     addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on a purgedEpisode.`); }
     getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a purgedEpisode.`); }
+    /** @returns {PurgedEpisode} */
+    deepClone() {
+        // Special handling for episodes since data values are not a PurgeGroup, but MarkerActions
+        let newEpisode = new PurgedEpisode(this.id);
+        for (const [key, value] of Object.entries(this.data)) {
+            newEpisode.data[key] = value;
+        }
+
+        newEpisode.count = this.count;
+        return newEpisode;
+    }
 
 
     /**

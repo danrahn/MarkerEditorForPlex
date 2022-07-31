@@ -495,7 +495,7 @@ ORDER BY e.\`index\` ASC;`;
                 // This is only expected if every marker we tried to restore already exists. In that case just
                 // immediately invoke the callback without any new markers, since we didn't add any.
                 Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
-                Log.warn(`PlexQueryManager::bulRestore: no markers to restore, did they all match against an existing marker?`);
+                Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
                 callback(null, [], identicalMarkers);
                 return;
             }

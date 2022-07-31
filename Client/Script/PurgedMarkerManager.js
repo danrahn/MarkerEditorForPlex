@@ -482,10 +482,15 @@ class BulkPurgeAction {
     }
 
     /** Common actions done when markers were successfully restored or ignored. */
-    #onActionSuccess() {
+    #onActionSuccess(newMarkers=null) {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 250);
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true, this.#successCallback);
+
+        const wrappedCallback = function() {
+            this.#successCallback(newMarkers);
+        }.bind(this);
+
+        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true, wrappedCallback);
     }
 }
 
@@ -590,7 +595,9 @@ class PurgeTable {
         let allMarkers = [];
         this.#forMarker(marker => allMarkers.push(marker));
         let dummyLibrary = new PurgedSection();
-        dummyLibrary.addInternal(this.#purgedShow.id, this.#purgedShow);
+        // Need a deep copy of purgedShow so we don't get confused between markers that are
+        // still purged and those that were just cleared in onPurgedMarkerAction.
+        dummyLibrary.addInternal(this.#purgedShow.id, this.#purgedShow.deepClone());
         PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers);
     }
 
@@ -797,20 +804,11 @@ class PurgedMarkerManager {
         });
     }
 
-    /**
-     * Retrieve the purged markers for the given season.
-     * @param {number} seasonId
-     * @returns {PurgedSeason} */
-    getPurgedSeasonMarkers(seasonId) {
-        return this.#purgeCache.get(seasonId);
-    }
 
-    /**
-     * Retrieve the purged markers for the given episode.
-     * @param {number} episodeId
-     * @returns {PurgedEpisode} */
-    getPurgedEpisodeMarkers(episodeId) {
-        return this.#purgeCache.get(episodeId);
+    /**Return the number of purged markers associated with the given show/season/episode */
+    getPurgeCount(metadataId) {
+        const item = this.#purgeCache.get(metadataId);
+        return item ? item.count : 0;
     }
 
     /**
@@ -846,6 +844,7 @@ class PurgedMarkerManager {
                 if (this.#purgeCache.get(marker.show_id).count <= 0) { delete this.#purgeCache[marker.show_id]; }
             }
         }.bind(this));
+
         PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers);
     }
 
@@ -853,7 +852,7 @@ class PurgedMarkerManager {
      * Invoke the purge overlay for a single season's purged marker(s).
      * @param {number} seasonId The season of purged markers to display. */
     showSingleSeason(seasonId) {
-        let seasonMarkers = this.getPurgedSeasonMarkers(seasonId);
+        let seasonMarkers = this.#purgeCache.get(seasonId);;
         if (!seasonMarkers) {
             // Ignore invalid requests
             Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${seasonId}). How did that happen?`);
@@ -871,7 +870,7 @@ class PurgedMarkerManager {
      * Invoke the purge overlay for a singe episode's purged marker(s).
      * @param {number} episodeId The episode of purged markers to display. */
     showSingleEpisode(episodeId) {
-        let episodeMarkers = this.getPurgedEpisodeMarkers(episodeId);
+        let episodeMarkers = this.#purgeCache.get(episodeId);
         if (!episodeMarkers) {
             // Ignore invalid requests
             Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${episodeId}). How did that happen?`);

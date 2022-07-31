@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, msToHms, plural } from './Common.js';
+import { appendChildren, buildNode, msToHms } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 
@@ -119,9 +119,13 @@ class MarkerTable {
     /**
       * Add a new marker to this table.
       * @param {MarkerData} markerData The marker to add.
-      * @param {HTMLElement} oldRow The temporary row used to create the marker. */
+      * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
     addMarker(markerData, oldRow) {
-        this.removeTemporaryMarkerRow(oldRow);
+        //  oldRow will be null if a marker was added via purge restoration
+        if (oldRow) {
+            this.removeTemporaryMarkerRow(oldRow);
+        }
+
         let tableBody = this.#tbody();
         if (this.#markers.length == 0) {
             // This is the first marker for the episode, which means we also have
