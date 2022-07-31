@@ -849,10 +849,24 @@ class PurgedMarkerManager {
     }
 
     /**
+     * Invoke the purge overlay for a single show's purged marker(s).
+     * @param {number} showId The show of purged markers to display. */
+    showSingleShow(showId) {
+        let showMarkers = this.#purgeCache.get(showId);
+        if (!showMarkers) {
+            // Ignore invalid requests
+            Log.warn(`PurgedMarkerManager: Called showSingleShow with a show that has no cached purged markers (${showId}). How did that happen?`);
+            return;
+        }
+
+        this.#showSingle(showMarkers, DisplayType.All);
+    }
+
+    /**
      * Invoke the purge overlay for a single season's purged marker(s).
      * @param {number} seasonId The season of purged markers to display. */
     showSingleSeason(seasonId) {
-        let seasonMarkers = this.#purgeCache.get(seasonId);;
+        let seasonMarkers = this.#purgeCache.get(seasonId);
         if (!seasonMarkers) {
             // Ignore invalid requests
             Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${seasonId}). How did that happen?`);

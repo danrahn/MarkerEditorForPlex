@@ -11,6 +11,9 @@ import SettingsManager from "./ClientSettings.js";
 import PlexClientState from "./PlexClientState.js";
 import { PlexUI, UISection } from "./PlexUI.js";
 import PurgedMarkerManager from "./PurgedMarkerManager.js";
+import { PurgedSeason, PurgedShow } from "./PurgedMarkerCache.js";
+
+/** @typedef {!import("../../Server/MarkerBackupManager.js").MarkerAction} MarkerAction */
 
 /** Represents a single row of a show/season/episode in the results page. */
 class ResultRow {
@@ -53,6 +56,9 @@ class ResultRow {
 
     /** @returns Whether this media item has any purged markers. */
     hasPurgedMarkers() { return this.getPurgeCount() > 0; }
+
+    /** @returns {() => void} An event callback that will invoke the purge overlay if purged markers are present. */
+    getPurgeEventListener() { Log.error(`ResultRow: Classes must override getPurgeEventListener.`); return () => {} }
 
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {
@@ -100,6 +106,7 @@ class ResultRow {
 
     /**
      * Get the episode summary display, which varies depending on whether extended marker information is enabled.
+     * @param {HTMLElement?} currentDisplay
      * @returns A basic 'X Episode(s)' string if extended marker information is disabled, otherwise a Span
      * that shows how many episodes have at least one marker, with tooltip text with a further breakdown of
      * how many episodes have X markers. */
@@ -132,8 +139,21 @@ class ResultRow {
         }
 
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);
-        const innerText = `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`;
+        let innerText = `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`;
+
+        if (this.hasPurgedMarkers()) {
+            innerText += ` (!)`;
+            const purgeCount = this.getPurgeCount();
+            const markerText = purgeCount == 1 ? 'marker' : 'markers';
+            tooltipText += `<br>Found ${purgeCount} purged ${markerText}.<br>Click for details.`;
+        }
+
         if (currentDisplay) {
+            // To cover various changes in state, always remove the purge event listener, even if it
+            // was never attached, and (re)attach it if we found purged markers.
+            currentDisplay.removeEventListener('click', this.getPurgeEventListener());
+            if (this.hasPurgedMarkers()) { currentDisplay.addEventListener('click', this.getPurgeEventListener()); }
+
             currentDisplay.innerText = innerText;
             Tooltip.setText(currentDisplay, tooltipText);
             return true;
@@ -141,6 +161,10 @@ class ResultRow {
 
         let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
         Tooltip.setTooltip(mainText, tooltipText);
+        if (this.hasPurgedMarkers()) {
+            mainText.addEventListener('click', this.getPurgeEventListener());
+        }
+
         return mainText;
     }
 }
@@ -149,6 +173,16 @@ class ResultRow {
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
+    /**
+     * When this show is active, holds a map of season metadata ids to its corresponding SeasonResultRow
+     * @type {{[metadataId: number]: SeasonResultRow}} */
+    #seasons = {};
+
+    /**
+     * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in season view.
+     * @type {ShowResultRow} */
+    #showTitle;
+
     /** @param {ShowData} show */
     constructor(show) {
         super(show, 'showResult');
@@ -189,8 +223,50 @@ class ShowResultRow extends ResultRow {
         return row;
     }
 
-    /** Click handler for clicking a show row. Initiates a request for season details. */
-    #showClick() {
+    /**
+     * Returns the callback invoked when clicking on the marker count when purged markers are present. */
+    getPurgeEventListener() {
+        return this.#onShowPurgeClick.bind(this);
+    }
+
+    /**
+     * Launches the purge overlay for this show. */
+    #onShowPurgeClick() {
+        PurgedMarkerManager.GetManager().showSingleShow(this.show().metadataId);
+    }
+
+    /**
+     * Updates various UI states after purged markers are restored/ignored.
+     * @param {PurgedShow} unpurged */
+    notifyPurgeChange(unpurged) {
+        // TODO: Need a way to properly update marker breakdown, since
+        // we can't do it completely client-side without the underlying episodes, which might not exist.
+        for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
+            // Only need to update if the season was affected
+            const unpurgedSeason = unpurged.get(seasonId);
+            if (!unpurgedSeason) {
+                continue;
+            }
+
+            seasonRow.updateMarkerBreakdown();
+        }
+
+        this.updateMarkerBreakdown();
+    }
+
+    /** Update the UI after a marker is added/deleted, including our placeholder show row. */
+    updateMarkerBreakdown() {
+        if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
+        super.updateMarkerBreakdown();
+    }
+
+    /** Click handler for clicking a show row. Initiates a request for season details.
+     * @param {MouseEvent} e */
+    #showClick(e) {
+        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeDisplayText')) {
+            return; // Don't show/hide if we're repurposing the marker display.
+        }
+
         if (!PlexClientState.GetState().setActiveShow(this)) {
             Overlay.show('Unable to retrieve data for that show. Please try again later.', 'OK');
             return;
@@ -229,11 +305,14 @@ class ShowResultRow extends ResultRow {
         plexUI.hideSections(UISection.Shows);
 
         const addRow = row => plexUI.addRow(UISection.Seasons, row);
-        addRow(new ShowResultRow(this.show()).buildRow(true /*selected*/));
+        this.#showTitle = new ShowResultRow(this.show());
+        addRow(this.#showTitle.buildRow(true /*selected*/));
         addRow(buildNode('hr'));
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
-            addRow(new SeasonResultRow(season, this).buildRow());
+            const seasonRow = new SeasonResultRow(season, this);
+            this.#seasons[season.metadataId] = seasonRow;
+            addRow(seasonRow.buildRow());
             PlexClientState.GetState().addSeason(season);
         }
     }
@@ -292,35 +371,16 @@ class SeasonResultRow extends ResultRow {
             });
         }
 
-        this.#setupPurgeCallback(row);
-
         this.setHtml(row);
         return row;
     }
 
-    /** @param {HTMLElement} row */
-    #setupPurgeCallback(row) {
-        if (!this.hasPurgedMarkers()) {
-            return;
-        }
-
-        const markerCount = $$('.episodeDisplayText', row);
-        markerCount.innerText += ' (!)';
-        const purgeCount = this.getPurgeCount();
-        const markerText = purgeCount == 1 ? 'marker' : 'markers';
-        Tooltip.setTooltip(markerCount, Tooltip.getText(markerCount) +
-            `<br>Found ${purgeCount} purged ${markerText} for this season.<br>Click for details.`);
-        markerCount.title = '';
-        markerCount.addEventListener('click', this.#onSeasonPurgeClick.bind(this));
-    }
-
     /**
      * Updates various UI states after purged markers are restored/ignored
+     * @param {PurgedSeason} unpurged
      * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
-    notifyPurgeChange(newMarkers) {
-        if (!newMarkers) {
-            return; // For now we just add new markers to relevant tables, so nothing to do if we don't have any
-        }
+    notifyPurgeChange(unpurged, newMarkers) {
+        let updated = {};
 
         // newMarkers isn't pruned to only relevant ones, so check first
         for (const marker of newMarkers) {
@@ -330,7 +390,27 @@ class SeasonResultRow extends ResultRow {
             }
 
             episode.episode().addMarker(marker, null /*oldRow*/);
+            updated[marker.episodeId] = true;
         }
+
+        // We still want to update other episodes as well, since even if we didn't add
+        // new markers, we still want to update purge text.
+        unpurged.forEach(function(action) {
+            if (updated[action.episode_id]) {
+                return;
+            }
+
+            const episode = this.#episodes[action.episode_id];
+            if (episode) {
+                episode.updateMarkerBreakdown(0 /*delta*/);
+            }
+        }.bind(this));
+    }
+
+    /**
+     * Returns the callback invoked when clicking on the marker count when purged markers are present. */
+    getPurgeEventListener() {
+        return this.#onSeasonPurgeClick.bind(this);
     }
 
     /**
@@ -467,31 +547,37 @@ class EpisodeResultRow extends ResultRow {
                     buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                     buildNode('span', {}, episodeTitle)
                 ),
-                buildNode('div', { class : 'episodeResultMarkers' }, plural(ep.markerCount(), 'Marker'))
+                this.#buildMarkerText()
             ),
             ep.markerTable(),
             buildNode('hr', { class : 'episodeSeparator' })
         );
-        
-        this.#setupPurgeCallback(row);
 
         this.setHtml(row);
         return row;
     }
 
-    /** Adds the click handler to the 'X markers' text that will display purged markers for the episode. */
-    #setupPurgeCallback(row) {
-        if (!this.hasPurgedMarkers()) {
-            return;
+    /**
+     * Builds the "X Marker(s)" span for this episode, including a tooltip if purged markers are present.
+     * @returns {HTMLElement} */
+    #buildMarkerText() {
+        const episode = this.episode();
+        const hasPurges = this.hasPurgedMarkers();
+        let text = plural(episode.markerCount(), 'Marker');
+        if (hasPurges) {
+            text += ' (!)';
         }
 
-        const markerCount = $$('.episodeResultMarkers', row);
-        markerCount.innerText += ' (!)';
-        markerCount.title = ''; // Don't overlap with the row title.
+        let main = buildNode('div', { class : 'episodeResultMarkers' }, text);
+        if (!hasPurges) {
+            return main;
+        }
+
         const purgeCount = this.getPurgeCount();
         const markerText = purgeCount == 1 ? 'marker' : 'markers';
-        Tooltip.setTooltip(markerCount, `Found ${purgeCount} purged ${markerText} for this episode.<br>Click for details.`);
-        markerCount.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
+        Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
+        main.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
+        return main;
     }
 
     /** Launches the purge table overlay. */
@@ -541,8 +627,12 @@ class EpisodeResultRow extends ResultRow {
      * Updates the marker statistics both in the UI and the client state.
      * @param {number} delta 1 if a marker was added to this episode, -1 if one was removed. */
     updateMarkerBreakdown(delta) {
-        const text = plural(this.episode().markerCount(), 'Marker') + (this.hasPurgedMarkers() ? ' (!)' : '');
-        $$('.episodeResultMarkers', this.html()).innerText = text;
+        // Don't bother updating in-place, just recreate and replace.
+        const newNode = this.#buildMarkerText();
+        const oldNode = $$('.episodeResultMarkers', this.html());
+        oldNode.parentElement.insertBefore(newNode, oldNode);
+        oldNode.parentElement.removeChild(oldNode);
+
         if (SettingsManager.Get().showExtendedMarkerInfo()) {
             PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
         }

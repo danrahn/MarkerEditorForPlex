@@ -98,7 +98,7 @@ class PlexClientState {
 
     /** @returns {ShowData} The active show, or null if no show is active. */
     getActiveShow() {
-        return this.#activeShow.show();
+        return this.#activeShow?.show();
     }
 
     /** Clears out the currently active show and other dependent data (i.e. {@linkcode #activeSeason}). */
@@ -151,7 +151,7 @@ class PlexClientState {
 
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
-        return this.#activeSeason.season();
+        return this.#activeSeason?.season();
     }
 
     /**
@@ -172,9 +172,23 @@ class PlexClientState {
     /**
      * Updates the marker breakdown cache after a marker is added/removed, and signals to the UI
      * to update things on their end.
+     * @param {ClientEpisodeData} episode The episode to update.
+     * @param {number} delta 1 if a marker was added, -1 if removed, 0 if purged markers changed. */
+    updateBreakdownCache(episode, delta) {
+        if (delta != 0) {
+            this.#updateBreakdownCacheInternal(episode, delta);
+        }
+
+        this.#activeSeason.updateMarkerBreakdown();
+        this.#activeShow.updateMarkerBreakdown();
+    }
+
+    /**
+     * Internal core marker cache update method, called when
+     * we actually have a delta to apply, which isn't always the case.
      * @param {ClientEpisodeData} episode The episode a marker was added to/removed from.
      * @param {number} delta 1 if a marker was added, -1 if removed. */
-    updateBreakdownCache(episode, delta) {
+    #updateBreakdownCacheInternal(episode, delta) {
         const newCount = episode.markerCount();
         const oldCount = newCount - delta;
         for (const media of [this.#activeShow, this.#activeSeason]) {
@@ -195,9 +209,6 @@ class PlexClientState {
     
             ++breakdown[newCount];
         }
-
-        this.#activeSeason.updateMarkerBreakdown();
-        this.#activeShow.updateMarkerBreakdown();
     }
 
     /**
@@ -270,12 +281,18 @@ class PlexClientState {
             return;
         }
 
+        this.#activeShow.notifyPurgeChange(showData, newMarkers);
+
+        if (!this.#activeSeason) {
+            return;
+        }
+
         const seasonData = showData.get(this.#activeSeason.mediaItem().metadataId);
         if (!seasonData) {
             return;
         }
 
-        this.#activeSeason.notifyPurgeChange(newMarkers);
+        this.#activeSeason.notifyPurgeChange(seasonData, newMarkers);
     }
 
     /** Comparator that sorts shows by sort title, falling back to the regular title if needed.
