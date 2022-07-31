@@ -434,10 +434,13 @@ ORDER BY e.\`index\` ASC;`;
             }
 
             let expectedInserts = 0;
+            let identicalMarkers = 0;
+            let potentialRestores = 0;
             let transaction = 'BEGIN TRANSACTION;\n';
             for (const [episodeId, markerActions] of Object.entries(actions)) {
                 // Calculate new indexes
                 for (const action of markerActions) {
+                    ++potentialRestores;
                     if (!existingMarkers[episodeId]) {
                         existingMarkers[episodeId] = [];
                     }
@@ -449,6 +452,7 @@ ORDER BY e.\`index\` ASC;`;
                         existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
                     } else {
                         Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
+                        ++identicalMarkers;
                     }
                 }
 
@@ -478,6 +482,15 @@ ORDER BY e.\`index\` ASC;`;
                         transaction += 'UPDATE taggings SET `index`=' + marker.newIndex + ' WHERE id=' + marker.id + ';\n';
                     }
                 }
+            }
+
+            if (!expectedInserts == 0) {
+                // This is only expected if every marker we tried to restore already exists. In that case just
+                // immediately invoke the callback without any new markers, since we didn't add any.
+                Log.assert(identicalMarkers == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
+                Log.warn(`PlexQueryManager::bulRestore: no markers to restore, did they all match against an existing marker?`);
+                callback(null, []);
+                return;
             }
 
             transaction += 'COMMIT TRANSACTION;';

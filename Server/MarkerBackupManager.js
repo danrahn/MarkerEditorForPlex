@@ -747,6 +747,7 @@ ORDER BY id DESC;`
                     // no error, but no new markers - we added them successfully but couldn't
                     // subsequently retrieve them. What should we do?
                     callback(`Markers restored, but couldn't update caches. It's recommended to start the server to pick up any changes.`);
+                    return;
                 }
 
                 for (const newMarker of newMarkers) {

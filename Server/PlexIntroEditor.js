@@ -1043,7 +1043,8 @@ function restoreMarkers(oldMarkerIds, sectionId, res) {
         }
 
         if (restoredMarkers.length == 0) {
-            return jsonError(res, 400, 'Unable to restore any markers');
+            Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
+            return jsonSuccess(res, { markers : [] });
         }
 
         let markerData = [];
