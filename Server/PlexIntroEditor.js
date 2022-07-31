@@ -1042,14 +1042,13 @@ function restoreMarkers(oldMarkerIds, sectionId, res) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.restoreMarkers(oldMarkerIds, sectionId, (err, restoredMarkers) => {
+    BackupManager.restoreMarkers(oldMarkerIds, sectionId, (err, restoredMarkers, existingMarkers) => {
         if (err) {
             return jsonError(res, 500, err);
         }
 
         if (restoredMarkers.length == 0) {
             Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
-            return jsonSuccess(res, { markers : [] });
         }
 
         let markerData = [];
@@ -1059,7 +1058,12 @@ function restoreMarkers(oldMarkerIds, sectionId, res) {
             markerData.push(new MarkerData(restoredMarker));
         }
 
-        jsonSuccess(res, { markers : markerData });
+        let existingMarkerData = [];
+        for (const existingMarker of existingMarkers) {
+            existingMarkerData.push(new MarkerData(existingMarker));
+        }
+
+        jsonSuccess(res, { newMarkers : markerData, existingMarkers : existingMarkerData });
     });
 }
 

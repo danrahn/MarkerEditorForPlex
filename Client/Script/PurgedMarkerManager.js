@@ -178,7 +178,7 @@ class PurgeNonActionInfo {
      * @param {{ markers : MarkerData[] }} response The response from the server. */
     #onRestoreSuccess(response) {
         this.#resetConfirmImg('restoreButton');
-        this.#restoreInfo.successFn(response.markers);
+        this.#restoreInfo.successFn(response.newMarkers);
     }
 
     /** Callback invoked when we failed to restore markers. */
@@ -313,7 +313,7 @@ class PurgeNonActionInfo {
         dummyLibrary.addInternal(dummyShow.id, dummyShow);
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
-        dummyEpisode.addInternal(this.#markerAction.marker_id, this.#markerAction);
+        dummyEpisode.addNewMarker(this.#markerAction);
         PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
     }
 
