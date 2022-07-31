@@ -741,7 +741,10 @@ ORDER BY id DESC;`
                 toRestore[markerAction.episode_id].push(markerAction);
             }
 
-            const restoreCallback = (/**@type {string?}*/ err, /**@type {RawMarkerData[]?}*/ newMarkers) => {
+            const restoreCallback = (
+                /**@type {string?}*/ err,
+                /**@type {RawMarkerData[]?}*/ newMarkers,
+                /**@type {TrimmedMarker[]}*/ ignoredMarkers) => {
                 if (err) { callback(err); }
                 if (!newMarkers) {
                     // no error, but no new markers - we added them successfully but couldn't
@@ -759,6 +762,20 @@ ORDER BY id DESC;`
 
                     oldAction = oldAction[0];
                     this.recordRestore(newMarker, oldAction.marker_id, sectionId);
+                    this.#removeFromPurgeMap(oldAction);
+                }
+
+                // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
+                for (const ignoredMarker of ignoredMarkers) {
+                    let oldAction = toRestore[ignoredMarker.episode_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
+                    if (oldAction.length != 1) {
+                        Log.warn(`Unable to match identical marker against old marker action, some things may be out of sync.`);
+                        continue;
+                    }
+
+                    oldAction = oldAction[0];
+                    Log.tmi(`MarkerBackupManager::restoreMarkers: Identical marker found, setting it as the restored id.`);
+                    this.recordRestore(ignoredMarker.getRaw(), oldAction.marker_id, sectionId);
                     this.#removeFromPurgeMap(oldAction);
                 }
 

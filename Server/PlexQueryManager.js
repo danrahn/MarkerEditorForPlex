@@ -19,14 +19,17 @@ import CreateDatabase from "./CreateDatabase.cjs";
 class TrimmedMarker {
     static #newMarkerId = -1;
     /** @type {number} */ id;
-    /** @type {number} */ episodeId;
+    /** @type {number} */ episode_id;
     /** @type {number} */ start;
     /** @type {number} */ end;
     /** @type {number} */ index;
     /** @type {number} */ newIndex;
+    /** @type {boolean} */ #isRaw = false;
+    /** @type {RawMarkerData} */ #raw;
+    getRaw() { if (!this.#isRaw) { throw Error('Attempting to access a non-existent raw marker'); } return this.#raw; }
 
     constructor(id, eid, start, end, index) {
-        this.id = id, this.episodeId = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
+        this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
     }
 
     /** Return whether this is an existing marker */
@@ -34,7 +37,10 @@ class TrimmedMarker {
 
     /** @param {RawMarkerData} marker */
     static fromRaw(marker) {
-        return new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index);
+        let trimmed = new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index);
+        trimmed.#raw = marker;
+        trimmed.#isRaw = true;
+        return trimmed;
     }
 
     /** @param {MarkerAction} action */
@@ -416,7 +422,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
-     * @param {(err: string?, newMarkers: RawMarkerData[]?) => void} callback */
+     * @param {(err: string?, newMarkers: RawMarkerData[]?, ignoredMarkers: number[]?) => void} callback */
     bulkRestore(actions, callback) {
         // One query + postprocessing is faster than a query for each episode
         this.getMarkersForEpisodes(Object.keys(actions), (err, markerList) => {
@@ -434,7 +440,7 @@ ORDER BY e.\`index\` ASC;`;
             }
 
             let expectedInserts = 0;
-            let identicalMarkers = 0;
+            let identicalMarkers = [];
             let potentialRestores = 0;
             let transaction = 'BEGIN TRANSACTION;\n';
             for (const [episodeId, markerActions] of Object.entries(actions)) {
@@ -447,12 +453,13 @@ ORDER BY e.\`index\` ASC;`;
 
                     // Ignore identical markers, though we should probably have better
                     // messaging, or not show them to the user at all.
-                    if (!existingMarkers[episodeId].some(marker => marker.start == action.start && marker.end == action.end)) {
+                    let identicalMarker = existingMarkers[episodeId].find(marker => marker.start == action.start && marker.end == action.end);
+                    if (!identicalMarker) {
                         Log.tmi(action, 'Adding marker to restore');
                         existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
                     } else {
                         Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
-                        ++identicalMarkers;
+                        identicalMarkers.push(identicalMarker);
                     }
                 }
 
@@ -484,12 +491,12 @@ ORDER BY e.\`index\` ASC;`;
                 }
             }
 
-            if (!expectedInserts == 0) {
+            if (expectedInserts == 0) {
                 // This is only expected if every marker we tried to restore already exists. In that case just
                 // immediately invoke the callback without any new markers, since we didn't add any.
-                Log.assert(identicalMarkers == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
+                Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
                 Log.warn(`PlexQueryManager::bulRestore: no markers to restore, did they all match against an existing marker?`);
-                callback(null, []);
+                callback(null, [], identicalMarkers);
                 return;
             }
 
@@ -510,7 +517,7 @@ ORDER BY e.\`index\` ASC;`;
                         }
 
                         query += '(taggings.metadata_item_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?) OR ';
-                        params.push(newMarker.episodeId, newMarker.start, newMarker.end);
+                        params.push(newMarker.episode_id, newMarker.start, newMarker.end);
                     }
                 }
 
@@ -518,13 +525,13 @@ ORDER BY e.\`index\` ASC;`;
                 this.#database.all(query, params, (err, newMarkers) => {
                     // If we failed, the server really should restart. We added the markers successfully,
                     // but we can't updates our caches since we couldn't retrieve them.
-                    if (err) { return callback(); }
+                    if (err) { return callback(err.message); }
 
                     if (newMarkers.length != expectedInserts) {
                         Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
                     }
 
-                    callback(null, newMarkers);
+                    callback(null, newMarkers, identicalMarkers);
                 });
             });
         });
