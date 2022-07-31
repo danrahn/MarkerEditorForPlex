@@ -6,13 +6,12 @@ import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 import PlexClientState from "./PlexClientState.js";
-import { PurgedServer, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus } from "./PurgedMarkerCache.js"
+import { PurgedServer, PurgedShow, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus, PurgedSection } from "./PurgedMarkerCache.js"
 import TableElements from "./TableElements.js";
 import ThemeColors from "./ThemeColors.js";
 
 /** @typedef {!import("../../Server/MarkerBackupManager.js").MarkerAction} MarkerAction */
 /** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
-/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeShow} PurgeShow */
 /** @typedef {!import("../../Server/PlexQueryManager.js").RawMarkerData} RawMarkerData */
 
 
@@ -307,7 +306,7 @@ class PurgeNonActionInfo {
     /** Sends a notification to the client state that a marker has been restored/ignored.
      * @param {MarkerData[]?} newMarker The newly restored marker as a single element array, or null if the purged marker was ignored. */
     #notifyPurgeChange(newMarker=null) {
-        PlexClientState.GetState().notifyPurgeChange({
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction({
             [this.#markerAction.show_id] : {
                 [this.#markerAction.season_id] : {
                     [this.#markerAction.episode_id] : {
@@ -315,7 +314,7 @@ class PurgeNonActionInfo {
                     }
                 }
             }
-        }, newMarker);
+        }, [newMarker]);
     }
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
@@ -508,10 +507,8 @@ const DisplayType = {
  * into a single table.
  */
 class PurgeTable {
-    /** @type {number} */
-    #showId;
-    /** @type {PurgeShow} */
-    #purgeShow;
+    /** @type {PurgedShow} */
+    #purgedShow;
     /** @type {HTMLElement} */
     #html;
     /** @type {boolean} */
@@ -523,13 +520,11 @@ class PurgeTable {
 
     /**
      * Create a new table for one or more purged markers in a single show.
-     * @param {PurgeShow} purgeShow Map of purged markers in this show.
+     * @param {PurgedShow} purgedShow Group of purged markers in this show.
      * @param {() => void} removedCallback Callback invoked when all markers are ignored or restored.
-     * @param {DisplayType=DisplayType.All} displayType The type of overlay being shown.
-     */
-    constructor(showId, purgeShow, removedCallback, displayType=DisplayType.All) {
-        this.#showId = showId;
-        this.#purgeShow = purgeShow;
+     * @param {DisplayType=DisplayType.All} displayType The type of overlay being shown. */
+    constructor(purgedShow, removedCallback, displayType=DisplayType.All) {
+        this.#purgedShow = purgedShow;
         this.#removedCallback = removedCallback;
         this.#displayType = displayType;
         this.#removed = false;
@@ -541,7 +536,7 @@ class PurgeTable {
             return this.#html;
         }
 
-        const firstMarker = Object.values(Object.values(Object.values(this.#purgeShow)[0])[0])[0];
+        const firstMarker = this.#purgedShow.getAny();
         let container = buildNode('div', { class : 'purgeShowContainer', id : `purgeshow_${firstMarker.show_id}` });
         if (this.#displayType == DisplayType.All) {
             // <hr> to break up different shows if we're showing all purges in the section
@@ -594,7 +589,9 @@ class PurgeTable {
         Animation.queue({ opacity : 0, height : '0px' }, this.#html, 250, true, this.#removedCallback);
         let allMarkers = [];
         this.#forMarker(marker => allMarkers.push(marker));
-        PlexClientState.GetState().notifyPurgeChange({ [this.#showId] : this.#purgeShow }, newMarkers);
+        let dummyLibrary = new PurgedSection();
+        dummyLibrary.addInternal(this.#purgedShow.id, this.#purgedShow);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers);
     }
 
     /**
@@ -603,13 +600,9 @@ class PurgeTable {
      * @param  {...any} args Additional arguments to pass into fn.
      */
     #forMarker(fn, ...args) {
-        for (const season of Object.values(this.#purgeShow)) {
-            for (const episode of (Object.values(season))) {
-                for (const marker of Object.values(episode)) {
-                    fn.bind(this)(marker, ...args);
-                }
-            }
-        }
+        this.#purgedShow.forEach(function(marker) {
+            fn.bind(this)(marker, ...args);
+        }.bind(this));
     }
 
     /** @returns The list of markers in this table. */
@@ -626,8 +619,8 @@ class PurgeTable {
  * Manages the 'find all purged markers' overlay.
  */
 class PurgeOverlay {
-    /** @type {PurgeSection} */
-    #purgeSection;
+    /** @type {PurgedSection} */
+    #purgedSection;
     /**
      * The list of tables in this overlay, one per show.
      * @type {PurgeTable[]} */
@@ -637,10 +630,10 @@ class PurgeOverlay {
 
     /**
      * Initialize a new purge overlay.
-     * @param {PurgeSection} purgeSection The purge data to display.
+     * @param {PurgedSection} purgedSection The purge data to display.
      */
-    constructor(purgeSection) {
-        this.#purgeSection = purgeSection;
+    constructor(purgedSection) {
+        this.#purgedSection = purgedSection;
     }
 
     /** Display the main overlay. */
@@ -653,14 +646,18 @@ class PurgeOverlay {
         );
 
         // Table for every show that has purged markers
-        for (const [showId, show] of Object.entries(this.#purgeSection)) {
-            const table = new PurgeTable(showId, show, this.#showRemovedCallback.bind(this));
+        for (/**@type {PurgedShow}*/ const show of Object.values(this.#purgedSection.data)) {
+            if (show.count <= 0) {
+                continue;
+            }
+
+            const table = new PurgeTable(show, this.#showRemovedCallback.bind(this));
             this.#shows.push(table);
             container.appendChild(table.html());
         }
 
         this.#html = container;
-        if (Object.keys(this.#purgeSection).length == 0) {
+        if (this.#purgedSection.count <= 0) {
             this.#clearOverlayAfterPurge(true /*emptyOnInit*/);
         }
 
@@ -683,7 +680,7 @@ class PurgeOverlay {
     */
     #onBulkActionSuccess(newMarkers=null) {
         Animation.queue({ opacity : 0 }, this.#html, 500, false, this.#clearOverlayAfterPurge.bind(this));
-        PlexClientState.GetState().notifyPurgeChange(this.#purgeSection, newMarkers);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection, newMarkers);
     }
 
     /** Clears out the now-useless overlay and lets the user know there are no more purged markers to handle. */
@@ -748,6 +745,14 @@ class PurgedMarkerManager {
     /** Find all purged markers for the current library section. */
     findPurgedMarkers() {
         const section = PlexClientState.GetState().activeSection();
+        const cachedSection = this.#serverPurgeInfo.get(section);
+        if (cachedSection && cachedSection.status == PurgeCacheStatus.Complete) {
+            // We have full cached data, used that.
+            Log.tmi(`PurgedMarkerManager::findPurgedMarkers: Found cached data, bypassing all_purges call to server.`);
+            new PurgeOverlay(cachedSection, section).show();
+            return;
+        }
+
         jsonRequest('all_purges', { sectionId : section }, this.#onMarkersFound.bind(this), this.#onMarkersFailed.bind(this));
     };
 
@@ -758,7 +763,7 @@ class PurgedMarkerManager {
         let show = section.getOrAdd(showId);
 
         if (show.status == PurgeCacheStatus.Complete) {
-            return Promise.resolve(show);
+            return Promise.resolve();
         } else if (show.status == PurgeCacheStatus.PartiallyInitialized) {
             // Partial state, this shouldn't happen! Overwrite.
             show = section.addNewGroup(show.id);
@@ -772,8 +777,16 @@ class PurgedMarkerManager {
                     this.#addToCache(action);
                 }
 
+                // Mark each season/episode of the show as complete. Somewhat inefficient, but it's not
+                // expected for there to be enough purged markers for this to cause any significant slowdown.
+                // In theory not necessary, but good to be safe.
+                show.forEach(function(/**@type {MarkerAction}*/ markerAction) {
+                    this.#purgeCache.get(markerAction.episode_id).status = PurgeCacheStatus.Complete;
+                    this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
+                }.bind(this));
+
                 show.status = PurgeCacheStatus.Complete;
-                resolve(response); // TODO: Change this to `show`.
+                resolve();
             }.bind(thisArg);
 
             const failureFunc = function(response) {
@@ -789,9 +802,7 @@ class PurgedMarkerManager {
      * @param {number} seasonId
      * @returns {PurgedSeason} */
     getPurgedSeasonMarkers(seasonId) {
-        const purged = this.#purgeCache.get(seasonId);
-        Log.assert(purged, '[this.#purgeCache.get(seasonId)] - Attempting to retrieve a season\'s purged markers requires grabbing the show\'s purged markers.');
-        return purged;
+        return this.#purgeCache.get(seasonId);
     }
 
     /**
@@ -799,9 +810,7 @@ class PurgedMarkerManager {
      * @param {number} episodeId
      * @returns {PurgedEpisode} */
     getPurgedEpisodeMarkers(episodeId) {
-        const purged = this.#purgeCache.get(episodeId);
-        Log.assert(purged, '[this.#purgeCache.get(episodeId)] - Attempting to retrieve an episode\'s purged markers requires grabbing the show\'s purged markers.');
-        return purged;
+        return this.#purgeCache.get(episodeId);
     }
 
     /**
@@ -823,46 +832,68 @@ class PurgedMarkerManager {
     }
 
     /**
+     * Callback invoked when a marker or markers are restored or ignored, updating all relevant caches.
+     * @param {PurgedSection} purgedSection
+     * @param {MarkerData[]} newMarkers */
+    onPurgedMarkerAction(purgedSection, newMarkers=null) {
+        purgedSection.forEach(function(/**@type {MarkerAction}*/ marker) {
+            /** @type {PurgedEpisode} */
+            const episode = this.#purgeCache.get(marker.episode_id);
+            if (episode ) {
+                episode.removeIfPresent(marker.marker_id);
+            }
+        }.bind(this));
+        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers);
+    }
+
+    /**
      * Invoke the purge overlay for a single season's purged marker(s).
-     * @param {MarkerAction[]} purgeData The list of purged markers to display. */
-    showSingleSeason(purgeData) {
-        this.#showSingle(purgeData, DisplayType.SingleSeason);
+     * @param {number} seasonId The season of purged markers to display. */
+    showSingleSeason(seasonId) {
+        let seasonMarkers = this.getPurgedSeasonMarkers(seasonId);
+        if (!seasonMarkers) {
+            // Ignore invalid requests
+            Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${seasonId}). How did that happen?`);
+            return;
+        }
+
+        // Reach into the internals of PurgedGroup to create a minified cache
+        let dummyShow = new PurgedShow(seasonMarkers.parent.id);
+        dummyShow.addInternal(seasonId, seasonMarkers);
+
+        this.#showSingle(dummyShow, DisplayType.SingleSeason);
     }
 
     /**
      * Invoke the purge overlay for a singe episode's purged marker(s).
-     * @param {MarkerAction[]} purgeData The list of purged markers to display */
-    showSingleEpisode(purgeData) {
-        this.#showSingle(purgeData, DisplayType.SingleEpisode);
+     * @param {number} episodeId The episode of purged markers to display. */
+    showSingleEpisode(episodeId) {
+        let episodeMarkers = this.getPurgedEpisodeMarkers(episodeId);
+        if (!episodeMarkers) {
+            // Ignore invalid requests
+            Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${episodeId}). How did that happen?`);
+            return;
+        }
+        // Reach into the internals of PurgedGroup to create a minified cache
+        let dummyShow = new PurgedShow(episodeMarkers.parent.parent.id);
+        let dummySeason = new PurgedSeason(episodeMarkers.parent.id, dummyShow);
+        dummySeason.addInternal(episodeId, episodeMarkers);
+        dummyShow.addInternal(dummySeason.id, dummySeason);
+
+        this.#showSingle(dummyShow, DisplayType.SingleEpisode);
     }
 
     /**
      * Core routine that invokes the right overlay.
-     * @param {MarkerData[]} purgeData The list of purged markers to display.
+     * @param {PurgedShow} purgedShow The purged markers to display.
      * @param {DisplayType} displayType The group of purged markers being displayed. */
-    #showSingle(purgeData, displayType) {
-        if (purgeData.length == 0) {
+    #showSingle(purgedShow, displayType) {
+        if (purgedShow.count == 0) {
             return;
         }
 
-        const firstMarker = purgeData[0];
-
-        // Convert the flat list of marker ids to the tree that PurgeTable expects.
-        let purgeMap = {
-            [firstMarker.season_id] : {}
-        };
-
-        const season = purgeMap[firstMarker.season_id];
-        for (const marker of purgeData) {
-            if (!season[marker.episode_id]) {
-                season[marker.episode_id] = {};
-            }
-
-            season[marker.episode_id][marker.marker_id] = marker;
-        }
-
         const html = appendChildren(buildNode('div', { id : 'purgeContainer' }),
-            new PurgeTable(firstMarker.showId, purgeMap, Overlay.dismiss, displayType).html());
+            new PurgeTable(purgedShow, Overlay.dismiss, displayType).html());
         Overlay.build({ dismissible : true, closeButton : true }, html);
     }
 
@@ -870,7 +901,30 @@ class PurgedMarkerManager {
      * Callback invoked when we successfully queried for purged markers (regardless of whether we found any).
      * @param {PurgeSection} purgeSection Tree of purged markers in the current library section. */
     #onMarkersFound(purgeSection) {
-        new PurgeOverlay(purgeSection, PlexClientState.GetState().activeSection()).show();
+        for (const [showId, show] of Object.entries(purgeSection)) {
+            const showCache = this.#purgeCache.get(showId);
+            if (showCache && showCache.status == PurgeCacheStatus.Complete) {
+                Log.tmi(`PurgedMarkerCache::onMarkersFound: Not caching completely cached show ${showId}`);
+                continue;
+            }
+
+            for (const [seasonId, season] of Object.entries(show)) {
+                // If we're here, we shouldn't have anything cached
+                Log.assert(!this.#purgeCache.get(seasonId), `PurgedMarkerCache::onMarkersFound: [!this.#purgeCache.get(seasonId)] - If the season isn't complete, the season shouldn't exist.`);
+                for (const [episodeId, episode] of Object.entries(season)) {
+                    for (const markerAction of Object.values(episode)) {
+                        this.#addToCache(markerAction);
+                    }
+                    this.#purgeCache.get(episodeId).status = PurgeCacheStatus.Complete;
+                }
+                this.#purgeCache.get(seasonId).status = PurgeCacheStatus.Complete;
+            }
+            this.#purgeCache.get(showId).status = PurgeCacheStatus.Complete;
+        }
+
+        const activeSection = PlexClientState.GetState().activeSection();
+        this.#serverPurgeInfo.getOrAdd(activeSection).status = PurgeCacheStatus.Complete;
+        new PurgeOverlay(this.#serverPurgeInfo.get(activeSection), activeSection).show();
     }
 
     /**

@@ -50,7 +50,7 @@ class PurgedGroup {
     /** The underlying data. In the case of sections, shows, and seasons, this
      * will be a dictionary of metadataIds to PurgeGroups. For episodes, it's a
      * dictionary of markerIds to MarkerActions.
-     * @type {{[metadataId: PurgedGroup|MarkerAction]}} */
+     * @type {{[metadataId: number]: PurgedGroup|MarkerAction}} */
     data = {};
 
     parent = null;
@@ -67,6 +67,21 @@ class PurgedGroup {
 
     /** Retrieve the PurgedGroup for the given metadataId */
     get(id) { return this.data[id]; }
+
+    /**
+     * Retrieve any MarkerAction in this group, or null if there aren't any
+     * @returns {MarkerAction} */
+    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0].getAny() : null }
+
+    /**
+     * Applies the given function to all MarkerActions in this group.
+     * @param {(action: MarkerAction) => void} fn */
+    forEach(fn) {
+        for (const group of Object.values(this.data)) {
+            group.forEach(fn);
+        }
+    }
+
     /** Retrieve the PurgedGroup for the given metadataId, adding and returning a new entry if it doesn't exist. */
     getOrAdd(id) { return this.data[id] || this.addNewGroup(id); }
     /** Adds a new PurgedGroup to the cache. Should never be called directly from the base class. */
@@ -80,6 +95,10 @@ class PurgedGroup {
     addInternal(key, value) {
         this.checkNewKey(key);
         this.data[key] = value;
+
+        // Sometimes we're adding a non-empty value, in which case we should update our count
+        this.updateCount(value.count);
+
         return value;
     }
 
@@ -100,6 +119,10 @@ class PurgedGroup {
      * any parents as well.
      * @param {number} delta The change in purged marker count for this group. */
     updateCount(delta) {
+        if (delta == 0) {
+            return;
+        }
+
         this.count += delta;
         if (this.status == PurgeCacheStatus.Uninitialized) { this.status = PurgeCacheStatus.PartiallyInitialized; }
         if (this.parent) { this.parent.updateCount(delta); }
@@ -153,6 +176,30 @@ class PurgedEpisode extends PurgedGroup {
     addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on a purgedEpisode.`); }
     getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a purgedEpisode.`); }
 
+
+    /**
+     * Retrieve any MarkerAction in this group, or null if there aren't any
+     * @returns {MarkerAction} */
+    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0] : null }
+
+    /**
+     * Applies the given function to all MarkerActions in this group.
+     * @param {(action: MarkerAction) => void} fn */
+    forEach(fn) {
+        for (/** @type {MarkerAction}*/ const marker of Object.values(this.data)) {
+            fn(marker);
+        }
+    }
+
+    /**
+     * Remove the purged marker with the given id from the cache (after ignoring/restoring it)
+     * @param {number} markerId */
+    removeIfPresent(markerId) {
+        if (this.data[markerId]) {
+            delete this.data[markerId];
+            this.updateCount(-1);
+        }
+    }
     /**
      * Adds the given purged marker to the cache.
      * @param {MarkerAction} marker */
@@ -168,4 +215,4 @@ class PurgedEpisode extends PurgedGroup {
     get(id) { return super.get(id); } // This only exists for intellisense/"TypeScript" safety.
 }
 
-export { PurgedGroup, PurgedServer, PurgedSection, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus }
+export { PurgedGroup, PurgedServer, PurgedSection, PurgedShow, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus }

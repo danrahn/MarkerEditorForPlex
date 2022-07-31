@@ -5,10 +5,10 @@ import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
 import Overlay from './inc/Overlay.js';
 
 import ClientEpisodeData from './ClientEpisodeData.js';
+import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
-/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeShow} PurgeShow */
 /** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
 
 /**
@@ -249,7 +249,7 @@ class PlexClientState {
 
     /**
      * Notify various parts of the app that purged markers have been restored/ignored.
-     * @param {PurgeSection} unpurged Map of markers purged markers that are no longer purged.
+     * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged.
      * @param {MarkerData[]?} newMarkers List of newly restored markers. Null if purged markers were ignored. */
     notifyPurgeChange(unpurged, newMarkers) {
         // TODO

@@ -119,7 +119,12 @@ function afterMarkerCacheManagerInit() {
             if (err) {
                 Log.error(err); // Log this, but don't fail. Maybe it will work next time.
             } else {
-                Log.info(`Looked for purged markers, found ${BackupManager.purgeCount()}`);
+                const purgeCount = BackupManager.purgeCount();
+                if (purgeCount > 0) {
+                    Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
+                } else {
+                    Log.info(`Looked for purged markers and didn't find any`);
+                }
             }
 
             launchServer();

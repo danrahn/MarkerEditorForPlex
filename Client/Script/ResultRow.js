@@ -143,8 +143,6 @@ class ResultRow {
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
-    /** @type {{[seasonId: number]: MarkerAction[]}} */
-    #purgeData = {};
     /** @param {ShowData} show */
     constructor(show) {
         super(show, 'showResult');
@@ -193,42 +191,16 @@ class ShowResultRow extends ResultRow {
         }
 
         if (SettingsManager.Get().backupEnabled()) {
-            this.#purgeCheck();
+            PurgedMarkerManager.GetManager().getPurgedShowMarkers(this.show().metadataId).then(function(error) {
+                if (error) {
+                    Log.warn(`Unable to retrieve purged markers: ${error}`);
+                }
+
+                this.#getSeasons();
+            }.bind(this))
         } else {
             this.#getSeasons();
         }
-    }
-
-    /** Check for purged markers in the seasons of this show. */
-    #purgeCheck() {
-        let failureFunc = response => {
-            Log.error(errorMessage(response), `Unable to check for purged markers`);
-            this.#getSeasons();
-        }
-    
-        jsonRequest('purge_check', { id : this.show().metadataId }, this.#onPurgeResponse.bind(this), failureFunc.bind(this));
-
-    }
-
-    /**
-     * Called when we successfully found purged markers (if any) for the seasons in this show.
-     * @param {MarkerAction[]} purgedMarkers */
-    #onPurgeResponse(purgedMarkers) {
-        this.#purgeData = {};
-        for (const purged of purgedMarkers) {
-            if (!this.#purgeData[purged.season_id]) {
-                this.#purgeData[purged.season_id] = [];
-            }
-
-            this.#purgeData[purged.season_id].push(purged);
-        }
-
-        this.#getSeasons();
-    }
-
-    /** @returns {MarkerAction[]} */
-    getPurgedMarkers(seasonId) {
-        return this.#purgeData[seasonId] ?? [];
     }
 
     /** Get season details for this show */
@@ -280,23 +252,11 @@ class SeasonResultRow extends ResultRow {
      * @type {SeasonResultRow} */
     #seasonTitle;
 
-    /** @type {ShowResultRow} */
-    #showRow;
-
     /** @type {boolean} */
     #hasPurgedMarkers = false;
 
-    /** @typedef {!import('../../Server/MarkerBackupManager').MarkerAction} MarkerAction */
-
-    /**
-     * The set of purged markers found for episodes in this season. Aggregated at the season level
-     * to avoid individual requests for each episode.
-     * @type {{[episodeId: number]: MarkerAction}} */
-    #purgeData = {};
-
-    constructor(season, showRow) {
+    constructor(season) {
         super(season, 'seasonResult');
-        this.#showRow = showRow;
     }
 
     /**
@@ -338,8 +298,8 @@ class SeasonResultRow extends ResultRow {
     /** @param {HTMLElement} row */
     #setupPurgeCallback(row) {
         const season = this.season();
-        const purgeData = this.#showRow.getPurgedMarkers(season.metadataId);
-        if (purgeData.length <= 0) {
+        const purgeData = PurgedMarkerManager.GetManager().getPurgedSeasonMarkers(season.metadataId);
+        if (!purgeData || purgeData.count <= 0) {
             return;
         }
 
@@ -348,14 +308,13 @@ class SeasonResultRow extends ResultRow {
         markerCount.innerText += ' (!)';
         Tooltip.setText(markerCount, Tooltip.getText(markerCount) + '<br>Click for purge details');
         markerCount.title = '';
-        markerCount.addEventListener('click', this.#onSeasonPurgeClick.bind(this, purgeData));
+        markerCount.addEventListener('click', this.#onSeasonPurgeClick.bind(this));
     }
 
     /**
-     * Show the purge overlay for this season.
-     * @param {MarkerAction[]} purgeData */
-    #onSeasonPurgeClick(purgeData) {
-        PurgedMarkerManager.GetManager().showSingleSeason(purgeData);
+     * Show the purge overlay for this season. */
+    #onSeasonPurgeClick() {
+        PurgedMarkerManager.GetManager().showSingleSeason(this.season().metadataId);
     }
 
     /**
@@ -370,12 +329,7 @@ class SeasonResultRow extends ResultRow {
             Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
             return;
         }
-
-        if (SettingsManager.Get().backupEnabled()) {
-            this.#purgeCheck();
-        } else {
-            this.#getEpisodes();
-        }
+        this.#getEpisodes();
     }
 
     /** Make a request for all episodes in this season. */
@@ -418,7 +372,7 @@ class SeasonResultRow extends ResultRow {
         this.#showTitle = new ShowResultRow(clientState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));
         addRow(buildNode('hr'));
-        this.#seasonTitle = new SeasonResultRow(clientState.getActiveSeason(), this.#showTitle);
+        this.#seasonTitle = new SeasonResultRow(clientState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow(true));
         addRow(buildNode('hr'));
 
@@ -451,41 +405,6 @@ class SeasonResultRow extends ResultRow {
         if (this.#seasonTitle) { this.#seasonTitle.updateMarkerBreakdown(); }
         if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
         super.updateMarkerBreakdown();
-    }
-
-    /** Makes a request to the server for all purged markers in this season. Forwards to `#getEpisodes` on failure. */
-    #purgeCheck() {
-        let failureFunc = response => {
-            Log.error(errorMessage(response), `Unable to check for purged markers`);
-            this.#getEpisodes();
-        }
-    
-        jsonRequest('purge_check', { id : this.season().metadataId }, this.#onPurgeResponse.bind(this), failureFunc.bind(this));
-    }
-
-    /**
-     * Takes the array of purged markers found and adds them to `#purgeData`.
-     * @param {MarkerAction[]} purgedMarkers */
-    #onPurgeResponse(purgedMarkers) {
-        this.#purgeData = {};
-        for (const purged of purgedMarkers) {
-            if (!this.#purgeData[purged.episode_id]) {
-                this.#purgeData[purged.episode_id] = [];
-            }
-
-            this.#purgeData[purged.episode_id].push(purged);
-        }
-
-        this.#getEpisodes();
-    }
-
-    /**
-     * Retrieves markers that we think should exist, but don't.
-     * Returns an empty array if no purged markers are found, or the feature is not enabled.
-     * @param {number} episodeId
-     * @returns {MarkerAction[]} */
-    getPurgedMarkers(episodeId) {
-        return this.#purgeData[episodeId] ?? [];
     }
 }
 
@@ -544,8 +463,8 @@ class EpisodeResultRow extends ResultRow {
     /** Adds the click handler to the 'X markers' text that will display purged markers for the episode. */
     #setupPurgeCallback(row) {
         const episode = this.episode();
-        const purgeData = this.#seasonRow.getPurgedMarkers(episode.metadataId);
-        if (purgeData.length <= 0) {
+        const purgeData = PurgedMarkerManager.GetManager().getPurgedEpisodeMarkers(episode.metadataId);
+        if (!purgeData || purgeData.count <= 0) {
             return;
         }
 
@@ -554,13 +473,12 @@ class EpisodeResultRow extends ResultRow {
         markerCount.innerText += ' (!)';
         markerCount.title = ''; // Don't overlap with the row title.
         Tooltip.setTooltip(markerCount, `Found ${purgeData.length} purged markers for this episode.<br>Click for details.`);
-        markerCount.addEventListener('click', this.#onEpisodePurgeClick.bind(this, purgeData));
+        markerCount.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
     }
 
-    /** Launches the purge table overlay.
-     * @param {MarkerAction[]} purgeData */
-    #onEpisodePurgeClick(purgeData) {
-        PurgedMarkerManager.GetManager().showSingleEpisode(purgeData);
+    /** Launches the purge table overlay. */
+    #onEpisodePurgeClick() {
+        PurgedMarkerManager.GetManager().showSingleEpisode(this.episode().metadataId);
     }
 
     /**
