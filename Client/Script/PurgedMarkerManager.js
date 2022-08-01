@@ -314,7 +314,7 @@ class PurgeNonActionInfo {
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
         dummyEpisode.addNewMarker(this.#markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr || []);
     }
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
@@ -575,7 +575,7 @@ class PurgeTable {
 
         let rows = buildNode('tbody');
         this.#forMarker(function(marker, rows) {
-            rows.appendChild(new PurgeRow(marker, this.#onBulkActionSuccess.bind(this)).buildRow());
+            rows.appendChild(new PurgeRow(marker, this.#onRowRemoved.bind(this)).buildRow());
         }, rows);
 
         table.appendChild(rows);
@@ -590,8 +590,7 @@ class PurgeTable {
     /** Callback invoked when all markers in the table have been handled.
      * @param {MarkerData[]} newMarkers The newly restored markers, or null if the purged markers were ignored. */
     #onBulkActionSuccess(newMarkers=null) {
-        this.#removed = true;
-        Animation.queue({ opacity : 0, height : '0px' }, this.#html, 250, true, this.#removedCallback);
+        this.#onRowRemoved();
         let allMarkers = [];
         this.#forMarker(marker => allMarkers.push(marker));
         let dummyLibrary = new PurgedSection();
@@ -599,6 +598,13 @@ class PurgeTable {
         // still purged and those that were just cleared in onPurgedMarkerAction.
         dummyLibrary.addInternal(this.#purgedShow.id, this.#purgedShow.deepClone());
         PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers);
+    }
+
+    /**
+     * Animate the removal of this row */
+    #onRowRemoved() {
+        this.#removed = true;
+        Animation.queue({ opacity : 0, height : '0px' }, this.#html, 250, true, this.#removedCallback);
     }
 
     /**
@@ -649,7 +655,7 @@ class PurgeOverlay {
         let container = buildNode('div', { id : 'purgeContainer' });
         appendChildren(container,
             buildNode('h1', {}, 'Purged Markers'),
-            new BulkPurgeAction('purge_all', 'Restore All Markers', 'Ignore All Markers', this.#onBulkActionSuccess.bind(this, true), this.#getAllMarkerIds.bind(this)).html()
+            new BulkPurgeAction('purge_all', 'Restore All Markers', 'Ignore All Markers', this.#onBulkActionSuccess.bind(this), this.#getAllMarkerIds.bind(this)).html()
         );
 
         // Table for every show that has purged markers
@@ -679,15 +685,20 @@ class PurgeOverlay {
             }
         }
 
-        this.#onBulkActionSuccess();
+        this.#onTableRemoved();
     }
 
     /** Callback invoked when all tables in the overlay have been handled.
-     * @param {MarkerData[]} newMarkers Array of newly restored markers, or null if the purged markers were ignored.
-    */
+     * @param {MarkerData[]} newMarkers Array of newly restored markers, or null if the purged markers were ignored. */
     #onBulkActionSuccess(newMarkers=null) {
+        this.#onTableRemoved();
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers);
+    }
+
+    /**
+     * Animate the removal of all items in this overlay */
+    #onTableRemoved() {
         Animation.queue({ opacity : 0 }, this.#html, 500, false, this.#clearOverlayAfterPurge.bind(this));
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection, newMarkers);
     }
 
     /** Clears out the now-useless overlay and lets the user know there are no more purged markers to handle. */

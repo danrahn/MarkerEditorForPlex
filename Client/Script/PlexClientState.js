@@ -302,7 +302,7 @@ class PlexClientState {
     /**
      * Notify various parts of the app that purged markers have been restored/ignored.
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged.
-     * @param {MarkerData[]?} newMarkers List of newly restored markers. Null if purged markers were ignored. */
+     * @param {MarkerData[]} newMarkers List of newly restored markers, if any. */
     notifyPurgeChange(unpurged, newMarkers) {
         // TODO:
         // * Show/Season level views should update as expected, but the following are still needed at the
