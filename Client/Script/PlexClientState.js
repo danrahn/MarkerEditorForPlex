@@ -7,6 +7,7 @@ import Overlay from './inc/Overlay.js';
 import ClientEpisodeData from './ClientEpisodeData.js';
 import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
+import SettingsManager from './ClientSettings.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
 /** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
@@ -184,6 +185,46 @@ class PlexClientState {
     }
 
     /**
+     * Trigger marker breakdown updates for an active show that had purge actions
+     * that didn't apply to the active season (or if there is no active season)
+     * @param {ShowResultRow} show The show to update.
+     * @param {SeasonResultRow[]} seasons The list of seasons of the show that need to be updated. */
+    updateNonActiveBreakdown(show, seasons) {
+        // Nothing to do at the season/show level if extended marker stats aren't enabled.
+        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+            return;
+        }
+
+        const successFunc = (response) => {
+            for (const seasonRow of seasons) {
+                const newBreakdown = response.seasonData[seasonRow.season().metadataId];
+                if (!newBreakdown) {
+                    Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
+                    continue;
+                }
+
+                seasonRow.season().markerBreakdown = newBreakdown;
+                seasonRow.updateMarkerBreakdown();
+            }
+
+            if (!response.showData) {
+                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
+            } else {
+                show.show().markerBreakdown = response.showData;
+            }
+
+            show.updateMarkerBreakdown();
+        };
+
+        const failureFunc = (response) => {
+            Log.warn(`Failed to update ("${errorMessage(response)}"), marker stats will be incorrect.`);
+        }
+
+        const params = { id : show.show().metadataId, includeSeasons : seasons.length == 0 ? 0 : 1 };
+        jsonRequest('get_breakdown', params, successFunc, failureFunc);
+    }
+
+    /**
      * Internal core marker cache update method, called when
      * we actually have a delta to apply, which isn't always the case.
      * @param {ClientEpisodeData} episode The episode a marker was added to/removed from.
@@ -264,11 +305,10 @@ class PlexClientState {
      * @param {MarkerData[]?} newMarkers List of newly restored markers. Null if purged markers were ignored. */
     notifyPurgeChange(unpurged, newMarkers) {
         // TODO:
-        // * Adjust "(!)" text if restoration removes all purged markers for a given item
-        // * Adjust tooltips to note the new number of purged markers (or remove entirely if there aren't any left)
-        // * Remove purged event listeners if all purged markers are removed
-        // * Determine if any special handling needs to be done after restoring purged markers that aren't
-        //   part of the active view (e.g. search results?)
+        // * Show/Season level views should update as expected, but the following are still needed at the
+        //   search view:
+        //   * Adjust "(!)" text if restoration removes all purged markers for a given item
+        //   * Adjust tooltips to note the new number of purged markers (or remove entirely if there aren't any left)
 
         if (!this.#activeShow) {
             return;
@@ -281,18 +321,21 @@ class PlexClientState {
             return;
         }
 
-        this.#activeShow.notifyPurgeChange(showData, newMarkers);
-
         if (!this.#activeSeason) {
+            this.#activeShow.notifyPurgeChange(showData, newMarkers);
             return;
         }
 
         const seasonData = showData.get(this.#activeSeason.mediaItem().metadataId);
         if (!seasonData) {
+            this.#activeShow.notifyPurgeChange(showData, newMarkers);
             return;
         }
 
+        // If possible we want to update the activeSeason first to avoid
+        // any conflicts when updating marker breakdown caches.
         this.#activeSeason.notifyPurgeChange(seasonData, newMarkers);
+        this.#activeShow.notifyPurgeChange(showData);
     }
 
     /** Comparator that sorts shows by sort title, falling back to the regular title if needed.

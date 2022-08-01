@@ -239,8 +239,7 @@ class ShowResultRow extends ResultRow {
      * Updates various UI states after purged markers are restored/ignored.
      * @param {PurgedShow} unpurged */
     notifyPurgeChange(unpurged) {
-        // TODO: Need a way to properly update marker breakdown, since
-        // we can't do it completely client-side without the underlying episodes, which might not exist.
+        let needsUpdate = [];
         for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
             // Only need to update if the season was affected
             const unpurgedSeason = unpurged.get(seasonId);
@@ -248,10 +247,10 @@ class ShowResultRow extends ResultRow {
                 continue;
             }
 
-            seasonRow.updateMarkerBreakdown();
+            needsUpdate.push(seasonRow);
         }
 
-        this.updateMarkerBreakdown();
+        PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
@@ -577,6 +576,8 @@ class EpisodeResultRow extends ResultRow {
         const markerText = purgeCount == 1 ? 'marker' : 'markers';
         Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
+        // Explicitly set no title so it doesn't interfere with the tooltip
+        main.title = "";
         return main;
     }
 

@@ -465,6 +465,7 @@ const EndpointMap = {
     restart       : (_     , res) => userRestart(res),
     suspend       : (_     , res) => userSuspend(res),
     resume        : (_     , res) => userResume(res),
+    get_breakdown : (params, res) => getShowMarkerBreakdownTree(...params.ints('id', 'includeSeasons'), res),
 };
 
 /**
@@ -1084,4 +1085,31 @@ function ignorePurgedMarkers(oldMarkerIds, sectionId, res) {
 
         jsonSuccess(res);
     });
+}
+
+/**
+ * Retrieve the marker breakdown (X episodes have Y markers) for a single show,
+ * optionally with breakdowns for each season attached.
+ * @param {number} showId The metadata id of the show to grab the breakdown for.
+ * @param {number} includeSeasons 1 to include season data, 0 to leave it out.
+ * @param {Http.ServerResponse} res */
+function getShowMarkerBreakdownTree(showId, includeSeasons, res) {
+    if (!MarkerCache) {
+        return jsonError(res, 400, `We shouldn't be calling get_breakdown when extended marker stats are disabled.`);
+    }
+
+    includeSeasons = includeSeasons != 0;
+    let data = null;
+    if (includeSeasons) {
+        data = MarkerCache.getTreeStats(showId);
+    } else {
+        data = MarkerCache.getShowStats(showId);
+        data = { showData: data, seasonData : {} };
+    }
+
+    if (!data) {
+        return jsonError(res, 400, `No marker data found for showId ${showId}.`);
+    }
+
+    return jsonSuccess(res, data);
 }

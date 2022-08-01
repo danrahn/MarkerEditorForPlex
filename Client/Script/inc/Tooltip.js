@@ -145,7 +145,7 @@ let Tooltip = new function()
     {
         if (!showingTooltip)
         {
-            Log.tmi(`Launching tooltip: ${text}`);
+            Log.tmi(text, `Launching tooltip`);
         }
 
         ttElement = e.target;

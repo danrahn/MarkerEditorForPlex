@@ -269,6 +269,25 @@ class MarkerCacheManager {
     }
 
     /**
+     * Retrieve marker breakdown stats for a given show, along with individual season stats.
+     * @param {number} showId The metadata id of the show to retrieve data for. */
+    getTreeStats(showId) {
+        let show = this.#showFromId(showId);
+        if (!show) { return null; }
+
+        let treeData = {
+            showData: show.markerBreakdown.data(),
+            seasonData: {}
+        };
+
+        for (const [seasonId, seasonData] of Object.entries(show.seasons)) {
+            treeData.seasonData[seasonId] = seasonData.markerBreakdown.data();
+        }
+
+        return treeData;
+    }
+
+    /**
      * Return whether a marker with the given id exists in the database
      * @param {number} markerId */
     markerExists(markerId) {
