@@ -214,10 +214,6 @@ input:focus-visible {
   padding-left: 10px;
 }
 
-.episodeResultMarkers {
-  text-align: right;
-}
-
 .episodeSeparator {
   margin: 1px;
 }
@@ -365,6 +361,12 @@ input:focus-visible {
 
 #deleteMarkerCancel {
   margin-left: 10px;
+}
+
+.purgedIcon {
+  width: 18px;
+  padding-left: 2px;
+  vertical-align: text-top;
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)

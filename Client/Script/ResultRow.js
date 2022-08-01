@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, errorMessage, jsonRequest, pad0, plural } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, pad0, plural } from "./Common.js";
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
@@ -12,8 +12,23 @@ import PlexClientState from "./PlexClientState.js";
 import { PlexUI, UISection } from "./PlexUI.js";
 import PurgedMarkerManager from "./PurgedMarkerManager.js";
 import { PurgedSeason, PurgedShow } from "./PurgedMarkerCache.js";
+import ThemeColors from "./ThemeColors.js";
 
 /** @typedef {!import("../../Server/MarkerBackupManager.js").MarkerAction} MarkerAction */
+
+/**
+ * Return a warning icon used to represent that a show/season/episode has purged markers.
+ * @returns {HTMLElement} */
+function purgeIcon() {
+    return buildNode(
+        'img',
+        {
+            src : ThemeColors.getIcon('warn', 'orange'),
+            class : 'purgedIcon',
+            theme : 'orange'
+        })
+    ;
+}
 
 /** Represents a single row of a show/season/episode in the results page. */
 class ResultRow {
@@ -74,6 +89,22 @@ class ResultRow {
         }
 
         this.episodeDisplay(span);
+    }
+
+    /**
+     * Determine whether we should load child seasons/episodes/marker tables when
+     * clicking on the row. Returns false if the group has purged markers and the
+     * user clicked on the marker info.
+     * @param {MouseEvent} e */
+    ignoreRowClick(e) {
+        if (this.hasPurgedMarkers() && (
+            e.target.classList.contains('episodeDisplayText') ||
+            (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText')) ||
+            e.target.tagName.toLowerCase() == 'img')) {
+            return true; // Don't show/hide if we're repurposing the marker display.
+        }
+
+        return false;
     }
 
     /**
@@ -139,10 +170,10 @@ class ResultRow {
         }
 
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);
-        let innerText = `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`;
+        let innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
 
         if (this.hasPurgedMarkers()) {
-            innerText += ` (!)`;
+            innerText.appendChild(purgeIcon());
             const purgeCount = this.getPurgeCount();
             const markerText = purgeCount == 1 ? 'marker' : 'markers';
             tooltipText += `<br>Found ${purgeCount} purged ${markerText}.<br>Click for details.`;
@@ -154,7 +185,8 @@ class ResultRow {
             currentDisplay.removeEventListener('click', this.getPurgeEventListener());
             if (this.hasPurgedMarkers()) { currentDisplay.addEventListener('click', this.getPurgeEventListener()); }
 
-            currentDisplay.innerText = innerText;
+            clearEle(currentDisplay);
+            currentDisplay.appendChild(innerText);
             Tooltip.setText(currentDisplay, tooltipText);
             return true;
         }
@@ -262,8 +294,8 @@ class ShowResultRow extends ResultRow {
     /** Click handler for clicking a show row. Initiates a request for season details.
      * @param {MouseEvent} e */
     #showClick(e) {
-        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeDisplayText')) {
-            return; // Don't show/hide if we're repurposing the marker display.
+        if (this.ignoreRowClick(e)) {
+            return;
         }
 
         if (!PlexClientState.GetState().setActiveShow(this)) {
@@ -422,8 +454,8 @@ class SeasonResultRow extends ResultRow {
      * Click handler for clicking a show row. Initiates a request for all episodes in the given season.
      * @param {MouseEvent} e */
     #seasonClick(e) {
-        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeDisplayText')) {
-            return; // Don't show/hide if we're repurposing the marker display.
+        if (this.ignoreRowClick(e)) {
+            return;
         }
 
         if (!PlexClientState.GetState().setActiveSeason(this)) {
@@ -562,12 +594,12 @@ class EpisodeResultRow extends ResultRow {
     #buildMarkerText() {
         const episode = this.episode();
         const hasPurges = this.hasPurgedMarkers();
-        let text = plural(episode.markerCount(), 'Marker');
+        let text = buildNode('span', {}, plural(episode.markerCount(), 'Marker'));
         if (hasPurges) {
-            text += ' (!)';
+            text.appendChild(purgeIcon());
         }
 
-        let main = buildNode('div', { class : 'episodeResultMarkers' }, text);
+        let main = buildNode('div', { class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
             return main;
         }
@@ -591,8 +623,8 @@ class EpisodeResultRow extends ResultRow {
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
     #showHideMarkerTableEvent(e) {
-        if (this.hasPurgedMarkers() && e.target.classList.contains('episodeResultMarkers')) {
-            return; // Don't show/hide if we're repurposing the marker display.
+        if (this.ignoreRowClick(e)) {
+            return;
         }
 
         const expanded = !$$('table', this.episode().markerTable()).classList.contains('hidden');
@@ -630,7 +662,7 @@ class EpisodeResultRow extends ResultRow {
     updateMarkerBreakdown(delta) {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
-        const oldNode = $$('.episodeResultMarkers', this.html());
+        const oldNode = $$('.episodeDisplayText', this.html());
         oldNode.parentElement.insertBefore(newNode, oldNode);
         oldNode.parentElement.removeChild(oldNode);
 

@@ -4,12 +4,14 @@ class ThemeColors {
         0 /*dark*/ : {
             standard : 'c1c1c1',
             green : '4C4',
-            red : 'C44'
+            red : 'C44',
+            orange : 'C94',
         },
         1 /*light*/ : {
             standard : '212121',
             green : '292',
-            red : 'A22'
+            red : 'A22',
+            orange : 'A22', // Just red, looks better than orange/brown
         }
     }
 
