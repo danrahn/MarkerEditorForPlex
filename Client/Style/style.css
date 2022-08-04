@@ -395,7 +395,7 @@ input:focus-visible {
    background: rgba(129, 129, 129, 0.76); /* #818181C1 */
 }
 
-@media (orientation: landscape), (min-width: 767px) { /* Probably not a phone */
+@media (min-width: 767px) { /* Probably not a phone */
   /* width*/
   ::-webkit-scrollbar {
     width: 10px;
@@ -407,7 +407,7 @@ input:focus-visible {
   }
 }
 
-@media all and (orientation: portrait) and (max-width: 767px) { /* Probably a phone */
+@media all and (max-width: 767px) { /* Probably a phone */
   /* width*/
   ::-webkit-scrollbar {
     width: 3px;

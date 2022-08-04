@@ -20,6 +20,14 @@ hr {
   border-color: #999;
 }
 
+a {
+  color: #81a1e1;
+}
+
+a:visited {
+  color: #6191c1;
+}
+
 #libraries option {
   background-color: #212121;
 }

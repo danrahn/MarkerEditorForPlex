@@ -82,7 +82,7 @@
 }
 
 /* Desktop/Landscape */
-@media (orientation: landscape), (min-width: 767px) {
+@media (min-width: 767px) {
     .fullOverlay {
         margin-left: 5%;
         margin-right: 5%;
@@ -98,7 +98,7 @@
 }
 
 /* Phone/Portrait */
-@media all and (orientation: portrait) and (max-width: 767px) {
+@media all and (max-width: 767px) {
     .fullOverlay {
         margin-left: 10px;
         margin-right: 10px;
