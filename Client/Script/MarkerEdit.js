@@ -200,7 +200,7 @@ class MarkerEdit {
 
     /**
      * Callback after a marker has been successfully edited. Replace input fields with the new times, and adjust indexes as necessary.
-     * @param {Object} response The response from the server, a serialized version of a minimal {@linkcode MarkerData}. */
+     * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
         PlexClientState.GetState().getEpisode(partialMarker.episodeId).editMarker(partialMarker);

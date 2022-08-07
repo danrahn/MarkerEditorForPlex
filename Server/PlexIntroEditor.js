@@ -68,11 +68,18 @@ const ServerState = {
     /** The server is in the process of shutting down. Either permanently or during a restart. */
     ShuttingDown : 4,
 }
+
 /**
  * Indicates whether we're in the middle of shutting down the server, and
  * should therefore immediately fail all incoming requests.
- * @type {boolean} */
+ * @type {number} */
 let CurrentState = ServerState.FirstBoot;
+
+/** @returns The current ServerState of the server. */
+function getState() { return CurrentState; }
+
+/** Global flag indicating if the server is running tests. */
+let IsTest = false;
 
 /** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -80,7 +87,8 @@ const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Initializes and starts the server */
 function run() {
     setupTerminateHandlers();
-    Config = new PlexIntroEditorConfig(ProjectRoot);
+    const testData = checkTestData();
+    Config = new PlexIntroEditorConfig(ProjectRoot, testData);
 
     // Set up the database, and make sure it's the right one.
     QueryManager = new PlexQueryManager(Config.databasePath(), Config.pureMode(), () => {
@@ -91,6 +99,34 @@ function run() {
             afterQueryInit();
         }
     });
+}
+
+/**
+ * Returns test override data specified in the command line, if any.
+ * @returns {{isTest: boolean, configOverride : string?}} */
+function checkTestData() {
+    let testData = {
+        isTest : false,
+        configOverride : null,
+    };
+
+    if (process.argv.indexOf('--test') != -1) {
+        testData.isTest = true;
+        IsTest = true;
+    }
+
+    const configIndex = process.argv.indexOf('--config_override');
+    if (configIndex != -1) {
+        if (process.argv.length <= configIndex - 1) {
+            Log.critical('Invalid config override file detected, aborting...');
+            cleanupForShutdown();
+            process.exit(1);
+        }
+
+        testData.configOverride = process.argv[configIndex + 1];
+    }
+
+    return testData;
 }
 
 /** Called after the query manager (and optionally the marker recorder) is initialized. */
@@ -134,7 +170,7 @@ function afterMarkerCacheManagerInit() {
     }
 }
 
-export default run;
+export { run, ServerState, getState };
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
@@ -180,7 +216,9 @@ function handleClose(signal, restart=false) {
             CurrentState = ServerState.ReInit;
             Server = null;
             run();
-        } else {
+        } else if (!IsTest) {
+            // Gross, but integration tests does its own killing
+            // of the process.
             Log.info('Exiting process.');
             process.exit(error ? 1 : 0);
         }
@@ -477,7 +515,7 @@ function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    if (CurrentState == ServerState.Suspended && endpoint != 'resume') {
+    if (CurrentState == ServerState.Suspended && (endpoint != 'resume' && endpoint != 'shutdown')) {
         return jsonError(res, 400, 'Server is suspended');
     }
 
@@ -636,7 +674,7 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
                 newMarker.start = startMs;
                 newMarker.end = endMs;
                 BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
-                return jsonSuccess(res, { episodeId : currentMarker.episode_id, id : markerId, start : startMs, end : endMs, index : newIndex });
+                return jsonSuccess(res, newMarker);
             });
 
         });

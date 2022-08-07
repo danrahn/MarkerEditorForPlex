@@ -142,10 +142,17 @@ class PlexIntroEditorConfig extends ConfigBase {
     #features;
 
     /** Creates a new PlexIntroEditorConfig. */
-    constructor(projectRoot) {
+    constructor(projectRoot, testData) {
         Log.info('Reading configuration...');
         let baseClass = {};
-        const config = JSON.parse(readFileSync(join(projectRoot, 'config.json')));
+
+        let configFile = 'config.json';
+        // If we're in a test environment, check for an override config file
+        if (testData.isTest && testData.configOverride) {
+            configFile = join('Test', testData.configOverride);
+        }
+
+        const config = JSON.parse(readFileSync(join(projectRoot, configFile)));
         super(config, baseClass);
         this.#Base = baseClass;
 

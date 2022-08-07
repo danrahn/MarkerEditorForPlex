@@ -1,2 +1,2 @@
-import run from './Server/PlexIntroEditor.js';
+import { run } from './Server/PlexIntroEditor.js';
 run();
