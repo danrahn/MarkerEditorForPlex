@@ -10,7 +10,9 @@ class BasicCRUD extends TestBase {
         this.testMethods = [
             this.testSingleAdd,
             this.testSingleEdit,
-            this.testSingleDelete
+            this.testEditOfNonexistentMarker,
+            this.testSingleDelete,
+            this.testDeleteOfNonexistentMarker,
         ];
     }
 
@@ -43,7 +45,7 @@ class BasicCRUD extends TestBase {
         // With default config, taggings id 1 is a marker from 15 to 45 seconds.
         const show = TestBase.DefaultMetadata.Show1;
         let marker = await this.send('edit', {
-            id : show.Season1.Episode2.Marker1,
+            id : show.Season1.Episode2.Marker1.Id,
             start : 14000,
             end : 46000,
             userCreated : 0
@@ -61,11 +63,30 @@ class BasicCRUD extends TestBase {
     }
 
     /**
+     * Ensure we fail if we attempt to edit a marker that doesn't exist. */
+    async testEditOfNonexistentMarker() {
+        // Don't surface expected errors from the main application log
+        this.expectFailure();
+        let response = await this.send('edit', {
+            id : 100, /* arbitrary bad value */
+            start : 0,
+            end : 10000,
+            userCreated : 0
+        }, true /*raw*/);
+
+        TestHelpers.verify(response.status == 400, `Expected edit of nonexistent marker to return 400, got ${response.status}`);
+
+        return response.json().then(message => {
+            TestHelpers.verify(message.Error, `Expected an error message for edit of nonexistent marker, found nothing.`);
+        });
+    }
+
+    /**
      * Test deleting a single marker from an episode. */
     async testSingleDelete() {
         const show = TestBase.DefaultMetadata.Show1;
         let marker = await this.send('delete', {
-            id : show.Season1.Episode2.Marker1,
+            id : show.Season1.Episode2.Marker1.Id,
         });
 
         return TestHelpers.validateMarker(marker,
@@ -77,6 +98,21 @@ class BasicCRUD extends TestBase {
             0 /*expectedIndex*/,
             this.testDb,
             true /*isDeleted*/);
+    }
+
+    /**
+     * Ensure we fail if we attempt to delete a marker that doesn't exist. */
+    async testDeleteOfNonexistentMarker() {
+        // Don't surface expected errors from the main application log
+        this.expectFailure();
+        let response = await this.send('delete', {
+            id : 100, /* arbitrary bad value */
+        }, true /*raw*/);
+
+        TestHelpers.verify(response.status == 400, `Expected delete of nonexistent marker to return 400, got ${response.status}`);
+        return response.json().then(message => {
+            TestHelpers.verify(message.Error, `Expected an error message for delete of nonexistent marker, found nothing.`);
+        });
     }
 }
 

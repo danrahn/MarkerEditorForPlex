@@ -35,9 +35,7 @@ class TestHelpers {
             throw Error('MarkerData not returned!');
         }
 
-        if (markerData.Error) {
-            throw Error(markerData.Error);
-        }
+        TestHelpers.checkError(markerData);
 
         let allIssues = '';
         const addIssue = (issue) => {
@@ -59,9 +57,8 @@ class TestHelpers {
         checkField(markerData.index, expectedIndex, 'Marker index');
 
         // Verified returned fields, make sure it's in the db as well
-        if (allIssues.length != 0) {
-            throw Error(allIssues);
-        } else if (!database) {
+        TestHelpers.verify(allIssues.length == 0, allIssues);
+        if (!database) {
             return Promise.resolve();
         }
 
@@ -69,29 +66,46 @@ class TestHelpers {
             database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`, (err, rows) => {
                 if (err) { throw Error(err.message); }
                 if (isDeleted) {
-                    if (rows.length != 0) {
-                        throw Error(`Found a marker with id ${markerData.id} that should be deleted!`);
-                    }
-
+                    TestHelpers.verify(rows.length == 0, `Found a marker with id ${markerData.id} that should be deleted!`);
                     return resolve();
                 }
 
-                if (rows.length != 1) {
-                    throw Error(`Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
-                }
+                TestHelpers.verify(rows.length == 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
 
                 const row = rows[0];
                 checkField(row.metadata_item_id, expectedEpisodeId, 'DB episode id');
                 checkField(row.time_offset, expectedStart, 'DB marker start');
                 checkField(row.end_time_offset, expectedEnd, 'DB marker end');
                 checkField(row.index, expectedIndex, 'DB marker index');
-                if (allIssues.length != 0) {
-                    throw Error(allIssues);
-                }
-
+                TestHelpers.verify(allIssues.length == 0, allIssues);
                 resolve();
             });
         });
+    }
+
+    /**
+     * Checks whether the given object is an error response from the server. Useful when a
+     * test doesn't check the response code and uses the Error field to check for an error.
+     * @throws {Error} If the response is undefined or indicates a failed request. */
+    static checkError(response) {
+        if (!response) {
+            throw Error('Invalid response');
+        }
+
+        if (response.Error) {
+            throw Error(`Operation failed: ${response.Error}`);
+        }
+    }
+
+    /**
+     * Verifies that the given condition is true. If it's not, throws an error with the specified message.
+     * @param {boolean} condition
+     * @param {string} message
+     * @throws {Error} If `condition` is false */
+    static verify(condition, message) {
+        if (!condition) {
+            throw Error(message);
+        }
     }
 
     /**

@@ -715,7 +715,7 @@ function addMarker(metadataId, startMs, endMs, res) {
  */
 function deleteMarker(markerId, res) {
     QueryManager.getSingleMarker(markerId, (err, markerToDelete) => {
-        if (err || !markerToDelete) {
+        if (err) {
             Log.error(err.message, `Failed to get marker to delete`);
             return jsonError(res, 500, "Error getting intro marker.");
         }

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import CreateDatabase from "../Server/CreateDatabase.cjs";
 
 // Client/Server shared dependencies
-import { ConsoleLog } from "../Shared/ConsoleLog.js";
+import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 
 // Server/test dependencies/typedefs
 import TestHelpers from "./TestHelpers.js";
@@ -59,6 +59,24 @@ class TestBase {
             TestLog.tmi(`TestBase::Cleanup - Deleting old config`)
             unlinkSync(TestBase.testConfig);
         }
+    }
+
+    /**
+     * General purpose method that will be called before a test is executed. */
+    testMethodSetup() {}
+
+    /**
+     * General purpose method that will be called after a test is executed. */
+    testMethodTeardown() {
+        // Tests that expect to fail disable Error logging in the main Log (see `expectFailure`). Rest it to Warn.
+        Log.setLevel(ConsoleLog.Level.Warn);
+    }
+
+    /**
+     * Sets the application log level to suppress everything but critical messages
+     * because we expect operations to fail. */
+    expectFailure() {
+        Log.setLevel(ConsoleLog.Level.Critical);
     }
 
     /**
@@ -149,6 +167,7 @@ class TestBase {
         for (const method of this.testMethods) {
             await this.resetState();
             await this.resume();
+            this.testMethodSetup();
             let success = true;
             let response = '';
             try {
@@ -157,6 +176,8 @@ class TestBase {
                 success = false;
                 response = ex.message;
             }
+
+            this.testMethodTeardown();
 
             TestLog.verbose(`\t[${method.name}]: ${success ? 'PASSED' : 'FAILED'}`);
             if (!success) {
@@ -221,7 +242,7 @@ class TestBase {
      * Send a request to the test server.
      * @param {string} endpoint The command to run
      * @param {*} params Dictionary of query parameters to pass into the test server. */
-    async send(endpoint, params={}) {
+    async send(endpoint, params={}, raw=false) {
         if (getState() == ServerState.FirstBoot || getState() == ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
@@ -232,7 +253,11 @@ class TestBase {
             url.searchParams.append(key, value);
         }
 
-        return fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json());
+        if (raw) {
+            return fetch(url, { method : 'POST', headers : { accept : 'application/json' } });
+        } else {
+            return fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json());
+        }
     }
 
     /**
@@ -247,7 +272,11 @@ class TestBase {
                 },
                 Episode2 : {
                     Id : 4,
-                    Marker1 : 1,
+                    Marker1 : {
+                        Id : 1,
+                        Start : 15000,
+                        End : 45000
+                    },
                 },
                 Episode3 : {
                     Id : 5,
@@ -296,12 +325,13 @@ class TestBase {
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
     defaultMarkers() {
+        const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const dbMarkerInsert = (metadataId, index, start, end) => `
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
                 (${metadataId}, 1, ${index}, "intro", ${start}, ${end}, CURRENT_TIMESTAMP, "pv%3Aversion=5");`
-        return dbMarkerInsert(4, 0, 15000, 45000);
+        return dbMarkerInsert(episode.Id, 0, episode.Marker1.Start, episode.Marker1.End);
     }
 
     /**
