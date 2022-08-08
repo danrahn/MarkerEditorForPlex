@@ -3,7 +3,7 @@ import { promises as Fs } from 'fs';
 import { createServer, Server as httpServer } from 'http';
 import { contentType, lookup } from 'mime-types';
 import Open from 'open';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { gzip } from 'zlib';
 
@@ -93,7 +93,7 @@ function run() {
     // Set up the database, and make sure it's the right one.
     QueryManager = new PlexQueryManager(Config.databasePath(), Config.pureMode(), () => {
         if (Config.backupActions()) {
-            BackupManager = new MarkerBackupManager(QueryManager, ProjectRoot, afterQueryInit);
+            BackupManager = new MarkerBackupManager(QueryManager, IsTest ? join(ProjectRoot, 'Test') : ProjectRoot, afterQueryInit);
         } else {
             Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
             afterQueryInit();

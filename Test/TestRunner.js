@@ -40,7 +40,7 @@ class TestRunner {
      * Shut down the test server if necessary. */
     async #shutdown() {
         if (getState() == ServerState.Running || getState() == ServerState.Suspended) {
-            return fetch(`http://localhost:3233/shutdown`, { method : 'POST', headers : { accept : 'application/json' } }).then(d => d.json()).then(j => {
+            return fetch(`http://localhost:3233/shutdown`, { method : 'POST', headers : { accept : 'application/json' } }).then(d => d.json()).then(_ => {
                 Log.setLevel(ConsoleLog.Level.Info);
                 Log.info('Finished running tests, cleaning up and exiting process.');
                 TestBase.Cleanup();

@@ -10,4 +10,5 @@ Backup/*
 
 # Ignore test generated files
 Test/*.json
-Test/*.db
+Test/**/*.db
+Test/**/*.db-journal

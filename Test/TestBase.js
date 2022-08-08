@@ -1,6 +1,6 @@
 // External dependencies
 import fetch from 'node-fetch';
-import { existsSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,9 +31,12 @@ class TestBase {
     static root = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Test');
     static testConfig = join(TestBase.root, 'testConfig.json');
     static testDbPath = join(TestBase.root, 'plexDbTest.db');
+    static backupDbPath = join(TestBase.root, 'Backup', 'markerActions.db');
 
     /** @type {SqliteDatabase} */
     testDb = null;
+    /** @type {SqliteDatabase} */
+    backupDb = null;
 
     constructor() {
         TestLog.tmi('TestBase Constructor');
@@ -92,6 +95,7 @@ class TestBase {
                     reject(err);
                 }
     
+                await this.connectToBackupDatabase();
                 await this.setupPlexDbTestTables();
     
                 this.setupConfig();
@@ -120,8 +124,8 @@ class TestBase {
         tf('previewThumbnails', false);
         tf('autoOpen', false);
 
-        // TODO: Test backup database as well
-        tf('backupActions', false);
+        // TODO: Actually test this
+        tf('backupActions', true);
 
         writeFileSync(TestBase.testConfig, JSON.stringify(overrides))
     }
@@ -195,11 +199,18 @@ class TestBase {
             TestLog.error(`FAILED! One or more tests in ${this.className()} did not pass!`);
         }
 
-        if (this.testDb) {
-            return new Promise(function (resolve, _) { this.testDb.close(() => resolve()); }.bind(this));
-        } else {
-            return Promise.resolve();
-        }
+        return new Promise(function (resolve, _) {
+
+            // This isn't pretty, any chance of race conditions below?
+            let closesLeft = 2;
+            if (this.testDb) {
+                this.testDb.close(() => { if (--closesLeft == 0) resolve(); });
+            } else { --closesLeft; }
+
+            if (this.backupDb) {
+                this.backupDb.close(() => { if (--closesLeft == 0) resolve(); });
+            } else { --closesLeft; }
+        }.bind(this));
     }
 
     /**
@@ -299,7 +310,7 @@ class TestBase {
         const introInsert = `INSERT INTO tags (tag_type) VALUES (12);`;
 
         // Create a single library
-        const sectionInsert = `INSERT INTO library_sections (library_id, name, section_type) VALUES (1, "TV", 2);`;
+        const sectionInsert = `INSERT INTO library_sections (library_id, name, section_type, uuid) VALUES (1, "TV", 2, "94319c6e-16c0-11ed-861d-0242ac120002");`;
 
         // For now, create a single show with a single season with a few episodes.
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override
@@ -323,6 +334,23 @@ class TestBase {
         }.bind(this));
     }
 
+    /**
+     * Connect to (and create if necessary) a marker backup database for tests. */
+    async connectToBackupDatabase() {
+        const testBackupPath = join(TestBase.root, 'Backup');
+        if (!existsSync(testBackupPath)) {
+            TestLog.verbose('Creating test backup directory');
+            mkdirSync(testBackupPath);
+        }
+
+        return new Promise(function (resolve, _) {
+            this.backupDb = CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/, (err) => {
+                if (err) { throw Error(err.message); }
+                resolve();
+            });
+        }.bind(this));
+    }
+
     /** @returns The INSERT statements that will add the default markers to the test database. */
     defaultMarkers() {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
@@ -335,17 +363,32 @@ class TestBase {
     }
 
     /**
-     * Clear out the test database and re-enter the default data. */
+     * Clear out the test databases and re-enter the default data. */
     async resetState() {
-        return new Promise(function(resolve, reject) {
+        let execsLeft = 2;
+        return new Promise(function(resolve, _) {
             this.testDb.exec(`
                     DELETE FROM taggings;
                     VACUUM;
                     UPDATE sqlite_sequence SET seq=0 WHERE name="taggings";
                     ${this.defaultMarkers()}`,
                 (err) => {
-                    if (err) { reject(err); return; }
-                    resolve();
+                    if (err) { throw Error(err.message); }
+                    if (--execsLeft == 0) {
+                        resolve();
+                    }
+                }
+            );
+
+            this.backupDb.exec(`
+                    DELETE FROM actions;
+                    VACUUM;
+                    UPDATE sqlite_sequence SET seq=0 WHERE name="actions";`,
+                (err) => {
+                    if (err) { throw Error(err.message); }
+                    if (--execsLeft == 0) {
+                        resolve();
+                    }
                 }
             );
         }.bind(this));
