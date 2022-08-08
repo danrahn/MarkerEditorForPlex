@@ -23,7 +23,9 @@
             "args": [
                 "--test",
                 "--config_override",
-                "testConfig.json"
+                "testConfig.json",
+                "--test_log_level",
+                "DarkVerbose",
             ],
             "program": "${workspaceFolder}\\Test\\Test.js"
         }

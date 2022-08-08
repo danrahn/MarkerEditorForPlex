@@ -13,13 +13,8 @@ import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 // Server/test dependencies/typedefs
 import TestHelpers from "./TestHelpers.js";
 import { run as mainRun, ServerState, getState } from "../Server/PlexIntroEditor.js";
+import { TestLog } from './TestRunner.js';
 /** @typedef {!import('../Server/CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
-
-// Separate log for testing, since we want to suppress
-// most server messages, but have more test details
-const TestLog = new ConsoleLog();
-TestLog.setLevel(ConsoleLog.Level.Tmi);
-TestLog.setDarkConsole(1);
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -199,16 +194,18 @@ class TestBase {
             TestLog.error(`FAILED! One or more tests in ${this.className()} did not pass!`);
         }
 
+        const result = { success : successCount, fail : failureCount };
+
         return new Promise(function (resolve, _) {
 
             // This isn't pretty, any chance of race conditions below?
             let closesLeft = 2;
             if (this.testDb) {
-                this.testDb.close(() => { if (--closesLeft == 0) resolve(); });
+                this.testDb.close(() => { if (--closesLeft == 0) resolve(result); });
             } else { --closesLeft; }
 
             if (this.backupDb) {
-                this.backupDb.close(() => { if (--closesLeft == 0) resolve(); });
+                this.backupDb.close(() => { if (--closesLeft == 0) resolve(result); });
             } else { --closesLeft; }
         }.bind(this));
     }
