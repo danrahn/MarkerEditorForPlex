@@ -9,8 +9,12 @@ class BasicCRUD extends TestBase {
         super();
         this.testMethods = [
             this.testSingleAdd,
+            this.testAddFlippedStartAndEnd,
+            this.testNegativeStart,
+            this.testEqualStartAndEnd,
             this.testSingleEdit,
             this.testEditOfNonexistentMarker,
+            this.testEditFlippedStartAndEnd,
             this.testSingleDelete,
             this.testDeleteOfNonexistentMarker,
         ];
@@ -37,6 +41,47 @@ class BasicCRUD extends TestBase {
             1000 /*expectedEnd*/,
             0 /*expectedIndex*/,
             this.testDb);
+    }
+
+    /**
+     * Ensure attempting to add a marker with a start time greater than the end time fails.
+     * It'd be interesting if flipped markers would allow us to seek back in time though, if
+     * someone wanted to do that for whatever reason. */
+    async testAddFlippedStartAndEnd() {
+        const show = TestBase.DefaultMetadata.Show1;
+        return this.#flippedTestHelper('add', {
+            metadataId : show.Season1.Episode1.Id,
+            start : 1000,
+            end : 0
+        });
+    }
+
+    /**
+     * Ensure attempting to add a marker with a negative index fails. */
+    async testNegativeStart() {
+        this.expectFailure();
+        const show = TestBase.DefaultMetadata.Show1;
+        let response = await this.send('add', {
+            metadataId : show.Season1.Episode1.Id,
+            start : -1,
+            end : 10000
+        }, true /*raw*/);
+
+        return TestHelpers.verifyBadRequest(response, 'add with negative startMs');
+    }
+
+    /**
+     * A marker can't have the same start and end time. */
+    async testEqualStartAndEnd() {
+        this.expectFailure();
+        const show = TestBase.DefaultMetadata.Show1;
+        let response = await this.send('add', {
+            metadataId : show.Season1.Episode1.Id,
+            start :10000,
+            end : 10000
+        }, true /*raw*/);
+
+        return TestHelpers.verifyBadRequest(response, 'add with equal startMs and endMs');
     }
 
     /**
@@ -74,10 +119,18 @@ class BasicCRUD extends TestBase {
             userCreated : 0
         }, true /*raw*/);
 
-        TestHelpers.verify(response.status == 400, `Expected edit of nonexistent marker to return 400, got ${response.status}`);
+        return TestHelpers.verifyBadRequest(response, 'edit of nonexistent marker');
+    }
 
-        return response.json().then(message => {
-            TestHelpers.verify(message.Error, `Expected an error message for edit of nonexistent marker, found nothing.`);
+    /**
+     * Ensure we fail to edit a marker to have a start time greater than the end time. */
+    async testEditFlippedStartAndEnd() {
+        const show = TestBase.DefaultMetadata.Show1;
+        return this.#flippedTestHelper('edit', {
+            id : show.Season1.Episode2.Marker1.Id,
+            start : 10000,
+            end : 0,
+            userCreated : 0
         });
     }
 
@@ -109,10 +162,15 @@ class BasicCRUD extends TestBase {
             id : 100, /* arbitrary bad value */
         }, true /*raw*/);
 
-        TestHelpers.verify(response.status == 400, `Expected delete of nonexistent marker to return 400, got ${response.status}`);
-        return response.json().then(message => {
-            TestHelpers.verify(message.Error, `Expected an error message for delete of nonexistent marker, found nothing.`);
-        });
+        return TestHelpers.verifyBadRequest(response, 'delete of nonexistent marker');
+    }
+
+    /** Small helper that tests start > end requests for adding and editing markers. */
+    async #flippedTestHelper(endpoint, parameters) {
+        this.expectFailure();
+        let response = await this.send(endpoint, parameters, true /*raw*/);
+
+        return TestHelpers.verifyBadRequest(response, `${endpoint} with startMs greater than endMs`);
     }
 }
 

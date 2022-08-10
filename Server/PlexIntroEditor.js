@@ -622,6 +622,14 @@ function queryIds(keys, res) {
  * @param {Http.ServerResponse} res
  */
 function editMarker(markerId, startMs, endMs, userCreated, res) {
+    if (startMs >= endMs) {
+        return jsonError(res, 400, "Start time must be less than end time.");
+    }
+
+    if (startMs < 0) {
+        return jsonError(res, 400, "Start time cannot be negative.");
+    }
+
     QueryManager.getSingleMarker(markerId, (err, currentMarker) => {
         if (err || !currentMarker) {
             return jsonError(res, 400, err || 'Intro marker not found');
@@ -691,6 +699,10 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
 function addMarker(metadataId, startMs, endMs, res) {
     if (startMs >= endMs) {
         return jsonError(res, 400, "Start time must be less than end time.");
+    }
+
+    if (startMs < 0) {
+        return jsonError(res, 400, "Start time cannot be negative.");
     }
 
     const successFunc = (allMarkers, newMarker) => {

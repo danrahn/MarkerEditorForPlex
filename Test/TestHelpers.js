@@ -109,6 +109,18 @@ class TestHelpers {
     }
 
     /**
+     * Check whether the given response is a bad request (400), and container an Error field in the payload,
+     * throwing if it's not the case.
+     * @param {Response} response The response from the server
+     * @param {string} testCase The test case that we expect to fail */
+    static async verifyBadRequest(response, testCase) {
+        TestHelpers.verify(response.status == 400, `Expected ${testCase} to return 400, got ${response.status}.`);
+        return response.json().then(message => {
+            TestHelpers.verify(message.Error, `Expected an error message for ${testCase}, found nothing.`);
+        });
+    }
+
+    /**
      * @returns The CREATE TABLE statements for the minimal Plex database recreation. */
     static getCreateTables() {
 
