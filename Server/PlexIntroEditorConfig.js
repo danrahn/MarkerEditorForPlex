@@ -184,14 +184,14 @@ class PlexIntroEditorConfig extends ConfigBase {
 
     /**
      * Attempts to retrieve the default Plex data directory for the current platform,
-     * returning null if it was not able to.
-     * @returns {string?} */
+     * returning the empty string if it was not able to.
+     * @returns {string} */
     #getDefaultPlexDataPath() {
         const platform = process.platform;
         switch (platform) {
             case 'win32':
                 if (!process.env['LOCALAPPDATA']) {
-                    return null;
+                    return '';
                 }
 
                 return join(process.env['LOCALAPPDATA'], 'Plex Media Server');
@@ -202,7 +202,7 @@ class PlexIntroEditorConfig extends ConfigBase {
             case 'openbsd':
             case 'sunos':
                 if (!process.env['PLEX_HOME']) {
-                    return null;
+                    return '';
                 }
 
                 return join(process.env['PLEX_HOME'], 'Library/Application Support/Plex Media Server');
@@ -210,7 +210,7 @@ class PlexIntroEditorConfig extends ConfigBase {
                 return '/usr/local/plexdata/Plex Media Server';
             default:
                 Log.warn(`Found unexpected platform '${platform}', cannot find default data path.`);
-                return null;
+                return '';
         }
     }
 
