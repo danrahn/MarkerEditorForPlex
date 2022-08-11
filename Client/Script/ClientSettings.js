@@ -365,7 +365,7 @@ class ClientSettingsUI {
         // Log level setting. This isn't a setting that's serialized via ClientSettings,
         // instead using ConsoleLog's own storage mechanism.
         let logLevelOptions = {};
-        for (const [level, value] of Object.entries(ConsoleLog.Level)) { logLevelOptions[level] = value; }
+        for (const [level, value] of Object.entries(ConsoleLog.Level)) { if (value >= 0) { logLevelOptions[level] = value; } }
         options.push(this.#buildSettingDropdown(
             'Log Level',
             'logLevelSetting',
