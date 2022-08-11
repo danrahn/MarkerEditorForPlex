@@ -25,7 +25,9 @@ let Overlay = new function()
      */
     this.show = function(message, buttonText, buttonFunc=Overlay.dismiss, dismissible=true)
     {
-        this.build({ dismissible : dismissible, centered : false },
+        // Set focus to the button on start
+        const focusOnLaunch = { fn : () => $('#overlayBtn').focus(), args : [] };
+        this.build({ dismissible : dismissible, centered : false, setup : focusOnLaunch },
             buildNode("div", { id : "overlayMessage", class : "overlayDiv" }, message),
             ButtonCreator.textButton(
                 buttonText,
