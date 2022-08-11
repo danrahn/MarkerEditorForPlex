@@ -140,12 +140,16 @@ class PreviewThumbnailsSetting extends BlockableSetting {
     /** Whether preview thumbnails should be collapsed by default.
      * @type {boolean} */
     collapsed;
+    /** Whether preview thumbnails should loaded automatically instead of requiring 'Enter'
+     * @type {boolean} */
+    autoload;
 
     constructor(settings) {
         super('useThumbnails', settings, null /*defaultValue*/, true /*customData*/);
         let thumbnails = this.fieldOrDefault(settings, this.settingsKey, {});
         this.enable(this.fieldOrDefault(thumbnails, 'enabled', true));
         this.collapsed = this.fieldOrDefault(thumbnails, 'collapsed', false);
+        this.autoload = this.fieldOrDefault(thumbnails, 'autoload', false);
     }
 
     /**
@@ -154,7 +158,8 @@ class PreviewThumbnailsSetting extends BlockableSetting {
     serialize(object) {
         object[this.settingsKey] = {
             enabled : this.enabledIgnoringBlock(),
-            collapsed : this.collapsed
+            collapsed : this.collapsed,
+            autoload : this.autoload,
         };
     }
 }
@@ -339,14 +344,23 @@ class ClientSettingsUI {
                 this.#settingsManager.collapseThumbnails(),
                 'Keep thumbnails collapsed by default, with the option to<br>expand them when adding/editing a marker.'
             );
+            let autoload = this.#buildSettingCheckbox(
+                'Auto Load Thumbnails',
+                'autoloadThumbnailSetting',
+                this.#settingsManager.autoLoadThumbnails(),
+                'Load thumbnails automatically after a short delay. If disabled, the user must press Enter for a thumbnail to load.'
+            );
             
             if (!this.#settingsManager.useThumbnails()) {
                 this.#toggleSettingEnabled(collapsed);
+                this.#toggleSettingEnabled(autoload);
             }
 
             options.push(collapsed);
+            options.push(autoload);
             $$('input[type="checkbox"]', showThumbs).addEventListener('change', function() {
                 this.#toggleSettingEnabled($('#collapseThumbnailsSetting').parentNode);
+                this.#toggleSettingEnabled($('#autoloadThumbnailSetting').parentNode);
             }.bind(this));
 
         }
@@ -623,6 +637,8 @@ class ClientSettingsUI {
                        || this.#updateSetting('collapseThumbnailsSetting', 'collapseThumbnails', 'setCollapseThumbnails')
                        || this.#updateSetting('extendedStatsSetting', 'showExtendedMarkerInfo', 'setExtendedStats');
 
+        // autoload doesn't affect the current view, no need to reset.
+        this.#updateSetting('autoloadThumbnailSetting', 'autoLoadThumbnails', 'setAutoLoadThumbnails');
         const logLevel = parseInt($('#logLevelSetting').value);
         Log.setLevel(logLevel);
 
@@ -759,7 +775,13 @@ class SettingsManager {
     collapseThumbnails() { return this.useThumbnails() && this.#settings.previewThumbnails.collapsed; }
 
     /** Sets whether thumbnails should be hidden by default, if thumbnails are enabled in the first place. */
-    setCollapseThumbnails(collapsed) { return this.#settings.previewThumbnails.collapsed = collapsed; }
+    setCollapseThumbnails(collapsed) { this.#settings.previewThumbnails.collapsed = collapsed; }
+
+    /** @returns Whether thumbnails should load automatically instead of requiring 'Enter'. */
+    autoLoadThumbnails() { return this.useThumbnails() && this.#settings.previewThumbnails.autoload; }
+
+    /** Sets whether thumbnails should load automatically instead of requiring 'Enter'. */
+    setAutoLoadThumbnails(autoload) { this.#settings.previewThumbnails.autoload = autoload; }
 
     /** @returns Whether the server doesn't have preview thumbnails enabled. */
     thumbnailsBlockedByServer() { return this.#settings.previewThumbnails.blocked(); }

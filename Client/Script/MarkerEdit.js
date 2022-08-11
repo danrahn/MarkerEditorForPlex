@@ -302,6 +302,12 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     }
 
     /**
+     * Holds the setTimeout id that will load a preview thumbnail based on the current input value.
+     * Only valid if autoload is enabled.
+     * @type {number} */
+    #autoloadTimeout;
+
+    /**
      * Builds on top of {@linkcode MarkerEdit.getTimeInput}, adding a thumbnail below the time input field.
      * @param {boolean} isEnd Whether we're getting time input for the end of the marker.
      */
@@ -321,7 +327,10 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             { thisArg : this }
         );
 
-        Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail.');
+        if (SettingsManager.Get().autoLoadThumbnails()) {
+            Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail.');
+        }
+
         return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, img);
     }
 
@@ -363,6 +372,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {HTMLElement} input
      * @param {KeyboardEvent} e */
     #onTimeInputKeyup(input, e) {
+        this.#handleThumbnailAutoLoad(input, e);
         if (e.key != 'Enter') {
             return;
         }
@@ -382,6 +392,23 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const url = `t/${this.markerRow.episodeId()}/${seconds}`;
         img.classList.remove('hidden');
         img.src = url;
+    }
+
+    /**
+     * Resets the autoload timer if enabled. Continues with regular load if 'Enter' was the pressed key.
+     * @param {HTMLElement} input
+     * @param {KeyboardEvent} e */
+    #handleThumbnailAutoLoad(input, e) {
+        if (!SettingsManager.Get().autoLoadThumbnails()) {
+            return;
+        }
+
+        clearTimeout(this.#autoloadTimeout);
+        if (e.key != 'Enter') {
+            this.#autoloadTimeout = setTimeout(function() {
+                this.#onTimeInputKeyup(input, { key : 'Enter' });
+            }.bind(this), 250);
+        }
     }
 
     /** Callback when we failed to load a preview thumbnail, marking it as in an error state. */
