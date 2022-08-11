@@ -16,28 +16,29 @@ class ConsoleLog {
      * @readonly
      * @enum {number} */
     static Level = {
-        Extreme: -1,
-        Tmi: 0,
-        Verbose: 1,
-        Info: 2,
-        Warn: 3,
-        Error: 4,
-        Critical: 5
+        Invalid: -1,
+        Extreme: 0,
+        Tmi: 1,
+        Verbose: 2,
+        Info: 3,
+        Warn: 4,
+        Error: 5,
+        Critical: 6
     }
 
     /** Display strings for each log {@linkcode Level} */
-    static #logStrings = ["TMI", "VERBOSE", "INFO", "WARN", "ERROR", "CRITICAL"];
+    static #logStrings = ["EXTREME", "TMI", "VERBOSE", "INFO", "WARN", "ERROR", "CRITICAL"];
 
     /** Console color definitions for each log {@linkcode Level} */
     static #consoleColors = [
         // Light Title, Dark Title, Light Text, Dark Text
+        ["#009900", "#006600", "#AAA", "#888"],
         ["#00CC00", "#00AA00", "#AAA", "#888"],
         ["#c661e8", "#c661e8", "inherit", "inherit"],
         ["blue", "#88C", "inherit", "inherit"],
         ["E50", "#C40", "inherit", "inherit"],
         ["inherit", "inherit", "inherit", "inherit"],
         ["inherit; font-size: 2em", "inherit; font-size: 2em", "#800; font-size: 2em", "#C33; font-size: 2em"],
-        ["#009900", "#006600", "#AAA", "#888"]
     ];
 
     /** Trace color definitions for each log level. */
@@ -45,6 +46,7 @@ class ConsoleLog {
         ConsoleLog.#consoleColors[0],
         ConsoleLog.#consoleColors[1],
         ConsoleLog.#consoleColors[2],
+        ConsoleLog.#consoleColors[3],
         [
             "#E50; background: #FFFBE5",
             "#C40; background: #332B00",
@@ -63,7 +65,6 @@ class ConsoleLog {
             "#800; font-size: 2em",
             "#C33; font-size: 2em"
         ],
-        ConsoleLog.#consoleColors[6]
     ];
 
     /** The current log level. Anything below this will not be logged.
@@ -178,6 +179,24 @@ class ConsoleLog {
     }
 
     /**
+     * Sets the log parameters from the given string, of the regex form (trace)?(dark?)(levelString).
+     * Trace and Dark will be set to false if not present.
+     * @param {string} logString
+     * @param {number} levelDefault The default level if we are unable to parse the logString. */
+    setFromString(logString, levelDefault=ConsoleLog.Level.Info) {
+        let match = /(trace)?(dark)?(extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
+        this.setTrace(match[1] ? 1 : 0);
+        this.setDarkConsole(match[2] ? 1 : 0);
+        let level = match[3] ? ConsoleLog.#logStrings.indexOf(match[3].toUpperCase()) : ConsoleLog.Level.Invalid;
+        if (level == ConsoleLog.Level.Invalid) {
+            console.warn(`[WARN][${ConsoleLog.#getTimestring()}] ConsoleLog.setFromString: Got invalid level "${match[3]}". Defaulting to "${ConsoleLog.#logStrings[levelDefault]}".`);
+            level = levelDefault;
+        }
+
+        this.setLevel(level);
+    }
+
+    /**
      * Log TMI (Too Much Information) output.
      * @param {any} obj The object or string to log.
      * @param {string} [description] If provided, will be prefixed to the output before `obj`.
@@ -277,7 +296,7 @@ class ConsoleLog {
                 console.debug,
                 `%c[%cEXTREME%c][%c${timestring}%c] Called log with '${description ? description + ": " : ""}${type(obj)},${level}'`,
                 ConsoleLog.#currentState(obj, freeze),
-                6,
+                ConsoleLog.Level.Extreme,
                 colors,
                 ...more
             );

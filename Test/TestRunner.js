@@ -72,23 +72,7 @@ class TestRunner {
             return;
         }
 
-        let match = /(dark)?(extreme|tmi|verbose|info|warn|error|critical)/i.exec(process.argv[logInfoIndex + 1]);
-        if (match[1].length != 0) {
-            TestLog.setDarkConsole(1);
-        }
-
-        let level = ConsoleLog.Level.Tmi;
-        switch (match[2].toLowerCase()) {
-            case 'extreme':  level = ConsoleLog.Level.Extreme; break;
-            case 'tmi':      level = ConsoleLog.Level.Tmi; break;
-            case 'verbose':  level = ConsoleLog.Level.Verbose; break;
-            case 'info':     level = ConsoleLog.Level.Info; break;
-            case 'warn':     level = ConsoleLog.Level.Warn; break;
-            case 'error':    level = ConsoleLog.Level.Error; break;
-            case 'critical': level = ConsoleLog.Level.Critical; break;
-        }
-
-        TestLog.setLevel(level);
+        TestLog.setFromString(process.argv[logInfoIndex + 1]);
     }
 }
 
