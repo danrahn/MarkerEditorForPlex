@@ -295,6 +295,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * Whether we ran into an error when loading a thumbnail.
      * @type {boolean} */
     #thumbnailError = false;
+    #thumbnailsCollapsed = SettingsManager.Get().collapseThumbnails();
 
     /** @param {MarkerRow} markerRow The marker row to edit. */
     constructor(markerRow) {
@@ -372,26 +373,19 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {HTMLElement} input
      * @param {KeyboardEvent} e */
     #onTimeInputKeyup(input, e) {
+        // We only care about input if thumbnails are visible
+        if (this.#thumbnailsCollapsed) {
+            return;
+        }
+
         this.#handleThumbnailAutoLoad(input, e);
         if (e.key != 'Enter') {
             return;
         }
 
-        const seconds = parseInt(MarkerEdit.timeToMs(input.value) / 1000);
-        if (isNaN(seconds)) {
-            return; // Don't asl for a thumbnail if the input isn't valid.
-        }
 
-        let img = $$('.inputThumb', input.parentNode);
-        if (!img) {
-            // We shouldn't get here
-            Log.warn('Unable to retrieve marker thumbnail image, no img element found!');
-            return;
-        }
 
-        const url = `t/${this.markerRow.episodeId()}/${seconds}`;
-        img.classList.remove('hidden');
-        img.src = url;
+        this.#refreshImage(input.parentNode);
     }
 
     /**
@@ -406,8 +400,30 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         clearTimeout(this.#autoloadTimeout);
         if (e.key != 'Enter') {
             this.#autoloadTimeout = setTimeout(function() {
-                this.#onTimeInputKeyup(input, { key : 'Enter' });
+                this.#refreshImage(input.parentNode);
             }.bind(this), 250);
+        }
+    }
+
+    /**
+     * Sets the src of a thumbnail image based on the current input.
+     * @param {Element} editGroup The DOM element containing a start or end marker's time input and thumbnail. */
+    #refreshImage(editGroup) {
+        const seconds = parseInt(MarkerEdit.timeToMs($$('.timeInput', editGroup).value) / 1000);
+        if (isNaN(seconds)) {
+            return; // Don't ask for a thumbnail if the input isn't valid.
+        }
+        let img = $$('.inputThumb', editGroup);
+        if (!img) {
+            // We shouldn't get here
+            Log.warn('Unable to retrieve marker thumbnail image, no img element found!');
+            return;
+        }
+
+        const url = `t/${this.markerRow.episodeId()}/${seconds}`;
+        img.classList.remove('hidden');
+        if (!img.src.endsWith(url)) {
+            img.src = url;
         }
     }
 
@@ -421,7 +437,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #onThumbnailPreviewLoad(img) {
         const realHeight = img.naturalHeight * (img.width / img.naturalWidth);
         img.setAttribute('realheight', realHeight);
-        if (SettingsManager.Get().collapseThumbnails()) {
+        if (this.#thumbnailsCollapsed) {
             img.classList.add('hiddenThumb');
         } else {
             img.style.height = `${realHeight}px`;
@@ -436,13 +452,16 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         if (this.#thumbnailError) {
             return // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
         }
-
+        this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
         const hidden = button.innerText.startsWith('Show');
         $('.inputThumb', this.markerRow.row()).forEach(thumb => {
             thumb.classList.toggle('hiddenThumb');
-            thumb.style.height = hidden ? thumb.getAttribute('realheight') + 'px' : '0';
+            thumb.style.height = this.#thumbnailsCollapsed ? '0' : thumb.getAttribute('realheight') + 'px';
             thumb.classList.toggle('visibleThumb');
             $$('span', button).innerText = `${hidden ? 'Hide' : 'Show'} Thumbs`;
+            if (!this.#thumbnailsCollapsed) {
+                this.#refreshImage(thumb.parentNode);
+            }
         });
     }
 }
