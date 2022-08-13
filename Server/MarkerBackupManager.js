@@ -216,12 +216,7 @@ class MarkerBackupManager {
         this.#plexQueries = plexQueries;
 
         Log.info('MarkerBackupManager: Initializing marker backup database...');
-        plexQueries.sectionUuids((err, sections) => {
-            if (err) {
-                Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
-                throw err;
-            }
-
+        plexQueries.sectionUuids().then((sections) => {
             for (const section of sections) {
                 this.#uuids[section.id] = section.uuid;
             }
@@ -265,6 +260,9 @@ class MarkerBackupManager {
                 Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
                 throw err;
             });
+        }).catch(err => {
+            Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
+            throw err;
         });
     }
 

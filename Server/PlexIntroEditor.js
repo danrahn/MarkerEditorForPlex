@@ -615,7 +615,7 @@ async function queryIds(keys, res) {
  * @param {number} endMs The end time of the marker, in milliseconds.
  * @param {Http.ServerResponse} res
  */
-function editMarker(markerId, startMs, endMs, userCreated, res) {
+async function editMarker(markerId, startMs, endMs, userCreated, res) {
     if (startMs >= endMs) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
@@ -624,68 +624,59 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
         return jsonError(res, 400, "Start time cannot be negative.");
     }
 
-    QueryManager.getSingleMarker(markerId, (err, currentMarker) => {
-        if (err || !currentMarker) {
-            return jsonError(res, 400, err || 'Intro marker not found');
+    try {
+        const currentMarker = await QueryManager.getSingleMarker(markerId);
+        if (!currentMarker) {
+            return jsonError(res, 400, 'Intro marker not found');
         }
 
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        QueryManager.getEpisodeMarkers(currentMarker.episode_id, (err, rows) => {
-            if (err) {
-                return jsonError(res, 400, err);
+        const allMarkers = await QueryManager.getEpisodeMarkers(currentMarker.episode_id);
+        Log.verbose(`Markers for this episode: ${allMarkers.length}`);
+    
+        allMarkers[oldIndex].start = startMs;
+        allMarkers[oldIndex].end = endMs;
+        allMarkers.sort((a, b) => a.start - b.start);
+        let newIndex = 0;
+    
+        for (let index = 0; index < allMarkers.length; ++index) {
+            let marker = allMarkers[index];
+            if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
+                // Overlap, this should be handled client-side
+                return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
             }
-
-            Log.verbose(`Markers for this episode: ${rows.length}`);
-
-            let allMarkers = rows;
-            allMarkers[oldIndex].start = startMs;
-            allMarkers[oldIndex].end = endMs;
-            allMarkers.sort((a, b) => a.start - b.start);
-            let newIndex = 0;
-
-            for (let index = 0; index < allMarkers.length; ++index) {
-                let marker = allMarkers[index];
-                if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
-                    // Overlap, this should be handled client-side
-                    return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-                }
-
-                if (marker.id == markerId) {
-                    newIndex = index;
-                }
-
-                marker.newIndex = index;
+    
+            if (marker.id == markerId) {
+                newIndex = index;
             }
+    
+            marker.newIndex = index;
+        }
+    
+        // Make the edit, then adjust indexes
+        await QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
+        for (const marker of allMarkers) {
+            if (marker.index != marker.newIndex) {
+                // No await, just fire and forget.
+                // TODO: In some extreme case where an episode has dozens of
+                // markers, it would be much more efficient to make this a transaction
+                // instead of individual queries.
+                QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
+            }
+        }
 
-            QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated, (err) => {
-                if (err) {
-                    return jsonError(res, 400, err);
-                }
-
-                for (const marker of allMarkers) {
-                    if (marker.index != marker.newIndex) {
-                        QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
-                    }
-                }
-
-                const newMarker = new MarkerData(currentMarker);
-                const oldStart = newMarker.start;
-                const oldEnd = newMarker.end;
-                newMarker.start = startMs;
-                newMarker.end = endMs;
-                if (BackupManager) {
-                    BackupManager.recordEdit(newMarker, oldStart, oldEnd).then(() => {
-                        return jsonSuccess(res, newMarker);
-                    });
-                } else {
-                    return jsonSuccess(res, newMarker);
-                }
-            });
-
-        });
-    });
+        const newMarker = new MarkerData(currentMarker);
+        const oldStart = newMarker.start;
+        const oldEnd = newMarker.end;
+        newMarker.start = startMs;
+        newMarker.end = endMs;
+        await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
+        return jsonSuccess(res, newMarker);
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**
@@ -695,7 +686,7 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
  * @param {number} endMs The end time of the marker, in milliseconds.
  * @param {Http.ServerResponse} res
  */
-function addMarker(metadataId, startMs, endMs, res) {
+async function addMarker(metadataId, startMs, endMs, res) {
     if (startMs >= endMs) {
         return jsonError(res, 400, "Start time must be less than end time.");
     }
@@ -704,24 +695,18 @@ function addMarker(metadataId, startMs, endMs, res) {
         return jsonError(res, 400, "Start time cannot be negative.");
     }
 
-    const successFunc = (allMarkers, newMarker) => {
+    try {
+        const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
+        const allMarkers = addResult.allMarkers;
+        const newMarker = addResult.newMarker;
         const markerData = new MarkerData(newMarker);
         updateMarkerBreakdownCache(markerData, allMarkers.length - 1, 1 /*delta*/);
         MarkerCache?.addMarkerToCache(newMarker);
-        if (BackupManager) {
-            BackupManager?.recordAdd(markerData).then(() => {
-                jsonSuccess(res, markerData);
-            });
-        } else {
-            jsonSuccess(res, markerData);
-        }
-    };
-
-    const failureFunc = (userError, message) => {
-        return jsonError(res, userError ? 400 : 500, message);
-    };
-
-    QueryManager.addMarker(metadataId, startMs, endMs, successFunc, failureFunc);
+        await BackupManager?.recordAdd(markerData);
+        jsonSuccess(res, markerData);
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**
@@ -729,78 +714,61 @@ function addMarker(metadataId, startMs, endMs, res) {
  * @param {number} markerId The marker id to remove from the database.
  * @param {Http.ServerResponse} res
  */
-function deleteMarker(markerId, res) {
-    QueryManager.getSingleMarker(markerId, (err, markerToDelete) => {
-        if (err) {
-            Log.error(err.message, `Failed to get marker to delete`);
-            return jsonError(res, 500, "Error getting intro marker.");
-        }
-
+async function deleteMarker(markerId, res) {
+    try {
+        const markerToDelete = await QueryManager.getSingleMarker(markerId);
         if (!markerToDelete) {
             return jsonError(res, 400, "Could not find intro marker");
         }
 
-        QueryManager.getEpisodeMarkers(markerToDelete.episode_id, (err, allMarkers) => {
-            if (err) {
-                return jsonError(res, 400, "Could not retrieve intro markers for possible rearrangement");
+        const allMarkers = await QueryManager.getEpisodeMarkers(markerToDelete.episode_id);
+        let deleteIndex = 0;
+        for (const marker of allMarkers) {
+            if (marker.id == markerId) {
+                deleteIndex = marker.index;
             }
+        }
 
-            let deleteIndex = 0;
+        // Now that we're done rearranging, delete the original tag.
+        await QueryManager.deleteMarker(markerId);
+
+        // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
+        if (deleteIndex < allMarkers.length - 1) {
+
+            // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
             for (const marker of allMarkers) {
-                if (marker.id == markerId) {
-                    deleteIndex = marker.index;
+                if (marker.index > deleteIndex) {
+                    QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
                 }
             }
+        }
 
-            // Now that we're done rearranging, delete the original tag.
-            QueryManager.deleteMarker(markerId, (err) => {
-                if (err) {
-                    return jsonError(res, 500, 'Failed to delete intro marker');
-                }
-
-                // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
-                if (deleteIndex < allMarkers.length - 1) {
-
-                    // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
-                    for (const marker of allMarkers) {
-                        if (marker.index > deleteIndex) {
-                            QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
-                        }
-                    }
-                }
-
-                const deletedMarker = new MarkerData(markerToDelete);
-                MarkerCache?.removeMarkerFromCache(markerId);
-                updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
-                if (BackupManager) {
-                    BackupManager.recordDelete(deletedMarker).then(() => {
-                        return jsonSuccess(res, deletedMarker);
-                    });
-                } else {
-                    return jsonSuccess(res, deletedMarker);
-                }
-            });
-        });
-    });
+        const deletedMarker = new MarkerData(markerToDelete);
+        MarkerCache?.removeMarkerFromCache(markerId);
+        updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
+        await BackupManager?.recordDelete(deletedMarker);
+        jsonSuccess(res, deletedMarker);
+    } catch (err) {
+        jsonError(res, err.code, `Failed to get marker to delete: ${err.message}`);
+    }
 }
 
 /**
  * Retrieve all TV libraries found in the database.
  * @param {Http.ServerResponse} res
  */
-function getLibraries(res) {
-    QueryManager.getShowLibraries((err, rows) => {
-        if (err) {
-            return jsonError(res, 400, "Could not retrieve library sections.");
-        }
-
+async function getLibraries(res) {
+    try {
+        const rows = await QueryManager.getShowLibraries();
         let libraries = [];
         for (const row of rows) {
             libraries.push({ id : row.id, name : row.name });
         }
 
-        return jsonSuccess(res, libraries);
-    });
+        jsonSuccess(res, libraries);
+    } catch (err) {
+        jsonError(res, 400, `Could not retrieve library sections: ${err.message}`);
+    }
 }
 
 /**
@@ -808,20 +776,19 @@ function getLibraries(res) {
  * @param {number} sectionId The section id of the library.
  * @param {Http.ServerResponse} res
  */
-function getShows(sectionId, res) {
-    QueryManager.getShows(sectionId, (err, rows) => {
-        if (err) {
-            return jsonError(res, 400, `Could not retrieve shows from the database: ${err.message}`);
-        }
-
+async function getShows(sectionId, res) {
+    try {
+        const rows = await QueryManager.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
             show.markerBreakdown = MarkerCache?.getShowStats(show.id);
             shows.push(new ShowData(show));
         }
 
-        return jsonSuccess(res, shows);
-    });
+        jsonSuccess(res, shows);
+    } catch (err) {
+        jsonError(res, err.code, `Could not retrieve shows from the database: ${err.message}`);
+    }
 }
 
 /**
@@ -829,20 +796,20 @@ function getShows(sectionId, res) {
  * @param {number} metadataId The metadata id of the a series.
  * @param {Http.ServerResponse} res
  */
-function getSeasons(metadataId, res) {
-    QueryManager.getSeasons(metadataId, (err, rows) => {
-        if (err) {
-            return jsonError(res, 400, "Could not retrieve seasons from the database.");
-        }
-
+async function getSeasons(metadataId, res) {
+    try {
+        const rows = await QueryManager.getSeasons(metadataId);
+    
         let seasons = [];
         for (const season of rows) {
             season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
             seasons.push(new SeasonData(season));
         }
 
-        return jsonSuccess(res, seasons);
-    })
+        jsonSuccess(res, seasons);
+    } catch (err) {
+        jsonError(res, err.code, `Could not retrieve seasons from the database ${err.message}`);
+    }
 }
 
 /**
@@ -850,12 +817,10 @@ function getSeasons(metadataId, res) {
  * @param {number} metadataId The metadata id for the season of a show.
  * @param {Http.ServerResponse} res
  */
-function getEpisodes(metadataId, res) {
-    QueryManager.getEpisodes(metadataId, (err, rows) => {
-        if (err) {
-            return jsonError(res, 400, "Could not retrieve episodes from the database.");
-        }
-
+async function getEpisodes(metadataId, res) {
+    try {
+        const rows = await QueryManager.getEpisodes(metadataId);
+    
         // There's definitely a better way to do this, but determining whether an episode
         // has thumbnails attached is asynchronous, so keep track of how many results have
         // come in, and only return once we've processed all rows.
@@ -864,7 +829,7 @@ function getEpisodes(metadataId, res) {
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
             episodes.push(new EpisodeData(episode));
-
+    
             if (Config.useThumbnails()) {
                 Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
                     episodes[index].hasThumbnails = hasThumbs;
@@ -882,11 +847,14 @@ function getEpisodes(metadataId, res) {
                 });
             }
         });
-
+    
         if (!Config.useThumbnails()) {
             return jsonSuccess(res, episodes);
         }
-    });
+    } catch (err) {
+        jsonError(res, err.code, `Could not retrieve episodes from the database: ${err.message}`);
+    }
+
 }
 
 /**
@@ -901,7 +869,7 @@ let markerBreakdownCache = {};
  * @param {number} sectionId The library section id to parse.
  * @param {Http.ServerResponse} res
  */
-function allStats(sectionId, res) {
+async function allStats(sectionId, res) {
     // If we have global marker data, forego the specialized markerBreakdownCache
     // and build the statistics using the cache manager.
     if (Config.extendedMarkerStats()) {
@@ -920,10 +888,8 @@ function allStats(sectionId, res) {
         return jsonSuccess(res, markerBreakdownCache[sectionId]);
     }
 
-    QueryManager.markerStatsForSection(sectionId, (err, rows) => {
-        if (err) {
-            return jsonError(res, 400, err.message);
-        }
+    try {
+        const rows = await QueryManager.markerStatsForSection(sectionId);
 
         let buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
@@ -947,8 +913,10 @@ function allStats(sectionId, res) {
 
         ++buckets[countCur];
         markerBreakdownCache[sectionId] = buckets;
-        return jsonSuccess(res, buckets);
-    });
+        jsonSuccess(res, buckets);
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**

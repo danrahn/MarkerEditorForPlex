@@ -1,6 +1,8 @@
 /**
  * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string,
  *             episode_id : number, season_id : number, show_id : number, section_id : number }} RawMarkerData
+ * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
+ *             show: string, duration: number, parts: number}} RawEpisodeData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
  * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
@@ -62,13 +64,8 @@ class PlexQueryManager {
      * @type {number} */
     #markerTagId;
 
-    /** @type {SqliteDatabase} */
+    /** @type {DatabaseWrapper} */
     #database;
-
-    /**
-     * TODO: Consolidate with `#database` after everything's async/await
-     * @type {DatabaseWrapper} */
-    #databaseWrapper;
 
     /** Whether to commandeer the thumb_url column for extra marker information.
      *  If "pure" mode is enabled, we don't use the field. */
@@ -100,18 +97,15 @@ FROM taggings
         Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
         this.#pureMode = pureMode;
         CreateDatabase(databasePath, false /*allowCreate*/).then((db) => {
-            this.#database = db;
-            this.#databaseWrapper = new DatabaseWrapper(this.#database);
+            this.#database = new DatabaseWrapper(db);
             Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
-            this.#database.get('SELECT id FROM tags WHERE tag_type=12;', (err, row) => {
-                if (err) {
-                    Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
-                    throw ServerError.FromDbError(err);
-                }
-
+            this.#database.get('SELECT id FROM tags WHERE tag_type=12;').then((row) => {
                 Log.info('PlexQueryManager: Database verified');
                 this.#markerTagId = row.id;
                 callback();
+            }).catch(err => {
+                Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
+                throw ServerError.FromDbError(err);
             });
         }).catch(err => {
             Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
@@ -120,15 +114,20 @@ FROM taggings
     }
 
     /** On process exit, close the database connection. */
-    close() {
+    async close() {
         Log.verbose(`PlexQueryManager: Shutting down Plex database connection...`);
         if (this.#database) {
-            this.#database.close((err) => {
-                if (err) { Log.error('PlexQueryManager: Database close failed', err); }
-                else { Log.verbose('PlexQueryManager: Shut down Plex database connection.'); }
-                this.#database = null;
-            });
+            try {
+                await this.#database.close();
+                Log.verbose('PlexQueryManager: Shut down Plex database connection.');
+            } catch (err) {
+                Log.error('PlexQueryManager: Database close failed', err.message);
+            }
+
+            this.#database = null;
         }
+
+        return Promise.resolve();
     }
 
     markerTagId() { return this.#markerTagId; }
@@ -137,9 +136,9 @@ FROM taggings
     /** Retrieve all TV show libraries in the database.
      *
      * Fields returned: `id`, `name`.
-     * @param {MultipleRowQuery} callback */
-    getShowLibraries(callback) {
-        this.#database.all('SELECT id, name FROM library_sections WHERE section_type=2', callback);
+     * @returns {Promise<{id: number, name: string}[]>} */
+    async getShowLibraries() {
+        return this.#database.all('SELECT id, name FROM library_sections WHERE section_type=2');
     }
 
     /**
@@ -147,8 +146,8 @@ FROM taggings
      *
      * Fields returned: `id`, `title`, `title_sort`, `original_title`, `season_count`, `episode_count`.
      * @param {number} sectionId
-     * @param {MultipleRowQuery} callback */
-    getShows(sectionId, callback) {
+     * @returns {Promise<{id:number,title:string,title_sort:string,original_title:string,season_count:number,episode_count:number}[]>} */
+    async getShows(sectionId) {
         // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
         // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
         const query = `
@@ -169,7 +168,7 @@ FROM metadata_items shows
 WHERE shows.metadata_type=2 AND shows.id=seasons.show_id
 GROUP BY shows.id;`;
 
-        this.#database.all(query, [sectionId], callback);
+        return this.#database.all(query, [sectionId]);
     }
 
     /**
@@ -177,8 +176,8 @@ GROUP BY shows.id;`;
      *
      * Fields returned: `id`, `title`, `index`, `episode_count`.
      * @param {number} showMetadataId
-     * @param {MultipleRowQuery} callback */
-   getSeasons(showMetadataId, callback) {
+     * @returns {Promise<{id:number,title:string,index:number,episode_count:number}[]>} */
+   async getSeasons(showMetadataId) {
         const query = `
 SELECT
     seasons.id,
@@ -191,7 +190,7 @@ WHERE seasons.parent_id=?
 GROUP BY seasons.id
  ORDER BY seasons.\`index\` ASC;`;
 
-        this.#database.all(query, [showMetadataId], callback);
+        return this.#database.all(query, [showMetadataId]);
     }
 
     /**
@@ -199,8 +198,8 @@ GROUP BY seasons.id
      *
      * Fields returned: `title`, `index`, `id`, `season`, `season_index`, `show`, `duration`, `parts`.
      * @param {number} seasonMetadataId
-     * @param {MultipleRowQuery} callback */
-    getEpisodes(seasonMetadataId, callback) {
+     * @returns {Promise<RawEpisodeData[]>} */
+    async getEpisodes(seasonMetadataId) {
         // Multiple joins to grab the season name, show name, and episode duration (MAX so that we capture)
         // (the longest available episode, as Plex seems fine with ends beyond the media's length).
         const query = `
@@ -221,7 +220,7 @@ WHERE e.parent_id=?
 GROUP BY e.id
 ORDER BY e.\`index\` ASC;`;
 
-        this.#database.all(query, [seasonMetadataId], callback);
+        return this.#database.all(query, [seasonMetadataId]);
     }
 
     /**
@@ -264,7 +263,7 @@ ORDER BY e.\`index\` ASC;`;
     GROUP BY e.id
     ORDER BY e.\`index\` ASC;`;
 
-        return this.#databaseWrapper.all(query, parameters);
+        return this.#database.all(query, parameters);
     }
 
     /**
@@ -287,31 +286,28 @@ ORDER BY e.\`index\` ASC;`;
         // Strip trailing ' OR '
         query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
 
-        return this.#databaseWrapper.all(query, [this.#markerTagId]);
+        return this.#database.all(query, [this.#markerTagId]);
     }
 
     /**
      * Retrieve all markers for a single episode.
-     * @param {number} episodeId
-     * @param {MultipleMarkerQuery} callback */
-    getEpisodeMarkers(episodeId, callback) {
-        this.#getMarkersForMetadataItem(episodeId, `taggings.metadata_item_id`, callback);
+     * @param {number} episodeId */
+    async getEpisodeMarkers(episodeId) {
+        return this.#getMarkersForMetadataItem(episodeId, `taggings.metadata_item_id`);
     }
 
     /**
      * Retrieve all markers for a single season.
-     * @param {number} seasonId
-     * @param {MultipleMarkerQuery} callback */
-    getSeasonMarkers(seasonId, callback) {
-        this.#getMarkersForMetadataItem(seasonId, `seasons.id`, callback);
+     * @param {number} seasonId */
+    async getSeasonMarkers(seasonId) {
+        return this.#getMarkersForMetadataItem(seasonId, `seasons.id`);
     }
 
     /**
      * Retrieve all markers for a single show.
-     * @param {number} showId
-     * @param {MultipleMarkerQuery} callback */
-    getShowMarkers(showId, callback) {
-        this.#getMarkersForMetadataItem(showId, `seasons.parent_id`, callback);
+     * @param {number} showId */
+    async getShowMarkers(showId) {
+        return this.#getMarkersForMetadataItem(showId, `seasons.parent_id`);
     }
 
     /**
@@ -329,12 +325,8 @@ ORDER BY e.\`index\` ASC;`;
                 throw new ServerError(`Item ${metadataId} is not an episode, season, or series`, 400);
         }
 
-        return new Promise((resolve, _) => {
-            this.#getMarkersForMetadataItem(metadataId, where, (err, markers) => {
-                if (err) { throw ServerError.FromDbError(err); }
-                resolve({ markers : markers, typeInfo : typeInfo });
-            });
-        });
+        const markers = await this.#getMarkersForMetadataItem(metadataId, where);
+        return Promise.resolve({ markers : markers, typeInfo : typeInfo });
     }
 
     /**
@@ -342,7 +334,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId
      * @returns {Promise<MetadataItemTypeInfo} */
     async #mediaTypeFromId(metadataId) {
-        const row = await this.#databaseWrapper.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
+        const row = await this.#database.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
         if (!row) {
             throw new ServerError(`Metadata item ${metadataId} not found in database.`, 400);
         }
@@ -354,14 +346,13 @@ ORDER BY e.\`index\` ASC;`;
      * Retrieve all markers tied to the given metadataId.
      * @param {number} metadataId
      * @param {string} whereClause The field to match against `metadataId`.
-     * @param {MultipleMarkerQuery} callback */
-    #getMarkersForMetadataItem(metadataId, whereClause, callback) {
-        this.#database.all(
+     * @returns {Promise<RawMarkerData[]>} */
+    async #getMarkersForMetadataItem(metadataId, whereClause) {
+        return this.#database.all(
             `SELECT ${this.#extendedMarkerFields}
             WHERE ${whereClause}=? AND taggings.tag_id=?
             ORDER BY taggings.\`index\` ASC;`,
-            [metadataId, this.#markerTagId],
-            callback);
+            [metadataId, this.#markerTagId]);
     }
 
     /**
@@ -369,12 +360,11 @@ ORDER BY e.\`index\` ASC;`;
      *
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} markerId
-     * @param {SingleMarkerQuery} callback */
-    getSingleMarker(markerId, callback) {
-        this.#database.get(
+     * @returns {Promise<RawMarkerData>} */
+    async getSingleMarker(markerId) {
+        return this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
-            [markerId, this.#markerTagId],
-            callback);
+            [markerId, this.#markerTagId]);
     }
 
     /**
@@ -382,56 +372,39 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId The metadata id of the episode to add the marker to.
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
-     * @param {(allMarkers: RawMarkerData[], newMarker: RawMarkerData) => void} successCallback
-     * @param {(userError: boolean, errorMessage: string) => void} failureCallback */
-    addMarker(metadataId, startMs, endMs, successCallback, failureCallback) {
+     * @returns {Promise<{ allMarkers: RawMarkerData[], newMarker: RawMarkerData}>} */
+    async addMarker(metadataId, startMs, endMs) {
         // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
-        this.#mediaTypeFromId(metadataId).then(typeInfo => {
-            if (typeInfo.metadata_type != 4) {
-                return failureCallback(true, `Attempting to add marker to a media item that's not an episode!`);
+        const typeInfo = await this.#mediaTypeFromId(metadataId);
+        if (typeInfo.metadata_type != 4) {
+            throw new ServerError(`Attempting to add marker to a media item that's not an episode!`, 400);
+        }
+
+        const allMarkers = await this.getEpisodeMarkers(metadataId);
+        const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
+        if (newIndex == -1) {
+            throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
+        }
+
+        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+        const addQuery =
+            'INSERT INTO taggings ' +
+                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+            'VALUES ' +
+                '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
+        const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+        await this.#database.run(addQuery, parameters);
+
+        // Insert succeeded, update indexes of other markers if necessary
+        for (const marker of allMarkers) {
+            if (marker.index != marker.newIndex) {
+                // No await, just fire-and-forget
+                this.updateMarkerIndex(marker.id, marker.newIndex);
             }
+        }
 
-            this.getEpisodeMarkers(metadataId, (err, allMarkers) => {
-                if (err) {
-                    return failureCallback(false, err.message);
-                }
-
-                const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
-                if (newIndex == -1) {
-                    return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-                }
-
-                const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-                const addQuery =
-                    'INSERT INTO taggings ' +
-                        '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-                    'VALUES ' +
-                        '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
-                const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
-                this.#database.run(addQuery, parameters, (err) => {
-                    if (err) {
-                        return failureCallback(false, err.message);
-                    }
-
-                    // Insert succeeded, update indexes of other markers if necessary
-                    for (const marker of allMarkers) {
-                        if (marker.index != marker.newIndex) {
-                            this.updateMarkerIndex(marker.id, marker.newIndex);
-                        }
-                    }
-
-                    this.getNewMarker(metadataId, startMs, endMs, (err, newMarker) => {
-                        if (err) {
-                            return failureCallback(false, 'Unable to retrieve newly added marker.');
-                        }
-
-                        successCallback(allMarkers, newMarker);
-                    });
-                });
-            });
-        }).catch(err => {
-            failureCallback(false, err);
-        });
+        const newMarker = await this.getNewMarker(metadataId, startMs, endMs);
+        return Promise.resolve({ allMarkers : allMarkers, newMarker : newMarker });
     }
 
     /**
@@ -523,7 +496,7 @@ ORDER BY e.\`index\` ASC;`;
         Log.tmi('Built full restore query:\n' + transaction);
 
         try {
-            this.#databaseWrapper.exec(transaction);
+            this.#database.exec(transaction);
         } catch (err) {
             throw ServerError.FromDbError(err);
         }
@@ -549,7 +522,7 @@ ORDER BY e.\`index\` ASC;`;
 
         // If this throws, the server really should restart. We added the markers successfully,
         // but we can't update our caches since we couldn't retrieve them.
-        const newMarkers = await this.#databaseWrapper.all(query, params);
+        const newMarkers = await this.#database.all(query, params);
         if (newMarkers.length != expectedInserts) {
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
@@ -586,36 +559,35 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startMs The new start time, in milliseconds.
      * @param {number} endMs The new end time, in milliseconds.
      * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
-     * @param {NoResultQuery} callback */
-    editMarker(markerId, index, startMs, endMs, userCreated, callback) {
+     * @returns {Promise<void>} */
+    async editMarker(markerId, index, startMs, endMs, userCreated) {
         const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
-        this.#database.run(
+        return this.#database.run(
             'UPDATE taggings SET `index`=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ' WHERE id=?;',
-            [index, startMs.toString(), endMs, markerId],
-            callback);
+            [index, startMs.toString(), endMs, markerId]);
     }
 
     /**
      * Delete the given marker from the database.
      * @param {number} markerId
-     * @param {NoResultQuery} callback */
-    deleteMarker(markerId, callback) {
-        this.#database.run('DELETE FROM taggings WHERE id=?;', [markerId], callback);
+     * @returns {Promise<void>} */
+    async deleteMarker(markerId) {
+        return this.#database.run('DELETE FROM taggings WHERE id=?;', [markerId]);
     }
 
     /** Update the given marker's index to `newIndex`.
-     * We assume this always succeeds, only logging an error message if something goes wrong.
+     * We don't throw if this fails, only logging an error message. TODO: this should probably change.
      * @param {number} markerId
      * @param {number} newIndex */
-    updateMarkerIndex(markerId, newIndex) {
+    async updateMarkerIndex(markerId, newIndex) {
         // Fire and forget. Fingers crossed this does the right thing.
-        this.#database.run('UPDATE taggings SET `index`=? WHERE id=?;', [newIndex, markerId], (err) => {
-            if (err) {
-                Log.error(`PlexQueryManager: Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
-            }
-        });
+        try {
+            await this.#database.run('UPDATE taggings SET `index`=? WHERE id=?;', [newIndex, markerId]);
+        } catch (err) {
+            Log.error(`PlexQueryManager: Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
+        }
     }
 
     /**
@@ -624,20 +596,11 @@ ORDER BY e.\`index\` ASC;`;
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
      * @param {number} metadataId The metadata id of the episode the marker belongs to.
      * @param {number} index The index of the marker in the marker table.
-     * @param {SingleMarkerQuery} callback */
-    getNewMarker(metadataId, startMs, endMs, callback) {
-        this.#database.get(
+     * @returns {Promise<RawMarkerData>} */
+    async getNewMarker(metadataId, startMs, endMs) {
+        return this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
-            [metadataId, this.#markerTagId, startMs, endMs],
-            callback);
-    }
-
-    /**
-     * Retrieve the library section id for the given episode
-     * @param {number} episodeMetadataId
-     * @param {SingleRowQuery} callback */
-    librarySectionFromEpisode(episodeMetadataId, callback) {
-        this.#database.get('SELECT library_section_id FROM metadata_items WHERE id=?', [episodeMetadataId], callback);
+            [metadataId, this.#markerTagId, startMs, endMs]);
     }
 
     /**
@@ -645,8 +608,8 @@ ORDER BY e.\`index\` ASC;`;
      *
      * Fields returned: `episode_id`, `tag_id`
      * @param {number} sectionId
-     * @param {MultipleRowQuery} callback */
-    markerStatsForSection(sectionId, callback) {
+     * @returns {Promise<{episode_id: number, tag_id: number}[]>*/
+    async markerStatsForSection(sectionId) {
         // Note that the query below that grabs _all_ tags for an episode and discarding
         // those that aren't intro markers is faster than doing an outer join on a
         // temporary taggings table that only includes markers
@@ -656,14 +619,14 @@ SELECT e.id AS episode_id, m.tag_id AS tag_id FROM metadata_items e
 WHERE e.library_section_id=? AND e.metadata_type=4
 ORDER BY e.id ASC;`;
 
-        this.#database.all(query, [sectionId], callback);
+        return this.#database.all(query, [sectionId]);
     }
 
     /**
      * Return the ids and UUIDs for all sections in the database.
-     * @param {MultipleRowQuery} callback */
-    sectionUuids(callback) {
-        this.#database.all('SELECT id, uuid FROM library_sections;', callback);
+     * @returns {Promise<{ id: number, uuid: string }[]>} */
+    async sectionUuids() {
+        return this.#database.all('SELECT id, uuid FROM library_sections;');
     }
 }
 

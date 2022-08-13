@@ -119,7 +119,7 @@ class TestBase {
         // TODO: Actually test this
         tf('backupActions', true);
 
-        writeFileSync(TestBase.testConfig, JSON.stringify(overrides))
+        writeFileSync(TestBase.testConfig, JSON.stringify(overrides));
     }
 
     /**

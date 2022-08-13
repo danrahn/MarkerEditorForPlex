@@ -1,5 +1,5 @@
 import { Log } from '../Shared/ConsoleLog.js';
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
+import DatabaseWrapper from './DatabaseWrapper.js';
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
 /**
@@ -159,7 +159,7 @@ class MarkerCacheManager {
 
     /**
      * Instantiate a MarkerCache.
-     * @param {SqliteDatabase} database The connection to the Plex database.
+     * @param {DatabaseWrapper} database The connection to the Plex database.
      * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers. */
     constructor(database, tagId) {
         this.#database = database;
@@ -172,12 +172,7 @@ class MarkerCacheManager {
      * @param {Function} failureFunction The function to invoke if the cache failed to build. */
     buildCache(successFunction, failureFunction) {
         Log.info('Gathering markers...');
-        this.#database.all(MarkerCacheManager.#markerQuery, [], (err, rows) => {
-            if (err) {
-                failureFunction(err.message);
-                return;
-            }
-
+        this.#database.all(MarkerCacheManager.#markerQuery).then((rows) => {
             let markerCount = 0;
             for (const row of rows) {
                 this.#addMarkerData(row);
@@ -190,6 +185,8 @@ class MarkerCacheManager {
 
             Log.info(`Cached ${markerCount} markers, starting server...`);
             successFunction();
+        }).catch(err => {
+            failureFunction(err.message);
         });
     }
 

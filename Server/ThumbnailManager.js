@@ -2,8 +2,8 @@ import { readFile, statSync } from 'fs';
 import { join as joinPath } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
+import DatabaseWrapper from './DatabaseWrapper.js';
 
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {{[metadataId: number]: EpisodeCache}} EpisodeCacheMap */
 
 /**
@@ -18,7 +18,7 @@ class ThumbnailManager {
     static #maxCache = 100;
 
     /** The Plex database connection.
-     * @type {SqliteDatabase} */
+     * @type {DatabaseWrapper} */
     #database;
 
     /** The path the Plex's data directory.
@@ -42,7 +42,7 @@ class ThumbnailManager {
 
     /**
      * Create a new ThumbnailManager
-     * @param {SqliteDatabase} db The database connection
+     * @param {DatabaseWrapper} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory
      */
     constructor(db, metadataPath) {
@@ -61,40 +61,37 @@ class ThumbnailManager {
             return Promise.resolve(this.#cache[metadataId].hasThumbs);
         }
 
-        return new Promise((resolve, reject) => {
-            this.#database.all(ThumbnailManager.#hashQuery, [metadataId], (err, rows) => {
-                if (err) {
-                    return reject('Unable to retrieve media parts');
-                }
+        try {
+            const rows = await this.#database.all(ThumbnailManager.#hashQuery, [metadataId]);
 
-                // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
-                let newest = { path : '', mtime : 0, found : 0 };
-                for (const row of rows) {
-                    const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
-                    const stats = statSync(bifPath, { throwIfNoEntry : false });
-                    if (stats !== undefined) {
-                        if (stats.mtimeMs > newest.mtime) {
-                            newest.path = bifPath;
-                            newest.mtime = stats.mtimeMs;
-                        }
-
-                        ++newest.found;
+            // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
+            let newest = { path : '', mtime : 0, found : 0 };
+            for (const row of rows) {
+                const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
+                const stats = statSync(bifPath, { throwIfNoEntry : false });
+                if (stats !== undefined) {
+                    if (stats.mtimeMs > newest.mtime) {
+                        newest.path = bifPath;
+                        newest.mtime = stats.mtimeMs;
                     }
-                }
 
-                if (newest.path.length > 0) {
-                    const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
-                    Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
-                    this.#cache[metadataId] = new EpisodeCache(true, newest.path);
-                    resolve(true);
-                    return;
+                    ++newest.found;
                 }
+            }
 
-                Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
-                this.#cache[metadataId] = new EpisodeCache(false);
-                resolve(false);
-            });
-        });
+            if (newest.path.length > 0) {
+                const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
+                Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
+                this.#cache[metadataId] = new EpisodeCache(true, newest.path);
+                return Promise.resolve(true);
+            }
+
+            Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
+            this.#cache[metadataId] = new EpisodeCache(false);
+            return Promise.resolve(false);
+        } catch (err) {
+            return Promise.reject(err);
+        }
     }
 
     /**
