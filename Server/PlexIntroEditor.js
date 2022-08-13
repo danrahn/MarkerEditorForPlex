@@ -103,6 +103,7 @@ async function run() {
         MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
         try {
             await MarkerCache.buildCache();
+            await BackupManager?.buildAllPurges(MarkerCache);
             await setupBackupManager();
         } catch (err) {
             Log.error(err.message, 'Failed to build marker cache:');
@@ -114,27 +115,6 @@ async function run() {
 
     Log.info('Creating server...');
     launchServer();
-}
-
-/** Called after the marker cache manager is initialized and checks for purged markers if the backup manager is enabled. */
-async function setupBackupManager() {
-    if (!Config.backupActions()) {
-        return;
-    }
-
-    try {
-        await BackupManager.buildAllPurges(MarkerCache);
-        const purgeCount = BackupManager.purgeCount();
-        if (purgeCount > 0) {
-            Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
-        } else {
-            Log.info(`Looked for purged markers and didn't find any`);
-        }
-    } catch (err) {
-        Log.error(err.message, `Failed to set up marker backup manager`); // Log this, but don't fail. Maybe it will work next time.
-    }
-
-    return Promise.resolve();
 }
 
 export { run, ServerState, getState };

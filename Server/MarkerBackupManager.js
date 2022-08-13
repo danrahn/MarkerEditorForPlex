@@ -557,6 +557,13 @@ ORDER BY id DESC;`
             this.#purgeCache = {};
         }
 
+        const purgeCount = this.purgeCount();
+        if (purgeCount > 0) {
+            Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
+        } else {
+            Log.info(`Looked for purged markers and didn't find any`);
+        }
+
         return Promise.resolve();
     }
 
