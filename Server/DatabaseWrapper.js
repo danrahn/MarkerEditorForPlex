@@ -19,6 +19,15 @@ class DatabaseWrapper {
     }
 
     /**
+     * Run the given query, returning no rows.
+     * @param {string} query
+     * @param {[*]} [parameters=[]]
+     * @returns {Promise<void>} */
+    async run(query, parameters=[]) {
+        return this.#action(this.#db.run.bind(this.#db), query, parameters);
+    }
+
+    /**
      * Retrieves a single row from the given query.
      * @param {string} query
      * @param {[*]} [parameters=[]]
@@ -44,6 +53,16 @@ class DatabaseWrapper {
         return this.#action(this.#db.exec.bind(this.#db), query, null /*parameters*/);
     }
 
+    /** Closes the underlying database connection. */
+    async close() {
+        return new Promise((resolve, _) => {
+            this.#db.close((err) => {
+                if (err) { throw ServerError.FromDbError(err); }
+                resolve();
+            });
+        });
+    }
+
     /**
      * Perform a database action and return a Promise
      * instead of dealing with callbacks.
@@ -59,6 +78,45 @@ class DatabaseWrapper {
             }
             parameters === null ? fn(query, callback) : fn(query, parameters, callback);
         });
+    }
+
+    /**
+     * Parameterize the given query. It is simple by design, and has known flaws if used outside
+     * of the expected use-case, but it's slightly safer than writing raw queries and hoping for
+     * the best, which is currently the case for exec, as it doesn't accept parameterized queries
+     * @param {string} query Query with a '?' for each parameter.
+     * @param {[number|string]} parameters The parameters to insert. Only expects numbers and strings
+     * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
+    static parameterize(query, parameters) {
+        let startSearch = 0;
+        let newQuery = '';
+        for (const parameter of parameters) {
+            const idx = query.indexOf('?', startSearch);
+            if (idx == -1) {
+                throw new ServerError(`Unable to parameterize query, not enough '?'!`, 500);
+            }
+
+            newQuery += query.substring(startSearch, idx);
+            if (typeof parameter === 'string') {
+                newQuery += `"${parameter.replaceAll('"', '""')}"`;
+            } else if (typeof parameter === 'number') {
+                newQuery += parameter.toString();
+            } else {
+                throw new ServerError(`Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`, 500);
+            }
+
+            startSearch = idx + 1;
+        }
+
+        if (startSearch < query.length) {
+            if (query.indexOf('?', startSearch) != -1) {
+                throw new ServerError(`Unable to parameterize query, too many '?'!`, 500);
+            }
+
+            newQuery += query.substring(startSearch);
+        }
+
+        return newQuery;
     }
 }
 

@@ -438,7 +438,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
-     * @param {(err: string?, newMarkers: RawMarkerData[]?, ignoredMarkers: number[]?) => void} callback */
+     * @returns {Promise<{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[]}} */
     async bulkRestore(actions) {
         /** @type {RawMarkerData[]} */
         let markerList;

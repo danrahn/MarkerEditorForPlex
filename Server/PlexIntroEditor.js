@@ -151,20 +151,16 @@ function afterQueryInit() {
 /** Called after the marker cache manager is initialized and checks for purged markers if the backup manager is enabled. */
 function afterMarkerCacheManagerInit() {
     if (Config.backupActions()) {
-        BackupManager.buildAllPurges(MarkerCache, (err) => {
-            if (err) {
-                Log.error(err); // Log this, but don't fail. Maybe it will work next time.
+        BackupManager.buildAllPurges(MarkerCache).then(() => {
+            const purgeCount = BackupManager.purgeCount();
+            if (purgeCount > 0) {
+                Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
             } else {
-                const purgeCount = BackupManager.purgeCount();
-                if (purgeCount > 0) {
-                    Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
-                } else {
-                    Log.info(`Looked for purged markers and didn't find any`);
-                }
+                Log.info(`Looked for purged markers and didn't find any`);
             }
 
             launchServer();
-        });
+        }).catch(err => { Log.error(err.message); throw err; }); // Log this, but don't fail. Maybe it will work next time.
     } else {
         launchServer();
     }
@@ -544,7 +540,7 @@ function handlePost(req, res) {
  */
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
-    returnCompressedData(res, code, JSON.stringify({ Error : error || 500 }), contentType('application/json'));
+    returnCompressedData(res, code || 500, JSON.stringify({ Error : error }), contentType('application/json'));
 }
 
 /**
@@ -679,8 +675,13 @@ function editMarker(markerId, startMs, endMs, userCreated, res) {
                 const oldEnd = newMarker.end;
                 newMarker.start = startMs;
                 newMarker.end = endMs;
-                BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
-                return jsonSuccess(res, newMarker);
+                if (BackupManager) {
+                    BackupManager.recordEdit(newMarker, oldStart, oldEnd).then(() => {
+                        return jsonSuccess(res, newMarker);
+                    });
+                } else {
+                    return jsonSuccess(res, newMarker);
+                }
             });
 
         });
@@ -707,8 +708,13 @@ function addMarker(metadataId, startMs, endMs, res) {
         const markerData = new MarkerData(newMarker);
         updateMarkerBreakdownCache(markerData, allMarkers.length - 1, 1 /*delta*/);
         MarkerCache?.addMarkerToCache(newMarker);
-        BackupManager?.recordAdd(markerData);
-        jsonSuccess(res, markerData);
+        if (BackupManager) {
+            BackupManager?.recordAdd(markerData).then(() => {
+                jsonSuccess(res, markerData);
+            });
+        } else {
+            jsonSuccess(res, markerData);
+        }
     };
 
     const failureFunc = (userError, message) => {
@@ -766,8 +772,13 @@ function deleteMarker(markerId, res) {
                 const deletedMarker = new MarkerData(markerToDelete);
                 MarkerCache?.removeMarkerFromCache(markerId);
                 updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
-                BackupManager?.recordDelete(deletedMarker);
-                return jsonSuccess(res, deletedMarker);
+                if (BackupManager) {
+                    BackupManager.recordDelete(deletedMarker).then(() => {
+                        return jsonSuccess(res, deletedMarker);
+                    });
+                } else {
+                    return jsonSuccess(res, deletedMarker);
+                }
             });
         });
     });
@@ -1066,18 +1077,17 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
  * Find all purged markers for the given library section.
  * @param {number} sectionId The library section
  * @param {Http.ServerResponse} res */
-function allPurges(sectionId, res) {
+async function allPurges(sectionId, res) {
     if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.purgesForSection(sectionId, (err, purges) => {
-        if (err) {
-            return jsonError(res, 400, err.message);
-        }
-
-        return jsonSuccess(res, purges);
-    });
+    try {
+        const purges = await BackupManager.purgesForSection(sectionId);
+        jsonSuccess(res, purges);
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**
@@ -1122,18 +1132,17 @@ async function restoreMarkers(oldMarkerIds, sectionId, res) {
  * @param {number[]} oldMarkerIds
  * @param {number} sectionId
  * @param {Http.ServerResponse} res */
-function ignorePurgedMarkers(oldMarkerIds, sectionId, res) {
+async function ignorePurgedMarkers(oldMarkerIds, sectionId, res) {
     if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId, (err) => {
-        if (err) {
-            return jsonError(res, 500, err.message);
-        }
-
+    try {
+        await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
         jsonSuccess(res);
-    });
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**
