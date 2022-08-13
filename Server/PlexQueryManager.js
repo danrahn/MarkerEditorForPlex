@@ -6,6 +6,7 @@
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
  * @typedef {(err: Error?, row: RawMarkerData) => void} SingleMarkerQuery
  * @typedef {(err: Error?) => void} NoResultQuery
+ * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
  */
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
@@ -309,8 +310,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId
      * @param {(err: Error?, rows: RawMarkerData[]?, typeInfo: { metadata_type: number, section_id: number }) => void} callback */
     getMarkersAuto(metadataId, callback) {
-        this.#mediaTypeFromId(metadataId, (err, typeInfo) => {
-            if (err) { return callback(err, null, null); }
+        this.#mediaTypeFromId(metadataId).then(typeInfo => {
             let where = '';
             switch (typeInfo.metadata_type) {
                 case 2: where = `seasons.parent_id`; break;
@@ -323,25 +323,22 @@ ORDER BY e.\`index\` ASC;`;
             this.#getMarkersForMetadataItem(metadataId, where, (err, markers) => {
                 callback(err, markers, typeInfo);
             });
+        }).catch(err => {
+            callback(err, null, null);
         });
     }
 
     /**
      * Retrieve the media type and section id for item with the given metadata id.
      * @param {number} metadataId
-     * @param {SingleRowQuery} callback */
-    #mediaTypeFromId(metadataId, callback) {
-        this.#database.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId], (err, row) => {
-            if (err) {
-                return callback(err, null);
-            }
+     * @returns {Promise<MetadataItemTypeInfo} */
+    async #mediaTypeFromId(metadataId) {
+        const row = await this.#get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
+        if (!row) {
+            return Promise.reject(new Error(`Metadata item ${metadataId} not found in database.`));
+        }
 
-            if (!row) {
-                return callback(new Error(`Metadata item ${metadataId} not found in database.`), null);
-            }
-
-            callback(null, row);
-        });
+        return Promise.resolve(row);
     }
 
     /**
@@ -380,8 +377,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {(userError: boolean, errorMessage: string) => void} failureCallback */
     addMarker(metadataId, startMs, endMs, successCallback, failureCallback) {
         // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
-        this.#mediaTypeFromId(metadataId, (err, typeInfo) => {
-            if (err) { return failureCallback(false, err); }
+        this.#mediaTypeFromId(metadataId).then(typeInfo => {
             if (typeInfo.metadata_type != 4) {
                 return failureCallback(true, `Attempting to add marker to a media item that's not an episode!`);
             }
@@ -424,6 +420,8 @@ ORDER BY e.\`index\` ASC;`;
                     });
                 });
             });
+        }).catch(err => {
+            failureCallback(false, err);
         });
     }
 
@@ -652,6 +650,19 @@ ORDER BY e.id ASC;`;
      * @param {MultipleRowQuery} callback */
     sectionUuids(callback) {
         this.#database.all('SELECT id, uuid FROM library_sections;', callback);
+    }
+
+    /**
+     * Async wrapper around `Database.get`, which is also async, but via callbacks.
+     * @param {string} query The database query.
+     * @param {[*]} [params=[]] */
+    async #get(query, params=[]) {
+        return new Promise((resolve, reject) => {
+            this.#database.get(query, params, (err, row) => {
+                if (err) { reject(err); }
+                resolve(row);
+            });
+        });
     }
 }
 
