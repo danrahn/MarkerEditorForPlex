@@ -89,28 +89,41 @@ FROM taggings
 `;
 
     /**
-     * Initializes the manager and attempts to retrieve the marker tag_id.
-     * Forcefully exits the process on failure, as we can't continue with an invalid database.
-     * @param {string} databasePath
-     * @param {() => void} callback */
-    constructor(databasePath, pureMode, callback) {
+     * Creates a new PlexQueryManager instance. This show always be used opposed to creating
+     * a PlexQueryManager directly via 'new'.
+     * @param {string} databasePath The path to the Plex database.
+     * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data. */
+    static async CreateInstance(databasePath, pureMode) {
         Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
-        this.#pureMode = pureMode;
-        CreateDatabase(databasePath, false /*allowCreate*/).then((db) => {
-            this.#database = new DatabaseWrapper(db);
-            Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
-            this.#database.get('SELECT id FROM tags WHERE tag_type=12;').then((row) => {
-                Log.info('PlexQueryManager: Database verified');
-                this.#markerTagId = row.id;
-                callback();
-            }).catch(err => {
-                Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
-                throw ServerError.FromDbError(err);
-            });
-        }).catch(err => {
+        /** @type {DatabaseWrapper} */
+        let db;
+        try {
+            db = new DatabaseWrapper(await CreateDatabase(databasePath, false /*fAllowCreate*/));
+        } catch (err) {
             Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
             throw ServerError.FromDbError(err);
-        });
+        }
+
+        Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
+        try {
+            const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
+            Log.info('PlexQueryManager: Database verified');
+            return Promise.resolve(new PlexQueryManager(db, pureMode, row.id));
+        } catch (err) {
+            Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
+            throw ServerError.FromDbError(err);
+        }
+    }
+
+    /**
+     * Initializes the query manager. Should only be called via the static CreateInstance.
+     * @param {DatabaseWrapper} database
+     * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data.
+     * @param {markerTagId} markerTagId The database tag id that represents intro markers. */
+    constructor(database, pureMode, markerTagId) {
+        this.#database = database;
+        this.#pureMode = pureMode;
+        this.#markerTagId = markerTagId;
     }
 
     /** On process exit, close the database connection. */

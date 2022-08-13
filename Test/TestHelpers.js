@@ -111,9 +111,8 @@ class TestHelpers {
      * @param {string} testCase The test case that we expect to fail */
     static async verifyBadRequest(response, testCase) {
         TestHelpers.verify(response.status == 400, `Expected ${testCase} to return 400, got ${response.status}.`);
-        return response.json().then(message => {
-            TestHelpers.verify(message.Error, `Expected an error message for ${testCase}, found nothing.`);
-        });
+        const message = await response.json();
+        TestHelpers.verify(message.Error, `Expected an error message for ${testCase}, found nothing.`);
     }
 
     /**

@@ -107,12 +107,10 @@ class ThumbnailManager {
      */
     async getThumbnail(metadataId, timestamp) {
         if (!this.#cache[metadataId]) {
-            return this.hasThumbnails(metadataId).then(_ => {
-                return this.#getThumbnailCore(metadataId, timestamp);
-            });
-        } else {
-            return this.#getThumbnailCore(metadataId, timestamp);
+            await this.hasThumbnails(metadataId);
         }
+
+        return this.#getThumbnailCore(metadataId, timestamp);
     }
 
     /**

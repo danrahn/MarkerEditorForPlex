@@ -85,85 +85,56 @@ let IsTest = false;
 const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Initializes and starts the server */
-function run() {
+async function run() {
     setupTerminateHandlers();
     const testData = checkTestData();
     Config = new PlexIntroEditorConfig(ProjectRoot, testData);
 
     // Set up the database, and make sure it's the right one.
-    QueryManager = new PlexQueryManager(Config.databasePath(), Config.pureMode(), () => {
-        if (Config.backupActions()) {
-            BackupManager = new MarkerBackupManager(QueryManager, IsTest ? join(ProjectRoot, 'Test') : ProjectRoot, afterQueryInit);
-        } else {
-            Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
-            afterQueryInit();
-        }
-    });
-}
-
-/**
- * Returns test override data specified in the command line, if any.
- * @returns {{isTest: boolean, configOverride : string?}} */
-function checkTestData() {
-    let testData = {
-        isTest : false,
-        configOverride : null,
-    };
-
-    if (process.argv.indexOf('--test') != -1) {
-        testData.isTest = true;
-        IsTest = true;
+    QueryManager = await PlexQueryManager.CreateInstance(Config.databasePath(), Config.pureMode());
+    if (Config.backupActions()) {
+        BackupManager = await MarkerBackupManager.CreateInstance(QueryManager, IsTest ? join(ProjectRoot, 'Test') : ProjectRoot);
+    } else {
+        Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
     }
 
-    const configIndex = process.argv.indexOf('--config_override');
-    if (configIndex != -1) {
-        if (process.argv.length <= configIndex - 1) {
-            Log.critical('Invalid config override file detected, aborting...');
-            cleanupForShutdown();
-            process.exit(1);
-        }
-
-        testData.configOverride = process.argv[configIndex + 1];
-    }
-
-    return testData;
-}
-
-/** Called after the query manager (and optionally the marker recorder) is initialized. */
-function afterQueryInit() {
     Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
     if (Config.extendedMarkerStats()) {
         MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
-        MarkerCache.buildCache(afterMarkerCacheManagerInit, (message) => {
-            Log.error(message, 'Failed to build marker cache:');
+        try {
+            await MarkerCache.buildCache();
+            await setupBackupManager();
+        } catch (err) {
+            Log.error(err.message, 'Failed to build marker cache:');
             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
             Config.disableExtendedMarkerStats();
             MarkerCache = null;
-            launchServer();
-        });
-    } else {
-        // If extended marker stats aren't enabled, just create the server now.
-        Log.info('Creating server...');
-        launchServer();
+        }
     }
+
+    Log.info('Creating server...');
+    launchServer();
 }
 
 /** Called after the marker cache manager is initialized and checks for purged markers if the backup manager is enabled. */
-function afterMarkerCacheManagerInit() {
-    if (Config.backupActions()) {
-        BackupManager.buildAllPurges(MarkerCache).then(() => {
-            const purgeCount = BackupManager.purgeCount();
-            if (purgeCount > 0) {
-                Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
-            } else {
-                Log.info(`Looked for purged markers and didn't find any`);
-            }
-
-            launchServer();
-        }).catch(err => { Log.error(err.message); throw err; }); // Log this, but don't fail. Maybe it will work next time.
-    } else {
-        launchServer();
+async function setupBackupManager() {
+    if (!Config.backupActions()) {
+        return;
     }
+
+    try {
+        await BackupManager.buildAllPurges(MarkerCache);
+        const purgeCount = BackupManager.purgeCount();
+        if (purgeCount > 0) {
+            Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
+        } else {
+            Log.info(`Looked for purged markers and didn't find any`);
+        }
+    } catch (err) {
+        Log.error(err.message, `Failed to set up marker backup manager`); // Log this, but don't fail. Maybe it will work next time.
+    }
+
+    return Promise.resolve();
 }
 
 export { run, ServerState, getState };
@@ -1138,4 +1109,33 @@ function getShowMarkerBreakdownTree(showId, includeSeasons, res) {
     }
 
     return jsonSuccess(res, data);
+}
+
+
+/**
+ * Returns test override data specified in the command line, if any.
+ * @returns {{isTest: boolean, configOverride : string?}} */
+ function checkTestData() {
+    let testData = {
+        isTest : false,
+        configOverride : null,
+    };
+
+    if (process.argv.indexOf('--test') != -1) {
+        testData.isTest = true;
+        IsTest = true;
+    }
+
+    const configIndex = process.argv.indexOf('--config_override');
+    if (configIndex != -1) {
+        if (process.argv.length <= configIndex - 1) {
+            Log.critical('Invalid config override file detected, aborting...');
+            cleanupForShutdown();
+            process.exit(1);
+        }
+
+        testData.configOverride = process.argv[configIndex + 1];
+    }
+
+    return testData;
 }

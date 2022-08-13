@@ -208,62 +208,72 @@ class MarkerBackupManager {
     ];
 
     /**
-     * @param {PlexQueryManager} plexQueries The query manager for the Plex database
-     * @param {string} projectRoot The root of this project, to determine where the backup database is.
-     * @param {() => void} callback The function in invoke after we have successfully initialized this class.
-     * @throws If we run into any errors while initializing the database. */
-    constructor(plexQueries, projectRoot, callback) {
-        this.#plexQueries = plexQueries;
-
+     * Create a new MarkerBackupManager instance. This should always be used
+     * opposed to creating a new MarkerBackupManager directly.
+     * @param {PlexQueryManager} plexQueries The query manager for the Plex database.
+     * @param {string} projectRoot The root of this project, to determine where the backup database is. */
+    static async CreateInstance(plexQueries, projectRoot) {
         Log.info('MarkerBackupManager: Initializing marker backup database...');
-        plexQueries.sectionUuids().then((sections) => {
-            for (const section of sections) {
-                this.#uuids[section.id] = section.uuid;
-            }
-
-            const dbPath = joinPath(projectRoot, 'Backup');
-            if (!existsSync(dbPath)) {
-                Log.verbose('MarkerBackupManager: Backup path does not exist, creating it.');
-                mkdirSync(dbPath);
-            }
-
-            const fullPath = joinPath(dbPath, 'markerActions.db');
-            if (!existsSync(fullPath)) {
-                // Not strictly necessary, but nice for logging.
-                Log.info(`MarkerBackupManager: No backup marker database found, creating it (${fullPath}).`);
-            } else {
-                Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
-            }
-
-            CreateDatabase(fullPath, true /*allowCreate*/).then((baseDb) => {
-                this.#actions = new DatabaseWrapper(baseDb);
-                Log.tmi('MarkerBackupManager: Opened database, checking schema');
-                this.#actions.exec(CheckVersionTable).then(() => {
-                    this.#actions.get('SELECT version FROM schema_version;').then((row) => {
-                        const version = row ? row.version : 0;
-                        if (version != CurrentSchemaVersion) {
-                            if (version != 0) {
-                                // Only log if this isn't a new database, i.e. version isn't 0.
-                                Log.info(`MarkerBackupManager: Old database schema detected (${version}), attempting to upgrade.`);
-                            }
-
-                            this.#upgradeSchema(version).then(() => {
-                                callback();
-                            });
-                        } else {
-                            Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
-                            callback();
-                        }
-                    });
-                });
-            }).catch(err => {
-                Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
-                throw err;
-            });
-        }).catch(err => {
+        /** @type {{id: number, uuid: string}[]} */
+        let sections;
+        try {
+            sections = await plexQueries.sectionUuids();
+        } catch (err) {
             Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
             throw err;
-        });
+        }
+
+        let uuids = {};
+        for (const section of sections) {
+            uuids[section.id] = section.uuid;
+        }
+
+        const dbPath = joinPath(projectRoot, 'Backup');
+        if (!existsSync(dbPath)) {
+            Log.verbose('MarkerBackupManager: Backup path does not exist, creating it.');
+            mkdirSync(dbPath);
+        }
+
+        const fullPath = joinPath(dbPath, 'markerActions.db');
+        if (!existsSync(fullPath)) {
+            // Not strictly necessary, but nice for logging.
+            Log.info(`MarkerBackupManager: No backup marker database found, creating it (${fullPath}).`);
+        } else {
+            Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
+        }
+
+        try {
+            const db = new DatabaseWrapper(await CreateDatabase(fullPath, true /*allowCreate*/));
+            Log.tmi('MarkerBackupManager: Opened database, checking schema');
+            await db.exec(CheckVersionTable);
+            const row = await db.get('SELECT version FROM schema_version;');
+            const version = row ? row.version : 0;
+            const manager = new MarkerBackupManager(plexQueries, uuids, db);
+            if (version != CurrentSchemaVersion) {
+                if (version != 0) {
+                    // Only log if this isn't a new database, i.e. version isn't 0.
+                    Log.info(`MarkerBackupManager: Old database schema detected (${version}), attempting to upgrade.`);
+                }
+
+                await manager.upgradeSchema(version);
+            }
+
+            Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
+            return Promise.resolve(manager);
+        } catch (err) {
+            Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
+            throw err;
+        }
+    }
+
+    /**
+     * @param {PlexQueryManager} plexQueries The query manager for the Plex database.
+     * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
+     * @param {DatabaseWrapper} actionsDatabase The connection to the backup database. */
+    constructor(plexQueries, uuids, actionsDatabase) {
+        this.#plexQueries = plexQueries;
+        this.#uuids = uuids;
+        this.#actions = actionsDatabase;
     }
 
     /** Closes the database connection. */
@@ -282,13 +292,13 @@ class MarkerBackupManager {
     /**
      * Attempts to update the database to match the current schema.
      * @param {number} oldVersion The current schema version of the backup database. */
-    async #upgradeSchema(oldVersion) {
+    async upgradeSchema(oldVersion) {
         const nextVersion = oldVersion + 1;
         Log.info(`MarkerBackupManager: Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
         await this.#actions.exec(SchemaUpgrades[oldVersion]);
         await this.#schemaUpgradeCallbacks[oldVersion]();
         if (nextVersion != CurrentSchemaVersion) {
-            await this.#upgradeSchema(nextVersion);
+            await this.upgradeSchema(nextVersion);
         } else {
             Log.info('MarkerBackupManager: Successfully upgraded database schema.');
             Log.info('MarkerBackupManager: Initialized backup database');

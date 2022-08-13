@@ -167,27 +167,22 @@ class MarkerCacheManager {
     }
 
     /**
-     * Build the marker cache for the entire Plex server.
-     * @param {Function} successFunction The function to invoke if the cache was built successfully.
-     * @param {Function} failureFunction The function to invoke if the cache failed to build. */
-    buildCache(successFunction, failureFunction) {
+     * Build the marker cache for the entire Plex server. */
+    async buildCache() {
         Log.info('Gathering markers...');
-        this.#database.all(MarkerCacheManager.#markerQuery).then((rows) => {
-            let markerCount = 0;
-            for (const row of rows) {
-                this.#addMarkerData(row);
-                if (row.tag_id != this.#tagId) {
-                    continue;
-                }
-
-                ++markerCount;
+        const rows = await this.#database.all(MarkerCacheManager.#markerQuery);
+        let markerCount = 0;
+        for (const row of rows) {
+            this.#addMarkerData(row);
+            if (row.tag_id != this.#tagId) {
+                continue;
             }
 
-            Log.info(`Cached ${markerCount} markers, starting server...`);
-            successFunction();
-        }).catch(err => {
-            failureFunction(err.message);
-        });
+            ++markerCount;
+        }
+
+        Log.info(`Cached ${markerCount} markers, starting server...`);
+        return Promise.resolve();
     }
 
     /**
