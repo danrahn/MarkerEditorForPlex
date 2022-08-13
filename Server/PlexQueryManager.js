@@ -31,7 +31,7 @@ class TrimmedMarker {
     /** @type {number} */ newIndex;
     /** @type {boolean} */ #isRaw = false;
     /** @type {RawMarkerData} */ #raw;
-    getRaw() { if (!this.#isRaw) { throw ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
+    getRaw() { if (!this.#isRaw) { throw new ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
 
     constructor(id, eid, start, end, index) {
         this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
@@ -621,7 +621,7 @@ ORDER BY e.\`index\` ASC;`;
      *
      * Fields returned: `episode_id`, `tag_id`
      * @param {number} sectionId
-     * @returns {Promise<{episode_id: number, tag_id: number}[]>*/
+     * @returns {Promise<{episode_id: number, tag_id: number}[]>} */
     async markerStatsForSection(sectionId) {
         // Note that the query below that grabs _all_ tags for an episode and discarding
         // those that aren't intro markers is faster than doing an outer join on a

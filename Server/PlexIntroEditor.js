@@ -1,24 +1,25 @@
 /** External dependencies */
 import { promises as Fs } from 'fs';
-import { createServer, Server as httpServer } from 'http';
+import { createServer, IncomingMessage, Server as httpServer, ServerResponse } from 'http';
 import { contentType, lookup } from 'mime-types';
 import Open from 'open';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { gzip } from 'zlib';
 
 /** Server dependencies */
 import MarkerBackupManager from './MarkerBackupManager.js';
 import MarkerCacheManager from './MarkerCacheManager.js';
 import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
 import PlexQueryManager from './PlexQueryManager.js';
-import { QueryParser, QueryParserException } from './QueryParse.js';
+import QueryParser from './QueryParse.js';
 import ThumbnailManager from './ThumbnailManager.js';
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
 /** Server+Client shared dependencies */
 import { Log, ConsoleLog } from './../Shared/ConsoleLog.js';
 import { MarkerData, ShowData, SeasonData, EpisodeData } from './../Shared/PlexTypes.js';
+import { sendCompressedData, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import ServerError from './ServerError.js';
 
 /**
  * HTTP server instance.
@@ -104,7 +105,6 @@ async function run() {
         try {
             await MarkerCache.buildCache();
             await BackupManager?.buildAllPurges(MarkerCache);
-            await setupBackupManager();
         } catch (err) {
             Log.error(err.message, 'Failed to build marker cache:');
             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
@@ -200,58 +200,58 @@ function cleanupForShutdown() {
     // Either we failed to resume the server, or we got a shutdown request in the middle of
     // resuming. Send a failure response now so the server can close cleanly.
     if (ResumeResponse) {
-        jsonError(ResumeResponse, 500, 'Failed to resume server.');
+        sendJsonError(ResumeResponse, new ServerError(`Failed to resume server.`, 500));
         ResumeResponse = null;
     }
 }
 
-/** Shuts down the server after a user-initiated shutdown request.
- * @param {Http.ServerResponse} res */
+/**
+ * Shuts down the server after a user-initiated shutdown request.
+ * @param {ServerResponse} res */
 function userShutdown(res) {
-    jsonSuccess(res);
+    sendJsonSuccess(res);
     handleClose('User Shutdown');
 }
 
 /** Restarts the server after a user-initiated restart request.
- * @param {Http.ServerResponse} res */
+ * @param {ServerResponse} res */
 function userRestart(res) {
-    jsonSuccess(res);
+    sendJsonSuccess(res);
     handleClose('User Restart', true /*restart*/);
 }
 
-/** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database.
- * @param {Http.ServerResponse} res */
+/** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database. */
 function userSuspend(res) {
     Log.verbose('Attempting to pause the server');
     if (CurrentState != ServerState.Running) {
-        return jsonError(res, 400, 'Server is either already suspended or shutting down.');
+        return sendJsonError(res, new ServerError('Server is either already suspended or shutting down.', 400))
     }
 
     CurrentState = ServerState.Suspended;
     cleanupForShutdown();
     Log.info('Server successfully suspended.');
-    jsonSuccess(res);
+    sendJsonSuccess(res);
 }
 
 /**
  * The response to our resume event. Kept at the global scope
  * to avoid passing it through the mess of init callbacks initiated by `run()`.
- * @type {Http.ServerResponse} */
+ * @type {ServerResponse} */
 let ResumeResponse;
 
 /**
  * Resumes the server after being disconnected from the Plex database.
- * @param {Http.ServerResponse} res */
+ * @param {ServerResponse} res */
 function userResume(res) {
     Log.verbose('Attempting to resume the server');
     if (CurrentState != ServerState.Suspended) {
         Log.verbose(`userResume: Server isn't suspended (${CurrentState})`);
-        return jsonSuccess(res, { message : 'Server is not suspended.' });
+        return sendJsonSuccess(res, { message : 'Server is not suspended' });
     }
 
     if (ResumeResponse) {
         Log.verbose('userResume: Already in a resume operation');
-        return jsonSuccess(res, { message : 'Server is already resuming.' });
+        return sendJsonSuccess(res, { message : 'Server is already resuming.' });
     }
 
     ResumeResponse = res;
@@ -294,7 +294,7 @@ function shouldCreateServer() {
 
     CurrentState = ServerState.Running;
     if (ResumeResponse) {
-        jsonSuccess(ResumeResponse, { message : 'Server resumed' });
+        sendJsonSuccess(ResumeResponse, { message : 'Server resumed' });
         ResumeResponse = null;
     }
 
@@ -317,12 +317,12 @@ function serverMain(req, res) {
             return res.end();
         }
 
-        return jsonError(res, 503, 'Server is shutting down');
+        return sendJsonError(res, new ServerError('Server is shutting down', 503));
     }
 
     // Don't get into node_modules or parent directories
     if (req.url.toLowerCase().indexOf('node_modules') != -1 || req.url.indexOf('/..') != -1) {
-        return jsonError(res, 403, `Cannot access ${req.url}: Forbidden`);
+        return sendJsonError(res, new ServerError(`Cannot access ${req.url}: Forbidden`, 403));
     }
 
     try {
@@ -333,20 +333,18 @@ function serverMain(req, res) {
             case 'post':
                 return handlePost(req, res);
             default:
-                return jsonError(res, 405, `Unexpected method "${req.method?.toUpperCase()}"`);
+                return sendJsonError(res, new ServerError(`Unexpected method "${req.method?.toUpperCase()}"`, 405));
         }
     } catch (e) {
-        // Something's gone horribly wrong
-        Log.error(e.toString(), `Exception thrown for ${req.url}`);
-        Log.verbose(e.stack || '(Unable to get stack trace)');
-        return jsonError(res, 500, `The server was unable to process this request: ${e.toString()}`);
+        e.message = `Exception thrown for ${req.url}: ${e.message}`;
+        sendJsonError(res, e, e.code || 500);
     }
 }
 
 /**
  * Handle GET requests, used to serve static content like HTML/CSS/SVG.
- * @param {Http.IncomingMessage} req
- * @param {Http.ServerResponse} res
+ * @param {IncomingMessage} req
+ * @param {ServerResponse} res
  */
 function handleGet(req, res) {
     let url = req.url;
@@ -375,7 +373,7 @@ function handleGet(req, res) {
     }
 
     Fs.readFile(ProjectRoot + url).then(contents => {
-        returnCompressedData(res, 200, contents, mimetype);
+        sendCompressedData(res, 200, contents, mimetype);
     }).catch(err => {
         Log.warn(`Unable to serve ${url}: ${err.message}`);
         res.statusCode = 404;
@@ -386,12 +384,12 @@ function handleGet(req, res) {
 /**
  * Retrieve an SVG icon requested with the given color.
  * @param {string} url The svg url of the form /i/[hex color]/[icon].svg.
- * @param {Http.ServerResponse} res
+ * @param {ServerResponse} res
  */
 function getSvgIcon(url, res) {
     let parts = url.split('/');
     if (parts.length !== 4) {
-        return jsonError(res, 400, 'Invalid icon request.');
+        return sendJsonError(res, new ServerError('Invalid icon request.', 400));
     }
 
     const color = parts[2];
@@ -399,7 +397,7 @@ function getSvgIcon(url, res) {
 
     // Expecting a 3 or 6 character hex string
     if (!/^[a-fA-F0-9]{3}$/.test(color) && !/^[a-fA-F0-9]{6}$/.test(color)) {
-        return jsonError(res, 400, 'Invalid icon color.');
+        return sendJsonError(res, new ServerError(`Invalid icon color: "${color}"`, 400));
     }
 
     Fs.readFile(ProjectRoot + '/SVG/' + icon).then(contents => {
@@ -422,141 +420,86 @@ function getSvgIcon(url, res) {
     })
 }
 
-/** Convert a comma separated string into an array of integers */
-const splitKeys = keys => keys.split(',').map(key => parseInt(key));
-/** @typedef {(params: QueryParser, res: Http.ServerResponse) => void} EndpointForwardingFunction */
-
 /**
  * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
- * @type {{[endpoint: string]: EndpointForwardingFunction}}
+ * @type {{[endpoint: string]: (params : QueryParser) => Promise<any>}}
  */
 const EndpointMap = {
-    query         : (params, res) => queryIds(params.custom('keys', splitKeys), res),
-    edit          : (params, res) => editMarker(...params.ints('id', 'start', 'end', 'userCreated'), res),
-    add           : (params, res) => addMarker(...params.ints('metadataId', 'start', 'end'), res),
-    delete        : (params, res) => deleteMarker(params.i('id'), res),
-    get_sections  : (_     , res) => getLibraries(res),
-    get_section   : (params, res) => getShows(params.i('id'), res),
-    get_seasons   : (params, res) => getSeasons(params.i('id'), res),
-    get_episodes  : (params, res) => getEpisodes(params.i('id'), res),
-    get_stats     : (params, res) => allStats(params.i('id'), res),
-    get_config    : (_     , res) => getConfig(res),
-    log_settings  : (params, res) => setLogSettings(...params.ints('level', 'dark', 'trace'), res),
-    purge_check   : (params, res) => purgeCheck(params.i('id'), res),
-    all_purges    : (params, res) => allPurges(params.i('sectionId'), res),
-    restore_purge : (params, res) => restoreMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
-    ignore_purge  : (params, res) => ignorePurgedMarkers(params.custom('markerIds', splitKeys), params.i('sectionId'), res),
-    shutdown      : (_     , res) => userShutdown(res),
-    restart       : (_     , res) => userRestart(res),
-    suspend       : (_     , res) => userSuspend(res),
-    resume        : (_     , res) => userResume(res),
-    get_breakdown : (params, res) => getShowMarkerBreakdownTree(...params.ints('id', 'includeSeasons'), res),
+    query         : async (params) => await queryIds(params.ia('keys')),
+    edit          : async (params) => await editMarker(...params.ints('id', 'start', 'end', 'userCreated')),
+    add           : async (params) => await addMarker(...params.ints('metadataId', 'start', 'end')),
+    delete        : async (params) => await deleteMarker(params.i('id')),
+    get_sections  : async (_     ) => await getLibraries(),
+    get_section   : async (params) => await getShows(params.i('id')),
+    get_seasons   : async (params) => await getSeasons(params.i('id')),
+    get_episodes  : async (params) => await getEpisodes(params.i('id')),
+    get_stats     : async (params) => await allStats(params.i('id')),
+    get_config    : async (_     ) => await getConfig(),
+    log_settings  : async (params) => await setLogSettings(...params.ints('level', 'dark', 'trace')),
+    purge_check   : async (params) => await purgeCheck(params.i('id')),
+    all_purges    : async (params) => await allPurges(params.i('sectionId')),
+    restore_purge : async (params) => await restoreMarkers(params.ia('markerIds'), params.i('sectionId')),
+    ignore_purge  : async (params) => await ignorePurgedMarkers(params.ia('markerIds'), params.i('sectionId')),
+    get_breakdown : async (params) => await getShowMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
+};
+
+/**
+ * Map of server actions (shutdown/restart/etc) to their corresponding functions.
+ * Split from EndpointMap as some of these require direct access to the ServerResponse.
+ * @type {[endpoint: string]: (res : ServerResponse) => void} */
+const ServerActionMap = {
+    shutdown : (res) => userShutdown(res),
+    restart  : (res) => userRestart(res),
+    suspend  : (res) => userSuspend(res),
+    resume   : (res) => userResume(res),
 };
 
 /**
  * Handle POST requests, used to return JSON data queried by the client.
- * @param {Http.IncomingMessage} req
- * @param {Http.ServerResponse} res
- */
-function handlePost(req, res) {
+ * @param {IncomingMessage} req
+ * @param {ServerResponse} res */
+async function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
     if (CurrentState == ServerState.Suspended && (endpoint != 'resume' && endpoint != 'shutdown')) {
-        return jsonError(res, 400, 'Server is suspended');
+        return sendJsonError(res, new ServerError('Server is suspended', 503));
+    }
+
+    if (ServerActionMap[endpoint]) {
+        return ServerActionMap[endpoint](res);
     }
 
     const parameters = new QueryParser(req);
-    if (EndpointMap[endpoint]) {
-        try {
-            return EndpointMap[endpoint](parameters, res);
-        } catch (ex) {
-            // Capture QueryParserException and overwrite the 500 error we would otherwise return with 400
-            if (ex instanceof QueryParserException) {
-                return jsonError(res, 400, ex.message);
-            }
-
-            throw ex;
-        }
+    if (!EndpointMap[endpoint]) {
+        return sendJsonError(res, new ServerError(`Invalid endpoint: ${endpoint}`, 404));
     }
 
-    return jsonError(res, 404, `Invalid endpoint: ${endpoint}`);
-}
-
-/**
- * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
- * @param {Http.ServerResponse} res
- * @param {number} code HTTP status code.
- * @param {string} error Error message.
- */
-function jsonError(res, code, error) {
-    Log.error(error, 'Unable to complete request');
-    returnCompressedData(res, code || 500, JSON.stringify({ Error : error }), contentType('application/json'));
-}
-
-/**
- * Helper method that returns a success HTTP status code alongside any data we want to return to the client.
- * @param {Http.ServerResponse} res
- * @param {Object} [data] Data to return to the client. If empty, returns a simple success message.
- */
-function jsonSuccess(res, data) {
-    // TMI logging, post the entire response, for verbose just indicate we succeeded.
-    if (Log.getLevel() <= ConsoleLog.Level.Tmi) {
-        Log.tmi(data ? JSON.parse(JSON.stringify(data)) : 'true', 'Success');
-    } else {
-        Log.verbose(true, 'Success')
+    try {
+        const response = await EndpointMap[endpoint](parameters);
+        sendJsonSuccess(res, response);
+    } catch (err) {
+        // Default handler swallows exceptions and adds the endpoint to the json error message.
+        err.message = `${req.url} failed: ${err.message}`;
+        sendJsonError(res, err, err.code || 500);
     }
-
-    returnCompressedData(res, 200, JSON.stringify(data || { success : true }), contentType('application/json'));
-}
-
-/**
- * Attempt to send gzip compressed data to reduce network traffic, falling back to plain text on failure.
- * @param {Http.ServerResponse} res
- * @param {number} status HTTP status code.
- * @param {*} data The data to compress and return.
- * @param {string} contentType The MIME type of `data`.
- */
-function returnCompressedData(res, status, data, contentType) {
-    gzip(data, (err, buffer) => {
-        if (err) {
-            Log.warn('Failed to compress data, sending uncompressed');
-            res.writeHead(status, { 'Content-Type' : contentType, 'x-content-type-options' : 'nosniff' });
-            res.end(data);
-            return;
-        }
-
-        res.writeHead(status, {
-            'Content-Encoding' : 'gzip',
-            'Content-Type' : contentType,
-            'x-content-type-options' : 'nosniff'
-        });
-
-        res.end(buffer);
-    })
 }
 
 /**
  * Retrieve an array of markers for all requested metadata ids.
- * @param {number[]} keys The metadata ids to lookup.
- * @param {Http.ServerResponse} res
- */
-async function queryIds(keys, res) {
+ * @param {number[]} keys The metadata ids to lookup. */
+async function queryIds(keys) {
     let markers = {};
     for (const key of keys) {
         markers[key] = [];
     }
 
-    try {
-        const rawMarkers = await QueryManager.getMarkersForEpisodes(keys);
-        for (const rawMarker of rawMarkers) {
-            markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
-        }
-
-        jsonSuccess(res, markers);
-    } catch (err) {
-        jsonError(res, err.code, `Unable to retrieve ids: ${err.message}`);
+    const rawMarkers = await QueryManager.getMarkersForEpisodes(keys);
+    for (const rawMarker of rawMarkers) {
+        markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
     }
+
+    return Promise.resolve(markers);
 }
 
 /**
@@ -564,70 +507,61 @@ async function queryIds(keys, res) {
  * @param {number} markerId The id of the marker to edit.
  * @param {number} startMs The start time of the marker, in milliseconds.
  * @param {number} endMs The end time of the marker, in milliseconds.
- * @param {Http.ServerResponse} res
- */
-async function editMarker(markerId, startMs, endMs, userCreated, res) {
-    if (startMs >= endMs) {
-        return jsonError(res, 400, "Start time must be less than end time.");
+ * @param {ServerResponse} res
+ * @throws {ServerError} */
+async function editMarker(markerId, startMs, endMs, userCreated) {
+    checkMarkerBounds(startMs, endMs);
+
+    const currentMarker = await QueryManager.getSingleMarker(markerId);
+    if (!currentMarker) {
+        throw new ServerError('Intro marker not found', 400);
     }
 
-    if (startMs < 0) {
-        return jsonError(res, 400, "Start time cannot be negative.");
+    const oldIndex = currentMarker.index;
+
+    // Get all markers to adjust indexes if necessary
+    const allMarkers = await QueryManager.getEpisodeMarkers(currentMarker.episode_id);
+    Log.verbose(`Markers for this episode: ${allMarkers.length}`);
+
+    allMarkers[oldIndex].start = startMs;
+    allMarkers[oldIndex].end = endMs;
+    allMarkers.sort((a, b) => a.start - b.start);
+    let newIndex = 0;
+
+    for (let index = 0; index < allMarkers.length; ++index) {
+        let marker = allMarkers[index];
+        if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
+            // Overlap, this should be handled client-side
+            const message = `Marker edit (${startMs}-${endMs}) overlaps with existing marker ${marker.start}-${marker.end}`;
+            throw new ServerError(`${message}. The existing marker should be expanded to include this range instead.`, 400);
+        }
+
+        if (marker.id == markerId) {
+            newIndex = index;
+        }
+
+        marker.newIndex = index;
     }
 
-    try {
-        const currentMarker = await QueryManager.getSingleMarker(markerId);
-        if (!currentMarker) {
-            return jsonError(res, 400, 'Intro marker not found');
+    // Make the edit, then adjust indexes
+    await QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
+    for (const marker of allMarkers) {
+        if (marker.index != marker.newIndex) {
+            // No await, just fire and forget.
+            // TODO: In some extreme case where an episode has dozens of
+            // markers, it would be much more efficient to make this a transaction
+            // instead of individual queries.
+            QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
         }
-
-        const oldIndex = currentMarker.index;
-
-        // Get all markers to adjust indexes if necessary
-        const allMarkers = await QueryManager.getEpisodeMarkers(currentMarker.episode_id);
-        Log.verbose(`Markers for this episode: ${allMarkers.length}`);
-    
-        allMarkers[oldIndex].start = startMs;
-        allMarkers[oldIndex].end = endMs;
-        allMarkers.sort((a, b) => a.start - b.start);
-        let newIndex = 0;
-    
-        for (let index = 0; index < allMarkers.length; ++index) {
-            let marker = allMarkers[index];
-            if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
-                // Overlap, this should be handled client-side
-                return jsonError(res, 400, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-            }
-    
-            if (marker.id == markerId) {
-                newIndex = index;
-            }
-    
-            marker.newIndex = index;
-        }
-    
-        // Make the edit, then adjust indexes
-        await QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
-        for (const marker of allMarkers) {
-            if (marker.index != marker.newIndex) {
-                // No await, just fire and forget.
-                // TODO: In some extreme case where an episode has dozens of
-                // markers, it would be much more efficient to make this a transaction
-                // instead of individual queries.
-                QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
-            }
-        }
-
-        const newMarker = new MarkerData(currentMarker);
-        const oldStart = newMarker.start;
-        const oldEnd = newMarker.end;
-        newMarker.start = startMs;
-        newMarker.end = endMs;
-        await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
-        return jsonSuccess(res, newMarker);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
     }
+
+    const newMarker = new MarkerData(currentMarker);
+    const oldStart = newMarker.start;
+    const oldEnd = newMarker.end;
+    newMarker.start = startMs;
+    newMarker.end = endMs;
+    await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
+    return Promise.resolve(newMarker);
 }
 
 /**
@@ -635,148 +569,129 @@ async function editMarker(markerId, startMs, endMs, userCreated, res) {
  * @param {number} metadataId The metadata id of the episode to add a marker to.
  * @param {number} startMs The start time of the marker, in milliseconds.
  * @param {number} endMs The end time of the marker, in milliseconds.
- * @param {Http.ServerResponse} res
- */
-async function addMarker(metadataId, startMs, endMs, res) {
+ * @param {ServerResponse} res
+ * @throws {ServerError} */
+async function addMarker(metadataId, startMs, endMs) {
+    checkMarkerBounds(startMs, endMs);
+
+    const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
+    const allMarkers = addResult.allMarkers;
+    const newMarker = addResult.newMarker;
+    const markerData = new MarkerData(newMarker);
+    updateMarkerBreakdownCache(markerData, allMarkers.length - 1, 1 /*delta*/);
+    MarkerCache?.addMarkerToCache(newMarker);
+    await BackupManager?.recordAdd(markerData);
+    return Promise.resolve(markerData);
+}
+
+/**
+ * Checks whether the given startMs-endMs bounds are valid, throwing
+ * a ServerError on failure.
+ * @param {number} startMs
+ * @param {number} endMs
+ * @throws {ServerError} */
+function checkMarkerBounds(startMs, endMs) {
     if (startMs >= endMs) {
-        return jsonError(res, 400, "Start time must be less than end time.");
+        throw new ServerError(`Start time (${startMs}) must be less than end time (${endMs}).`, 400);
     }
 
     if (startMs < 0) {
-        return jsonError(res, 400, "Start time cannot be negative.");
-    }
-
-    try {
-        const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
-        const allMarkers = addResult.allMarkers;
-        const newMarker = addResult.newMarker;
-        const markerData = new MarkerData(newMarker);
-        updateMarkerBreakdownCache(markerData, allMarkers.length - 1, 1 /*delta*/);
-        MarkerCache?.addMarkerToCache(newMarker);
-        await BackupManager?.recordAdd(markerData);
-        jsonSuccess(res, markerData);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
+        throw new ServerError(`Start time (${startMs}) cannot be negative.`, 400);
     }
 }
 
 /**
  * Removes the given marker from the database, rearranging indexes as necessary.
- * @param {number} markerId The marker id to remove from the database.
- * @param {Http.ServerResponse} res
- */
-async function deleteMarker(markerId, res) {
-    try {
-        const markerToDelete = await QueryManager.getSingleMarker(markerId);
-        if (!markerToDelete) {
-            return jsonError(res, 400, "Could not find intro marker");
-        }
-
-        const allMarkers = await QueryManager.getEpisodeMarkers(markerToDelete.episode_id);
-        let deleteIndex = 0;
-        for (const marker of allMarkers) {
-            if (marker.id == markerId) {
-                deleteIndex = marker.index;
-            }
-        }
-
-        // Now that we're done rearranging, delete the original tag.
-        await QueryManager.deleteMarker(markerId);
-
-        // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
-        if (deleteIndex < allMarkers.length - 1) {
-
-            // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
-            for (const marker of allMarkers) {
-                if (marker.index > deleteIndex) {
-                    QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
-                }
-            }
-        }
-
-        const deletedMarker = new MarkerData(markerToDelete);
-        MarkerCache?.removeMarkerFromCache(markerId);
-        updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
-        await BackupManager?.recordDelete(deletedMarker);
-        jsonSuccess(res, deletedMarker);
-    } catch (err) {
-        jsonError(res, err.code, `Failed to get marker to delete: ${err.message}`);
+ * @param {number} markerId The marker id to remove from the database. */
+async function deleteMarker(markerId) {
+    const markerToDelete = await QueryManager.getSingleMarker(markerId);
+    if (!markerToDelete) {
+        throw new ServerError("Could not find intro marker", 400);
     }
+
+    const allMarkers = await QueryManager.getEpisodeMarkers(markerToDelete.episode_id);
+    let deleteIndex = 0;
+    for (const marker of allMarkers) {
+        if (marker.id == markerId) {
+            deleteIndex = marker.index;
+        }
+    }
+
+    // Now that we're done rearranging, delete the original tag.
+    await QueryManager.deleteMarker(markerId);
+
+    // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
+    if (deleteIndex < allMarkers.length - 1) {
+
+        // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
+        for (const marker of allMarkers) {
+            if (marker.index > deleteIndex) {
+                QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
+            }
+        }
+    }
+
+    const deletedMarker = new MarkerData(markerToDelete);
+    MarkerCache?.removeMarkerFromCache(markerId);
+    updateMarkerBreakdownCache(deletedMarker, allMarkers.length, -1 /*delta*/);
+    await BackupManager?.recordDelete(deletedMarker);
+    return Promise.resolve(deletedMarker);
 }
 
 /**
- * Retrieve all TV libraries found in the database.
- * @param {Http.ServerResponse} res
- */
-async function getLibraries(res) {
-    try {
-        const rows = await QueryManager.getShowLibraries();
-        let libraries = [];
-        for (const row of rows) {
-            libraries.push({ id : row.id, name : row.name });
-        }
-
-        jsonSuccess(res, libraries);
-    } catch (err) {
-        jsonError(res, 400, `Could not retrieve library sections: ${err.message}`);
+ * Retrieve all TV libraries found in the database. */
+async function getLibraries() {
+    const rows = await QueryManager.getShowLibraries();
+    let libraries = [];
+    for (const row of rows) {
+        libraries.push({ id : row.id, name : row.name });
     }
+
+    return Promise.resolve(libraries);
 }
 
 /**
  * Retrieve all shows from the given library section.
- * @param {number} sectionId The section id of the library.
- * @param {Http.ServerResponse} res
- */
-async function getShows(sectionId, res) {
-    try {
-        const rows = await QueryManager.getShows(sectionId);
-        let shows = [];
-        for (const show of rows) {
-            show.markerBreakdown = MarkerCache?.getShowStats(show.id);
-            shows.push(new ShowData(show));
-        }
-
-        jsonSuccess(res, shows);
-    } catch (err) {
-        jsonError(res, err.code, `Could not retrieve shows from the database: ${err.message}`);
+ * @param {number} sectionId The section id of the library. */
+async function getShows(sectionId) {
+    const rows = await QueryManager.getShows(sectionId);
+    let shows = [];
+    for (const show of rows) {
+        show.markerBreakdown = MarkerCache?.getShowStats(show.id);
+        shows.push(new ShowData(show));
     }
+
+    return Promise.resolve(shows);
 }
 
 /**
  * Retrieve all seasons for the show specified by the given metadataId.
  * @param {number} metadataId The metadata id of the a series.
- * @param {Http.ServerResponse} res
- */
-async function getSeasons(metadataId, res) {
-    try {
-        const rows = await QueryManager.getSeasons(metadataId);
-    
-        let seasons = [];
-        for (const season of rows) {
-            season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
-            seasons.push(new SeasonData(season));
-        }
+ * @param {ServerResponse} res */
+async function getSeasons(metadataId) {
+    const rows = await QueryManager.getSeasons(metadataId);
 
-        jsonSuccess(res, seasons);
-    } catch (err) {
-        jsonError(res, err.code, `Could not retrieve seasons from the database ${err.message}`);
+    let seasons = [];
+    for (const season of rows) {
+        season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
+        seasons.push(new SeasonData(season));
     }
+
+    return Promise.resolve(seasons);
 }
 
 /**
  * Retrieve all episodes for the season specified by the given metadataId.
- * @param {number} metadataId The metadata id for the season of a show.
- * @param {Http.ServerResponse} res
- */
-async function getEpisodes(metadataId, res) {
-    try {
-        const rows = await QueryManager.getEpisodes(metadataId);
-    
-        // There's definitely a better way to do this, but determining whether an episode
-        // has thumbnails attached is asynchronous, so keep track of how many results have
-        // come in, and only return once we've processed all rows.
-        let waitingFor = rows.length;
-        let episodes = [];
+ * @param {number} metadataId The metadata id for the season of a show. */
+async function getEpisodes(metadataId) {
+    const rows = await QueryManager.getEpisodes(metadataId);
+
+    // There's definitely a better way to do this, but determining whether an episode
+    // has thumbnails attached is asynchronous, so keep track of how many results have
+    // come in, and only return once we've processed all rows.
+    let waitingFor = rows.length;
+    let episodes = [];
+    return new Promise((resolve, _) => {
         rows.forEach((episode, index) => {
             const metadataId = episode.id;
             episodes.push(new EpisodeData(episode));
@@ -786,26 +701,23 @@ async function getEpisodes(metadataId, res) {
                     episodes[index].hasThumbnails = hasThumbs;
                     --waitingFor;
                     if (waitingFor == 0) {
-                        return jsonSuccess(res, episodes);
+                        resolve(episodes);
                     }
                 }).catch(() => {
                     --waitingFor;
+                    episodes[index].hasThumbnails = false;
                     if (waitingFor == 0) {
                         // We failed, but for auxillary thumbnails, so nothing to completely fail over.
-                        return jsonSuccess(res, episodes);
+                        resolve(episodes);
                     }
-                    episodes[index].hasThumbnails = false;
                 });
             }
         });
     
         if (!Config.useThumbnails()) {
-            return jsonSuccess(res, episodes);
+            resolve(episodes);
         }
-    } catch (err) {
-        jsonError(res, err.code, `Could not retrieve episodes from the database: ${err.message}`);
-    }
-
+    });
 }
 
 /**
@@ -817,10 +729,8 @@ let markerBreakdownCache = {};
 /**
  * Gather marker information for all episodes in the given library,
  * returning the number of episodes that have X markers associated with it.
- * @param {number} sectionId The library section id to parse.
- * @param {Http.ServerResponse} res
- */
-async function allStats(sectionId, res) {
+ * @param {number} sectionId The library section id to parse. */
+async function allStats(sectionId) {
     // If we have global marker data, forego the specialized markerBreakdownCache
     // and build the statistics using the cache manager.
     if (Config.extendedMarkerStats()) {
@@ -828,7 +738,7 @@ async function allStats(sectionId, res) {
 
         const buckets = MarkerCache.getSectionOverview(sectionId);
         if (buckets) {
-            return jsonSuccess(res, buckets);
+            return Promise.resolve(buckets);
         }
 
         // Something went wrong with our global cache. Fall back to markerBreakdownCache.
@@ -836,46 +746,41 @@ async function allStats(sectionId, res) {
 
     if (markerBreakdownCache[sectionId]) {
         Log.verbose('Found cached data, returning it');
-        return jsonSuccess(res, markerBreakdownCache[sectionId]);
+        return Promise.resolve(markerBreakdownCache[sectionId]);
     }
 
-    try {
-        const rows = await QueryManager.markerStatsForSection(sectionId);
+    const rows = await QueryManager.markerStatsForSection(sectionId);
 
-        let buckets = {};
-        Log.verbose(`Parsing ${rows.length} tags`);
-        let idCur = -1;
-        let countCur = 0;
-        for (const row of rows) {
-            if (row.episode_id == idCur) {
-                if (row.tag_id == QueryManager.markerTagId()) {
-                    ++countCur;
-                }
-            } else {
-                if (!buckets[countCur]) {
-                    buckets[countCur] = 0;
-                }
-
-                ++buckets[countCur];
-                idCur = row.episode_id;
-                countCur = row.tag_id == QueryManager.markerTagId() ? 1 : 0;
+    let buckets = {};
+    Log.verbose(`Parsing ${rows.length} tags`);
+    let idCur = -1;
+    let countCur = 0;
+    for (const row of rows) {
+        if (row.episode_id == idCur) {
+            if (row.tag_id == QueryManager.markerTagId()) {
+                ++countCur;
             }
-        }
+        } else {
+            if (!buckets[countCur]) {
+                buckets[countCur] = 0;
+            }
 
-        ++buckets[countCur];
-        markerBreakdownCache[sectionId] = buckets;
-        jsonSuccess(res, buckets);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
+            ++buckets[countCur];
+            idCur = row.episode_id;
+            countCur = row.tag_id == QueryManager.markerTagId() ? 1 : 0;
+        }
     }
+
+    ++buckets[countCur];
+    markerBreakdownCache[sectionId] = buckets;
+    return Promise.resolve(buckets);
 }
 
 /**
  * Ensure our marker bucketing stays up to date after the user adds or deletes markers.
  * @param {MarkerData} marker The marker that changed.
  * @param {number} oldMarkerCount The old marker count bucket.
- * @param {number} delta The change from the old marker count, -1 for marker removals, 1 for additions.
- */
+ * @param {number} delta The change from the old marker count, -1 for marker removals, 1 for additions. */
 function updateMarkerBreakdownCache(marker, oldMarkerCount, delta) {
     const section = marker.sectionId;
     if (!markerBreakdownCache[section]) {
@@ -900,10 +805,10 @@ function updateMarkerBreakdownCache(marker, oldMarkerCount, delta) {
 /**
  * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds
  * @param {string} url The url specifying the thumbnail to retrieve.
- * @param {Http.ServerResponse} res
+ * @param {ServerResponse} res
  */
 function getThumbnail(url, res) {
-    /** @param {Http.ServerResponse} res */
+    /** @param {ServerResponse} res */
     const badRequest = (res) => { res.statusCode = 400; res.end(); };
 
     if (!Config.useThumbnails()) {
@@ -936,10 +841,9 @@ function getThumbnail(url, res) {
 
 /**
  * Retrieve a subset of the app configuration that the frontend needs access to.
- * @param {Http.ServerResponse} res
- */
-function getConfig(res) {
-    jsonSuccess(res, {
+ * This is only async to conform with the command handler signature. */
+async function getConfig() {
+    return Promise.resolve({
         useThumbnails : Config.useThumbnails(),
         extendedMarkerStats : Config.extendedMarkerStats(),
         backupActions : Config.backupActions()
@@ -950,14 +854,13 @@ function getConfig(res) {
  * Set the server log properties, inherited from the client.
  * @param {number} newLevel The new log level.
  * @param {number} darkConsole Whether to adjust log colors for a dark background.
- * @param {number} traceLogging Whether to also print a stack trace for each log entry.
- * @param {Http.ServerResponse} res */
-function setLogSettings(newLevel, darkConsole, traceLogging, res) {
+ * @param {number} traceLogging Whether to also print a stack trace for each log entry.*/
+async function setLogSettings(newLevel, darkConsole, traceLogging) {
     const logLevelString = Object.keys(ConsoleLog.Level).find(l => ConsoleLog.Level[l] == newLevel);
     if (logLevelString === undefined) {
         Log.warn(newLevel, 'Attempting to set an invalid log level, ignoring');
         // If the level is invalid, don't adjust anything else either.
-        return jsonError(res, 400, 'Invalid Log Level');
+        throw new ServerError(`Invalid Log level: ${newLevel}`, 400);
     }
 
     if (newLevel != Log.getLevel() || darkConsole != Log.getDarkConsole() || traceLogging != Log.getTrace()) {
@@ -970,109 +873,90 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
         Log.setTrace(traceLogging);
     }
 
-    return jsonSuccess(res);
+    return Promise.resolve();
 }
 
 
 /**
  * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
- * @param {number} metadataId The episode/season/show id
- * @param {Http.ServerResponse} res */
- async function purgeCheck(metadataId, res) {
-    if (!BackupManager || !Config.backupActions()) {
-        return jsonError(res, 400, 'Feature not enabled');
-    }
+ * @param {number} metadataId The episode/season/show id*/
+ async function purgeCheck(metadataId) {
+    checkBackupManagerEnabled();
 
-    try {
-        const markers = await BackupManager.checkForPurges(metadataId);
-        Log.info(markers, `Found ${markers.length} missing markers:`);
-        jsonSuccess(res, markers);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
-    }
+    const markers = await BackupManager.checkForPurges(metadataId);
+    Log.info(markers, `Found ${markers.length} missing markers:`);
+    return Promise.resolve(markers);
 }
 
 /**
  * Find all purged markers for the given library section.
- * @param {number} sectionId The library section
- * @param {Http.ServerResponse} res */
-async function allPurges(sectionId, res) {
-    if (!BackupManager || !Config.backupActions()) {
-        return jsonError(res, 400, 'Feature not enabled');
-    }
+ * @param {number} sectionId The library section */
+async function allPurges(sectionId) {
+    checkBackupManagerEnabled();
 
-    try {
-        const purges = await BackupManager.purgesForSection(sectionId);
-        jsonSuccess(res, purges);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
-    }
+    const purges = await BackupManager.purgesForSection(sectionId);
+    return Promise.resolve(purges);
 }
 
 /**
  * Attempts to restore the last known state of the markers with the given ids.
  * @param {number[]} oldMarkerIds
- * @param {number} sectionId
- * @param {Http.ServerResponse} res */
-async function restoreMarkers(oldMarkerIds, sectionId, res) {
-    if (!BackupManager || !Config.backupActions()) {
-        return jsonError(res, 400, 'Feature not enabled');
+ * @param {number} sectionId */
+async function restoreMarkers(oldMarkerIds, sectionId) {
+    checkBackupManagerEnabled();
+
+    const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
+    const restoredMarkers = restoredMarkerData.restoredMarkers;
+    const existingMarkers = restoredMarkerData.existingMarkers;
+
+    if (restoredMarkers.length == 0) {
+        Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
     }
 
-    try {
-        const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
-        const restoredMarkers = restoredMarkerData.restoredMarkers;
-        const existingMarkers = restoredMarkerData.existingMarkers;
-    
-        if (restoredMarkers.length == 0) {
-            Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
-        }
-    
-        let markerData = [];
-        Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
-        for (const restoredMarker of restoredMarkers) {
-            MarkerCache?.addMarkerToCache(restoredMarker);
-            markerData.push(new MarkerData(restoredMarker));
-        }
-    
-        let existingMarkerData = [];
-        for (const existingMarker of existingMarkers) {
-            existingMarkerData.push(new MarkerData(existingMarker));
-        }
-    
-        jsonSuccess(res, { newMarkers : markerData, existingMarkers : existingMarkerData });
-    } catch (err) {
-        jsonError(res, err.code, err.message);
+    let markerData = [];
+    Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
+    for (const restoredMarker of restoredMarkers) {
+        MarkerCache?.addMarkerToCache(restoredMarker);
+        markerData.push(new MarkerData(restoredMarker));
     }
+
+    let existingMarkerData = [];
+    for (const existingMarker of existingMarkers) {
+        existingMarkerData.push(new MarkerData(existingMarker));
+    }
+
+    return Promise.resolve({ newMarkers : markerData, existingMarkers : existingMarkerData });
 }
 
 /**
  * Ignores the purged markers with the given ids, preventing the user from seeing them again.
  * @param {number[]} oldMarkerIds
- * @param {number} sectionId
- * @param {Http.ServerResponse} res */
-async function ignorePurgedMarkers(oldMarkerIds, sectionId, res) {
-    if (!BackupManager || !Config.backupActions()) {
-        return jsonError(res, 400, 'Feature not enabled');
-    }
+ * @param {number} sectionId */
+async function ignorePurgedMarkers(oldMarkerIds, sectionId) {
+    checkBackupManagerEnabled();
 
-    try {
-        await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
-        jsonSuccess(res);
-    } catch (err) {
-        jsonError(res, err.code, err.message);
+    await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
+    return Promise.resolve();
+}
+
+/**
+ * Throw a ServerError if the backup manager is not enabled. */
+function checkBackupManagerEnabled() {
+    if (!BackupManager || !Config.backupActions()) {
+        throw new ServerError('Action is not enabled due to configuration settings.', 400);
     }
 }
 
 /**
  * Retrieve the marker breakdown (X episodes have Y markers) for a single show,
  * optionally with breakdowns for each season attached.
+ * Only async to conform to command method signature.
  * @param {number} showId The metadata id of the show to grab the breakdown for.
  * @param {number} includeSeasons 1 to include season data, 0 to leave it out.
- * @param {Http.ServerResponse} res */
-function getShowMarkerBreakdownTree(showId, includeSeasons, res) {
+ * @param {ServerResponse} res */
+async function getShowMarkerBreakdownTree(showId, includeSeasons, res) {
     if (!MarkerCache) {
-        return jsonError(res, 400, `We shouldn't be calling get_breakdown when extended marker stats are disabled.`);
+        throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
     }
 
     includeSeasons = includeSeasons != 0;
@@ -1085,10 +969,10 @@ function getShowMarkerBreakdownTree(showId, includeSeasons, res) {
     }
 
     if (!data) {
-        return jsonError(res, 400, `No marker data found for showId ${showId}.`);
+        throw new ServerError(`No marker data found for showId ${showId}.`, 400);
     }
 
-    return jsonSuccess(res, data);
+    return Promise.resolve(data);
 }
 
 

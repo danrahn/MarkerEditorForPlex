@@ -1,17 +1,18 @@
 import { parse } from 'url';
+import ServerError from './ServerError.js';
 
 /**
  * Identical to a regular Error. Used to differentiate between "user bad"
  * exceptions (HTTP 4XX) and unexpected internal errors (HTTP 5XX).
  */
-class QueryParameterException extends Error {
+class QueryParameterException extends ServerError {
     constructor(message) {
-        super(message);
+        super(message, 400);
     }
 }
 
 /*Small helper class to handle query parameters. */
-class QueryParameterParser {
+class QueryParser {
     constructor(request) {
         /** @type {ParsedUrlQuery} */
         this.params = parse(request.url, true /*parseQueryString*/).query;
@@ -47,15 +48,12 @@ class QueryParameterParser {
     }
 
     /**
-     * @param {string} key The string query parameter to parse.
-     * @param {Function.<string>} func The function to apply to `key`.
-     * @returns The result of applying the given `func` to `key`.
-     * @throws {QueryParameterException} if `key` does not exist or cannot be handled by `func`.
-     */
-    custom(key, func) {
+     * Parses the comma separated integer values in the given key, returning an array of those values.
+     * @param {string} key */
+    ia(key) {
         const value = this.raw(key);
         try {
-            return func(value);
+            return value.split(',').map(numStr => parseInt(numStr));
         } catch (e) {
             throw new QueryParameterException(`Invalid value provided for ${key}`);
         }
@@ -75,4 +73,4 @@ class QueryParameterParser {
     }
 }
 
-export { QueryParameterParser as QueryParser, QueryParameterException as QueryParserException };
+export default QueryParser;
