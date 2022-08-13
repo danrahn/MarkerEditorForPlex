@@ -1,7 +1,5 @@
 /** External dependencies */
-import { promises as Fs } from 'fs';
 import { createServer, IncomingMessage, Server as httpServer, ServerResponse } from 'http';
-import { contentType, lookup } from 'mime-types';
 import Open from 'open';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -16,9 +14,10 @@ import ThumbnailManager from './ThumbnailManager.js';
 
 /** Server+Client shared dependencies */
 import { Log } from './../Shared/ConsoleLog.js';
-import { sendCompressedData, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 import ServerCommands from './ServerCommands.js';
+import GETHandler from './GETHandler.js';
 
 /**
  * HTTP server instance.
@@ -56,6 +55,8 @@ let BackupManager;
 
 /** @type {ServerCommands} */
 let Commands;
+/** @type {GETHandler} */
+let GetHandler;
 
 /**
  * Set of possible server states. */
@@ -116,6 +117,7 @@ async function run() {
     }
 
     Commands = new ServerCommands(Config, QueryManager, MarkerCache, BackupManager, Thumbnails);
+    GetHandler = new GETHandler(ProjectRoot, Config, Thumbnails);
 
     Log.info('Creating server...');
     launchServer();
@@ -195,6 +197,7 @@ function handleClose(signal, restart=false) {
 function cleanupForShutdown() {
     Commands?.clear();
     Commands = null;
+    GetHandler = null;
     QueryManager?.close();
     QueryManager = null;
     BackupManager?.close();
@@ -335,7 +338,7 @@ function serverMain(req, res) {
         // Only serve static resources via GET, and only accept queries for JSON via POST.
         switch (method) {
             case 'get':
-                return handleGet(req, res);
+                return GetHandler.handleRequest(req, res);
             case 'post':
                 return handlePost(req, res);
             default:
@@ -345,85 +348,6 @@ function serverMain(req, res) {
         e.message = `Exception thrown for ${req.url}: ${e.message}`;
         sendJsonError(res, e, e.code || 500);
     }
-}
-
-/**
- * Handle GET requests, used to serve static content like HTML/CSS/SVG.
- * @param {IncomingMessage} req
- * @param {ServerResponse} res
- */
-function handleGet(req, res) {
-    let url = req.url;
-    if (url == '/') {
-        url = '/index.html';
-    }
-
-    if (url.startsWith('/i/')) {
-        return getSvgIcon(url, res);
-    } else if (url.startsWith('/t/')) {
-        if (CurrentState == ServerState.Suspended) {
-            // We're disconnected from the backing data, can't return anything.
-            res.statusCode = 400;
-            res.end(`Server is suspended, can't retrieve thumbnail.`);
-            return;
-        }
-
-        return getThumbnail(url, res);
-    }
-
-    let mimetype = contentType(lookup(url));
-    if (!mimetype) {
-        res.statusCode = 404;
-        res.end('Bad MIME type!');
-        return;
-    }
-
-    Fs.readFile(ProjectRoot + url).then(contents => {
-        sendCompressedData(res, 200, contents, mimetype);
-    }).catch(err => {
-        Log.warn(`Unable to serve ${url}: ${err.message}`);
-        res.statusCode = 404;
-        res.end('Not Found: ' + err.code);
-    });
-}
-
-/**
- * Retrieve an SVG icon requested with the given color.
- * @param {string} url The svg url of the form /i/[hex color]/[icon].svg.
- * @param {ServerResponse} res
- */
-function getSvgIcon(url, res) {
-    let parts = url.split('/');
-    if (parts.length !== 4) {
-        return sendJsonError(res, new ServerError('Invalid icon request.', 400));
-    }
-
-    const color = parts[2];
-    const icon = parts[3];
-
-    // Expecting a 3 or 6 character hex string
-    if (!/^[a-fA-F0-9]{3}$/.test(color) && !/^[a-fA-F0-9]{6}$/.test(color)) {
-        return sendJsonError(res, new ServerError(`Invalid icon color: "${color}"`, 400));
-    }
-
-    Fs.readFile(ProjectRoot + '/SVG/' + icon).then(contents => {
-        // Raw file has FILL_COLOR in place of hardcoded values. Replace
-        // it with the requested hex color (after decoding the contents)
-        if (Buffer.isBuffer(contents)) {
-            contents = contents.toString('utf-8');
-        }
-
-        // Could send this back compressed, but most of these are so small
-        // that it doesn't make a tangible difference.
-        contents = contents.replace(/FILL_COLOR/g, `#${color}`);
-        res.setHeader('Content-Type', contentType('image/svg+xml'));
-        res.setHeader('x-content-type-options', 'nosniff');
-        res.end(Buffer.from(contents, 'utf-8'));
-    }).catch(err => {
-        Log.error(err, 'Failed to read icon');
-        res.statusCode = 404;
-        res.end('Not Found: ' + err.code);
-    })
 }
 
 /**
@@ -461,44 +385,6 @@ async function handlePost(req, res) {
         err.message = `${req.url} failed: ${err.message}`;
         sendJsonError(res, err, err.code || 500);
     }
-}
-
-
-/**
- * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds
- * @param {string} url The url specifying the thumbnail to retrieve.
- * @param {ServerResponse} res
- */
-function getThumbnail(url, res) {
-    /** @param {ServerResponse} res */
-    const badRequest = (res) => { res.statusCode = 400; res.end(); };
-
-    if (!Config.useThumbnails()) {
-        return badRequest(res);
-    }
-
-    const split = url.split('/');
-    if (split.length != 4) {
-        return badRequest(res);
-    }
-
-    const metadataId = parseInt(split[2]);
-    const timestamp = parseInt(split[3]);
-    if (isNaN(metadataId) || isNaN(timestamp)) {
-        return badRequest(res);
-    }
-
-    Thumbnails.getThumbnail(metadataId, timestamp).then(data => {
-        res.writeHead(200, {
-            'Content-Type' : 'image/jpeg',
-            'Content-Length' : data.length,
-            'x-content-type-options' : 'nosniff'
-        });
-        res.end(data);
-    }).catch((err) => {
-        Log.error(err, 'Failed to retrieve thumbnail');
-        res.statusCode = 500, res.end();
-    });
 }
 
 /**
