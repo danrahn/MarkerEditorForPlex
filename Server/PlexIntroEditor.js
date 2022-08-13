@@ -18,6 +18,7 @@ import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 import ServerCommands from './ServerCommands.js';
 import GETHandler from './GETHandler.js';
+import ServerState from './ServerState.js';
 
 /**
  * HTTP server instance.
@@ -57,21 +58,6 @@ let BackupManager;
 let Commands;
 /** @type {GETHandler} */
 let GetHandler;
-
-/**
- * Set of possible server states. */
-const ServerState = {
-    /** Server is booting up. */
-    FirstBoot : 0,
-    /** Server is booting up after a restart. */
-    ReInit : 1,
-    /** Server is running normally. */
-    Running : 2,
-    /** Server is in a suspended state. */
-    Suspended : 3,
-    /** The server is in the process of shutting down. Either permanently or during a restart. */
-    ShuttingDown : 4,
-}
 
 /**
  * Indicates whether we're in the middle of shutting down the server, and
@@ -120,10 +106,10 @@ async function run() {
     GetHandler = new GETHandler(ProjectRoot, Config, Thumbnails);
 
     Log.info('Creating server...');
-    launchServer();
+    return launchServer();
 }
 
-export { run, ServerState, getState };
+export { run, getState };
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
@@ -269,22 +255,25 @@ function userResume(res) {
 }
 
 /** Creates the server. Called after verifying the config file and database. */
-function launchServer() {
+async function launchServer() {
     if (!shouldCreateServer()) {
         return;
     }
 
     Server = createServer(serverMain);
 
-    Server.listen(Config.port(), Config.host(), () => {
-        const url = `http://${Config.host()}:${Config.port()}`;
-        Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-        if (Config.autoOpen() && CurrentState == ServerState.FirstBoot) {
-            Log.info('Launching browser...');
-            Open(url);
-        }
-
-        CurrentState = ServerState.Running;
+    return new Promise((resolve, _) => {
+        Server.listen(Config.port(), Config.host(), () => {
+            const url = `http://${Config.host()}:${Config.port()}`;
+            Log.info(`Server running at ${url} (Ctrl+C to exit)`);
+            if (Config.autoOpen() && CurrentState == ServerState.FirstBoot) {
+                Log.info('Launching browser...');
+                Open(url);
+            }
+    
+            CurrentState = ServerState.Running;
+            resolve();
+        });
     });
 }
 

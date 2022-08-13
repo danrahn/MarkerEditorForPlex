@@ -5,9 +5,10 @@ import { join } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { getState, ServerState } from './PlexIntroEditor.js';
+import { getState } from './PlexIntroEditor.js';
 import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
 import { sendCompressedData } from './ServerHelpers.js';
+import ServerState from './ServerState.js';
 import ThumbnailManager from './ThumbnailManager.js';
 
 class GETHandler {

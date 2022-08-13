@@ -12,9 +12,10 @@ import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 
 // Server/test dependencies/typedefs
 import TestHelpers from "./TestHelpers.js";
-import { run as mainRun, ServerState, getState } from "../Server/PlexIntroEditor.js";
+import { run as mainRun, getState } from "../Server/PlexIntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
+import ServerState from '../Server/ServerState.js';
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -127,31 +128,10 @@ class TestBase {
      * configuration, which will pass in the right command line arguments to mainRun. */
     async startService() {
         if (getState() == ServerState.FirstBoot) {
-            mainRun();
-        } else {
-            this.resume();
+            return mainRun();
         }
 
-        // This is terrible and should change, but it's midnight and I want to get a proof-of-concept up and running.
-        // A callback registration system would probably be better.
-        return new Promise(function(resolve, reject) {
-            let interval = setInterval(function() {
-                if (getState() == ServerState.Running) {
-                    TestLog.tmi(`Server started, running tests...`);
-                    clearInterval(interval);
-                    interval = -1;
-                    resolve();
-                }
-            }, 50);
-
-            setTimeout(function() {
-                if (interval != -1) {
-                    clearInterval(interval);
-                    TestLog.error(`Server did not start within 5 seconds, that shouldn't happen!`);
-                    reject();
-                }
-            }, 5000);
-        });
+        return this.resume();
     }
 
     /**
@@ -224,14 +204,9 @@ class TestBase {
             return Promise.resolve();
         }
 
-        return new Promise(function(resolve, _) {
-            this.send('resume').then(_ => {
-                TestLog.tmi('Resuming server');
-                resolve();
-            }).catch(err => {
-                TestLog.error(err, 'Failed to resume server after suspension, force stopping tests');
-            });
-        }.bind(this));
+        await this.send('resume');
+        Log.tmi('Resuming server');
+        return Promise.resolve();
     }
 
     /**

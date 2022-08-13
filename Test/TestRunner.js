@@ -7,7 +7,8 @@ import BasicCRUD from './TestClasses/BasicCRUDTest.js';
 import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
 
 // Server/Shared dependencies
-import { getState, ServerState } from '../Server/PlexIntroEditor.js';
+import { getState } from '../Server/PlexIntroEditor.js';
+import ServerState from '../Server/ServerState.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
 
 // Separate log for testing, since we want to suppress

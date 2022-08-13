@@ -281,7 +281,7 @@ class MarkerBackupManager {
         Log.verbose('MarkerBackupManager: Shutting down backup database connection...');
         try {
             await this.#actions?.close();
-            Log.verbose('MarkerBackupManager: Shut down backup database connection.'); 
+            Log.verbose('MarkerBackupManager: Shut down backup database connection.');
         } catch (err) {
             Log.error('MarkerBackupManager: Backup marker database close failed', err.message);
         }
@@ -429,7 +429,7 @@ INSERT INTO actions
                 INSERT INTO actions
                 (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id) VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pv%3Aversion=5", ?, ?);\n`;
-        
+
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
             const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], restore.oldMarkerId];
@@ -535,7 +535,7 @@ ORDER BY id DESC;`
 
         /** @type {MarkerAction[]} */
         const actions = await this.#actions.all(query, parameters);
-        
+
         // If we need to update ids, hold off for now and rerun buildAllPurges once complete.
         if (await this.#verifySectionIds(actions)) {
             return this.buildAllPurges(cacheManager);
