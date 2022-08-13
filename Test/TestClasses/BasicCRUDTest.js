@@ -12,6 +12,8 @@ class BasicCRUD extends TestBase {
             this.testAddFlippedStartAndEnd,
             this.testNegativeStart,
             this.testEqualStartAndEnd,
+            this.testAddToSeason,
+            this.testAddToShow,
             this.testSingleEdit,
             this.testEditOfNonexistentMarker,
             this.testEditFlippedStartAndEnd,
@@ -82,6 +84,32 @@ class BasicCRUD extends TestBase {
         }, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response, 'add with equal startMs and endMs');
+    }
+
+    /**
+     * Ensure attempting to add a marker to a season fails. */
+    async testAddToSeason() {
+        return this.#addToWrongMetadataType(TestBase.DefaultMetadata.Show1.Season1.Id);
+    }
+
+    /**
+     * Ensure attempting to add a marker to a show fails. */
+    async testAddToShow() {
+        return this.#addToWrongMetadataType(TestBase.DefaultMetadata.Show1.Id);
+    }
+
+    /**
+     * Helper that tries to add a marker to an item with the given metadataId,
+     * which isn't an episode. */
+    async #addToWrongMetadataType(metadataId) {
+        this.expectFailure();
+        let response = await this.send('add', { 
+            metadataId : metadataId,
+            start : 0,
+            end : 10000
+        }, true /*raw*/);
+
+        return TestHelpers.verifyBadRequest(response);
     }
 
     /**

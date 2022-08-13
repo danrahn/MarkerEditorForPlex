@@ -379,41 +379,49 @@ ORDER BY e.\`index\` ASC;`;
      * @param {(allMarkers: RawMarkerData[], newMarker: RawMarkerData) => void} successCallback
      * @param {(userError: boolean, errorMessage: string) => void} failureCallback */
     addMarker(metadataId, startMs, endMs, successCallback, failureCallback) {
-        this.getEpisodeMarkers(metadataId, (err, allMarkers) => {
-            if (err) {
-                return failureCallback(false, err.message);
+        // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
+        this.#mediaTypeFromId(metadataId, (err, typeInfo) => {
+            if (err) { return failureCallback(false, err); }
+            if (typeInfo.metadata_type != 4) {
+                return failureCallback(true, `Attempting to add marker to a media item that's not an episode!`);
             }
 
-            const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
-            if (newIndex == -1) {
-                return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
-            }
-
-            const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-            const addQuery =
-                'INSERT INTO taggings ' +
-                    '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-                'VALUES ' +
-                    '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
-            const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
-            this.#database.run(addQuery, parameters, (err) => {
+            this.getEpisodeMarkers(metadataId, (err, allMarkers) => {
                 if (err) {
                     return failureCallback(false, err.message);
                 }
-
-                // Insert succeeded, update indexes of other markers if necessary
-                for (const marker of allMarkers) {
-                    if (marker.index != marker.newIndex) {
-                        this.updateMarkerIndex(marker.id, marker.newIndex);
-                    }
+    
+                const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
+                if (newIndex == -1) {
+                    return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
                 }
-
-                this.getNewMarker(metadataId, startMs, endMs, (err, newMarker) => {
+    
+                const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+                const addQuery =
+                    'INSERT INTO taggings ' +
+                        '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+                    'VALUES ' +
+                        '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
+                const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+                this.#database.run(addQuery, parameters, (err) => {
                     if (err) {
-                        return failureCallback(false, 'Unable to retrieve newly added marker.');
+                        return failureCallback(false, err.message);
                     }
-
-                    successCallback(allMarkers, newMarker);
+    
+                    // Insert succeeded, update indexes of other markers if necessary
+                    for (const marker of allMarkers) {
+                        if (marker.index != marker.newIndex) {
+                            this.updateMarkerIndex(marker.id, marker.newIndex);
+                        }
+                    }
+    
+                    this.getNewMarker(metadataId, startMs, endMs, (err, newMarker) => {
+                        if (err) {
+                            return failureCallback(false, 'Unable to retrieve newly added marker.');
+                        }
+    
+                        successCallback(allMarkers, newMarker);
+                    });
                 });
             });
         });
