@@ -317,7 +317,7 @@ class MarkerData extends PlexData {
      * The Plex metadata id of the season this marker is attached to.
      * @type {number} */
     seasonId;
-    
+
     /**
      * The Plex metadata id of the show this marker is attached to.
      * @type {number} */

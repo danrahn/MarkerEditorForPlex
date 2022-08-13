@@ -160,7 +160,7 @@ class MarkerEdit {
             Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.<br><br>
             Server response:<br>${errorMessage(response)}`, 'OK');
         }
-    
+
         jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, this.onMarkerAddSuccess.bind(this), failureFunc);
     }
 
@@ -222,8 +222,8 @@ class MarkerEdit {
 
     /**
      * Processes input to the 'End time' input field, entering the end of the episode on Ctrl+Shift+E
-     * @this {MarkerEdit} 
-     * @param {HTMLInputElement} input 
+     * @this {MarkerEdit}
+     * @param {HTMLInputElement} input
      * @param {KeyboardEvent} e */
     #onEndTimeInput(input, e) {
         if (!e.shiftKey || !e.ctrlKey || e.key != 'E') {
@@ -243,13 +243,13 @@ class MarkerEdit {
         if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
             return parseInt(value);
         }
-    
+
         // I'm sure this can be improved on.
         let result = /^(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
         if (!result) {
             return NaN;
         }
-    
+
         if (result[4]) {
             ms = parseInt(result[4]);
             switch (result[4].length) {
@@ -263,26 +263,26 @@ class MarkerEdit {
                     break;
             }
         }
-    
+
         if (result[3]) {
             ms += parseInt(result[3]) * 1000;
         }
-    
+
         if (result[2]) {
             ms += parseInt(result[2]) * 60 * 1000;
         }
-    
+
         // Because the above regex isn't great, if we have mm:ss.000, result[1]
         // will be populated but result[2] won't. This catches that and adds
         // result[1] as minutes instead of as hours like we do below.
         if (result[1] && !result[2]) {
             ms += parseInt(result[1]) * 60 * 1000;
         }
-    
+
         if (result[1] && result[2]) {
             ms += parseInt(result[1]) * 60 * 60 * 1000;
         }
-    
+
         return ms;
     }
 }
@@ -444,7 +444,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             img.classList.add('visibleThumb');
         }
     }
-    
+
     /**
      * Callback when the 'Show/Hide Thumbs' button is clicked. Adjusts the button text
      * and begin the height transitions for the thumbnails themselves. */

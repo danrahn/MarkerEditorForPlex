@@ -261,7 +261,7 @@ input:focus-visible {
   opacity: 0.8;
   cursor: pointer;
 }
-  
+
 #helpBtn:hover {
   opacity: 1;
 }

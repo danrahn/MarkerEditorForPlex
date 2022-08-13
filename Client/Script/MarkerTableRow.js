@@ -110,7 +110,7 @@ class ExistingMarkerRow extends MarkerRow {
         const td = (data, properties={}) => {
             return buildNode('td', properties, data);
         };
-        
+
         const tableData = this.#tableData(true);
         appendChildren(tr,
             td(tableData[0], { class : 'topAlignedPlainText' }),
@@ -158,13 +158,13 @@ class ExistingMarkerRow extends MarkerRow {
         let container = buildNode('div', { class : 'overlayDiv' });
         let header = buildNode('h2', {}, 'Are you sure?');
         let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this intro marker?');
-    
+
         let okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
         let okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
-    
+
         let cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
         let cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
-    
+
         let outerButtonContainer = buildNode("div", { class : "formInput", style : "text-align: center" });
         let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });
         outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
@@ -177,12 +177,12 @@ class ExistingMarkerRow extends MarkerRow {
         let failureFunc = (response) => {
             Overlay.show(`Failed to delete marker:<br><br>${errorMessage(response)}`, 'OK');
         }
-    
+
         let thisButton = $('#overlayDeleteMarker');
         if (thisButton) {
             thisButton.value = 'Deleting...';
         }
-    
+
         jsonRequest('delete', { id : this.markerId() }, this.#onMarkerDeleteSuccess.bind(this), failureFunc);
     }
 

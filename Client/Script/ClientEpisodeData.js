@@ -6,7 +6,7 @@ import { EpisodeResultRow } from "./ResultRow.js";
  * An extension of the client/server-agnostic EpisodeData to include client-specific functionality
  */
 class ClientEpisodeData extends EpisodeData {
-    
+
     /**
      * The UI representation of the markers
      * @type {MarkerTable} */
@@ -76,7 +76,7 @@ class ClientEpisodeData extends EpisodeData {
     deleteMarker(deletedMarker, deletedRow) {
         this.#markerTable.deleteMarker(deletedMarker, deletedRow);
     }
- 
+
     /**
      * Removes the temporary add row after the operation was cancelled.
      * @param {HTMLElement} markerRow The temporary row to remove. */

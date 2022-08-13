@@ -91,7 +91,7 @@ class MarkerTable {
             Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`, 'OK');
             return false;
         }
-    
+
         if (startTime >= endTime) {
             Overlay.show('Start time cannot be greater than or equal to the end time.', 'OK');
             return false;

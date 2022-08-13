@@ -85,7 +85,7 @@ function $$(selector, ele=document) {
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {object} [options={}] Additional options 
+ * @param {object} [options={}] Additional options
  */
 function buildNode(type, attrs, content, events, options={}) {
     let ele = document.createElement(type);

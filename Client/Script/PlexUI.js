@@ -202,7 +202,7 @@ class PlexUI {
             this.#search();
             return;
         }
-    
+
         // List of modifiers to ignore as input, take from
         // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values.
         const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta',

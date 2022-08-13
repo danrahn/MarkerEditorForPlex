@@ -103,7 +103,7 @@ class BasicCRUD extends TestBase {
      * which isn't an episode. */
     async #addToWrongMetadataType(metadataId) {
         this.expectFailure();
-        let response = await this.send('add', { 
+        let response = await this.send('add', {
             metadataId : metadataId,
             start : 0,
             end : 10000

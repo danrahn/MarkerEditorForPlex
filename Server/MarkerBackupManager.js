@@ -470,7 +470,7 @@ INSERT INTO actions
 
     /**
      * Find episode data for the given episodes, invoking the given callback on success.
-     * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap 
+     * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap
      * @param {*} retVal Return value passed to `callback`
      * @param {(any, any) => void} callback
      */
@@ -820,7 +820,7 @@ ORDER BY id DESC;`
         query += ') AND section_uuid=?';
         this.#actions.run(query, parameters, (err) => {
             if (err) { callback(err); }
-            
+
             // Inefficient, but I'm lazy
             for (const show of Object.values(this.#purgeCache[sectionId])) {
                 for (const season of Object.values(show)) {

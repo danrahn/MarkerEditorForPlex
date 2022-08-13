@@ -41,7 +41,7 @@ class TestRunner {
 
             const logMethod = totals.fail > 0 ? TestLog.error : TestLog.info;
             logMethod.bind(TestLog)(`Ran ${totals.success + totals.fail} tests, ${totals.success} passed, ${totals.fail} failed.`);
-    
+
             return this.#shutdown();
         } catch (ex) {
             TestLog.error(`TestRunner::runAll - Encountered an exception - ${ex.message}`);

@@ -89,10 +89,10 @@ class TestBase {
                     TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
                     reject(err);
                 }
-    
+
                 await this.connectToBackupDatabase();
                 await this.setupPlexDbTestTables();
-    
+
                 this.setupConfig();
                 this.startService().then(function() {
                     resolve(this.run());

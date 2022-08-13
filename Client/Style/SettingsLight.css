@@ -28,7 +28,7 @@
 .disabledSetting {
     color: #818181;
 }
-  
+
 .disabledSetting input[type=checkbox] {
     background-color: #fec !important;
     border-color: #53575a !important;

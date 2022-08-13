@@ -103,7 +103,7 @@ FROM taggings
                     Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
                     throw err;
                 }
-    
+
                 Log.info('PlexQueryManager: Database verified');
                 this.#markerTagId = row.id;
                 callback();
@@ -270,10 +270,10 @@ ORDER BY e.\`index\` ASC;`;
                 Log.warn(episodeId, 'PlexQueryManager: Found bad key in queryIds, skipping');
                 return;
             }
-    
+
             query += 'metadata_item_id=' + episodeId + ' OR ';
         });
-    
+
         // Strip trailing ' OR '
         query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
 
@@ -390,12 +390,12 @@ ORDER BY e.\`index\` ASC;`;
                 if (err) {
                     return failureCallback(false, err.message);
                 }
-    
+
                 const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
                 if (newIndex == -1) {
                     return failureCallback(true, 'Overlapping markers. The existing marker should be expanded to include this range instead.');
                 }
-    
+
                 const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
                 const addQuery =
                     'INSERT INTO taggings ' +
@@ -407,19 +407,19 @@ ORDER BY e.\`index\` ASC;`;
                     if (err) {
                         return failureCallback(false, err.message);
                     }
-    
+
                     // Insert succeeded, update indexes of other markers if necessary
                     for (const marker of allMarkers) {
                         if (marker.index != marker.newIndex) {
                             this.updateMarkerIndex(marker.id, marker.newIndex);
                         }
                     }
-    
+
                     this.getNewMarker(metadataId, startMs, endMs, (err, newMarker) => {
                         if (err) {
                             return failureCallback(false, 'Unable to retrieve newly added marker.');
                         }
-    
+
                         successCallback(allMarkers, newMarker);
                     });
                 });
@@ -483,7 +483,7 @@ ORDER BY e.\`index\` ASC;`;
 
                     ++expectedInserts;
                     const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-                    transaction += 
+                    transaction +=
                         'INSERT INTO taggings ' +
                             '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
                         'VALUES ' +
@@ -569,7 +569,7 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Updates the start/end/update time of the marker with the given id.
-     * @param {number} markerId 
+     * @param {number} markerId
      * @param {number} index The marker's new index in the marker table.
      * @param {number} startMs The new start time, in milliseconds.
      * @param {number} endMs The new end time, in milliseconds.

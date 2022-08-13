@@ -38,7 +38,7 @@ td>.timeInput {
 table .buttonIconAndText {
   margin: 3px 1px 3px 1px;
 }
-  
+
 #episodelist table {
   margin-top: 10px;
 }
@@ -123,12 +123,12 @@ table .buttonIconAndText {
   .tableHolder {
     display: flex;
   }
-  
+
   .tableHolder::-webkit-scrollbar {
     width: 0;
     height: 5px;
   }
-  
+
   /* Track */
   .tableHolder::-webkit-scrollbar-track {
     background: transparent;
@@ -142,19 +142,19 @@ table .buttonIconAndText {
     max-width: 95vw;
     overflow-x: auto;
   }
-  
+
   .tableHolder::-webkit-scrollbar {
     width: 2px;
     height: 2px;
   }
-  
+
   /* Track */
   .tableHolder::-webkit-scrollbar-track {
     background: transparent;
     width: 0;
     height: 2px;
   }
-  
+
   .tableHolder td {
     font-size: smaller;
   }

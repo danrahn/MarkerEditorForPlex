@@ -350,7 +350,7 @@ class ClientSettingsUI {
                 this.#settingsManager.autoLoadThumbnails(),
                 'Load thumbnails automatically after a short delay. If disabled, the user must press Enter for a thumbnail to load.'
             );
-            
+
             if (!this.#settingsManager.useThumbnails()) {
                 this.#toggleSettingEnabled(collapsed);
                 this.#toggleSettingEnabled(autoload);
@@ -432,7 +432,7 @@ class ClientSettingsUI {
                         ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
             );
 
-        this.#transitionOverlay(container, { setup : this.#focusOnShow('srCancel') }); 
+        this.#transitionOverlay(container, { setup : this.#focusOnShow('srCancel') });
     }
 
     /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */

@@ -36,7 +36,7 @@ class ResultRow {
      * @type {HTMLElement} */
     #html;
 
-    /** The base data associated with this row. 
+    /** The base data associated with this row.
      * @type {PlexData} */
     #mediaItem;
 
@@ -484,11 +484,11 @@ class SeasonResultRow extends ResultRow {
             PlexClientState.GetState().addEpisode(new ClientEpisodeData().setFromJson(episode));
             queryString.push(episode.metadataId);
         }
-    
+
         let failureFunc = (response) => {
             Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${errorMessage(response)}`, 'OK');
         }
-    
+
         jsonRequest('query', { keys : queryString.join(',') }, this.#showEpisodesAndMarkers.bind(this), failureFunc);
     }
 
