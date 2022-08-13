@@ -544,7 +544,7 @@ function handlePost(req, res) {
  */
 function jsonError(res, code, error) {
     Log.error(error, 'Unable to complete request');
-    returnCompressedData(res, code, JSON.stringify({ Error : error }), contentType('application/json'));
+    returnCompressedData(res, code, JSON.stringify({ Error : error || 500 }), contentType('application/json'));
 }
 
 /**
@@ -1050,19 +1050,18 @@ function setLogSettings(newLevel, darkConsole, traceLogging, res) {
  * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
  * @param {number} metadataId The episode/season/show id
  * @param {Http.ServerResponse} res */
- function purgeCheck(metadataId, res) {
+ async function purgeCheck(metadataId, res) {
     if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.checkForPurges(metadataId, (err, markers) => {
-        if (err) {
-            return jsonError(res, 500, err.message);
-        }
-
+    try {
+        const markers = await BackupManager.checkForPurges(metadataId);
         Log.info(markers, `Found ${markers.length} missing markers:`);
         jsonSuccess(res, markers);
-    });
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**

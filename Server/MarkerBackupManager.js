@@ -10,8 +10,10 @@ import { Log } from "../Shared/ConsoleLog.js";
 import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
+import DatabaseWrapper from "./DatabaseWrapper.js";
 import MarkerCacheManager from "./MarkerCacheManager.js";
 import PlexQueryManager from "./PlexQueryManager.js";
+import ServerError from "./ServerError.js";
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
@@ -188,6 +190,11 @@ class MarkerBackupManager {
     /** @type {SqliteDatabase} */
     #actions;
 
+    /**
+     * TODO: Replace #actions completely once everything's switched over
+     * @type {DatabaseWrapper} */
+    #actionsWrapper;
+
     /** @type {PlexQueryManager} */
     #plexQueries;
 
@@ -201,7 +208,7 @@ class MarkerBackupManager {
 
     /** @type {((callback: Function) => void)[]} */
     #schemaUpgradeCallbacks = [
-        (callback) => callback(),
+        async () => { return Promise.resolve(); },
         this.#updateSectionIdAfterUpgrade.bind(this)
     ];
 
@@ -244,6 +251,7 @@ class MarkerBackupManager {
                     throw err;
                 }
 
+                this.#actionsWrapper = new DatabaseWrapper(this.#actions);
                 Log.tmi('MarkerBackupManager: Opened database, checking schema');
                 this.#actions.exec(CheckVersionTable, (err) => { if (err) { throw err; }
                     this.#actions.get('SELECT version FROM schema_version;', (err, row) => { if (err) { throw err; }
@@ -283,7 +291,7 @@ class MarkerBackupManager {
         const nextVersion = oldVersion + 1;
         Log.info(`MarkerBackupManager: Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
         this.#actions.exec(SchemaUpgrades[oldVersion], (err) => { if (err) { throw err; }
-            this.#schemaUpgradeCallbacks[oldVersion](function() {
+            this.#schemaUpgradeCallbacks[oldVersion]().then(function() {
                 if (nextVersion != CurrentSchemaVersion) {
                     this.#upgradeSchema(nextVersion, finalCallback);
                 } else {
@@ -291,7 +299,7 @@ class MarkerBackupManager {
                     Log.info('MarkerBackupManager: Initialized backup database');
                     finalCallback();
                 }
-            }.bind(this))
+            }.bind(this));
         });
     }
 
@@ -300,7 +308,7 @@ class MarkerBackupManager {
      * the user performed any actions with the V1 database schema.
      * This should be a one-time operation (per server associated with PlexIntroEditor).
      * @param {() => void} callback Callback to invoke after updating the database's section ids. */
-    #updateSectionIdAfterUpgrade(callback) {
+    async #updateSectionIdAfterUpgrade() {
         Log.verbose('MarkerBackupManager: Setting section_id after upgrading schema.');
 
         let query = '';
@@ -308,10 +316,8 @@ class MarkerBackupManager {
             query += `UPDATE actions SET section_id=${section} WHERE section_uuid="${uuid}"; `;
         }
 
-        this.#actions.exec(query, (err) => {
-            if (err) { throw err; }
-            if (callback) { callback(); }
-        });
+        await this.#actionsWrapper.exec(query);
+        return Promise.resolve();
     }
 
     /**
@@ -319,16 +325,16 @@ class MarkerBackupManager {
      * @param {MarkerAction[]} actions The actions to inspect
      * @param {() => void} callback Callback to invoke after updating section ids, if necessary
      * @returns Whether section ids need to be updated */
-    #verifySectionIds(actions, callback) {
+    async #verifySectionIds(actions) {
         if (actions.length <= 0 || actions[0].section_id != -1) {
-            return false;
+            return Promise.resolve(false);
         }
 
         // Remnants of schema 1 => 2 transition. The initial transition should have
         // properly updated the section_id for the current server, but this is possible
         // if the user has multiple servers that are using the same backup database.
-        this.#updateSectionIdAfterUpgrade(callback.bind(this));
-        return true;
+        await this.#updateSectionIdAfterUpgrade();
+        return Promise.resolve(true);
     }
 
     /**
@@ -436,65 +442,60 @@ INSERT INTO actions
     /**
      * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
      * @param {number} metadataId
-     * @param {(err: Error?, actions: MarkerAction[]?) => void} callback */
-    checkForPurges(metadataId, callback) {
-        this.#plexQueries.getMarkersAuto(metadataId, (err, existingMarkers, typeInfo) => {
-            if (err) { return callback(err, null); }
+     * @returns {Promise<MarkerAction[]>}
+     * @throws {ServerError} On failure. */
+    async checkForPurges(metadataId) {
+        const markerData = await this.#plexQueries.getMarkersAuto(metadataId);
+        const existingMarkers = markerData.markers;
+        const typeInfo = markerData.typeInfo;
 
-            let markerMap = {};
-            for (const marker of existingMarkers) {
-                markerMap[marker.id] = marker;
-            }
+        let markerMap = {};
+        for (const marker of existingMarkers) {
+            markerMap[marker.id] = marker;
+        }
 
-            const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
-            let episodeMap = {};
-            this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id, (err, actions) => {
-                if (err) { return callback(err, null); }
-                let pruned = [];
-                for (const action of actions) {
-                    // Don't add markers that exist in the database, or whose last recorded action was a delete.
-                    if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
-                        if (!episodeMap[action.episode_id]) {
-                            episodeMap[action.episode_id] = [];
-                        }
-
-                        episodeMap[action.episode_id].push(action);
-                        pruned.push(action);
-                    }
+        const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
+        let episodeMap = {};
+        const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
+        let pruned = [];
+        for (const action of actions) {
+            // Don't add markers that exist in the database, or whose last recorded action was a delete.
+            if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
+                if (!episodeMap[action.episode_id]) {
+                    episodeMap[action.episode_id] = [];
                 }
 
-                this.#populateEpisodeData(episodeMap, pruned, callback);
-            });
-        });
+                episodeMap[action.episode_id].push(action);
+                pruned.push(action);
+            }
+        }
+
+        await this.#populateEpisodeData(episodeMap);
+        return Promise.resolve(pruned);
     }
 
     /**
-     * Find episode data for the given episodes, invoking the given callback on success.
-     * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap
-     * @param {*} retVal Return value passed to `callback`
-     * @param {(any, any) => void} callback
-     */
-    #populateEpisodeData(episodeMap, retVal, callback) {
-        if (Object.keys(episodeMap).length != 0) {
-            this.#plexQueries.getEpisodesFromList(Object.keys(episodeMap), (err, episodes) => {
-                if (err) { callback(err); }
-                for (const episode of episodes) {
-                    if (!episodeMap[episode.id]) {
-                        Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
-                        continue;
-                    }
-
-                    const episodeData = new EpisodeData(episode);
-                    for (const markerAction of episodeMap[episode.id]) {
-                        markerAction.episodeData = episodeData;
-                    }
-                }
-
-                callback(null, retVal);
-            });
-        } else {
-            callback(null, retVal);
+     * Find and attach episode data for the given episodes.
+     * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap  */
+    async #populateEpisodeData(episodeMap) {
+        if (Object.keys(episodeMap).length == 0) {
+            return Promise.resolve();
         }
+
+        const episodes = await this.#plexQueries.getEpisodesFromList(Object.keys(episodeMap));
+        for (const episode of episodes) {
+            if (!episodeMap[episode.id]) {
+                Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
+                continue;
+            }
+
+            const episodeData = new EpisodeData(episode);
+            for (const markerAction of episodeMap[episode.id]) {
+                markerAction.episodeData = episodeData;
+            }
+        }
+
+        return Promise.resolve();
     }
 
     /**
@@ -502,7 +503,7 @@ INSERT INTO actions
      * whether they exist in the Plex database.
      * @param {MarkerCacheManager} cacheManager
      * @param {(err: string?) => void} callback */
-    buildAllPurges(cacheManager, callback) {
+    async buildAllPurges(cacheManager, callback) {
         let uuidString = '';
         let parameters = [];
         for (const uuid of Object.values(this.#uuids)) {
@@ -518,11 +519,11 @@ WHERE (${uuidString}) AND restored_id IS NULL
 GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`
 
-        this.#actions.all(query, parameters, (err, /**@type {MarkerAction[]}*/actions) => {
+        this.#actions.all(query, parameters, async (err, /**@type {MarkerAction[]}*/actions) => {
             if (err) { return callback(err.message); }
             // If we need to update ids, hold off for now and rerun buildAllPurges once complete.
-            if (this.#verifySectionIds(actions, function() { this.buildAllPurges(cacheManager, callback); })) {
-                return;
+            if (await this.#verifySectionIds(actions)) {
+                return this.buildAllPurges(cacheManager, callback);
             }
 
             for (const action of actions) {
@@ -647,13 +648,15 @@ ORDER BY id DESC;`
             }
         }
 
-        this.#populateEpisodeData(needsEpisodeData, this.#purgeCache[sectionId], callback);
+        this.#populateEpisodeData(needsEpisodeData).then(() => {
+            callback(null, this.#purgeCache[sectionId]);
+        }).catch(err => callback(err, null));
     }
 
     /**
      * @param {number} mediaType The metadata_type from the Plex database.
      * @returns The corresponding string for the media type.
-     * @throws {TypeError} if `mediaType` is not an episode, season, or series. */
+     * @throws {ServerError} if `mediaType` is not an episode, season, or series. */
     #columnFromMediaType(mediaType) {
         switch (mediaType) {
             case 2: return 'show';
@@ -661,7 +664,7 @@ ORDER BY id DESC;`
             case 4: return 'episode';
             default:
                 Log.error(`MarkerBackupManager: The caller should have verified a valid value already.`);
-                throw new TypeError(`columnFromMediaType: Unexpected media type ${mediaType}`);
+                throw new ServerError(`columnFromMediaType: Unexpected media type ${mediaType}`, 400);
         }
     }
 
@@ -670,8 +673,8 @@ ORDER BY id DESC;`
      * @param {number} metadataId
      * @param {string} mediaType The type metadataId points to (episode, season, or show)
      * @param {number} sectionId
-     * @param {(err: Error?, markers: MarkerAction[]?) => void} callback */
-    #getExpectedMarkers(metadataId, mediaType, sectionId, callback) {
+     * @returns {Promise<MarkerAction[]>}*/
+    async #getExpectedMarkers(metadataId, mediaType, sectionId) {
         // Get the latest marker action for each marker associated with the given metadataId,
         // ignoring those whose last operation was a delete.
         const query = `
@@ -680,14 +683,14 @@ WHERE ${mediaType}_id=? AND section_uuid=? AND restored_id IS NULL
 GROUP BY marker_id, ${mediaType}_id, section_uuid
 ORDER BY id DESC;`
         const parameters = [metadataId, this.#uuids[sectionId]];
-        this.#actions.all(query, parameters, (err, /**@type {MarkerAction[]}*/actions) => {
-            if (err) { return callback(err.message, null); }
-            if (this.#verifySectionIds(actions, function() { this.#getExpectedMarkers(metadataId, mediaType, sectionId, callback); })) {
-                return;
-            }
 
-            callback(null, actions);
-        });
+        /**@type {MarkerAction[]}*/
+        const actions = await this.#actionsWrapper.all(query, parameters);
+        if (await this.#verifySectionIds(actions)) {
+            return this.#getExpectedMarkers(metadataId, mediaType, sectionId);
+        }
+
+        return Promise.resolve(actions);
     }
 
     /**

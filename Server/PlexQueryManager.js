@@ -14,6 +14,8 @@
 
 import { Log } from "../Shared/ConsoleLog.js";
 import CreateDatabase from "./CreateDatabase.cjs";
+import DatabaseWrapper from "./DatabaseWrapper.js";
+import ServerError from "./ServerError.js";
 
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
@@ -27,7 +29,7 @@ class TrimmedMarker {
     /** @type {number} */ newIndex;
     /** @type {boolean} */ #isRaw = false;
     /** @type {RawMarkerData} */ #raw;
-    getRaw() { if (!this.#isRaw) { throw Error('Attempting to access a non-existent raw marker'); } return this.#raw; }
+    getRaw() { if (!this.#isRaw) { throw ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
 
     constructor(id, eid, start, end, index) {
         this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
@@ -63,6 +65,11 @@ class PlexQueryManager {
     /** @type {SqliteDatabase} */
     #database;
 
+    /**
+     * TODO: Consolidate with `#database` after everything's async/await
+     * @type {DatabaseWrapper} */
+    #databaseWrapper;
+
     /** Whether to commandeer the thumb_url column for extra marker information.
      *  If "pure" mode is enabled, we don't use the field. */
     #pureMode = false;
@@ -95,14 +102,15 @@ FROM taggings
         this.#database = CreateDatabase(databasePath, false /*allowCreate*/, (err) => {
             if (err) {
                 Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
-                throw err;
+                throw ServerError.FromDbError(err);
             }
 
+            this.#databaseWrapper = new DatabaseWrapper(this.#database);
             Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
             this.#database.get('SELECT id FROM tags WHERE tag_type=12;', (err, row) => {
                 if (err) {
                     Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
-                    throw err;
+                    throw ServerError.FromDbError(err);
                 }
 
                 Log.info('PlexQueryManager: Database verified');
@@ -220,8 +228,9 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
      * @param {number[]} episodeMetadataIds
-     * @param {MultipleRowQuery} callback */
-    getEpisodesFromList(episodeMetadataIds, callback) {
+     * @param {MultipleRowQuery} callback
+     * @returns {Promise<any[]>}*/
+    async getEpisodesFromList(episodeMetadataIds) {
         let query = `
     SELECT
         e.title AS title,
@@ -256,7 +265,7 @@ ORDER BY e.\`index\` ASC;`;
     GROUP BY e.id
     ORDER BY e.\`index\` ASC;`;
 
-        this.#database.all(query, parameters, callback);
+        return this.#databaseWrapper.all(query, parameters);
     }
 
     /**
@@ -308,23 +317,23 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve all markers tied to the given metadataId.
      * @param {number} metadataId
-     * @param {(err: Error?, rows: RawMarkerData[]?, typeInfo: { metadata_type: number, section_id: number }) => void} callback */
-    getMarkersAuto(metadataId, callback) {
-        this.#mediaTypeFromId(metadataId).then(typeInfo => {
-            let where = '';
-            switch (typeInfo.metadata_type) {
-                case 2: where = `seasons.parent_id`; break;
-                case 3: where = `seasons.id`; break;
-                case 4: where = `taggings.metadata_item_id`; break;
-                default:
-                    return callback(new Error(`Item ${metadataId} is not an episode, season, or series`), null, null);
-            }
+     * @returns {Promise<{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo}>} */
+    async getMarkersAuto(metadataId) {
+        const typeInfo = await this.#mediaTypeFromId(metadataId);
+        let where = '';
+        switch (typeInfo.metadata_type) {
+            case 2: where = `seasons.parent_id`; break;
+            case 3: where = `seasons.id`; break;
+            case 4: where = `taggings.metadata_item_id`; break;
+            default:
+                throw new ServerError(`Item ${metadataId} is not an episode, season, or series`, 400);
+        }
 
+        return new Promise((resolve, _) => {
             this.#getMarkersForMetadataItem(metadataId, where, (err, markers) => {
-                callback(err, markers, typeInfo);
+                if (err) { throw ServerError.FromDbError(err); }
+                resolve({ markers : markers, typeInfo : typeInfo });
             });
-        }).catch(err => {
-            callback(err, null, null);
         });
     }
 
@@ -333,9 +342,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId
      * @returns {Promise<MetadataItemTypeInfo} */
     async #mediaTypeFromId(metadataId) {
-        const row = await this.#get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
+        const row = await this.#databaseWrapper.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
         if (!row) {
-            return Promise.reject(new Error(`Metadata item ${metadataId} not found in database.`));
+            throw new ServerError(`Metadata item ${metadataId} not found in database.`, 400);
         }
 
         return Promise.resolve(row);
@@ -650,19 +659,6 @@ ORDER BY e.id ASC;`;
      * @param {MultipleRowQuery} callback */
     sectionUuids(callback) {
         this.#database.all('SELECT id, uuid FROM library_sections;', callback);
-    }
-
-    /**
-     * Async wrapper around `Database.get`, which is also async, but via callbacks.
-     * @param {string} query The database query.
-     * @param {[*]} [params=[]] */
-    async #get(query, params=[]) {
-        return new Promise((resolve, reject) => {
-            this.#database.get(query, params, (err, row) => {
-                if (err) { reject(err); }
-                resolve(row);
-            });
-        });
     }
 }
 
