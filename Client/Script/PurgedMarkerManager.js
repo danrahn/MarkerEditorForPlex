@@ -314,7 +314,7 @@ class PurgeNonActionInfo {
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
         dummyEpisode.addNewMarker(this.#markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr || []);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
     }
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
@@ -856,7 +856,7 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
-        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers);
+        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers || []);
     }
 
     /**
