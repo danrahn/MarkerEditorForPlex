@@ -5,28 +5,13 @@ import { join } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { getState } from './PlexIntroEditor.js';
-import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
+import { Config, getState, ProjectRoot, Thumbnails } from './PlexIntroEditor.js';
+import ServerError from './ServerError.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerState from './ServerState.js';
-import ThumbnailManager from './ThumbnailManager.js';
 
 class GETHandler {
-    /** @type {string} */
-    #projectRoot;
-    /** @type {PlexIntroEditorConfig} */
-    #config;
-    /** @type {ThumbnailManager} */
-    #thumbnails;
-
-    /**
-     * @param {string} root The project root path
-     * @param {PlexIntroEditorConfig} config
-     * @param {ThumbnailManager} thumbnails */
-    constructor(root, config, thumbnails) {
-        this.#projectRoot = root;
-        this.#config = config;
-        this.#thumbnails = thumbnails;
+    constructor() {
     }
 
     /**
@@ -41,9 +26,9 @@ class GETHandler {
 
         switch (url.substring(0, 3)) {
             case '/i/':
-                return ImageHandler.GetSvgIcon(this.#projectRoot, url, res);
+                return ImageHandler.GetSvgIcon(url, res);
             case '/t/':
-                return ImageHandler.GetThumbnail(url, this.#thumbnails, this.#config, res);
+                return ImageHandler.GetThumbnail(url, res);
             default:
                 break;
         }
@@ -54,7 +39,7 @@ class GETHandler {
         }
 
         try {
-            const contents = await FS.readFile(join(this.#projectRoot, url));
+            const contents = await FS.readFile(join(ProjectRoot, url));
             sendCompressedData(res, 200, contents, mimetype);
         } catch (err) {
             Log.warn(`Unable to server ${url}: ${err.message}`);
@@ -70,10 +55,9 @@ class ImageHandler {
 
     /**
      * Retrieve an SVG icon requests with the given color.
-     * @param {string} root The project root
      * @param {string} url The svg url of the form /i/[hex color]/[icon].svg
      * @param {ServerResponse} res */
-    static async GetSvgIcon(root, url, res) {
+    static async GetSvgIcon(url, res) {
         const badRequest = (msg, code=400) => {
             Log.error(msg, `[${url}] Unable to retrieve icon`);
             res.writeHead(code).end(msg);
@@ -93,7 +77,7 @@ class ImageHandler {
         }
 
         try {
-            let contents = await FS.readFile(join(root, 'SVG', icon));
+            let contents = await FS.readFile(join(ProjectRoot, 'SVG', icon));
             if (Buffer.isBuffer(contents)) {
                 contents = contents.toString('utf-8');
             }
@@ -106,23 +90,21 @@ class ImageHandler {
                 'x-content-type-options': 'nosniff'
             }).end(Buffer.from(contents, 'utf-8'));
         } catch (err) {
-            return badRequest(err.message, err.code || 500);
+            return badRequest(err.message, err instanceof ServerError ? err.code : 500);
         }
     }
 
     /**
      * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds.
      * @param {string} url Thumbnail url
-     * @param {ThumbnailManager} manager
-     * @param {PlexIntroEditorConfig} config
      * @param {ServerResponse} res */
-    static async GetThumbnail(url, manager, config, res) {
+    static async GetThumbnail(url, res) {
         const badRequest = (msg) => {
             Log.error(msg, `Unable to retrieve thumbnail`);
             res.writeHead(400).end(msg);
         }
 
-        if (!config.useThumbnails()) {
+        if (!Config.useThumbnails()) {
             return badRequest('Preview thumbnails are not enabled');
         }
 
@@ -142,7 +124,7 @@ class ImageHandler {
         }
 
         try {
-            const data = await manager.getThumbnail(metadataId, timestamp);
+            const data = await Thumbnails.getThumbnail(metadataId, timestamp);
             res.writeHead(200, {
                 'Content-Type' : 'image/jpeg',
                 'Content-Length' : data.length,
@@ -150,7 +132,7 @@ class ImageHandler {
             }).end(data);
         } catch (err) {
             Log.error(err, 'Failed to retrieve thumbnail');
-            res.writeHead(err.code || 500).end('Failed to retrieve thumbnail.');
+            res.writeHead(err instanceof ServerError ? err.code : 500).end('Failed to retrieve thumbnail.');
         }
     }
 }

@@ -2,31 +2,15 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
-import MarkerBackupManager from "../MarkerBackupManager.js";
-import MarkerCacheManager from "../MarkerCacheManager.js";
-import PlexQueryManager from "../PlexQueryManager.js";
+import { BackupManager, MarkerCache, QueryManager } from "../PlexIntroEditor.js";
 import ServerError from "../ServerError.js";
 
 /**
  * Core add/edit/delete commands
  */
 class CoreCommands {
-    /** @type {PlexQueryManager} */
-    #queryManager;
-    /** @type {MarkerCacheManager} */
-    #markerCache;
-    /** @type {MarkerBackupManager} */
-    #backupManager;
-
-    /**
-     * @param {PlexQueryManager} queryManager
-     * @param {MarkerCacheManager} markerCache
-     * @param {MarkerBackupManager} backupManager */
-    constructor(queryManager, markerCache, backupManager) {
+    constructor() {
         Log.tmi(`Setting up core commands.`);
-        this.#queryManager = queryManager;
-        this.#markerCache = markerCache;
-        this.#backupManager = backupManager;
     }
 
     /**
@@ -38,13 +22,13 @@ class CoreCommands {
     async addMarker(metadataId, startMs, endMs) {
         this.#checkMarkerBounds(startMs, endMs);
 
-        const addResult = await this.#queryManager.addMarker(metadataId, startMs, endMs);
+        const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
         const allMarkers = addResult.allMarkers;
         const newMarker = addResult.newMarker;
         const markerData = new MarkerData(newMarker);
         LegacyMarkerBreakdown.Update(markerData, allMarkers.length - 1, 1 /*delta*/);
-        this.#markerCache?.addMarkerToCache(newMarker);
-        await this.#backupManager?.recordAdd(markerData);
+        MarkerCache?.addMarkerToCache(newMarker);
+        await BackupManager?.recordAdd(markerData);
         return Promise.resolve(markerData);
     }
 
@@ -57,7 +41,7 @@ class CoreCommands {
     async editMarker(markerId, startMs, endMs, userCreated) {
         this.#checkMarkerBounds(startMs, endMs);
 
-        const currentMarker = await this.#queryManager.getSingleMarker(markerId);
+        const currentMarker = await QueryManager.getSingleMarker(markerId);
         if (!currentMarker) {
             throw new ServerError('Intro marker not found', 400);
         }
@@ -65,7 +49,7 @@ class CoreCommands {
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        const allMarkers = await this.#queryManager.getEpisodeMarkers(currentMarker.episode_id);
+        const allMarkers = await QueryManager.getEpisodeMarkers(currentMarker.episode_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
         allMarkers[oldIndex].start = startMs;
@@ -89,14 +73,14 @@ class CoreCommands {
         }
 
         // Make the edit, then adjust indexes
-        await this.#queryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
+        await QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
         for (const marker of allMarkers) {
             if (marker.index != marker.newIndex) {
                 // No await, just fire and forget.
                 // TODO: In some extreme case where an episode has dozens of
                 // markers, it would be much more efficient to make this a transaction
                 // instead of individual queries.
-                this.#queryManager.updateMarkerIndex(marker.id, marker.newIndex);
+                QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
             }
         }
 
@@ -105,7 +89,7 @@ class CoreCommands {
         const oldEnd = newMarker.end;
         newMarker.start = startMs;
         newMarker.end = endMs;
-        await this.#backupManager?.recordEdit(newMarker, oldStart, oldEnd);
+        await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
         return Promise.resolve(newMarker);
     }
 
@@ -113,12 +97,12 @@ class CoreCommands {
      * Removes the given marker from the database, rearranging indexes as necessary.
      * @param {number} markerId The marker id to remove from the database. */
     async deleteMarker(markerId) {
-        const markerToDelete = await this.#queryManager.getSingleMarker(markerId);
+        const markerToDelete = await QueryManager.getSingleMarker(markerId);
         if (!markerToDelete) {
             throw new ServerError("Could not find intro marker", 400);
         }
 
-        const allMarkers = await this.#queryManager.getEpisodeMarkers(markerToDelete.episode_id);
+        const allMarkers = await QueryManager.getEpisodeMarkers(markerToDelete.episode_id);
         let deleteIndex = 0;
         for (const marker of allMarkers) {
             if (marker.id == markerId) {
@@ -127,7 +111,7 @@ class CoreCommands {
         }
 
         // Now that we're done rearranging, delete the original tag.
-        await this.#queryManager.deleteMarker(markerId);
+        await QueryManager.deleteMarker(markerId);
 
         // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
         if (deleteIndex < allMarkers.length - 1) {
@@ -135,15 +119,15 @@ class CoreCommands {
             // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
             for (const marker of allMarkers) {
                 if (marker.index > deleteIndex) {
-                    this.#queryManager.updateMarkerIndex(marker.id, marker.index - 1);
+                    QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
                 }
             }
         }
 
         const deletedMarker = new MarkerData(markerToDelete);
-        this.#markerCache?.removeMarkerFromCache(markerId);
+        MarkerCache?.removeMarkerFromCache(markerId);
         LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
-        await this.#backupManager?.recordDelete(deletedMarker);
+        await BackupManager?.recordDelete(deletedMarker);
         return Promise.resolve(deletedMarker);
     }
 

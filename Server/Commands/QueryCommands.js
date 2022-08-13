@@ -2,36 +2,15 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { EpisodeData, MarkerData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
-import MarkerCacheManager from "../MarkerCacheManager.js";
-import PlexIntroEditorConfig from "../PlexIntroEditorConfig.js";
-import PlexQueryManager from "../PlexQueryManager.js";
+import { Config, MarkerCache, QueryManager, Thumbnails } from "../PlexIntroEditor.js";
 import ServerError from "../ServerError.js";
-import ThumbnailManager from "../ThumbnailManager.js";
 
 /**
  * Classification of commands that queries the database for information, does not edit any underlying data
  */
 class QueryCommands {
-    /** @type {MarkerCacheManager} */
-    #markerCache;
-    /** @type {PlexQueryManager} */
-    #queryManager;
-    /** @type {ThumbnailManager} */
-    #thumbnails;
-    /** @type {PlexIntroEditorConfig} */
-    #config;
-
-    /**
-     * @param {MarkerCacheManager} markerCache
-     * @param {PlexQueryManager} queryManager
-     * @param {ThumbnailManager} thumbnailManager
-     * @param {PlexIntroEditorConfig} config */
-    constructor(markerCache, queryManager, thumbnailManager, config) {
+    constructor() {
         Log.tmi(`Setting up query commands.`);
-        this.#markerCache = markerCache;
-        this.#queryManager = queryManager;
-        this.#thumbnails = thumbnailManager;
-        this.#config = config;
     }
 
     /**
@@ -43,7 +22,7 @@ class QueryCommands {
             markers[key] = [];
         }
 
-        const rawMarkers = await this.#queryManager.getMarkersForEpisodes(keys);
+        const rawMarkers = await QueryManager.getMarkersForEpisodes(keys);
         for (const rawMarker of rawMarkers) {
             markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
         }
@@ -54,7 +33,7 @@ class QueryCommands {
     /**
      * Retrieve all TV libraries found in the database. */
     async getLibraries() {
-        const rows = await this.#queryManager.getShowLibraries();
+        const rows = await QueryManager.getShowLibraries();
         let libraries = [];
         for (const row of rows) {
             libraries.push({ id : row.id, name : row.name });
@@ -67,10 +46,10 @@ class QueryCommands {
      * Retrieve all shows from the given library section.
      * @param {number} sectionId The section id of the library. */
     async getShows(sectionId) {
-        const rows = await this.#queryManager.getShows(sectionId);
+        const rows = await QueryManager.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
-            show.markerBreakdown = this.#markerCache?.getShowStats(show.id);
+            show.markerBreakdown = MarkerCache?.getShowStats(show.id);
             shows.push(new ShowData(show));
         }
 
@@ -82,11 +61,11 @@ class QueryCommands {
      * @param {number} metadataId The metadata id of the a series.
      * @param {ServerResponse} res */
     async getSeasons(metadataId) {
-        const rows = await this.#queryManager.getSeasons(metadataId);
+        const rows = await QueryManager.getSeasons(metadataId);
 
         let seasons = [];
         for (const season of rows) {
-            season.markerBreakdown = this.#markerCache?.getSeasonStats(metadataId, season.id);
+            season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
             seasons.push(new SeasonData(season));
         }
 
@@ -97,7 +76,7 @@ class QueryCommands {
      * Retrieve all episodes for the season specified by the given metadataId.
      * @param {number} metadataId The metadata id for the season of a show. */
     async getEpisodes(metadataId) {
-        const rows = await this.#queryManager.getEpisodes(metadataId);
+        const rows = await QueryManager.getEpisodes(metadataId);
 
         // There's definitely a better way to do this, but determining whether an episode
         // has thumbnails attached is asynchronous, so keep track of how many results have
@@ -109,8 +88,8 @@ class QueryCommands {
                 const metadataId = episode.id;
                 episodes.push(new EpisodeData(episode));
 
-                if (this.#config.useThumbnails()) {
-                    this.#thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
+                if (Config.useThumbnails()) {
+                    Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
                         episodes[index].hasThumbnails = hasThumbs;
                         --waitingFor;
                         if (waitingFor == 0) {
@@ -127,7 +106,7 @@ class QueryCommands {
                 }
             });
 
-            if (!this.#config.useThumbnails()) {
+            if (!Config.useThumbnails()) {
                 resolve(episodes);
             }
         });
@@ -140,10 +119,10 @@ class QueryCommands {
     async allStats(sectionId) {
         // If we have global marker data, forego the specialized markerBreakdownCache
         // and build the statistics using the cache manager.
-        if (this.#config.extendedMarkerStats()) {
+        if (Config.extendedMarkerStats()) {
             Log.verbose('Grabbing section data from the full marker cache.');
 
-            const buckets = this.#markerCache.getSectionOverview(sectionId);
+            const buckets = MarkerCache.getSectionOverview(sectionId);
             if (buckets) {
                 return Promise.resolve(buckets);
             }
@@ -156,7 +135,7 @@ class QueryCommands {
             return Promise.resolve(LegacyMarkerBreakdown.Cache[sectionId]);
         }
 
-        const rows = await this.#queryManager.markerStatsForSection(sectionId);
+        const rows = await QueryManager.markerStatsForSection(sectionId);
 
         let buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
@@ -164,7 +143,7 @@ class QueryCommands {
         let countCur = 0;
         for (const row of rows) {
             if (row.episode_id == idCur) {
-                if (row.tag_id == this.#queryManager.markerTagId()) {
+                if (row.tag_id == QueryManager.markerTagId()) {
                     ++countCur;
                 }
             } else {
@@ -174,7 +153,7 @@ class QueryCommands {
 
                 ++buckets[countCur];
                 idCur = row.episode_id;
-                countCur = row.tag_id == this.#queryManager.markerTagId() ? 1 : 0;
+                countCur = row.tag_id == QueryManager.markerTagId() ? 1 : 0;
             }
         }
 
@@ -190,16 +169,16 @@ class QueryCommands {
      * @param {number} showId The metadata id of the show to grab the breakdown for.
      * @param {number} includeSeasons 1 to include season data, 0 to leave it out. */
     async getShowMarkerBreakdownTree(showId, includeSeasons) {
-        if (!this.#markerCache) {
+        if (!MarkerCache) {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }
 
         includeSeasons = includeSeasons != 0;
         let data = null;
         if (includeSeasons) {
-            data = this.#markerCache.getTreeStats(showId);
+            data = MarkerCache.getTreeStats(showId);
         } else {
-            data = this.#markerCache.getShowStats(showId);
+            data = MarkerCache.getShowStats(showId);
             data = { showData: data, seasonData : {} };
         }
 

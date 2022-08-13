@@ -1,18 +1,14 @@
 import { ConsoleLog, Log } from "../../Shared/ConsoleLog.js";
 
-import PlexIntroEditorConfig from "../PlexIntroEditorConfig.js";
+import { Config } from "../PlexIntroEditor.js";
 import ServerError from "../ServerError.js";
 
 /**
  * Classification of commands that don't fit in any of the other buckets
  */
 class GeneralCommands {
-    /** @type {PlexIntroEditorConfig} */
-    #config;
-
-    constructor(config) {
+    constructor() {
         Log.tmi(`Setting up general commands.`);
-        this.#config = config;
     }
 
     /**
@@ -20,9 +16,9 @@ class GeneralCommands {
      * This is only async to conform with the command handler signature. */
     async getConfig() {
         return Promise.resolve({
-            useThumbnails : this.#config.useThumbnails(),
-            extendedMarkerStats : this.#config.extendedMarkerStats(),
-            backupActions : this.#config.backupActions()
+            useThumbnails : Config.useThumbnails(),
+            extendedMarkerStats : Config.extendedMarkerStats(),
+            backupActions : Config.backupActions()
         });
     }
     /**

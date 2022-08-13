@@ -1,26 +1,16 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import MarkerBackupManager from "../MarkerBackupManager.js";
-import MarkerCacheManager from "../MarkerCacheManager.js";
+import { BackupManager, Config, MarkerCache } from "../PlexIntroEditor.js";
 import ServerError from "../ServerError.js";
 
 class PurgeCommands {
     #enabled = false;
-    /** @type {MarkerBackupManager} */
-    #backupManager;
-    /** @type {MarkerCacheManager} */
-    #markerCache;
 
-    /**
-     * @param {MarkerBackupManager} backupManager
-     * @param {PlexIntroEditorConfig} config */
-    constructor(backupManager, markerCache, config) {
+    constructor() {
         Log.tmi(`Setting up purge commands.`);
-        if (config.backupActions()) {
+        if (!BackupManager || Config.backupActions()) {
             this.#enabled = true;
-            this.#backupManager = backupManager;
-            this.#markerCache = markerCache;
         }
     }
 
@@ -30,7 +20,7 @@ class PurgeCommands {
     async purgeCheck(metadataId) {
         this.#checkBackupManagerEnabled();
 
-        const markers = await this.#backupManager.checkForPurges(metadataId);
+        const markers = await BackupManager.checkForPurges(metadataId);
         Log.info(markers, `Found ${markers.length} missing markers:`);
         return Promise.resolve(markers);
     }
@@ -41,7 +31,7 @@ class PurgeCommands {
     async allPurges(sectionId) {
         this.#checkBackupManagerEnabled();
 
-        const purges = await this.#backupManager.purgesForSection(sectionId);
+        const purges = await BackupManager.purgesForSection(sectionId);
         return Promise.resolve(purges);
     }
 
@@ -52,7 +42,7 @@ class PurgeCommands {
     async restoreMarkers(oldMarkerIds, sectionId) {
         this.#checkBackupManagerEnabled();
 
-        const restoredMarkerData = await this.#backupManager.restoreMarkers(oldMarkerIds, sectionId);
+        const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
         const restoredMarkers = restoredMarkerData.restoredMarkers;
         const existingMarkers = restoredMarkerData.existingMarkers;
 
@@ -63,7 +53,7 @@ class PurgeCommands {
         let markerData = [];
         Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
         for (const restoredMarker of restoredMarkers) {
-            this.#markerCache?.addMarkerToCache(restoredMarker);
+            MarkerCache?.addMarkerToCache(restoredMarker);
             markerData.push(new MarkerData(restoredMarker));
         }
 
@@ -82,7 +72,7 @@ class PurgeCommands {
     async ignorePurgedMarkers(oldMarkerIds, sectionId) {
         this.#checkBackupManagerEnabled();
 
-        await this.#backupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
+        await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
         return Promise.resolve();
     }
 

@@ -83,7 +83,7 @@ async function run() {
     // Set up the database, and make sure it's the right one.
     QueryManager = await PlexQueryManager.CreateInstance(Config.databasePath(), Config.pureMode());
     if (Config.backupActions()) {
-        BackupManager = await MarkerBackupManager.CreateInstance(QueryManager, IsTest ? join(ProjectRoot, 'Test') : ProjectRoot);
+        BackupManager = await MarkerBackupManager.CreateInstance(IsTest ? join(ProjectRoot, 'Test') : ProjectRoot);
     } else {
         Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
     }
@@ -102,14 +102,14 @@ async function run() {
         }
     }
 
-    Commands = new ServerCommands(Config, QueryManager, MarkerCache, BackupManager, Thumbnails);
-    GetHandler = new GETHandler(ProjectRoot, Config, Thumbnails);
+    Commands = new ServerCommands();
+    GetHandler = new GETHandler();
 
     Log.info('Creating server...');
     return launchServer();
 }
 
-export { run, getState };
+export { run, getState, ProjectRoot, Config, QueryManager, MarkerCache, BackupManager, Thumbnails };
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */

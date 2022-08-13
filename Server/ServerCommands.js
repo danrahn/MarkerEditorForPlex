@@ -4,13 +4,8 @@ import { Log } from '../Shared/ConsoleLog.js';
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
 
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
-import MarkerBackupManager from './MarkerBackupManager.js';
-import MarkerCacheManager from './MarkerCacheManager.js';
-import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
-import PlexQueryManager from './PlexQueryManager.js';
 import QueryParser from './QueryParse.js';
 import ServerError from './ServerError.js';
-import ThumbnailManager from './ThumbnailManager.js';
 
 class ServerCommands {
 
@@ -49,19 +44,14 @@ class ServerCommands {
     };
 
     /**
-     * Create a new ServerCommands object.
-     * @param {PlexIntroEditorConfig} config
-     * @param {PlexQueryManager} queryManager
-     * @param {MarkerCacheManager} markerCache
-     * @param {MarkerBackupManager} backupManager
-     * @param {ThumbnailManager} thumbnailManager */
-    constructor(config, queryManager, markerCache, backupManager, thumbnailManager) {
+     * Create a new ServerCommands object. */
+    constructor() {
         Log.tmi('Initializing Command Groups');
         LegacyMarkerBreakdown.Clear();
-        this.#cc = new CoreCommands(queryManager, markerCache, backupManager);
-        this.#qc = new QueryCommands(markerCache, queryManager, thumbnailManager, config);
-        this.#gc = new GeneralCommands(config);
-        this.#pc = new PurgeCommands(backupManager, markerCache, config);
+        this.#cc = new CoreCommands();
+        this.#qc = new QueryCommands();
+        this.#gc = new GeneralCommands();
+        this.#pc = new PurgeCommands();
     }
 
     /**

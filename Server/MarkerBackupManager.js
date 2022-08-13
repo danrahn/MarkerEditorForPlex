@@ -12,8 +12,8 @@ import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
 import MarkerCacheManager from "./MarkerCacheManager.js";
-import PlexQueryManager from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
+import { QueryManager } from "./PlexIntroEditor.js";
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
@@ -190,9 +190,6 @@ class MarkerBackupManager {
     /** @type {DatabaseWrapper} */
     #actions;
 
-    /** @type {PlexQueryManager} */
-    #plexQueries;
-
     /** Unique identifiers for the library sections of the existing database.
      * Used to properly map a marker action to the right library, regardless of the underlying database used.
      * @type {{[sectionId: number]: string}} */
@@ -210,14 +207,13 @@ class MarkerBackupManager {
     /**
      * Create a new MarkerBackupManager instance. This should always be used
      * opposed to creating a new MarkerBackupManager directly.
-     * @param {PlexQueryManager} plexQueries The query manager for the Plex database.
      * @param {string} projectRoot The root of this project, to determine where the backup database is. */
-    static async CreateInstance(plexQueries, projectRoot) {
+    static async CreateInstance(projectRoot) {
         Log.info('MarkerBackupManager: Initializing marker backup database...');
         /** @type {{id: number, uuid: string}[]} */
         let sections;
         try {
-            sections = await plexQueries.sectionUuids();
+            sections = await QueryManager.sectionUuids();
         } catch (err) {
             Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
             throw err;
@@ -248,7 +244,7 @@ class MarkerBackupManager {
             await db.exec(CheckVersionTable);
             const row = await db.get('SELECT version FROM schema_version;');
             const version = row ? row.version : 0;
-            const manager = new MarkerBackupManager(plexQueries, uuids, db);
+            const manager = new MarkerBackupManager(uuids, db);
             if (version != CurrentSchemaVersion) {
                 if (version != 0) {
                     // Only log if this isn't a new database, i.e. version isn't 0.
@@ -267,11 +263,9 @@ class MarkerBackupManager {
     }
 
     /**
-     * @param {PlexQueryManager} plexQueries The query manager for the Plex database.
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
      * @param {DatabaseWrapper} actionsDatabase The connection to the backup database. */
-    constructor(plexQueries, uuids, actionsDatabase) {
-        this.#plexQueries = plexQueries;
+    constructor(uuids, actionsDatabase) {
         this.#uuids = uuids;
         this.#actions = actionsDatabase;
     }
@@ -459,7 +453,7 @@ INSERT INTO actions
      * @returns {Promise<MarkerAction[]>}
      * @throws {ServerError} On failure. */
     async checkForPurges(metadataId) {
-        const markerData = await this.#plexQueries.getMarkersAuto(metadataId);
+        const markerData = await QueryManager.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
 
@@ -496,7 +490,7 @@ INSERT INTO actions
             return Promise.resolve();
         }
 
-        const episodes = await this.#plexQueries.getEpisodesFromList(Object.keys(episodeMap));
+        const episodes = await QueryManager.getEpisodesFromList(Object.keys(episodeMap));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
                 Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
@@ -763,7 +757,7 @@ ORDER BY id DESC;`
             toRestore[markerAction.episode_id].push(markerAction);
         }
 
-        const markerData = await this.#plexQueries.bulkRestore(toRestore);
+        const markerData = await QueryManager.bulkRestore(toRestore);
         const newMarkers = markerData.newMarkers;
         const ignoredMarkers = markerData.identicalMarkers;
 
