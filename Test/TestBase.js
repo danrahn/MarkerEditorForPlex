@@ -14,7 +14,7 @@ import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 import TestHelpers from "./TestHelpers.js";
 import { run as mainRun, ServerState, getState } from "../Server/PlexIntroEditor.js";
 import { TestLog } from './TestRunner.js';
-/** @typedef {!import('../Server/CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
+import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -28,9 +28,9 @@ class TestBase {
     static testDbPath = join(TestBase.root, 'plexDbTest.db');
     static backupDbPath = join(TestBase.root, 'Backup', 'markerActions.db');
 
-    /** @type {SqliteDatabase} */
+    /** @type {DatabaseWrapper} */
     testDb = null;
-    /** @type {SqliteDatabase} */
+    /** @type {DatabaseWrapper} */
     backupDb = null;
 
     constructor() {
@@ -83,22 +83,19 @@ class TestBase {
     async runTests() {
         TestBase.Cleanup();
 
-        return new Promise(function(resolve, reject) {
-            this.testDb = CreateDatabase(TestBase.testDbPath, true /*allowCreate*/, async (err) => {
-                if (err) {
-                    TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
-                    reject(err);
-                }
+        try {
+            this.testDb = new DatabaseWrapper(await CreateDatabase(TestBase.testDbPath, true /*allowCreate*/));
+        } catch (err) {
+            TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
+            throw err;
+        }
 
-                await this.connectToBackupDatabase();
-                await this.setupPlexDbTestTables();
+        await this.connectToBackupDatabase();
+        await this.setupPlexDbTestTables();
 
-                this.setupConfig();
-                this.startService().then(function() {
-                    resolve(this.run());
-                }.bind(this));
-            });
-        }.bind(this));
+        this.setupConfig();
+        await this.startService();
+        return this.run();
     }
 
     /**
@@ -196,18 +193,9 @@ class TestBase {
 
         const result = { success : successCount, fail : failureCount };
 
-        return new Promise(function (resolve, _) {
-
-            // This isn't pretty, any chance of race conditions below?
-            let closesLeft = 2;
-            if (this.testDb) {
-                this.testDb.close(() => { if (--closesLeft == 0) resolve(result); });
-            } else { --closesLeft; }
-
-            if (this.backupDb) {
-                this.backupDb.close(() => { if (--closesLeft == 0) resolve(result); });
-            } else { --closesLeft; }
-        }.bind(this));
+        await this.testDb?.close();
+        await this.backupDb?.close();
+        return Promise.resolve(result);
     }
 
     /**
@@ -323,12 +311,7 @@ class TestBase {
                                    (4,  1,                  4,             2,         "Episode 2", 2),
                                    (5,  1,                  4,             2,         "Episode 3", 3);`;
 
-        return new Promise(function (resolve, _) {
-            this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + this.defaultMarkers(), (err) => {
-                if (err) { throw Error(`Unable to set up test database tables: ${err.message}`); }
-                resolve();
-            });
-        }.bind(this));
+        return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + this.defaultMarkers());
     }
 
     /**
@@ -340,12 +323,7 @@ class TestBase {
             mkdirSync(testBackupPath);
         }
 
-        return new Promise(function (resolve, _) {
-            this.backupDb = CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/, (err) => {
-                if (err) { throw Error(err.message); }
-                resolve();
-            });
-        }.bind(this));
+        this.backupDb = new DatabaseWrapper(await CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/));
     }
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
@@ -362,33 +340,16 @@ class TestBase {
     /**
      * Clear out the test databases and re-enter the default data. */
     async resetState() {
-        let execsLeft = 2;
-        return new Promise(function(resolve, _) {
-            this.testDb.exec(`
-                    DELETE FROM taggings;
-                    VACUUM;
-                    UPDATE sqlite_sequence SET seq=0 WHERE name="taggings";
-                    ${this.defaultMarkers()}`,
-                (err) => {
-                    if (err) { throw Error(err.message); }
-                    if (--execsLeft == 0) {
-                        resolve();
-                    }
-                }
-            );
-
-            this.backupDb.exec(`
-                    DELETE FROM actions;
-                    VACUUM;
-                    UPDATE sqlite_sequence SET seq=0 WHERE name="actions";`,
-                (err) => {
-                    if (err) { throw Error(err.message); }
-                    if (--execsLeft == 0) {
-                        resolve();
-                    }
-                }
-            );
-        }.bind(this));
+        await this.testDb?.exec(`
+            DELETE FROM taggings;
+            VACUUM;
+            UPDATE sqlite_sequence SET seq=0 WHERE name="taggings";
+            ${this.defaultMarkers()}`);
+        await this.backupDb?.exec(`
+            DELETE FROM actions;
+            VACUUM;
+            UPDATE sqlite_sequence SET seq=0 WHERE name="actions";`);
+        return Promise.resolve();
     }
 }
 

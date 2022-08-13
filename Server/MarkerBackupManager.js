@@ -240,12 +240,7 @@ class MarkerBackupManager {
                 Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
             }
 
-            let baseDb = CreateDatabase(fullPath, true /*allowCreate*/, (err) => {
-                if (err) {
-                    Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
-                    throw err;
-                }
-
+            CreateDatabase(fullPath, true /*allowCreate*/).then((baseDb) => {
                 this.#actions = new DatabaseWrapper(baseDb);
                 Log.tmi('MarkerBackupManager: Opened database, checking schema');
                 this.#actions.exec(CheckVersionTable).then(() => {
@@ -266,6 +261,9 @@ class MarkerBackupManager {
                         }
                     });
                 });
+            }).catch(err => {
+                Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
+                throw err;
             });
         });
     }

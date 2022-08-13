@@ -9,11 +9,15 @@ const Sqlite3 = require('sqlite3');
  * to benefit from ES modules.
  * @param {string} path The path to the database.
  * @param {boolean} allowCreate Determines whether we're okay with creating a new database if it doesn't exist.
- * @param {(err: Error) => void} callback The callback to invoke after creating the database.
- * @returns The database connection */
-function CreateDatabase(path, allowCreate, callback) {
+ * @returns {Promise<Sqlite3.Database>} */
+async function CreateDatabase(path, allowCreate) {
     const openFlags = Sqlite3.OPEN_READWRITE | (allowCreate ? Sqlite3.OPEN_CREATE : 0);
-    return new Sqlite3.Database(path, openFlags, callback);
+    return new Promise((resolve, _) => {
+        let db = new Sqlite3.Database(path, openFlags, (err) => {
+            if (err) { err.code = 500; throw err; } // To avoid ServerError.js import from cjs module
+            resolve(db);
+        });
+    });
 }
 
 module.exports = CreateDatabase;

@@ -135,11 +135,7 @@ class MultipleMarkers extends TestBase {
             end : end
         }, true /*raw*/);
 
-        TestHelpers.verify(error.status == 400, `Expected overlapping marker ${start}-${end} to return 400, got ${error.status}.`);
-
-        return error.json().then(message => {
-            TestHelpers.verify(message.Error, `Expected marker ${start}-${end} to overlap with 15000-45000 and return an error message, not none`);
-        });
+        TestHelpers.verifyBadRequest(error, `overlapping marker ${start}-${end}`);
     }
 }
 

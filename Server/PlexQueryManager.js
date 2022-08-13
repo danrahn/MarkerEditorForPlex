@@ -99,12 +99,8 @@ FROM taggings
     constructor(databasePath, pureMode, callback) {
         Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
         this.#pureMode = pureMode;
-        this.#database = CreateDatabase(databasePath, false /*allowCreate*/, (err) => {
-            if (err) {
-                Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
-                throw ServerError.FromDbError(err);
-            }
-
+        CreateDatabase(databasePath, false /*allowCreate*/).then((db) => {
+            this.#database = db;
             this.#databaseWrapper = new DatabaseWrapper(this.#database);
             Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
             this.#database.get('SELECT id FROM tags WHERE tag_type=12;', (err, row) => {
@@ -117,6 +113,9 @@ FROM taggings
                 this.#markerTagId = row.id;
                 callback();
             });
+        }).catch(err => {
+            Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
+            throw ServerError.FromDbError(err);
         });
     }
 

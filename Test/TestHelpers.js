@@ -1,5 +1,4 @@
-/** @typedef {!import('../Server/CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
-
+import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { MarkerData } from '../Shared/PlexTypes.js';
 
 /**
@@ -17,7 +16,7 @@ class TestHelpers {
      * @param {number?} expectedStart
      * @param {number?} expectedEnd
      * @param {number?} expectedIndex
-     * @param {SqliteDatabase?} database The test database
+     * @param {DatabaseWrapper?} database The test database
      * @param {boolean} isDeleted Whether markerData is a deleted marker (i.e. we should verify it doesn't exist in the database)
      * @throws if the marker is not valid.
      */
@@ -62,25 +61,22 @@ class TestHelpers {
             return Promise.resolve();
         }
 
-        return new Promise((resolve, _) => {
-            database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`, (err, rows) => {
-                if (err) { throw Error(err.message); }
-                if (isDeleted) {
-                    TestHelpers.verify(rows.length == 0, `Found a marker with id ${markerData.id} that should be deleted!`);
-                    return resolve();
-                }
+        const rows = await database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`);
 
-                TestHelpers.verify(rows.length == 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
+        if (isDeleted) {
+            TestHelpers.verify(rows.length == 0, `Found a marker with id ${markerData.id} that should be deleted!`);
+            return Promise.resolve();
+        }
 
-                const row = rows[0];
-                checkField(row.metadata_item_id, expectedEpisodeId, 'DB episode id');
-                checkField(row.time_offset, expectedStart, 'DB marker start');
-                checkField(row.end_time_offset, expectedEnd, 'DB marker end');
-                checkField(row.index, expectedIndex, 'DB marker index');
-                TestHelpers.verify(allIssues.length == 0, allIssues);
-                resolve();
-            });
-        });
+        TestHelpers.verify(rows.length == 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
+
+        const row = rows[0];
+        checkField(row.metadata_item_id, expectedEpisodeId, 'DB episode id');
+        checkField(row.time_offset, expectedStart, 'DB marker start');
+        checkField(row.end_time_offset, expectedEnd, 'DB marker end');
+        checkField(row.index, expectedIndex, 'DB marker index');
+        TestHelpers.verify(allIssues.length == 0, allIssues);
+        return Promise.resolve();
     }
 
     /**
