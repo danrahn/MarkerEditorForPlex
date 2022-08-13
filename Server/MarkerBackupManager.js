@@ -698,7 +698,7 @@ ORDER BY id DESC;`
      * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
      * @param {number} sectionId The id of the section the old marker belonged to.
      * @param {(err: Error?, restoredValues: RawMarkerData[]?, existingMarkers: RawMarkerData[]?) => void} callback */
-    restoreMarkers(oldMarkerIds, sectionId, callback) {
+    async restoreMarkers(oldMarkerIds, sectionId, callback) {
         if (!(sectionId in this.#uuids)) {
             callback(`Unable to restore marker - unexpected section id: ${sectionId}`, null);
             return;
@@ -721,72 +721,60 @@ ORDER BY id DESC;`
         parameters.push(this.#uuids[sectionId]);
         query += `) AND section_uuid=? ORDER BY id DESC;`;
 
-        this.#actions.all(query, parameters, (err, /**@type {MarkerAction[]}*/ rows) => {
-            if (err) { return callback(err.message, null); }
-            if (rows.length == 0) {
-                return callback(`No markers found with ids ${oldMarkerIds} to restore.`, null);
+        /** @type {MarkerAction[]} */
+        const rows = await this.#actionsWrapper.all(query, parameters);
+        if (rows.length == 0) {
+            throw new ServerError(`No markers found with ids ${oldMarkerIds} to restore.`, 400);
+        }
+
+        let foundMarkers = {};
+
+        /** @type {{ [episode_id: number] : MarkerAction[] }} */
+        let toRestore = {};
+        for (const markerAction of rows) {
+            if (foundMarkers[markerAction.marker_id]) {
+                continue;
             }
 
-            let foundMarkers = {};
-
-            /** @type {{ [episode_id: number] : MarkerAction[] }} */
-            let toRestore = {};
-            for (const markerAction of rows) {
-                if (foundMarkers[markerAction.marker_id]) {
-                    continue;
-                }
-
-                foundMarkers[markerAction.marker_id] = true;
-                if (!toRestore[markerAction.episode_id]) {
-                    toRestore[markerAction.episode_id] = [];
-                }
-
-                toRestore[markerAction.episode_id].push(markerAction);
+            foundMarkers[markerAction.marker_id] = true;
+            if (!toRestore[markerAction.episode_id]) {
+                toRestore[markerAction.episode_id] = [];
             }
 
-            const restoreCallback = (
-                /**@type {string?}*/ err,
-                /**@type {RawMarkerData[]?}*/ newMarkers,
-                /**@type {TrimmedMarker[]?}*/ ignoredMarkers) => {
-                if (err) { callback(err); }
-                if (!newMarkers) {
-                    // no error, but no new markers - we added them successfully but couldn't
-                    // subsequently retrieve them. What should we do?
-                    callback(`Markers restored, but couldn't update caches. It's recommended to start the server to pick up any changes.`);
-                    return;
-                }
+            toRestore[markerAction.episode_id].push(markerAction);
+        }
 
-                for (const newMarker of newMarkers) {
-                    let oldAction = toRestore[newMarker.episode_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
-                    if (oldAction.length != 1) {
-                        Log.warn(`Unable to match new marker against old marker action, some things may be out of sync.`);
-                        continue;
-                    }
+        const markerData = await this.#plexQueries.bulkRestore(toRestore);
+        const newMarkers = markerData.newMarkers;
+        const ignoredMarkers = markerData.identicalMarkers;
 
-                    oldAction = oldAction[0];
-                    this.recordRestore(newMarker, oldAction.marker_id, sectionId);
-                    this.#removeFromPurgeMap(oldAction);
-                }
-
-                // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
-                for (const ignoredMarker of ignoredMarkers) {
-                    let oldAction = toRestore[ignoredMarker.episode_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
-                    if (oldAction.length != 1) {
-                        Log.warn(`Unable to match identical marker against old marker action, some things may be out of sync.`);
-                        continue;
-                    }
-
-                    oldAction = oldAction[0];
-                    Log.tmi(`MarkerBackupManager::restoreMarkers: Identical marker found, setting it as the restored id.`);
-                    this.recordRestore(ignoredMarker.getRaw(), oldAction.marker_id, sectionId);
-                    this.#removeFromPurgeMap(oldAction);
-                }
-
-                callback(null, newMarkers, ignoredMarkers.map(x => x.getRaw()));
+        for (const newMarker of newMarkers) {
+            let oldAction = toRestore[newMarker.episode_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
+            if (oldAction.length != 1) {
+                Log.warn(`Unable to match new marker against old marker action, some things may be out of sync.`);
+                continue;
             }
 
-            this.#plexQueries.bulkRestore(toRestore, restoreCallback);
-        });
+            oldAction = oldAction[0];
+            this.recordRestore(newMarker, oldAction.marker_id, sectionId);
+            this.#removeFromPurgeMap(oldAction);
+        }
+
+        // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
+        for (const ignoredMarker of ignoredMarkers) {
+            let oldAction = toRestore[ignoredMarker.episode_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
+            if (oldAction.length != 1) {
+                Log.warn(`Unable to match identical marker against old marker action, some things may be out of sync.`);
+                continue;
+            }
+
+            oldAction = oldAction[0];
+            Log.tmi(`MarkerBackupManager::restoreMarkers: Identical marker found, setting it as the restored id.`);
+            this.recordRestore(ignoredMarker.getRaw(), oldAction.marker_id, sectionId);
+            this.#removeFromPurgeMap(oldAction);
+        }
+
+        return Promise.resolve({ restoredMarkers : newMarkers, existingMarkers : ignoredMarkers.map(x => x.getRaw()) });
     }
 
     /**

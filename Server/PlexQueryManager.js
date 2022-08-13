@@ -271,8 +271,9 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve all markers for the given episodes.
      * @param {number[]} episodeIds
-     * @param {MultipleMarkerQuery} callback */
-    getMarkersForEpisodes(episodeIds, callback) {
+     * @param {MultipleMarkerQuery} callback
+     * @returns {Promise<RawMarkerData[]>}*/
+    async getMarkersForEpisodes(episodeIds) {
         let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
         episodeIds.forEach(episodeId => {
             if (isNaN(episodeId)) {
@@ -287,7 +288,7 @@ ORDER BY e.\`index\` ASC;`;
         // Strip trailing ' OR '
         query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
 
-        this.#database.all(query, [this.#markerTagId], callback);
+        return this.#databaseWrapper.all(query, [this.#markerTagId]);
     }
 
     /**
@@ -438,118 +439,123 @@ ORDER BY e.\`index\` ASC;`;
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
      * @param {(err: string?, newMarkers: RawMarkerData[]?, ignoredMarkers: number[]?) => void} callback */
-    bulkRestore(actions, callback) {
+    async bulkRestore(actions) {
+        /** @type {RawMarkerData[]} */
+        let markerList;
+        try {
+            markerList = await this.getMarkersForEpisodes(Object.keys(actions));
+        } catch (err) {
+            throw new ServerError(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`, 500);
+        }
+
         // One query + postprocessing is faster than a query for each episode
-        this.getMarkersForEpisodes(Object.keys(actions), (err, markerList) => {
-            if (err) { return callback(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`); }
-
-            /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
-            let existingMarkers = {};
-            for (const marker of markerList) {
-                if (!existingMarkers[marker.episode_id]) {
-                    existingMarkers[marker.episode_id] = [];
-                }
-
-                Log.tmi(marker, 'Adding existing marker');
-                existingMarkers[marker.episode_id].push(TrimmedMarker.fromRaw(marker));
+        /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
+        let existingMarkers = {};
+        for (const marker of markerList) {
+            if (!existingMarkers[marker.episode_id]) {
+                existingMarkers[marker.episode_id] = [];
             }
 
-            let expectedInserts = 0;
-            let identicalMarkers = [];
-            let potentialRestores = 0;
-            let transaction = 'BEGIN TRANSACTION;\n';
-            for (const [episodeId, markerActions] of Object.entries(actions)) {
-                // Calculate new indexes
-                for (const action of markerActions) {
-                    ++potentialRestores;
-                    if (!existingMarkers[episodeId]) {
-                        existingMarkers[episodeId] = [];
-                    }
+            Log.tmi(marker, 'Adding existing marker');
+            existingMarkers[marker.episode_id].push(TrimmedMarker.fromRaw(marker));
+        }
 
-                    // Ignore identical markers, though we should probably have better
-                    // messaging, or not show them to the user at all.
-                    let identicalMarker = existingMarkers[episodeId].find(marker => marker.start == action.start && marker.end == action.end);
-                    if (!identicalMarker) {
-                        Log.tmi(action, 'Adding marker to restore');
-                        existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
-                    } else {
-                        Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
-                        identicalMarkers.push(identicalMarker);
-                    }
+        let expectedInserts = 0;
+        let identicalMarkers = [];
+        let potentialRestores = 0;
+        let transaction = 'BEGIN TRANSACTION;\n';
+        for (const [episodeId, markerActions] of Object.entries(actions)) {
+            // Calculate new indexes
+            for (const action of markerActions) {
+                ++potentialRestores;
+                if (!existingMarkers[episodeId]) {
+                    existingMarkers[episodeId] = [];
                 }
 
-                // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
-                existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
-                    marker.newIndex = index;
-                });
-
-                for (const marker of Object.values(existingMarkers[episodeId])) {
-                    if (marker.existing()) {
-                        continue;
-                    }
-
-                    ++expectedInserts;
-                    const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-                    transaction +=
-                        'INSERT INTO taggings ' +
-                            '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-                        'VALUES ' +
-                            `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, ${thumbUrl}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
-                }
-
-                // updateMarkerIndex, without actually executing it.
-                for (const marker of Object.values(existingMarkers[episodeId])) {
-                    if (marker.index != marker.newIndex && marker.existing()) {
-                        Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
-                        transaction += 'UPDATE taggings SET `index`=' + marker.newIndex + ' WHERE id=' + marker.id + ';\n';
-                    }
+                // Ignore identical markers, though we should probably have better
+                // messaging, or not show them to the user at all.
+                let identicalMarker = existingMarkers[episodeId].find(marker => marker.start == action.start && marker.end == action.end);
+                if (!identicalMarker) {
+                    Log.tmi(action, 'Adding marker to restore');
+                    existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
+                } else {
+                    Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
+                    identicalMarkers.push(identicalMarker);
                 }
             }
 
-            if (expectedInserts == 0) {
-                // This is only expected if every marker we tried to restore already exists. In that case just
-                // immediately invoke the callback without any new markers, since we didn't add any.
-                Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
-                Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
-                callback(null, [], identicalMarkers);
-                return;
-            }
-
-            transaction += 'COMMIT TRANSACTION;';
-            Log.tmi('Built full restore query:\n' + transaction);
-            this.#database.exec(transaction, (err) => {
-                if (err) { return callback(`Unable to restore all markers:\n\n${err.message}`); }
-                Log.verbose('Successfully restored markers to Plex database');
-
-                // All markers were added successfully. Now query them all to return back to the backup manager
-                // so it can update caches accordingly.
-                let params = [this.#markerTagId];
-                let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
-                for (const newMarkers of Object.values(existingMarkers)) {
-                    for (const newMarker of newMarkers) {
-                        if (newMarker.existing()) {
-                            continue;
-                        }
-
-                        query += '(taggings.metadata_item_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?) OR ';
-                        params.push(newMarker.episode_id, newMarker.start, newMarker.end);
-                    }
-                }
-
-                query = query.substring(0, query.length - 4) + ')';
-                this.#database.all(query, params, (err, newMarkers) => {
-                    // If we failed, the server really should restart. We added the markers successfully,
-                    // but we can't updates our caches since we couldn't retrieve them.
-                    if (err) { return callback(err.message); }
-
-                    if (newMarkers.length != expectedInserts) {
-                        Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
-                    }
-
-                    callback(null, newMarkers, identicalMarkers);
-                });
+            // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
+            existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
+                marker.newIndex = index;
             });
-        });
+
+            for (const marker of Object.values(existingMarkers[episodeId])) {
+                if (marker.existing()) {
+                    continue;
+                }
+
+                ++expectedInserts;
+                const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+                transaction +=
+                    'INSERT INTO taggings ' +
+                        '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+                    'VALUES ' +
+                        `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, ${thumbUrl}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+            }
+
+            // updateMarkerIndex, without actually executing it.
+            for (const marker of Object.values(existingMarkers[episodeId])) {
+                if (marker.index != marker.newIndex && marker.existing()) {
+                    Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
+                    transaction += 'UPDATE taggings SET `index`=' + marker.newIndex + ' WHERE id=' + marker.id + ';\n';
+                }
+            }
+        }
+
+        if (expectedInserts == 0) {
+            // This is only expected if every marker we tried to restore already exists. In that case just
+            // immediately invoke the callback without any new markers, since we didn't add any.
+            Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
+            Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
+            return Promise.resolve({ newMarkers : [], identicalMarkers : identicalMarkers });
+        }
+
+        transaction += 'COMMIT TRANSACTION;';
+        Log.tmi('Built full restore query:\n' + transaction);
+
+        try {
+            this.#databaseWrapper.exec(transaction);
+        } catch (err) {
+            throw ServerError.FromDbError(err);
+        }
+
+        Log.verbose('Successfully restored markers to Plex database');
+
+        // All markers were added successfully. Now query them all to return back to the backup manager
+        // so it can update caches accordingly.
+        let params = [this.#markerTagId];
+        let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
+        for (const newMarkers of Object.values(existingMarkers)) {
+            for (const newMarker of newMarkers) {
+                if (newMarker.existing()) {
+                    continue;
+                }
+
+                query += '(taggings.metadata_item_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?) OR ';
+                params.push(newMarker.episode_id, newMarker.start, newMarker.end);
+            }
+        }
+
+        query = query.substring(0, query.length - 4) + ')';
+
+        // If this throws, the server really should restart. We added the markers successfully,
+        // but we can't update our caches since we couldn't retrieve them.
+        const newMarkers = await this.#databaseWrapper.all(query, params);
+        if (newMarkers.length != expectedInserts) {
+            Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
+        }
+
+        return Promise.resolve({ newMarkers : newMarkers, identicalMarkers : identicalMarkers });
     }
 
     /**

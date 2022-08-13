@@ -594,24 +594,22 @@ function returnCompressedData(res, status, data, contentType) {
  * @param {number[]} keys The metadata ids to lookup.
  * @param {Http.ServerResponse} res
  */
-function queryIds(keys, res) {
+async function queryIds(keys, res) {
     let markers = {};
-    keys.forEach(key => {
+    for (const key of keys) {
         markers[key] = [];
-    });
+    }
 
-    QueryManager.getMarkersForEpisodes(keys, (err, rows) => {
-        if (err) {
-            Log.error(err);
-            return jsonError(res, 400, 'Unable to retrieve ids');
+    try {
+        const rawMarkers = await QueryManager.getMarkersForEpisodes(keys);
+        for (const rawMarker of rawMarkers) {
+            markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
         }
 
-        rows.forEach(row => {
-            markers[row.episode_id].push(new MarkerData(row));
-        });
-
-        return jsonSuccess(res, markers);
-    });
+        jsonSuccess(res, markers);
+    } catch (err) {
+        jsonError(res, err.code, `Unable to retrieve ids: ${err.message}`);
+    }
 }
 
 /**
@@ -1087,34 +1085,36 @@ function allPurges(sectionId, res) {
  * @param {number[]} oldMarkerIds
  * @param {number} sectionId
  * @param {Http.ServerResponse} res */
-function restoreMarkers(oldMarkerIds, sectionId, res) {
+async function restoreMarkers(oldMarkerIds, sectionId, res) {
     if (!BackupManager || !Config.backupActions()) {
         return jsonError(res, 400, 'Feature not enabled');
     }
 
-    BackupManager.restoreMarkers(oldMarkerIds, sectionId, (err, restoredMarkers, existingMarkers) => {
-        if (err) {
-            return jsonError(res, 500, err);
-        }
-
+    try {
+        const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
+        const restoredMarkers = restoredMarkerData.restoredMarkers;
+        const existingMarkers = restoredMarkerData.existingMarkers;
+    
         if (restoredMarkers.length == 0) {
             Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
         }
-
+    
         let markerData = [];
         Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
         for (const restoredMarker of restoredMarkers) {
             MarkerCache?.addMarkerToCache(restoredMarker);
             markerData.push(new MarkerData(restoredMarker));
         }
-
+    
         let existingMarkerData = [];
         for (const existingMarker of existingMarkers) {
             existingMarkerData.push(new MarkerData(existingMarker));
         }
-
+    
         jsonSuccess(res, { newMarkers : markerData, existingMarkers : existingMarkerData });
-    });
+    } catch (err) {
+        jsonError(res, err.code, err.message);
+    }
 }
 
 /**
