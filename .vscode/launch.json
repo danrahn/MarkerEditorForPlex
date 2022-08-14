@@ -21,9 +21,7 @@
                 "<node_internals>/**"
             ],
             "args": [
-                "--test",
-                "--test_log_level",
-                "DarkVerbose",
+                "--test"
             ],
             "program": "${workspaceFolder}\\Test\\Test.js"
         }

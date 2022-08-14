@@ -11,6 +11,7 @@ import ImageTest from './TestClasses/ImageTest.js';
 import { getState } from '../Server/PlexIntroEditor.js';
 import ServerState from '../Server/ServerState.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import QueryTest from './TestClasses/QueryTest.js';
 
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
@@ -27,6 +28,7 @@ class TestRunner {
         BasicCrud : BasicCRUD,
         MultipleMarkers : MultipleMarkers,
         ImageTest : ImageTest,
+        QueryTest : QueryTest,
     };
 
     constructor() {

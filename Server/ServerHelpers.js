@@ -22,12 +22,13 @@ function sendJsonError(res, error, code) {
         code = error.code;
     }
 
+    Log.error(message);
+    Log.verbose(stack);
+
     if (!code) {
         Log.warn(`sendJsonError didn't receive a valid error code, defaulting to 500`);
         code = 500;
     }
-
-    Log.verbose(stack);
 
     sendCompressedData(res, code, JSON.stringify({ Error : message }), contentType('application/json'));
 }

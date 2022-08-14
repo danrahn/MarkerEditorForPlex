@@ -196,7 +196,19 @@ class TestHelpers {
         CREATE INDEX 'index_metadata_items_on_absolute_index' ON 'metadata_items' ('absolute_index');
         CREATE INDEX 'index_metadata_items_on_remote' ON 'metadata_items' ('remote');`;
 
-        return taggings + tags + sections + metadataItems;
+        // .schema media_items
+        const mediaItems = `
+        CREATE TABLE IF NOT EXISTS "media_items" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "library_section_id" integer, "section_location_id" integer, "metadata_item_id" integer, "type_id" integer, "width" integer, "height" integer, "size" integer(8), "duration" integer, "bitrate" integer, "container" varchar(255), "video_codec" varchar(255), "audio_codec" varchar(255), "display_aspect_ratio" float, "frames_per_second" float, "audio_channels" integer, "interlaced" boolean, "source" varchar(255), "hints" varchar(255), "display_offset" integer, "settings" varchar(255), "created_at" dt_integer(8), "updated_at" dt_integer(8), "optimized_for_streaming" boolean, "deleted_at" dt_integer(8), "media_analysis_version" integer DEFAULT 0, "sample_aspect_ratio" float, "extra_data" varchar(255), 'proxy_type' integer, 'channel_id' integer, 'begins_at' dt_integer(8), 'ends_at' dt_integer(8), 'color_trc' varchar(255));
+        CREATE INDEX "index_media_items_on_library_section_id" ON "media_items" ("library_section_id" );
+        CREATE INDEX "index_media_items_on_metadata_item_id" ON "media_items" ("metadata_item_id" );
+        CREATE INDEX "index_media_items_on_deleted_at" ON "media_items" ("deleted_at" );
+        CREATE INDEX "index_media_items_on_media_analysis_version" ON "media_items" ("media_analysis_version" );
+        CREATE INDEX 'index_media_items_on_begins_at' ON 'media_items' ('begins_at');
+        CREATE INDEX 'index_media_items_on_ends_at' ON 'media_items' ('ends_at');
+        CREATE INDEX 'index_media_items_on_channel_id' ON 'media_items' ('channel_id');
+        CREATE INDEX 'index_media_items_on_channel_id_and_begins_at' ON 'media_items' ('channel_id','begins_at');`;
+
+        return taggings + tags + sections + metadataItems + mediaItems;
     }
 }
 

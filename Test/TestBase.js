@@ -284,26 +284,26 @@ class TestBase {
     /**
      * Map of default metadata items to their metadata/marker ids. */
     static DefaultMetadata = {
-        Show1 : {
-            Id : 1,
-            Season1 : {
-                Id : 2,
-                Episode1 : {
-                    Id : 3,
-                },
-                Episode2 : {
-                    Id : 4,
-                    Marker1 : {
-                        Id : 1,
+        Show1 : { Id : 1,
+            Season1 : { Id : 2,
+                Episode1 : { Id : 3, },
+                Episode2 : { Id : 4,
+                    Marker1 : { Id : 1,
                         Start : 15000,
                         End : 45000
                     },
                 },
-                Episode3 : {
-                    Id : 5,
-                }
+                Episode3 : { Id : 5, },
+            },
+            Season2 : { Id : 6,
+                Episode1 : { Id : 7, },
             }
-        }
+        },
+        Show2 : { Id : 8,
+            Season1 : { Id : 9,
+                Episode1 : { Id : 10, },
+            },
+        },
     }
 
     /**
@@ -319,24 +319,42 @@ class TestBase {
         // Create the intro marker tag.
         const introInsert = `INSERT INTO tags (tag_type) VALUES (12);`;
 
-        // Create a single library
-        const sectionInsert = `INSERT INTO library_sections (library_id, name, section_type, uuid) VALUES (1, "TV", 2, "94319c6e-16c0-11ed-861d-0242ac120002");`;
+        // Create a single TV library, and a movie library
+        const sectionInsert = `
+        INSERT INTO library_sections (library_id, name, section_type, uuid)
+        VALUES                       (1,          "TV", 2,            "94319c6e-16c0-11ed-861d-0242ac120002"),
+                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc");`;
 
-        // For now, create a single show with a single season with a few episodes.
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override
         //       what's added to accommodate any scenario. Also have a map that indicates what's available
         // Type - 2=show, 3=season, 4=episode
         // Index - show=1, everything else = season/episode index
         // inserting id isn't necessary, just helpful for tracking
         const metadataInsert = `
-        INSERT INTO metadata_items (id, library_section_id, metadata_type, parent_id, title,       \`index\`)
-        VALUES                     (1,  1,                  2,             NULL,      "TV SHOW",   1),
-                                   (2,  1,                  3,             1,         "Season 1",  1),
-                                   (3,  1,                  4,             2,         "Episode 1", 1),
-                                   (4,  1,                  4,             2,         "Episode 2", 2),
-                                   (5,  1,                  4,             2,         "Episode 3", 3);`;
+        INSERT INTO metadata_items (id, library_section_id, metadata_type, parent_id, title,     \`index\`)
+        VALUES                     (1,  1,                  2,             NULL,      "Show1",    1),
+                                   (2,  1,                  3,             1,         "Season1",  1),
+                                   (3,  1,                  4,             2,         "Episode1", 1),
+                                   (4,  1,                  4,             2,         "Episode2", 2),
+                                   (5,  1,                  4,             2,         "Episode3", 3),
+                                   (6,  1,                  3,             1,         "Season2",  2),
+                                   (7,  1,                  4,             6,         "Episode1", 1),
+                                   (8,  1,                  2,             NULL,      "Show2",    1),
+                                   (9,  1,                  3,             8,         "Season1",  1),
+                                   (10, 1,                  4,             9,         "Episode1", 1),
 
-        return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + this.defaultMarkers());
+                                   (100,2,                  1,             NULL,      "Movie1",   1);`;
+
+        // Need existing media, but only the metadata_item_id and duration field (for now)
+        const mediaInsert = `
+        INSERT INTO media_items (metadata_item_id, duration)
+        VALUES                  (3,                10000),
+                                (4,                10000),
+                                (5,                10000),
+                                (7,                10000),
+                                (10,               10000);`;
+
+        return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + mediaInsert + this.defaultMarkers());
     }
 
     /**

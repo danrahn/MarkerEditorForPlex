@@ -117,7 +117,7 @@ class PlexData {
 
         this.title = show.title;
         this.searchTitle = ShowData.#transformTitle(show.title);
-        this.sortTitle = show.title.toLowerCase() != show.title_sort.toLowerCase() ? ShowData.#transformTitle(show.title_sort) : '';
+        this.sortTitle = (show.title_sort && show.title.toLowerCase() != show.title_sort.toLowerCase()) ? ShowData.#transformTitle(show.title_sort) : '';
         this.originalTitle = show.original_title ? ShowData.#transformTitle(show.original_title) : '';
         this.seasonCount = show.season_count;
         this.episodeCount = show.episode_count;
