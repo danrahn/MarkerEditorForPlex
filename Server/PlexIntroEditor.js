@@ -388,6 +388,9 @@ async function handlePost(req, res) {
     if (process.argv.indexOf('--test') != -1) {
         testData.isTest = true;
         IsTest = true;
+
+        // Tests default to testConfig.json, but it can be overridden below
+        testData.configOverride = 'testConfig.json';
     }
 
     const configIndex = process.argv.indexOf('--config_override');

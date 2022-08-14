@@ -80,9 +80,20 @@ class TestBase {
 
     /**
      * Initiate the run for this test class, setting up the database and config file before
-     * running through the test methods. */
-    async runTests() {
+     * running through the test methods.
+     * @param {string?} methodName The specific test method to run, if any. */
+    async runTests(methodName) {
         TestBase.Cleanup();
+        let methodFn = null;
+        if (methodName) {
+            const availableMethods = {};
+            this.testMethods.map(fn => { availableMethods[fn.name] = fn });
+            if (!availableMethods[methodName]) {
+                throw new Error(`Test method ${methodName} not found. Make sure the test exists, and casing is correct.`);
+            }
+
+            methodFn = availableMethods[methodName];
+        }
 
         try {
             this.testDb = new DatabaseWrapper(await CreateDatabase(TestBase.testDbPath, true /*allowCreate*/));
@@ -96,7 +107,11 @@ class TestBase {
 
         this.setupConfig();
         await this.startService();
-        return this.run();
+        if (methodFn) {
+            return this.runSingle(methodFn);
+        }
+
+        return this.runAll();
     }
 
     /**
@@ -136,32 +151,13 @@ class TestBase {
 
     /**
      * Run all available test methods for this class. */
-    async run() {
+    async runAll() {
         TestLog.info(`Running tests for ${this.className()}`);
         let successCount = 0;
         let failureCount = 0;
         for (const method of this.testMethods) {
-            await this.resetState();
-            await this.resume();
-            this.testMethodSetup();
-            let success = true;
-            let response = '';
-            try {
-                await method.bind(this)();
-            } catch (ex) {
-                success = false;
-                response = ex.message;
-            }
-
-            this.testMethodTeardown();
-
-            TestLog.verbose(`\t[${method.name}]: ${success ? 'PASSED' : 'FAILED'}`);
-            if (!success) {
-                TestLog.verbose(`\t\t${response}`);
-            }
-
+            const success = await this.#runSingleInternal(method);
             success ? ++successCount : ++failureCount;
-            await this.suspend();
         }
 
         TestLog.info(`Ran ${this.testMethods.length} tests`);
@@ -176,6 +172,38 @@ class TestBase {
         await this.testDb?.close();
         await this.backupDb?.close();
         return Promise.resolve(result);
+    }
+
+    async runSingle(testFn) {
+        TestLog.info(`Running ${this.className()}::${testFn.name}`);
+        const success = await this.#runSingleInternal(testFn);
+        await this.testDb?.close();
+        await this.backupDb?.close();
+        return Promise.resolve({ success : success ? 1 : 0, fail : success ? 0 : 1 });
+    }
+
+    async #runSingleInternal(testMethod) {
+        await this.resetState();
+        await this.resume();
+        this.testMethodSetup();
+        let success = true;
+        let response = '';
+        try {
+            await testMethod.bind(this)();
+        } catch (ex) {
+            success = false;
+            response = ex.message;
+        }
+
+        this.testMethodTeardown();
+
+        TestLog.verbose(`\t[${testMethod.name}]: ${success ? 'PASSED' : 'FAILED'}`);
+        if (!success) {
+            TestLog.verbose(`\t\t${response}`);
+        }
+
+        await this.suspend();
+        return success;
     }
 
     /**
@@ -332,6 +360,35 @@ class TestBase {
             VALUES
                 (${metadataId}, 1, ${index}, "intro", ${start}, ${end}, CURRENT_TIMESTAMP, "pv%3Aversion=5");`
         return dbMarkerInsert(episode.Id, 0, episode.Marker1.Start, episode.Marker1.End);
+    }
+
+    /**
+     * Add a marker to the given episode via the 'add' endpoint.
+     * @param {number} episodeId The episode's metadata id
+     * @param {number} startMs
+     * @param {number} endMs
+     * @param {boolean} raw Whether the Response should be returned instead of the json response. */
+    async addMarker(episodeId, startMs, endMs, raw=false) {
+        return this.send('add', {
+            metadataId : episodeId,
+            start : startMs,
+            end : endMs
+        }, raw);
+    }
+
+    /**
+     * Edit a marker with the given id via the 'edit' endpoint.
+     * @param {number} markerId
+     * @param {number} startMs
+     * @param {number} endMs
+     * @param {boolean} raw Whether the Response should be returned instead of the json response. */
+    async editMarker(markerId, startMs, endMs, raw=false) {
+        return this.send('edit', {
+            id : markerId,
+            start : startMs,
+            end : endMs,
+            userCreated : 0
+        }, raw);
     }
 
     /**

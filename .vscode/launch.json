@@ -22,8 +22,6 @@
             ],
             "args": [
                 "--test",
-                "--config_override",
-                "testConfig.json",
                 "--test_log_level",
                 "DarkVerbose",
             ],

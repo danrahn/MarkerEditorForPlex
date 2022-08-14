@@ -15,7 +15,7 @@ import { ConsoleLog } from '../Shared/ConsoleLog.js';
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
 const TestLog = new ConsoleLog();
-TestLog.setLevel(ConsoleLog.Level.Tmi);
+TestLog.setLevel(ConsoleLog.Level.Verbose);
 TestLog.setDarkConsole(1);
 
 /**
@@ -29,10 +29,14 @@ class TestRunner {
         ImageTest : ImageTest,
     };
 
+    constructor() {
+        this.#setTestLog();
+    }
+
     /**
      * Run all available test classes. */
     async runAll() {
-        this.#setTestLog();
+        TestLog.info(`Running all tests`);
         try {
             let totals = { success : 0, fail : 0 };
             for (const classDef of Object.values(TestRunner.TestClasses)) {
@@ -42,14 +46,43 @@ class TestRunner {
                 totals.fail += result.fail;
             }
 
-            const logMethod = totals.fail > 0 ? TestLog.error : TestLog.info;
-            logMethod.bind(TestLog)(`Ran ${totals.success + totals.fail} tests, ${totals.success} passed, ${totals.fail} failed.`);
-
+            this.printResults(totals);
             return this.#shutdown();
         } catch (ex) {
             TestLog.error(`TestRunner::runAll - Encountered an exception - ${ex.message}`);
             return Promise.reject();
         }
+    }
+
+    /**
+     * Run a specific test class or, if provided, a specific method of a specific class.
+     * @param {string} className
+     * @param {string?} testMethod */
+    async runSpecific(className, testMethod) {
+        TestLog.info(`Running ${className}${testMethod ? '::' + testMethod : ''}`);
+        // Could do some manipulation to ignore casing, but require exact casing for now
+        if (!TestRunner.TestClasses[className]) {
+            TestLog.error(`Test class ${className} not found. Make sure casing is correct.`);
+            return Promise.reject();
+        }
+
+        try {
+            let testClass = new TestRunner.TestClasses[className]();
+            const result = await testClass.runTests(testMethod);
+            this.printResults(result);
+            return this.#shutdown();
+        } catch (ex) {
+            TestLog.error(`TestRunner::runSpecific - Encountered an exception - ${ex.message}`);
+            return Promise.reject();
+        }
+    }
+
+    /**
+     * Print overall test run stats.
+     * @param {{ success : number, fail : number}} totals */
+    printResults(totals) {
+        const logMethod = totals.fail > 0 ? TestLog.error : TestLog.info;
+        logMethod.bind(TestLog)(`Ran ${totals.success + totals.fail} tests, ${totals.success} passed, ${totals.fail} failed.`);
     }
 
     /**

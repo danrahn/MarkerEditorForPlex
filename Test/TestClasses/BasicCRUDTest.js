@@ -28,11 +28,7 @@ class BasicCRUD extends TestBase {
      * Test adding a single marker to an episode that has no existing markers. */
     async testSingleAdd() {
         const show = TestBase.DefaultMetadata.Show1;
-        let marker = await this.send('add', {
-            metadataId : show.Season1.Episode1.Id,
-            start : 0,
-            end : 1000
-        });
+        let marker = await this.addMarker(show.Season1.Episode1.Id, 0, 1000);
 
         return TestHelpers.validateMarker(
             marker,
@@ -63,11 +59,7 @@ class BasicCRUD extends TestBase {
     async testNegativeStart() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.send('add', {
-            metadataId : show.Season1.Episode1.Id,
-            start : -1,
-            end : 10000
-        }, true /*raw*/);
+        let response = await this.addMarker(show.Season1.Episode1.Id, -1, 10000, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response, 'add with negative startMs');
     }
@@ -77,11 +69,7 @@ class BasicCRUD extends TestBase {
     async testEqualStartAndEnd() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.send('add', {
-            metadataId : show.Season1.Episode1.Id,
-            start :10000,
-            end : 10000
-        }, true /*raw*/);
+        let response = await this.addMarker(show.Season1.Episode1.Id, 10000, 10000, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response, 'add with equal startMs and endMs');
     }
@@ -103,11 +91,7 @@ class BasicCRUD extends TestBase {
      * which isn't an episode. */
     async #addToWrongMetadataType(metadataId) {
         this.expectFailure();
-        let response = await this.send('add', {
-            metadataId : metadataId,
-            start : 0,
-            end : 10000
-        }, true /*raw*/);
+        let response = await this.addMarker(metadataId, 0, 10000, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response);
     }
@@ -117,12 +101,7 @@ class BasicCRUD extends TestBase {
     async testSingleEdit() {
         // With default config, taggings id 1 is a marker from 15 to 45 seconds.
         const show = TestBase.DefaultMetadata.Show1;
-        let marker = await this.send('edit', {
-            id : show.Season1.Episode2.Marker1.Id,
-            start : 14000,
-            end : 46000,
-            userCreated : 0
-        });
+        let marker = await this.editMarker(show.Season1.Episode2.Marker1.Id, 14000, 46000);
 
         // Edit returns modified data
         return TestHelpers.validateMarker(marker,
@@ -140,12 +119,8 @@ class BasicCRUD extends TestBase {
     async testEditOfNonexistentMarker() {
         // Don't surface expected errors from the main application log
         this.expectFailure();
-        let response = await this.send('edit', {
-            id : 100, /* arbitrary bad value */
-            start : 0,
-            end : 10000,
-            userCreated : 0
-        }, true /*raw*/);
+        /* MarkerId of 100 = arbitrary bad value */
+        let response = await this.editMarker(100, 0, 10000, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response, 'edit of nonexistent marker');
     }

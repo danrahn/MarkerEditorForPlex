@@ -23,11 +23,7 @@ class MultipleMarkers extends TestBase {
     async testAddAfterExisting() {
         const show = TestBase.DefaultMetadata.Show1;
         const eid = show.Season1.Episode2.Id;
-        let marker = await this.send('add', {
-            metadataId : eid,
-            start : 50000,
-            end : 60000
-        });
+        let marker = await this.addMarker(eid, 50000, 60000);
 
         await TestHelpers.validateMarker(
             marker,
@@ -64,11 +60,7 @@ class MultipleMarkers extends TestBase {
         // Essentially copy+paste from above, with order swapped
         const show = TestBase.DefaultMetadata.Show1;
         const eid = show.Season1.Episode2.Id;
-        let marker = await this.send('add', {
-            metadataId : eid,
-            start : 0,
-            end : 10000
-        });
+        let marker = await this.addMarker(eid, 0, 10000);
 
         await TestHelpers.validateMarker(
             marker,
@@ -129,11 +121,7 @@ class MultipleMarkers extends TestBase {
      * @param {number} end */
     async #failOverlap(start, end) {
         const show = TestBase.DefaultMetadata.Show1;
-        let error = await this.send('add', {
-            metadataId : show.Season1.Episode2.Id,
-            start : start,
-            end : end
-        }, true /*raw*/);
+        let error = await this.addMarker(show.Season1.Episode2.Id, start, end, true);
 
         TestHelpers.verifyBadRequest(error, `overlapping marker ${start}-${end}`);
     }
