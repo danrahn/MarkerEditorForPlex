@@ -90,7 +90,7 @@ class ImageHandler {
                 'x-content-type-options': 'nosniff'
             }).end(Buffer.from(contents, 'utf-8'));
         } catch (err) {
-            return badRequest(err.message, err instanceof ServerError ? err.code : 500);
+            return badRequest(err.message, err.code && err.code == 'ENOENT' ? 404 : 500);
         }
     }
 

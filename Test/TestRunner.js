@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import TestBase from './TestBase.js';
 import BasicCRUD from './TestClasses/BasicCRUDTest.js';
 import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
+import ImageTest from './TestClasses/ImageTest.js';
 
 // Server/Shared dependencies
 import { getState } from '../Server/PlexIntroEditor.js';
@@ -25,6 +26,7 @@ class TestRunner {
     static TestClasses = {
         BasicCrud : BasicCRUD,
         MultipleMarkers : MultipleMarkers,
+        ImageTest : ImageTest,
     };
 
     /**

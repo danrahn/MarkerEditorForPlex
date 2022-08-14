@@ -109,10 +109,31 @@ class TestHelpers {
      * throwing if it's not the case.
      * @param {Response} response The response from the server
      * @param {string} testCase The test case that we expect to fail */
-    static async verifyBadRequest(response, testCase) {
+    static async verifyBadRequest(response, testCase, json=true) {
         TestHelpers.verify(response.status == 400, `Expected ${testCase} to return 400, got ${response.status}.`);
+
+        // No JSON response for GET requests, the status code itself is enough
+        if (!json) { return; }
+
         const message = await response.json();
         TestHelpers.verify(message.Error, `Expected an error message for ${testCase}, found nothing.`);
+    }
+
+    /**
+     * Verifies that the header of the given response is what we expect.
+     * @param {Headers} headers
+     * @param {string} header
+     * @param {string} expected
+     * @param {string} endpoint */
+    static verifyHeader(headers, header, expected, endpoint) {
+        let value = headers.get(header);
+        if (value === null) {
+            value = "null";
+        } else {
+            value = `"${value}"`;
+        }
+
+        TestHelpers.verify(value != null, `Expected header "${header}" of "${endpoint}" to be "${expected}", found ${value}`);
     }
 
     /**

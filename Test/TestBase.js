@@ -212,8 +212,29 @@ class TestBase {
     /**
      * Send a request to the test server.
      * @param {string} endpoint The command to run
-     * @param {*} params Dictionary of query parameters to pass into the test server. */
+     * @param {*} params Dictionary of query parameters to pass into the test server.
+     * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON data. */
     async send(endpoint, params={}, raw=false) {
+        return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' } , raw);
+    }
+
+    /**
+     * Sends a GET request to the test server.
+     * @param {string} endpoint The file to retrieve
+     * @param {*} params Dictionary of query parameters to pass into the test server.
+     * @returns {Promise<Response>} */
+    async get(endpoint, params={}) {
+        return this.#fetchInternal(endpoint, params, 'GET', {}, true);
+    }
+
+    /**
+     * Internal fetch handler
+     * @param {string} endpoint
+     * @param {*} params
+     * @param {string} method POST or GET
+     * @param {*} headers Any additional headers to add to the request
+     * @param {boolean} raw */
+    async #fetchInternal(endpoint, params, method, headers, raw) {
         if (getState() == ServerState.FirstBoot || getState() == ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
@@ -225,9 +246,10 @@ class TestBase {
         }
 
         if (raw) {
-            return fetch(url, { method : 'POST', headers : { accept : 'application/json' } });
+            return fetch(url, { method : method, headers : headers });
         } else {
-            return fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json());
+            TestHelpers.verify(method == 'POST', `We shouldn't be making non-raw GET requests`);
+            return fetch(url, { method : method, headers : headers }).then(r => r.json());
         }
     }
 
