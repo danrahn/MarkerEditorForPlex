@@ -9,7 +9,7 @@ const helpText = appendChildren(
     buildNode('h1', {}, 'Welcome to the Plex Intro Editor'),
     buildNode('p', {}, `
 For help with the configuration and usage of ths app, see the 
-<a href="https://github.com/danrahn/PlexIntroEditor" target="_blank" rel="noreferrer">wiki on GitHub</a>.`),
+<a href="https://github.com/danrahn/PlexIntroEditor/wiki" target="_blank" rel="noreferrer">wiki on GitHub</a>.`),
     buildNode('p', { style : 'margin-top: 30px' }, `
 Disclaimer: This interacts directly with your Plex database in a way that is not officially supported. While it should
 be safe to perform various create/update/delete actions, there are no guarantees that it won't break things now or in
