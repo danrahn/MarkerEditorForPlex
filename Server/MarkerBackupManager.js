@@ -279,8 +279,6 @@ class MarkerBackupManager {
         } catch (err) {
             Log.error('MarkerBackupManager: Backup marker database close failed', err.message);
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -296,7 +294,6 @@ class MarkerBackupManager {
         } else {
             Log.info('MarkerBackupManager: Successfully upgraded database schema.');
             Log.info('MarkerBackupManager: Initialized backup database');
-            return Promise.resolve();
         }
     }
 
@@ -315,7 +312,6 @@ class MarkerBackupManager {
         }
 
         await this.#actions.exec(query);
-        return Promise.resolve();
     }
 
     /**
@@ -381,8 +377,6 @@ INSERT INTO actions
         } catch (err) {
             Log.error(err.message, 'MarkerBackupManager: Unable to record edited marker');
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -407,8 +401,6 @@ INSERT INTO actions
         } catch (err) {
             Log.error(err.message, 'MarkerBackupManager: Unable to record deleted marker');
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -441,10 +433,7 @@ INSERT INTO actions
         } catch (err) {
             // Swallow the error, though we should probably actually do something about this.
             Log.error(err.message, 'MarkerBackupManager: Unable to record restoration of marker');
-            return Promise.resolve();
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -502,8 +491,6 @@ INSERT INTO actions
                 markerAction.episodeData = episodeData;
             }
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -557,8 +544,6 @@ ORDER BY id DESC;`
         } else {
             Log.info(`Looked for purged markers and didn't find any`);
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -844,8 +829,6 @@ ORDER BY id DESC;`
                 }
             }
         }
-
-        return Promise.resolve();
     }
 }
 

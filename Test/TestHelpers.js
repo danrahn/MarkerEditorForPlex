@@ -76,7 +76,6 @@ class TestHelpers {
         checkField(row.end_time_offset, expectedEnd, 'DB marker end');
         checkField(row.index, expectedIndex, 'DB marker index');
         TestHelpers.verify(allIssues.length == 0, allIssues);
-        return Promise.resolve();
     }
 
     /**

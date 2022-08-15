@@ -1,7 +1,5 @@
-import { $, errorMessage, jsonRequest } from './Common.js';
+import { $, errorMessage, errorResponseOverlay, jsonRequest } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-
-import Overlay from './inc/Overlay.js';
 
 import SettingsManager from './ClientSettings.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
@@ -33,26 +31,22 @@ function setup()
  * * Get app config
  * * Get local settings
  * * Retrieve libraries */
-function mainSetup() {
-    let failureFunc = (response) => {
-        Overlay.show(`Error getting libraries, please verify you have provided the correct database path and try again. Server Message:<br><br>${errorMessage(response)}`, 'OK');
-    };
-
-    let gotConfig = (config) => {
-        const settings = SettingsManager.Get();
-        settings.parseServerConfig(config);
-        new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
-
-        const plexUI = PlexUI.Get();
-        jsonRequest('get_sections', {}, plexUI.init.bind(plexUI), failureFunc);
+async function mainSetup() {
+    let config = {};
+    try {
+        config = await jsonRequest('get_config');
+    } catch (err) {
+        Log.warn(errorMessage(err), 'Unable to get app config, assuming everything is disabled. Server responded with');
     }
 
-    let noConfig = () => {
-        Log.warn('Unable to get app config, assume everything is disabled.');
-        SettingsManager.Get().parseServerConfig({});
-        const plexUI = PlexUI.Get();
-        jsonRequest('get_sections', {}, plexUI.init.bind(plexUI), failureFunc);
-    }
+    const settings = SettingsManager.Get();
+    settings.parseServerConfig(config);
+    new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
 
-    jsonRequest('get_config', {}, gotConfig, noConfig);
+    try {
+        PlexUI.Get().init(await jsonRequest('get_sections'));
+    } catch (err) {
+        errorResponseOverlay('Error getting libraries, please verify you have provided the correct database path and try again.', err);
+        return;
+    }
 }

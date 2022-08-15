@@ -1,5 +1,5 @@
 
-import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, jsonRequest } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import Overlay from "./inc/Overlay.js";
@@ -173,26 +173,20 @@ class ExistingMarkerRow extends MarkerRow {
     }
 
     /** Makes a request to delete a marker, removing it from the marker table on success. */
-    #onMarkerDelete() {
-        let failureFunc = (response) => {
-            Overlay.show(`Failed to delete marker:<br><br>${errorMessage(response)}`, 'OK');
-        }
-
+    async #onMarkerDelete() {
         let thisButton = $('#overlayDeleteMarker');
         if (thisButton) {
             thisButton.value = 'Deleting...';
         }
 
-        jsonRequest('delete', { id : this.markerId() }, this.#onMarkerDeleteSuccess.bind(this), failureFunc);
-    }
-
-    /**
-     * Callback after a marker was successfully deleted. Remove its row in the table and adjust indexes as necessary.
-     * @param {Object} response The response from the server, as serialized `MarkerData` object. */
-    #onMarkerDeleteSuccess(response) {
-        Overlay.dismiss();
-        const deletedMarker = new MarkerData().setFromJson(response);
-        PlexClientState.GetState().getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());
+        try {
+            const rawMarkerData = await jsonRequest('delete', { id : this.markerId() });
+            Overlay.dismiss();
+            const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
+            PlexClientState.GetState().getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());
+        } catch (err) {
+            errorResponseOverlay('Failed to delete marker.', err);
+        }
     }
 }
 

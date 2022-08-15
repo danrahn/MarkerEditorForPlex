@@ -1,8 +1,6 @@
-import { jsonRequest, errorMessage } from './Common.js';
+import { errorMessage, errorResponseOverlay, jsonRequest } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
-
-import Overlay from './inc/Overlay.js';
 
 import ClientEpisodeData from './ClientEpisodeData.js';
 import { PurgedSection } from './PurgedMarkerCache.js';
@@ -189,39 +187,39 @@ class PlexClientState {
      * that didn't apply to the active season (or if there is no active season)
      * @param {ShowResultRow} show The show to update.
      * @param {SeasonResultRow[]} seasons The list of seasons of the show that need to be updated. */
-    updateNonActiveBreakdown(show, seasons) {
+    async updateNonActiveBreakdown(show, seasons) {
         // Nothing to do at the season/show level if extended marker stats aren't enabled.
         if (!SettingsManager.Get().showExtendedMarkerInfo()) {
             return;
         }
 
-        const successFunc = (response) => {
-            for (const seasonRow of seasons) {
-                const newBreakdown = response.seasonData[seasonRow.season().metadataId];
-                if (!newBreakdown) {
-                    Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
-                    continue;
-                }
-
-                seasonRow.season().markerBreakdown = newBreakdown;
-                seasonRow.updateMarkerBreakdown();
-            }
-
-            if (!response.showData) {
-                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
-            } else {
-                show.show().markerBreakdown = response.showData;
-            }
-
-            show.updateMarkerBreakdown();
-        };
-
-        const failureFunc = (response) => {
-            Log.warn(`Failed to update ("${errorMessage(response)}"), marker stats will be incorrect.`);
+        const params = { id : show.show().metadataId, includeSeasons : seasons.length == 0 ? 0 : 1 };
+        let response;
+        try {
+            response = await jsonRequest('get_breakdown', params);
+        } catch (err) {
+            Log.warn(`Failed to update ("${errorMessage(err)}"), marker stats will be incorrect.`);
+            return;
         }
 
-        const params = { id : show.show().metadataId, includeSeasons : seasons.length == 0 ? 0 : 1 };
-        jsonRequest('get_breakdown', params, successFunc, failureFunc);
+        for (const seasonRow of seasons) {
+            const newBreakdown = response.seasonData[seasonRow.season().metadataId];
+            if (!newBreakdown) {
+                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
+                continue;
+            }
+
+            seasonRow.season().markerBreakdown = newBreakdown;
+            seasonRow.updateMarkerBreakdown();
+        }
+
+        if (!response.showData) {
+            Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
+        } else {
+            show.show().markerBreakdown = response.showData;
+        }
+
+        show.updateMarkerBreakdown();
     }
 
     /**
@@ -354,24 +352,17 @@ class PlexClientState {
             return Promise.resolve();
         }
 
-        return new Promise(resolve => {
-            jsonRequest(
-                'get_section',
-                { id : this.#activeSection },
-                (res) => {
-                    Log.info(this);
-                    let allShows = {};
-                    this.#shows[this.#activeSection] = allShows;
-                    for (const show of res) {
-                        let showData = new ShowData().setFromJson(show);
-                        allShows[showData.metadataId] = showData;
-                    }
-                    resolve();
-                },
-                (res) => {
-                    Overlay.show(`Something went wrong retrieving shows from the selected library, please try again later.<br><br>Server message:<br>${errorMessage(res)}`, 'OK');
-                });
-        });
+        try {
+            const shows = await jsonRequest('get_section', { id : this.#activeSection });
+            let allShows = {};
+            this.#shows[this.#activeSection] = allShows;
+            for (const show of shows) {
+                let showData = new ShowData().setFromJson(show);
+                allShows[showData.metadataId] = showData;
+            }
+        } catch (err) {
+            errorResponseOverlay('Something went wrong retrieving shows from the selected library, please try again later.', err);
+        }
     }
 }
 

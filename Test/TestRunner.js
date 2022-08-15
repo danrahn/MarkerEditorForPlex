@@ -97,8 +97,6 @@ class TestRunner {
             }).catch(err => {
                 TestLog.error(err.message, `Trouble shutting down test server`);
             });
-        } else {
-            return Promise.resolve();
         }
     }
 

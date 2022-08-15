@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, pad0, plural } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, jsonRequest, pad0, plural } from "./Common.js";
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
@@ -282,7 +282,7 @@ class ShowResultRow extends ResultRow {
             needsUpdate.push(seasonRow);
         }
 
-        PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
+        /*async*/ PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
@@ -293,7 +293,7 @@ class ShowResultRow extends ResultRow {
 
     /** Click handler for clicking a show row. Initiates a request for season details.
      * @param {MouseEvent} e */
-    #showClick(e) {
+    async #showClick(e) {
         if (this.ignoreRowClick(e)) {
             return;
         }
@@ -304,27 +304,25 @@ class ShowResultRow extends ResultRow {
         }
 
         if (SettingsManager.Get().backupEnabled()) {
-            PurgedMarkerManager.GetManager().getPurgedShowMarkers(this.show().metadataId).then(function(error) {
-                if (error) {
-                    Log.warn(`Unable to retrieve purged markers: ${error}`);
-                }
-
-                this.#getSeasons();
-            }.bind(this))
-        } else {
-            this.#getSeasons();
+            // Gather purge data before continuing
+            try {
+                await PurgedMarkerManager.GetManager().getPurgedShowMarkers(this.show().metadataId);
+            } catch (err) {
+                Log.warn(errorMessage(err), `Unable to get purged marker info for show ${this.show().title}`);
+            }
         }
+
+        /*async*/ this.#getSeasons();
     }
 
     /** Get season details for this show */
-    #getSeasons() {
+    async #getSeasons() {
         const show = this.show();
-        let failureFunc = response => {
-            Overlay.show(`Something went wrong when retrieving the seasons for ${show.title}.<br><br>` +
-                         `Server message:<br>${errorMessage(response)}`, 'OK')
-        };
-
-        jsonRequest('get_seasons', { id : show.metadataId }, this.#showSeasons.bind(this), failureFunc);
+        try {
+            this.#showSeasons(await jsonRequest('get_seasons', { id : show.metadataId }));
+        } catch (err) {
+            errorResponseOverlay(`Something went wrong when retrieving the seasons for ${show.title}`,err);
+        }
     }
 
     /**
@@ -462,34 +460,35 @@ class SeasonResultRow extends ResultRow {
             Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
             return;
         }
-        this.#getEpisodes();
+
+        /*async*/ this.#getEpisodes();
     }
 
     /** Make a request for all episodes in this season. */
-    #getEpisodes() {
+    async #getEpisodes() {
         const season = this.season();
-        let failureFunc = response => {
-            Overlay.show(`Something went wrong when retrieving the episodes for ${season.title}.<br>Server message:<br>${errorMessage(response)}`, 'OK');
-        };
-
-        jsonRequest('get_episodes', { id : season.metadataId }, this.#parseEpisodes.bind(this), failureFunc);
+        try {
+            await this.#parseEpisodes(await jsonRequest('get_episodes', { id : season.metadataId }));
+        } catch (err) {
+            errorResponseOverlay(`Something went wrong when retrieving the episodes for ${season.title}.`, err);
+        }
     }
 
     /**
      * Takes the given list of episodes and makes a request for marker details for each episode.
      * @param {Object[]} episodes Array of episodes in a particular season of a show. */
-    #parseEpisodes(episodes) {
+    async #parseEpisodes(episodes) {
         let queryString = [];
         for (const episode of episodes) {
             PlexClientState.GetState().addEpisode(new ClientEpisodeData().setFromJson(episode));
             queryString.push(episode.metadataId);
         }
 
-        let failureFunc = (response) => {
-            Overlay.show(`Something went wrong when retrieving the markers for these episodes, please try again.<br><br>Server Message:<br>${errorMessage(response)}`, 'OK');
+        try {
+            this.#showEpisodesAndMarkers(await jsonRequest('query', { keys : queryString.join(',') }));
+        } catch (err) {
+            errorResponseOverlay(`Something went wrong when retrieving the markers for these episodes, please try again.`, err);
         }
-
-        jsonRequest('query', { keys : queryString.join(',') }, this.#showEpisodesAndMarkers.bind(this), failureFunc);
     }
 
     /**

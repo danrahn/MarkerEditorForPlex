@@ -1,7 +1,7 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 import ButtonCreator from "./ButtonCreator.js";
-import { $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, pad0 } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, jsonRequest, pad0 } from "./Common.js";
 import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
@@ -160,31 +160,27 @@ class PurgeNonActionInfo {
     }
 
     /** Kicks off the restoration process for the markers this operation applies to. */
-    #onRestore() {
+    async #onRestore() {
         if (!this.#enterOperation()) { return; }
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
         $$('.restoreButton img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
         const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
-        jsonRequest('restore_purge', parameters, this.#onRestoreSuccess.bind(this), this.#onRestoreFailed.bind(this));
+
+        try {
+            const restoreData = await jsonRequest('restore_purge', parameters);
+            this.#resetConfirmImg('restoreButton');
+            this.#restoreInfo.successFn(restoreData.newMarkers);
+        } catch (err) {
+            errorMessage(err); // For logging
+            this.#resetConfirmImg('restoreButton');
+            this.#restoreInfo.failureFn();
+        }
     }
 
     /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
     #resetConfirmImg(className) {
         $$(`.${className} img`, this.#parent).src = ThemeColors.getIcon('confirm', 'green');
-    }
-
-    /** Callback invoked when we successfully restored markers.
-     * @param {{ markers : MarkerData[] }} response The response from the server. */
-    #onRestoreSuccess(response) {
-        this.#resetConfirmImg('restoreButton');
-        this.#restoreInfo.successFn(response.newMarkers);
-    }
-
-    /** Callback invoked when we failed to restore markers. */
-    #onRestoreFailed() {
-        this.#resetConfirmImg('restoreButton');
-        this.#restoreInfo.failureFn();
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -198,25 +194,22 @@ class PurgeNonActionInfo {
     }
 
     /** Kicks off the ignore process for the markers this operation applies to. */
-    #onIgnoreConfirm() {
+    async #onIgnoreConfirm() {
         if (!this.#enterOperation()) { return; }
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
         $$('.ignoreConfirm img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
         const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
-        jsonRequest('ignore_purge', parameters, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this));
-    }
 
-    /** Callback invoked when we successfully ignored markers. */
-    #onIgnoreSuccess() {
-        this.#resetConfirmImg('ignoreConfirm');
-        this.#ignoreConfirmInfo.successFn();
-    }
-
-    /** Callback invoked when we failed to ignore markers. */
-    #onIgnoreFailed() {
-        this.#resetConfirmImg('ignoreConfirm');
-        this.#ignoreConfirmInfo.failureFn();
+        try {
+            await jsonRequest('ignore_purge', parameters);
+            this.#resetConfirmImg('ignoreConfirm');
+            this.#ignoreConfirmInfo.successFn();
+        } catch (err) {
+            errorMessage(err); // For logging
+            this.#resetConfirmImg('ignoreConfirm');
+            this.#ignoreConfirmInfo.failureFn();
+        }
     }
 
     /** Resets the operation view after the user cancels the ignore operation. */
@@ -761,7 +754,7 @@ class PurgedMarkerManager {
     static GetManager() { return this.#manager; }
 
     /** Find all purged markers for the current library section. */
-    findPurgedMarkers() {
+    async findPurgedMarkers() {
         const section = PlexClientState.GetState().activeSection();
         const cachedSection = this.#serverPurgeInfo.get(section);
         if (cachedSection && cachedSection.status == PurgeCacheStatus.Complete) {
@@ -771,11 +764,16 @@ class PurgedMarkerManager {
             return;
         }
 
-        jsonRequest('all_purges', { sectionId : section }, this.#onMarkersFound.bind(this), this.#onMarkersFailed.bind(this));
+        try {
+            this.#onMarkersFound(await jsonRequest('all_purges', { sectionId : section }));
+        } catch (err) {
+            errorResponseOverlay(`Something went wrong retrieving purged markers. Please try again later.`, err);
+        }
     };
 
     /** Retrieve all purged markers for the show with the given metadata id.
-     * @param {number} showId */
+     * @param {number} showId
+     * @throws {Error} if the purge_check fails */
     async getPurgedShowMarkers(showId) {
         let section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection());
         let show = section.getOrAdd(showId);
@@ -787,34 +785,24 @@ class PurgedMarkerManager {
             show = section.addNewGroup(show.id);
         }
 
-        let thisArg = this;
-        return new Promise((resolve, reject) => {
-            /** @this {PurgedMarkerManager} */
-            const successFunc = function(/**@type {MarkerAction[]}*/ response) {
-                for (const action of response) {
-                    this.#addToCache(action);
-                }
+        // No try/catch, caller must handle
+        /** @type {MarkerAction[]} */
+        const actions = await jsonRequest('purge_check', { id : showId });
+        for (const action of actions) {
+            this.#addToCache(action);
+        }
 
-                // Mark each season/episode of the show as complete. Somewhat inefficient, but it's not
-                // expected for there to be enough purged markers for this to cause any significant slowdown.
-                // In theory not necessary, but good to be safe.
-                show.forEach(function(/**@type {MarkerAction}*/ markerAction) {
-                    this.#purgeCache.get(markerAction.episode_id).status = PurgeCacheStatus.Complete;
-                    this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
-                }.bind(this));
 
-                show.status = PurgeCacheStatus.Complete;
-                resolve();
-            }.bind(thisArg);
+        // Mark each season/episode of the show as complete. Somewhat inefficient, but it's not
+        // expected for there to be enough purged markers for this to cause any significant slowdown.
+        // In theory not necessary, but good to be safe.
+        show.forEach(function(/**@type {MarkerAction}*/ markerAction) {
+            this.#purgeCache.get(markerAction.episode_id).status = PurgeCacheStatus.Complete;
+            this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
+        }.bind(this));
 
-            const failureFunc = function(response) {
-                reject(errorMessage(response));
-            };
-
-            jsonRequest('purge_check', { id : showId }, successFunc, failureFunc);
-        });
+        show.status = PurgeCacheStatus.Complete;
     }
-
 
     /**Return the number of purged markers associated with the given show/season/episode */
     getPurgeCount(metadataId) {
@@ -952,13 +940,6 @@ class PurgedMarkerManager {
         const activeSection = PlexClientState.GetState().activeSection();
         this.#serverPurgeInfo.getOrAdd(activeSection).status = PurgeCacheStatus.Complete;
         new PurgeOverlay(this.#serverPurgeInfo.get(activeSection), activeSection).show();
-    }
-
-    /**
-     * Callback invoked when we failed to search for purged markers.
-     * @param {*} response Server response */
-    #onMarkersFailed(response) {
-        Overlay.show(`Something went wrong retrieving purged markers. Please try again later.<br><br>Server message:<br>${errorMessage(response)}`, 'OK');
     }
 }
 

@@ -139,8 +139,6 @@ FROM taggings
 
             this.#database = null;
         }
-
-        return Promise.resolve();
     }
 
     markerTagId() { return this.#markerTagId; }

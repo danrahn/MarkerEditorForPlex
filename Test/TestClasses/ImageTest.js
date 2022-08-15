@@ -16,7 +16,7 @@ class ImageTest extends TestBase {
             this.testBadSVGColors,
         ];
     }
-    
+
     // Hacky, but there are some SVGs that don't have a FILL_COLOR, so we don't expect to see it in the text.
     static #colorExceptions = { 'favicon.svg' : 1, 'noise.svg' : 1 };
 
@@ -36,8 +36,6 @@ class ImageTest extends TestBase {
             const result = await this.get(endpoint);
             await this.#ensureValidSVG(endpoint, result, 'CCC');
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -96,8 +94,6 @@ class ImageTest extends TestBase {
             const result = await this.get(img);
             await TestHelpers.verifyBadRequest(result, `invalid SVG color`, false /*json*/);
         }
-
-        return Promise.resolve();
     }
 
     /**
@@ -116,7 +112,6 @@ class ImageTest extends TestBase {
 
         const text = await response.text();
         TestHelpers.verify(text.indexOf(`#${color}`) != -1, `Expected to see color "${color}" in "${endpoint}", didn't find it!`);
-
     }
 }
 

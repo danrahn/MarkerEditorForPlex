@@ -43,8 +43,6 @@ class GeneralCommands {
             Log.setDarkConsole(darkConsole);
             Log.setTrace(traceLogging);
         }
-
-        return Promise.resolve();
     }
 }
 

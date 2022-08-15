@@ -73,7 +73,6 @@ class PurgeCommands {
         this.#checkBackupManagerEnabled();
 
         await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
-        return Promise.resolve();
     }
 
     /**

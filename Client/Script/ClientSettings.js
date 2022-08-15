@@ -1,6 +1,6 @@
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 import ButtonCreator from './ButtonCreator.js';
-import { $, $$, buildNode, appendChildren, jsonRequest, errorMessage, clearEle } from './Common.js';
+import { $, $$, buildNode, appendChildren, errorMessage, clearEle, jsonRequest, errorResponseOverlay } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -448,17 +448,14 @@ class ClientSettingsUI {
 
     /** Callback when we successfully paused the server. Shows a new static overlay
      *  that allows the user to resume the server. */
-    #onPauseConfirm() {
+    async #onPauseConfirm() {
         Log.info('Attempting to pause server.');
-        const successFunc = () => {
+        try {
+            await jsonRequest('suspend', {});
             ServerPausedOverlay.Show();
+        } catch (err) {
+            errorResponseOverlay('Failed to pause server.', err);
         }
-
-        const failureFunc = (response) => {
-            Overlay.show(`Failed to pause server: ${errorMessage(response)}`, 'OK');
-        }
-
-        jsonRequest('suspend', {}, successFunc, failureFunc);
     }
 
     /** Transition to a confirmation UI when the user attempts to restart the server. */
@@ -479,45 +476,44 @@ class ClientSettingsUI {
      * Callback when we successfully told the server to restart.
      * Transitions to a new UI that will restart the page automatically in 30 seconds,
      * with the option to restart immediately. */
-    #onRestartConfirm() {
+    async #onRestartConfirm() {
         Log.info('Attempting to restart server.');
-        const successFunc = () => {
-            $('#serverStateMessage').innerText = 'Server is restarting now.';
-            let cancelBtn = $('#srCancel');
-            const btnContainer = cancelBtn.parentElement;
-            btnContainer.removeChild(cancelBtn);
-            cancelBtn = ButtonCreator.textButton('Refreshing in 30', () => {}, { id : 'srCancel' });
-            btnContainer.appendChild(cancelBtn);
-
-            const refreshCountdown = () => {
-                if (!cancelBtn.isConnected) {
-                    return;
-                }
-
-                const nextValue = parseInt(cancelBtn.innerText.substring(cancelBtn.innerText.lastIndexOf(' ') + 1)) - 1;
-                if (nextValue < 1) {
-                    window.location.reload();
-                    return;
-                }
-
-                cancelBtn.innerHTML = `<span>Refreshing in ${nextValue}</span>`;
-                setTimeout(refreshCountdown, 1000);
-            };
-
-            setTimeout(refreshCountdown, 1000);
-
-            let confirmBtn = $('#srConfirm');
-            btnContainer.removeChild(confirmBtn);
-            confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload() }, { id : 'srConfirm' });
-            btnContainer.appendChild(confirmBtn);
-        };
-
-        const failureFunc = (response) => {
+        try {
+            await jsonRequest('restart', {});
+        } catch (err) {
             $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
             $('#srConfirm').value = 'Try Again.';
+            return;
+        }
+
+        $('#serverStateMessage').innerText = 'Server is restarting now.';
+        let cancelBtn = $('#srCancel');
+        const btnContainer = cancelBtn.parentElement;
+        btnContainer.removeChild(cancelBtn);
+        cancelBtn = ButtonCreator.textButton('Refreshing in 30', () => {}, { id : 'srCancel' });
+        btnContainer.appendChild(cancelBtn);
+
+        const refreshCountdown = () => {
+            if (!cancelBtn.isConnected) {
+                return;
+            }
+
+            const nextValue = parseInt(cancelBtn.innerText.substring(cancelBtn.innerText.lastIndexOf(' ') + 1)) - 1;
+            if (nextValue < 1) {
+                window.location.reload();
+                return;
+            }
+
+            cancelBtn.innerHTML = `<span>Refreshing in ${nextValue}</span>`;
+            setTimeout(refreshCountdown, 1000);
         };
 
-        jsonRequest('restart', {}, successFunc, failureFunc);
+        setTimeout(refreshCountdown, 1000);
+
+        let confirmBtn = $('#srConfirm');
+        btnContainer.removeChild(confirmBtn);
+        confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload() }, { id : 'srConfirm' });
+        btnContainer.appendChild(confirmBtn);
     }
 
     /** Transition to a confirmation UI when the user attempts to shut down the server. */
@@ -531,20 +527,19 @@ class ClientSettingsUI {
     /**
      * Callback when we successfully told the server to shut down.
      * Removes buttons and keeps the undismissible overlay up, since we can't do anything anymore.*/
-    #onShutdownConfirm() {
+    async #onShutdownConfirm() {
         Log.info('Attempting to shut down server.');
-        const successFunc = () => {
-            $('#serverStateMessage').innerText = 'Server is shutting down now.';
-            const btnHolder = $('#srCancel').parentElement;
-            clearEle(btnHolder);
-        };
-
-        const failureFunc = (response) => {
-            $('#serverStateMessage').innerText = `Failed to shut down server: ${errorMessage(response)}`;
+        try {
+            await jsonRequest('shutdown', {});
+        } catch (err) {
+            $('#serverStateMessage').innerText = `Failed to shut down server: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
-        };
+            return;
+        }
 
-        jsonRequest('shutdown', {}, successFunc, failureFunc);
+        $('#serverStateMessage').innerText = 'Server is shutting down now.';
+        const btnHolder = $('#srCancel').parentElement;
+        clearEle(btnHolder);
     }
 
     /**
@@ -620,7 +615,7 @@ class ClientSettingsUI {
     }
 
     /** Apply and save settings after the user chooses to commit their changes. */
-    #applySettings() {
+    async #applySettings() {
         let shouldResetView = false;
         if ($('#darkModeSetting').checked != this.#settingsManager.isDarkTheme()) {
             $('#darkModeCheckbox').click();
@@ -646,7 +641,12 @@ class ClientSettingsUI {
         // the server-side output is as well. In the future we could allow them to be separate,
         // but for now assume that only one person is interacting with the application, and keep
         // the client and server side logging levels in sync.
-        jsonRequest('log_settings', { level : logLevel, dark : Log.getDarkConsole(), trace : Log.getTrace() }, () => {});
+        try {
+            await jsonRequest('log_settings', { level : logLevel, dark : Log.getDarkConsole(), trace : Log.getTrace() });
+        } catch (err) {
+            // For logging
+            errorMessage(err);
+        }
 
         this.#settingsManager.save();
         Overlay.dismiss();

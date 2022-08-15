@@ -1,4 +1,5 @@
 import { Log } from '../../Shared/ConsoleLog.js';
+import Overlay from './inc/Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /**
@@ -12,19 +13,32 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 }
 
 /**
+ * Custom error class used to distinguish between errors
+ * surfaced by an API call and all others. */
+class FetchError extends Error {
+    /**
+     * @param {string} message
+     * @param {string} stack */
+    constructor(message, stack) {
+        super(message);
+        if (stack) {
+            this.stack = stack;
+        }
+    }
+}
+
+/**
  * Generic method to make a request to the given endpoint that expects a JSON response.
  * @param {string} endpoint The URL to query.
- * @param {{[parameter: string]: any}} parameters URL parameters.
- * @param {(response: Object) => void} successFunc Callback function to invoke on success.
- * @param {(response: Object) => void} [failureFunc] Callback function to invoke on failure.
- */
-function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
+ * @param {{[parameter: string]: any}} parameters URL parameters. */
+async function jsonRequest(endpoint, parameters={}) {
     let url = new URL(endpoint, window.location.href);
     for (const [key, value] of Object.entries(parameters)) {
         url.searchParams.append(key, value);
     }
 
-    fetch(url, { method : 'POST', headers : { accept : 'application/json' } }).then(r => r.json()).then(response => {
+    try {
+        const response = await (await fetch(url, { method : 'POST', headers : { accept : 'application/json' }})).json();
         Log.verbose(response, `Response from ${url}`);
         if (!response || response.Error) {
 
@@ -33,26 +47,17 @@ function jsonRequest(endpoint, parameters, successFunc, failureFunc) {
             if (response.Error && response.Error == 'Server is suspended') {
                 Log.info('Action was not completed because the server is suspended.');
                 ServerPausedOverlay.Show();
-                return;
+                // Return unfulfillable Promise. Gross, but since the user can't do anything anyway, we don't really care.
+                return new Promise((_resolve, _reject) => {});
             }
 
-            if (failureFunc) {
-                failureFunc(response);
-            } else {
-                Log.error(response, 'Request failed');
-            }
-
-            return;
+            throw new FetchError(response ? response.Error : `Request to ${url} failed`);
         }
 
-        successFunc(response);
-    }).catch(err => {
-        if (failureFunc) {
-            failureFunc(err);
-        } else {
-            Log.error(response, 'Request failed');
-        }
-    });
+        return Promise.resolve(response);
+    } catch (err) {
+        throw new FetchError(err.message, err.stack);
+    }
 }
 
 /**
@@ -163,16 +168,20 @@ function _buildNode(ele, attrs, content, events, options) {
  * In almost all cases, `error` will be either a JSON object with a single `Error` field,
  * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
  * generic error message.
- * @param {*} error
+ * 
+ * NOTE: It's expected that all API requests call this on failure, as it's the main console
+ *       logging method.
+ * @param {string|Error} error
  * @returns {string}
  */
  function errorMessage(error) {
     if (error.Error) {
+        Log.error(error);
         return error.Error;
     }
 
     if (error instanceof Error) {
-        Log.error(error);
+        Log.error(error.message);
         Log.error(error.stack ? error.stack : '(Unknown stack)');
 
         if (error instanceof TypeError && error.message == 'Failed to fetch') {
@@ -222,4 +231,13 @@ function msToHms(ms) {
     return time;
 }
 
-export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, jsonRequest, msToHms, pad0, plural };
+/**
+ * Displays an overlay for the given error
+ * @param {string} message
+ * @param {Error|string} err */
+function errorResponseOverlay(message, err) {
+    let errType = err instanceof FetchError ? 'Server Message' : 'Error';
+    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`, 'OK');
+}
+
+export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, jsonRequest, msToHms, pad0, plural };

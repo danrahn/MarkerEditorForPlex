@@ -1,4 +1,4 @@
-import { errorMessage, jsonRequest } from "./Common.js";
+import { errorResponseOverlay, jsonRequest } from "./Common.js";
 import Overlay from "./inc/Overlay.js";
 
 /**
@@ -18,18 +18,15 @@ class ServerPausedOverlay {
 /**
  * Attempts to resume the suspended server.
  * @param {MouseEvent} e The MouseEvent that triggered this function. */
-function onResume(e) {
+async function onResume(e) {
     e.target.value = 'Resuming...';
-    const successFunc = () => {
+    try {
+        await jsonRequest('resume');
         window.location.reload();
-    };
-
-    const failureFunc = (response) => {
+    } catch (err) {
         e.target.value = 'Resume';
-        Overlay.setMessage(`Failed to resume: ${errorMessage(response)}`);
+        errorResponseOverlay('Failed to resume.', err);
     }
-
-    jsonRequest('resume', {}, successFunc, failureFunc);
 }
 
 export default ServerPausedOverlay;

@@ -234,7 +234,6 @@ class TestBase {
 
         await this.send('resume');
         Log.tmi('Resuming server');
-        return Promise.resolve();
     }
 
     /**
@@ -421,7 +420,6 @@ class TestBase {
             DELETE FROM actions;
             VACUUM;
             UPDATE sqlite_sequence SET seq=0 WHERE name="actions";`);
-        return Promise.resolve();
     }
 }
 

@@ -1,7 +1,6 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorMessage, jsonRequest, msToHms } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, jsonRequest, msToHms } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 
 import ButtonCreator from "./ButtonCreator.js";
@@ -146,7 +145,7 @@ class MarkerEdit {
     /**
      * Attempts to add a marker to the database, first validating that the marker is valid.
      * On success, make the temporary row permanent and rearrange the markers based on their start time. */
-    onMarkerAddConfirm() {
+    async onMarkerAddConfirm() {
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = MarkerEdit.timeToMs(inputs[0].value);
         const endTime = MarkerEdit.timeToMs(inputs[1].value);
@@ -156,20 +155,13 @@ class MarkerEdit {
             return;
         }
 
-        let failureFunc = (response) => {
-            Overlay.show(`Sorry, something went wrong trying to add the marker. Please try again later.<br><br>
-            Server response:<br>${errorMessage(response)}`, 'OK');
+        try {
+            const rawMarkerData = await jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime });
+            const newMarker = new MarkerData().setFromJson(rawMarkerData);
+            PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
+        } catch (err) {
+            errorResponseOverlay('Sorry, something went wrong trying to add the marker. Please try again later.', err);
         }
-
-        jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime }, this.onMarkerAddSuccess.bind(this), failureFunc);
-    }
-
-    /**
-     * Callback after we successfully added a marker. Replace the temporary row with a permanent one, and adjust indexes as necessary.
-     * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
-    onMarkerAddSuccess(response) {
-        const newMarker = new MarkerData().setFromJson(response);
-        PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
     }
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
@@ -178,24 +170,27 @@ class MarkerEdit {
     }
 
     /** Commits a marker edit, assuming it passes marker validation. */
-    onMarkerEditConfirm() {
+    async onMarkerEditConfirm() {
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = MarkerEdit.timeToMs(inputs[0].value);
         const endTime = MarkerEdit.timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
         const episode = PlexClientState.GetState().getEpisode(metadataId);
-        const userCreated = this.markerRow.createdByUser();
+        const userCreated = this.markerRow.createdByUser() ? 1 : 0;
         const markerId = this.markerRow.markerId();
         if (!episode.checkValues(markerId, startTime, endTime)) {
             return;
         }
 
-        let failureFunc = (response) => {
-            this.onMarkerEditCancel.bind(this)();
-            Overlay.show(`Sorry, something went wrong with that request. Server response:<br><br>${errorMessage(response)}`, 'OK');
+        try {
+            const rawMarkerData = await jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated });
+            const editedMarker = new MarkerData().setFromJson(rawMarkerData);
+            PlexClientState.GetState().getEpisode(editedMarker.episodeId).editMarker(editedMarker);
+            this.resetAfterEdit();
+        } catch (err) {
+            this.onMarkerEditCancel();
+            errorResponseOverlay('Sorry, something went wrong with that request.', err);
         }
-
-        jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated ? 1 : 0 }, this.onMarkerEditSuccess.bind(this), failureFunc.bind(this));
     }
 
     /**

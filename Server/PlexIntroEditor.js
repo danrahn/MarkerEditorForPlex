@@ -270,7 +270,7 @@ async function launchServer() {
                 Log.info('Launching browser...');
                 Open(url);
             }
-    
+
             CurrentState = ServerState.Running;
             resolve();
         });

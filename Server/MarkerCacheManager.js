@@ -182,7 +182,6 @@ class MarkerCacheManager {
         }
 
         Log.info(`Cached ${markerCount} markers, starting server...`);
-        return Promise.resolve();
     }
 
     /**

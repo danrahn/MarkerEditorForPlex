@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, errorMessage, jsonRequest, plural } from "./Common.js";
+import { $, appendChildren, buildNode, errorResponseOverlay, jsonRequest, plural } from "./Common.js";
 import { Chart, PieChartOptions } from "./inc/Chart.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
@@ -17,7 +17,7 @@ class MarkerBreakdownManager {
      * Retrieves marker breakdown data from the server, then displays it in an overlay chart.
      * The initial request may take some time for large libraries, so first show an overlay
      * letting the user know something's actually happening. */
-    #getBreakdown() {
+    async #getBreakdown() {
         Overlay.show(
             appendChildren(buildNode('div'),
                 buildNode('h2', {}, 'Marker Breakdown'),
@@ -27,11 +27,12 @@ class MarkerBreakdownManager {
                 buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
             'Cancel');
 
-        jsonRequest(
-            'get_stats',
-            { id : PlexClientState.GetState().activeSection() },
-            MarkerBreakdownManager.#showMarkerBreakdown,
-            MarkerBreakdownManager.#markerBreakdownFailed);
+        try {
+            const markerStats = await jsonRequest('get_stats', { id : PlexClientState.GetState().activeSection() });
+            MarkerBreakdownManager.#showMarkerBreakdown(markerStats);
+        } catch (err) {
+            errorResponseOverlay('Failed to show breakdown', err);
+        }
     }
 
     /**
@@ -69,18 +70,6 @@ class MarkerBreakdownManager {
         const delay = (1 - opacity) * 250;
         Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
             appendChildren(buildNode('div', { style : 'text-align: center' }), chart));
-    }
-
-    /**
-     * Display a failure message if we were unable to retrieve the marker stats.
-     * @param {Object} response The error. */
-    static #markerBreakdownFailed(response) {
-        Overlay.show(
-            appendChildren(buildNode('div'),
-                buildNode('h2', {}, 'Error'),
-                buildNode('br'),
-                buildNode('div', {}, `Failed to get marker breakdown: ${errorMessage(response)}`)
-            ), 'OK');
     }
 }
 
