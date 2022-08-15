@@ -137,8 +137,8 @@ class MarkerEdit {
         let destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback, {}, this),
-            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback, {}, this)
+            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback.bind(this)),
+            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback.bind(this))
         );
     }
 
@@ -342,7 +342,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         const startCollapsed = SettingsManager.Get().collapseThumbnails();
         const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
-        const btn = ButtonCreator.fullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', this.#expandContractThumbnails, {}, this);
+        const btn = ButtonCreator.fullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', this.#expandContractThumbnails.bind(this));
         btn.classList.add('thumbnailShowHide');
         options.appendChild(btn);
     }
@@ -442,8 +442,10 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
     /**
      * Callback when the 'Show/Hide Thumbs' button is clicked. Adjusts the button text
-     * and begin the height transitions for the thumbnails themselves. */
-    #expandContractThumbnails(button) {
+     * and begin the height transitions for the thumbnails themselves.
+     * @param {MouseEvent} _ The (unused) MouseEvent
+     * @param {HTMLElement} button */
+    #expandContractThumbnails(_, button) {
         if (this.#thumbnailError) {
             return // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
         }

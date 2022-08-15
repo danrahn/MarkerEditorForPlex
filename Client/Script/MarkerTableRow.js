@@ -147,8 +147,8 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', this.editor().onEdit, {}, this.editor()),
-            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red', this.#confirmMarkerDelete, {}, this)
+            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', this.editor().onEdit.bind(this.editor())),
+            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red', this.#confirmMarkerDelete.bind(this))
         );
     }
 

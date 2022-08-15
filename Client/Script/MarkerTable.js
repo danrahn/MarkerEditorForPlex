@@ -64,7 +64,7 @@ class MarkerTable {
             rows.appendChild(markerRow.row());
         }
 
-        rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd, {}, this)));
+        rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this))));
         table.appendChild(rows);
         container.appendChild(table);
         this.#html = container;

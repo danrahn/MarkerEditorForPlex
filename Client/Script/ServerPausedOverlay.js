@@ -17,14 +17,14 @@ class ServerPausedOverlay {
 
 /**
  * Attempts to resume the suspended server.
- * @param {MouseEvent} e The MouseEvent that triggered this function. */
-async function onResume(e) {
-    e.target.value = 'Resuming...';
+ * @param {HTMLElement} button The button that was clicked. */
+async function onResume(_, button) {
+    button.innerText = 'Resuming...';
     try {
         await jsonRequest('resume');
         window.location.reload();
     } catch (err) {
-        e.target.value = 'Resume';
+        button.innerText = 'Resume';
         errorResponseOverlay('Failed to resume.', err);
     }
 }
