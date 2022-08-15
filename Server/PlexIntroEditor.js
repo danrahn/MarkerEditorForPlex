@@ -54,11 +54,6 @@ let QueryManager;
  * @type {MarkerBackupManager} */
 let BackupManager;
 
-/** @type {ServerCommands} */
-let Commands;
-/** @type {GETHandler} */
-let GetHandler;
-
 /**
  * Indicates whether we're in the middle of shutting down the server, and
  * should therefore immediately fail all incoming requests.
@@ -101,9 +96,6 @@ async function run() {
             MarkerCache = null;
         }
     }
-
-    Commands = new ServerCommands();
-    GetHandler = new GETHandler();
 
     Log.info('Creating server...');
     return launchServer();
@@ -181,9 +173,7 @@ function handleClose(signal, restart=false) {
 
 /** Properly close out open resources in preparation for shutting down the process. */
 function cleanupForShutdown() {
-    Commands?.clear();
-    Commands = null;
-    GetHandler = null;
+    ServerCommands.clear();
     QueryManager?.close();
     QueryManager = null;
     BackupManager?.close();
@@ -327,7 +317,7 @@ function serverMain(req, res) {
         // Only serve static resources via GET, and only accept queries for JSON via POST.
         switch (method) {
             case 'get':
-                return GetHandler.handleRequest(req, res);
+                return GETHandler.handleRequest(req, res);
             case 'post':
                 return handlePost(req, res);
             default:
@@ -367,7 +357,7 @@ async function handlePost(req, res) {
     }
 
     try {
-        const response = await Commands.runCommand(endpoint, req);
+        const response = await ServerCommands.runCommand(endpoint, req);
         sendJsonSuccess(res, response);
     } catch (err) {
         // Default handler swallows exceptions and adds the endpoint to the json error message.

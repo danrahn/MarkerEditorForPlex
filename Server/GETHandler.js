@@ -11,14 +11,12 @@ import { sendCompressedData } from './ServerHelpers.js';
 import ServerState from './ServerState.js';
 
 class GETHandler {
-    constructor() {
-    }
 
     /**
      * Handle the given GET request.
      * @param {IncomingMessage} req
      * @param {ServerResponse} res */
-    async handleRequest(req, res) {
+    static async handleRequest(req, res) {
         let url = req.url;
         if (url == '/') {
             url = '/index.html';

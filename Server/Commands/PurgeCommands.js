@@ -5,20 +5,12 @@ import { BackupManager, Config, MarkerCache } from "../PlexIntroEditor.js";
 import ServerError from "../ServerError.js";
 
 class PurgeCommands {
-    #enabled = false;
-
-    constructor() {
-        Log.tmi(`Setting up purge commands.`);
-        if (!BackupManager || Config.backupActions()) {
-            this.#enabled = true;
-        }
-    }
 
     /**
      * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
      * @param {number} metadataId The episode/season/show id*/
-    async purgeCheck(metadataId) {
-        this.#checkBackupManagerEnabled();
+    static async purgeCheck(metadataId) {
+        PurgeCommands.#checkBackupManagerEnabled();
 
         const markers = await BackupManager.checkForPurges(metadataId);
         Log.info(markers, `Found ${markers.length} missing markers:`);
@@ -28,8 +20,8 @@ class PurgeCommands {
     /**
      * Find all purged markers for the given library section.
      * @param {number} sectionId The library section */
-    async allPurges(sectionId) {
-        this.#checkBackupManagerEnabled();
+    static async allPurges(sectionId) {
+        PurgeCommands.#checkBackupManagerEnabled();
 
         const purges = await BackupManager.purgesForSection(sectionId);
         return Promise.resolve(purges);
@@ -39,8 +31,8 @@ class PurgeCommands {
      * Attempts to restore the last known state of the markers with the given ids.
      * @param {number[]} oldMarkerIds
      * @param {number} sectionId */
-    async restoreMarkers(oldMarkerIds, sectionId) {
-        this.#checkBackupManagerEnabled();
+    static async restoreMarkers(oldMarkerIds, sectionId) {
+        PurgeCommands.#checkBackupManagerEnabled();
 
         const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
         const restoredMarkers = restoredMarkerData.restoredMarkers;
@@ -69,16 +61,16 @@ class PurgeCommands {
      * Ignores the purged markers with the given ids, preventing the user from seeing them again.
      * @param {number[]} oldMarkerIds
      * @param {number} sectionId */
-    async ignorePurgedMarkers(oldMarkerIds, sectionId) {
-        this.#checkBackupManagerEnabled();
+    static async ignorePurgedMarkers(oldMarkerIds, sectionId) {
+        PurgeCommands.#checkBackupManagerEnabled();
 
         await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
     }
 
     /**
      * Throw a ServerError if the backup manager is not enabled. */
-    #checkBackupManagerEnabled() {
-        if (!this.#enabled) {
+    static #checkBackupManagerEnabled() {
+        if (!BackupManager || !Config.backupActions()) {
             throw new ServerError('Action is not enabled due to configuration settings.', 400);
         }
     }

@@ -16,7 +16,7 @@ class QueryCommands {
     /**
      * Retrieve an array of markers for all requested metadata ids.
      * @param {number[]} keys The metadata ids to lookup. */
-     async queryIds(keys) {
+    static async queryIds(keys) {
         let markers = {};
         for (const key of keys) {
             markers[key] = [];
@@ -32,7 +32,7 @@ class QueryCommands {
 
     /**
      * Retrieve all TV libraries found in the database. */
-    async getLibraries() {
+    static async getLibraries() {
         const rows = await QueryManager.getShowLibraries();
         let libraries = [];
         for (const row of rows) {
@@ -45,7 +45,7 @@ class QueryCommands {
     /**
      * Retrieve all shows from the given library section.
      * @param {number} sectionId The section id of the library. */
-    async getShows(sectionId) {
+    static async getShows(sectionId) {
         const rows = await QueryManager.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
@@ -60,7 +60,7 @@ class QueryCommands {
      * Retrieve all seasons for the show specified by the given metadataId.
      * @param {number} metadataId The metadata id of the a series.
      * @param {ServerResponse} res */
-    async getSeasons(metadataId) {
+    static async getSeasons(metadataId) {
         const rows = await QueryManager.getSeasons(metadataId);
 
         let seasons = [];
@@ -75,7 +75,7 @@ class QueryCommands {
     /**
      * Retrieve all episodes for the season specified by the given metadataId.
      * @param {number} metadataId The metadata id for the season of a show. */
-    async getEpisodes(metadataId) {
+    static async getEpisodes(metadataId) {
         const rows = await QueryManager.getEpisodes(metadataId);
 
         // There's definitely a better way to do this, but determining whether an episode
@@ -116,7 +116,7 @@ class QueryCommands {
      * Gather marker information for all episodes in the given library,
      * returning the number of episodes that have X markers associated with it.
      * @param {number} sectionId The library section id to parse. */
-    async allStats(sectionId) {
+    static async allStats(sectionId) {
         // If we have global marker data, forego the specialized markerBreakdownCache
         // and build the statistics using the cache manager.
         if (Config.extendedMarkerStats()) {
@@ -168,7 +168,7 @@ class QueryCommands {
      * Only async to conform to command method signature.
      * @param {number} showId The metadata id of the show to grab the breakdown for.
      * @param {number} includeSeasons 1 to include season data, 0 to leave it out. */
-    async getShowMarkerBreakdownTree(showId, includeSeasons) {
+    static async getShowMarkerBreakdownTree(showId, includeSeasons) {
         if (!MarkerCache) {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }

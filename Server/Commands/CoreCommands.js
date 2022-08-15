@@ -9,18 +9,14 @@ import ServerError from "../ServerError.js";
  * Core add/edit/delete commands
  */
 class CoreCommands {
-    constructor() {
-        Log.tmi(`Setting up core commands.`);
-    }
-
     /**
      * Adds the given marker to the database, rearranging indexes as necessary.
      * @param {number} metadataId The metadata id of the episode to add a marker to.
      * @param {number} startMs The start time of the marker, in milliseconds.
      * @param {number} endMs The end time of the marker, in milliseconds.
      * @throws {ServerError} */
-    async addMarker(metadataId, startMs, endMs) {
-        this.#checkMarkerBounds(startMs, endMs);
+    static async addMarker(metadataId, startMs, endMs) {
+        CoreCommands.#checkMarkerBounds(startMs, endMs);
 
         const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
         const allMarkers = addResult.allMarkers;
@@ -38,8 +34,8 @@ class CoreCommands {
      * @param {number} startMs The start time of the marker, in milliseconds.
      * @param {number} endMs The end time of the marker, in milliseconds.
      * @throws {ServerError} */
-    async editMarker(markerId, startMs, endMs, userCreated) {
-        this.#checkMarkerBounds(startMs, endMs);
+     static async editMarker(markerId, startMs, endMs, userCreated) {
+        CoreCommands.#checkMarkerBounds(startMs, endMs);
 
         const currentMarker = await QueryManager.getSingleMarker(markerId);
         if (!currentMarker) {
@@ -96,7 +92,7 @@ class CoreCommands {
     /**
      * Removes the given marker from the database, rearranging indexes as necessary.
      * @param {number} markerId The marker id to remove from the database. */
-    async deleteMarker(markerId) {
+    static async deleteMarker(markerId) {
         const markerToDelete = await QueryManager.getSingleMarker(markerId);
         if (!markerToDelete) {
             throw new ServerError("Could not find intro marker", 400);
@@ -137,7 +133,7 @@ class CoreCommands {
      * @param {number} startMs
      * @param {number} endMs
      * @throws {ServerError} */
-    #checkMarkerBounds(startMs, endMs) {
+    static #checkMarkerBounds(startMs, endMs) {
         if (startMs >= endMs) {
             throw new ServerError(`Start time (${startMs}) must be less than end time (${endMs}).`, 400);
         }
