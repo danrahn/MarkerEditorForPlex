@@ -12,3 +12,6 @@ Backup/*
 Test/*.json
 Test/**/*.db
 Test/**/*.db-journal
+
+# Ignore the real user config
+config.json

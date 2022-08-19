@@ -14,9 +14,10 @@ import ThumbnailManager from './ThumbnailManager.js';
 
 /** Server+Client shared dependencies */
 import { Log } from './../Shared/ConsoleLog.js';
-import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import ServerError from './ServerError.js';
+import FirstRunConfig from './FirstRunConfig.js';
 import ServerCommands from './ServerCommands.js';
+import ServerError from './ServerError.js';
+import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import GETHandler from './GETHandler.js';
 import ServerState from './ServerState.js';
 
@@ -73,6 +74,10 @@ const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 async function run() {
     setupTerminateHandlers();
     const testData = checkTestData();
+    if (!testData.isTest) {
+        await FirstRunConfig(ProjectRoot);
+    }
+
     Config = new PlexIntroEditorConfig(ProjectRoot, testData);
 
     // Set up the database, and make sure it's the right one.

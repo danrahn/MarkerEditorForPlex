@@ -148,7 +148,14 @@ class PlexIntroEditorConfig extends ConfigBase {
             configFile = join('Test', testData.configOverride);
         }
 
-        const config = JSON.parse(readFileSync(join(projectRoot, configFile)));
+        const configPath = join(projectRoot, configFile);
+        let config = {};
+        if (testData.isTest || existsSync(configPath)) {
+            config = JSON.parse(readFileSync(join(projectRoot, configFile)));
+        } else {
+            Log.warn('Unable to find config.json, attempting to use default values for everything.');
+        }
+
         super(config, baseClass);
         this.#Base = baseClass;
 
