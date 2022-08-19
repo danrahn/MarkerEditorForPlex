@@ -1,4 +1,5 @@
 /** External dependencies */
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { createServer, IncomingMessage, Server as httpServer, ServerResponse } from 'http';
 import Open from 'open';
 import { dirname, join } from 'path';
@@ -121,6 +122,7 @@ function setupTerminateHandlers() {
         Log.critical(err.message);
         Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
         Log.error('The server ran into an unexpected problem, exiting...');
+        writeErrorToFile(err.message + '\n' + err.stack ? err.stack : '(Could not find stack trace)');
         cleanupForShutdown();
         process.exit(1);
     });
@@ -136,6 +138,30 @@ function setupTerminateHandlers() {
         Log.warn('Ctrl+Break detected, shutting down immediately.');
         process.exit(1);
     });
+}
+
+/**
+ * Attempts to write critical errors to a log file, which can be helpful for
+ * debugging if the console window closes on process exit.
+ * @param {string} message The message to log */
+function writeErrorToFile(message) {
+    try {
+        const logDir = join(ProjectRoot, 'Logs');
+        if (!existsSync(join(ProjectRoot, 'Logs'))) {
+            mkdirSync(logDir);
+        }
+
+        const now = new Date();
+        let padLeft = (str, pad=2) => ("00" + str).substr(-pad);
+        let time = `${now.getFullYear()}.${padLeft(now.getMonth() + 1)}.${padLeft(now.getDate())}.` +
+            `${padLeft(now.getHours())}.${padLeft(now.getMinutes())}.${padLeft(now.getSeconds())}.` +
+            `${padLeft(now.getMilliseconds(), 3)}`;
+        const filename = `PlexIntroEditor.${time}.err`;
+        writeFileSync(join(logDir, filename), message);
+        Log.verbose(`Wrote error file to ${join(logDir, filename)}`);
+    } catch (ex) {
+        Log.critical(ex.message, 'Unable to write error to log file');
+    }
 }
 
 /**

@@ -1,6 +1,6 @@
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createInterface as createReadlineInterface, ReadLine } from 'node:readline';
+import { createInterface as createReadlineInterface, Interface } from 'node:readline';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
@@ -20,7 +20,7 @@ async function FirstRunConfig(projectRoot) {
         output: process.stdout });
     console.log();
     if (!await askUserYesNo('Welcome to Plex Intro Editor! It looks like this is your first run, as config.json\n' +
-                            'Could not be found. Would you like to go through the first-time setup', true, rl)) {
+                            'could not be found. Would you like to go through the first-time setup', true, rl)) {
         if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
             writeFileSync(configPath, "{}\n");
             console.log('Wrote default configuration file to avoid subsequent checks.');
@@ -32,9 +32,8 @@ async function FirstRunConfig(projectRoot) {
     }
 
     console.log();
-    console.log(`During this initial setup, you'll be asked a series of questions configuration questions.`);
-    console.log(`If a default value is available, it will be provided in parentheses, and simply pressing 'Enter'`);
-    console.log('will select that value.');
+    console.log(`During this initial setup, you'll be asked a series of configuration questions. If a default`);
+    console.log(`is available, it will be provided in parentheses, and pressing 'Enter' will select that value.`);
     console.log();
     console.log('If you are asked to provide a path, provide it without quotes or other escaped characters.');
     console.log();
@@ -66,7 +65,7 @@ async function FirstRunConfig(projectRoot) {
  * Ask the user an open-ended question (i.e. not yes/no).
  * @param {string} question The question to ask the user.
  * @param {string} defaultValue The default value if one is not provided.
- * @param {ReadLine} rl Console interface.
+ * @param {Interface} rl Console interface.
  * @param {(string) => boolean} [validateFunc=null] Function to validate the user's input, if any.
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
@@ -88,7 +87,7 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
  * Ask the user a yes/no question, returning whether 'yes' was chosen.
  * @param {string} question The yes/no question.
  * @param {boolean} defaultValue The default response.
- * @param {ReadLine} rl The console interface.
+ * @param {Interface} rl The console interface.
  * @returns {Promise<boolean>} */
 async function askUserYesNo(question, defaultValue, rl) {
     question = question + ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
@@ -115,7 +114,7 @@ async function askUserYesNo(question, defaultValue, rl) {
  * Note: Promise-based interface is directly available in Node 17, but since as of
  * this function's creation, LTS is still on 16.x, so best to avoid it for now.
  * @param {string} question The question to ask the user.
- * @param {ReadLine} rl The console interface.
+ * @param {Interface} rl The console interface.
  * @returns {Promise<string>} */
 async function askUserCore(question, rl) {
     return new Promise((resolve, _) => {
