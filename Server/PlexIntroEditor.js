@@ -170,7 +170,7 @@ function writeErrorToFile(message) {
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
 function handleClose(signal, restart=false) {
     CurrentState = ServerState.ShuttingDown;
-    Log.info(`${signal} detected, exiting...`);
+    Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
     cleanupForShutdown();
     const exitFn = (error, restart) => {
         if (restart) {
@@ -182,7 +182,8 @@ function handleClose(signal, restart=false) {
             // Gross, but integration tests does its own killing
             // of the process.
             Log.info('Exiting process.');
-            process.exit(error ? 1 : 0);
+
+            setTimeout(() => process.exit(error ? 1 : 0), 1000);
         }
     };
 
