@@ -358,7 +358,7 @@ class ClientSettingsUI {
 
             options.push(collapsed);
             options.push(autoload);
-            $$('input[type="checkbox"]', showThumbs).addEventListener('change', function() {
+            $$('input[type="checkbox"]', showThumbs).addEventListener('change', /**@this {ClientSettingsUI}*/ function() {
                 this.#toggleSettingEnabled($('#collapseThumbnailsSetting').parentNode);
                 this.#toggleSettingEnabled($('#autoloadThumbnailSetting').parentNode);
             }.bind(this));

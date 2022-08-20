@@ -214,15 +214,13 @@ class TestBase {
             return Promise.resolve();
         }
 
-        return new Promise(function (resolve, _) {
-            this.send('suspend').then(_ => {
-                TestLog.tmi('Detached from test server');
-                resolve();
-            }).catch(err => {
-                TestLog.error(err, 'Failed to shut down test server cleanly, force stopping tests');
-                process.exit(1);
-            });
-        }.bind(this));
+        try {
+            await this.send('suspend');
+            TestLog.tmi('Detached from test server');
+        } catch (err) {
+            TestLog.error(err, 'Failed to shut down test server cleanly, force stopping tests');
+            process.exit(1);
+        }
     }
 
     /**

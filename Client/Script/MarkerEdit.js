@@ -394,7 +394,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         clearTimeout(this.#autoloadTimeout);
         if (e.key != 'Enter') {
-            this.#autoloadTimeout = setTimeout(function() {
+            this.#autoloadTimeout = setTimeout(/**@this {ThumbnailMarkerEdit}*/function() {
                 this.#refreshImage(input.parentNode);
             }.bind(this), 250);
         }

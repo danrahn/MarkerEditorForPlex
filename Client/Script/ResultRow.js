@@ -461,7 +461,7 @@ class SeasonResultRow extends ResultRow {
 
         // We still want to update other episodes as well, since even if we didn't add
         // new markers, we still want to update purge text.
-        unpurged.forEach(function(action) {
+        unpurged.forEach(/**@this {SeasonResultRow}*/function(action) {
             if (updated[action.episode_id]) {
                 return;
             }

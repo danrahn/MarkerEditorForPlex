@@ -290,7 +290,7 @@ class PurgeNonActionInfo {
             new PurgeNonActionInfo('Ignore', this.#onIgnore.bind(this)),
             new PurgeActionInfo('Yes', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
             new PurgeNonActionInfo('No', this.#onIgnoreCancel.bind(this)),
-            function() { return [this.#markerAction.marker_id]; }.bind(this)
+            /**@this {PurgeRow}*/function() { return [this.#markerAction.marker_id]; }.bind(this)
         );
 
         return holder;
@@ -479,7 +479,7 @@ class BulkPurgeAction {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 250);
 
-        const wrappedCallback = function() {
+        const wrappedCallback = /**@this {BulkPurgeAction}*/ function() {
             this.#successCallback(newMarkers);
         }.bind(this);
 
@@ -606,7 +606,7 @@ class PurgeTable {
      * @param  {...any} args Additional arguments to pass into fn.
      */
     #forMarker(fn, ...args) {
-        this.#purgedShow.forEach(function(marker) {
+        this.#purgedShow.forEach(/**@this {PurgeTable}*/function(marker) {
             fn.bind(this)(marker, ...args);
         }.bind(this));
     }
@@ -796,7 +796,7 @@ class PurgedMarkerManager {
         // Mark each season/episode of the show as complete. Somewhat inefficient, but it's not
         // expected for there to be enough purged markers for this to cause any significant slowdown.
         // In theory not necessary, but good to be safe.
-        show.forEach(function(/**@type {MarkerAction}*/ markerAction) {
+        show.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ markerAction) {
             this.#purgeCache.get(markerAction.episode_id).status = PurgeCacheStatus.Complete;
             this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
         }.bind(this));
@@ -833,7 +833,7 @@ class PurgedMarkerManager {
      * @param {PurgedSection} purgedSection
      * @param {MarkerData[]} newMarkers */
     onPurgedMarkerAction(purgedSection, newMarkers=null) {
-        purgedSection.forEach(function(/**@type {MarkerAction}*/ marker) {
+        purgedSection.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ marker) {
             /** @type {PurgedEpisode} */
             const episode = this.#purgeCache.get(marker.episode_id);
             if (episode) {
