@@ -311,10 +311,7 @@ class ClientSettingsUI {
      * Return a setup object to pass into Overlay.build's setup parameter to set focus to a given element.
      * @param {string} id The id of the element to set focus on when displaying an overlay. */
     #focusOnShow(id) {
-        return {
-            fn : () => $(`#${id}`).focus(),
-            args : []
-        };
+        return { fn : () => $(`#${id}`).focus() };
     }
 
     /**
@@ -545,7 +542,7 @@ class ClientSettingsUI {
     /**
      * Dismisses the current overlay and brings in a new one.
      * @param {HTMLElement} newOverlayContainer The new overlay to display.
-     * @param {*} [options={}] The new overlay's options, if any. */
+     * @param {OverlayOptions?} [options={}] The new overlay's options, if any. */
     #transitionOverlay(newOverlayContainer, options={}) {
         Overlay.dismiss();
         setTimeout(() => Overlay.build(options, newOverlayContainer), 250);

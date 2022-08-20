@@ -8,7 +8,7 @@ import ButtonCreator from '../ButtonCreator.js';
 
 /**
  * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number,
- *              closeButton?: boolean, setup?: {args: any[], fn: (...any) => void}}} OverlayOptions
+ *              closeButton?: boolean, setup?: {args?: any[], fn: (...any) => void}}} OverlayOptions
  * */
 
 /**
@@ -31,7 +31,7 @@ let Overlay = new function()
     this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true)
     {
         // Set focus to the button on start
-        const focusOnLaunch = { fn : () => $('#overlayBtn').focus(), args : [] };
+        const focusOnLaunch = { fn : () => $('#overlayBtn').focus() };
         this.build({ dismissible : dismissible, centered : false, setup : focusOnLaunch },
             buildNode("div", { id : "overlayMessage", class : "overlayDiv" }, message),
             ButtonCreator.textButton(
@@ -117,7 +117,8 @@ let Overlay = new function()
 
         if (options.setup)
         {
-            options.setup.fn(...options.setup.args);
+            const args = options.setup.args || [];
+            options.setup.fn(...args);
         }
 
         let delay = options.delay || 250;

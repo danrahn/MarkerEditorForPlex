@@ -169,7 +169,7 @@ class ExistingMarkerRow extends MarkerRow {
         let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });
         outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
         appendChildren(container, header, subtext, outerButtonContainer);
-        Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus(), args : [] } }, container);
+        Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus() } }, container);
     }
 
     /** Makes a request to delete a marker, removing it from the marker table on success. */
