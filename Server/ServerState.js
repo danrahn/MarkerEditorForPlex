@@ -1,4 +1,3 @@
-
 /**
  * Set of possible server states. */
 const ServerState = {
@@ -14,4 +13,16 @@ const ServerState = {
     ShuttingDown : 4,
 }
 
-export default ServerState;
+/**
+ * Indicates whether we're in the middle of shutting down the server, and
+ * should therefore immediately fail all incoming requests.
+ * @type {number} */
+ let CurrentState = ServerState.FirstBoot;
+
+ /**
+  * Set the current server state.
+  * @param {number} state */
+function SetServerState(state) { CurrentState = state; }
+function GetServerState() { return CurrentState; }
+
+export { SetServerState, GetServerState, ServerState };

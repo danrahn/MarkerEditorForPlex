@@ -1,7 +1,9 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
-import { BackupManager, Config, MarkerCache } from "../PlexIntroEditor.js";
+import { BackupManager } from "../MarkerBackupManager.js";
+import { MarkerCache } from "../MarkerCacheManager.js";
+import { Config } from "../PlexIntroEditorConfig.js";
 import ServerError from "../ServerError.js";
 
 class PurgeCommands {

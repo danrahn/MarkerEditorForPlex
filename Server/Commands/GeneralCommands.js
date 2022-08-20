@@ -1,6 +1,6 @@
 import { ConsoleLog, Log } from "../../Shared/ConsoleLog.js";
 
-import { Config } from "../PlexIntroEditor.js";
+import { Config } from "../PlexIntroEditorConfig.js";
 import ServerError from "../ServerError.js";
 
 /**

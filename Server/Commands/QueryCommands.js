@@ -2,8 +2,11 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { EpisodeData, MarkerData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
-import { Config, MarkerCache, QueryManager, Thumbnails } from "../PlexIntroEditor.js";
+import { MarkerCache } from "../MarkerCacheManager.js";
+import { Config } from "../PlexIntroEditorConfig.js";
+import { PlexQueries } from "../PlexQueryManager.js";
 import ServerError from "../ServerError.js";
+import { Thumbnails } from "../ThumbnailManager.js";
 
 /**
  * Classification of commands that queries the database for information, does not edit any underlying data
@@ -22,7 +25,7 @@ class QueryCommands {
             markers[key] = [];
         }
 
-        const rawMarkers = await QueryManager.getMarkersForEpisodes(keys);
+        const rawMarkers = await PlexQueries.getMarkersForEpisodes(keys);
         for (const rawMarker of rawMarkers) {
             markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
         }
@@ -33,7 +36,7 @@ class QueryCommands {
     /**
      * Retrieve all TV libraries found in the database. */
     static async getLibraries() {
-        const rows = await QueryManager.getShowLibraries();
+        const rows = await PlexQueries.getShowLibraries();
         let libraries = [];
         for (const row of rows) {
             libraries.push({ id : row.id, name : row.name });
@@ -46,7 +49,7 @@ class QueryCommands {
      * Retrieve all shows from the given library section.
      * @param {number} sectionId The section id of the library. */
     static async getShows(sectionId) {
-        const rows = await QueryManager.getShows(sectionId);
+        const rows = await PlexQueries.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
             show.markerBreakdown = MarkerCache?.getShowStats(show.id);
@@ -58,10 +61,9 @@ class QueryCommands {
 
     /**
      * Retrieve all seasons for the show specified by the given metadataId.
-     * @param {number} metadataId The metadata id of the a series.
-     * @param {ServerResponse} res */
+     * @param {number} metadataId The metadata id of the a series. */
     static async getSeasons(metadataId) {
-        const rows = await QueryManager.getSeasons(metadataId);
+        const rows = await PlexQueries.getSeasons(metadataId);
 
         let seasons = [];
         for (const season of rows) {
@@ -76,7 +78,7 @@ class QueryCommands {
      * Retrieve all episodes for the season specified by the given metadataId.
      * @param {number} metadataId The metadata id for the season of a show. */
     static async getEpisodes(metadataId) {
-        const rows = await QueryManager.getEpisodes(metadataId);
+        const rows = await PlexQueries.getEpisodes(metadataId);
 
         // There's definitely a better way to do this, but determining whether an episode
         // has thumbnails attached is asynchronous, so keep track of how many results have
@@ -84,11 +86,12 @@ class QueryCommands {
         let waitingFor = rows.length;
         let episodes = [];
         return new Promise((resolve, _) => {
+            const useThumbnails = Config.useThumbnails();
             rows.forEach((episode, index) => {
                 const metadataId = episode.id;
                 episodes.push(new EpisodeData(episode));
 
-                if (Config.useThumbnails()) {
+                if (useThumbnails) {
                     Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
                         episodes[index].hasThumbnails = hasThumbs;
                         --waitingFor;
@@ -106,7 +109,7 @@ class QueryCommands {
                 }
             });
 
-            if (!Config.useThumbnails()) {
+            if (!useThumbnails) {
                 resolve(episodes);
             }
         });
@@ -135,7 +138,7 @@ class QueryCommands {
             return Promise.resolve(LegacyMarkerBreakdown.Cache[sectionId]);
         }
 
-        const rows = await QueryManager.markerStatsForSection(sectionId);
+        const rows = await PlexQueries.markerStatsForSection(sectionId);
 
         let buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
@@ -143,7 +146,7 @@ class QueryCommands {
         let countCur = 0;
         for (const row of rows) {
             if (row.episode_id == idCur) {
-                if (row.tag_id == QueryManager.markerTagId()) {
+                if (row.tag_id == PlexQueries.markerTagId()) {
                     ++countCur;
                 }
             } else {
@@ -153,7 +156,7 @@ class QueryCommands {
 
                 ++buckets[countCur];
                 idCur = row.episode_id;
-                countCur = row.tag_id == QueryManager.markerTagId() ? 1 : 0;
+                countCur = row.tag_id == PlexQueries.markerTagId() ? 1 : 0;
             }
         }
 

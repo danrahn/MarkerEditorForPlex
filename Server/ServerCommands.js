@@ -1,5 +1,4 @@
-import { IncomingMessage } from 'http';
-import { Log } from '../Shared/ConsoleLog.js';
+/** @typedef {!import('http').IncomingMessage} IncomingMessage */
 
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
 

@@ -12,10 +12,10 @@ import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 
 // Server/test dependencies/typedefs
 import TestHelpers from "./TestHelpers.js";
-import { run as mainRun, getState } from "../Server/PlexIntroEditor.js";
+import { run as mainRun } from "../Server/PlexIntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
-import ServerState from '../Server/ServerState.js';
+import { ServerState, GetServerState } from '../Server/ServerState.js';
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -142,7 +142,7 @@ class TestBase {
      * Starts the Plex Intro Editor. Expects to have been run via launch.json's "Run Tests"
      * configuration, which will pass in the right command line arguments to mainRun. */
     async startService() {
-        if (getState() == ServerState.FirstBoot) {
+        if (GetServerState() == ServerState.FirstBoot) {
             return mainRun();
         }
 
@@ -210,7 +210,7 @@ class TestBase {
      * Suspend the test server, which will disconnect it from the test config
      * and database, allowing us to reset the server state between tests. */
     async suspend() {
-        if (getState() != ServerState.Running) {
+        if (GetServerState() != ServerState.Running) {
             return Promise.resolve();
         }
 
@@ -228,7 +228,7 @@ class TestBase {
     /**
      * Resumes the test server after being suspended for cleanup. */
     async resume() {
-        if (getState() != ServerState.Suspended) {
+        if (GetServerState() != ServerState.Suspended) {
             return Promise.resolve();
         }
 
@@ -262,7 +262,7 @@ class TestBase {
      * @param {*} headers Any additional headers to add to the request
      * @param {boolean} raw */
     async #fetchInternal(endpoint, params, method, headers, raw) {
-        if (getState() == ServerState.FirstBoot || getState() == ServerState.ShuttingDown) {
+        if (GetServerState() == ServerState.FirstBoot || GetServerState() == ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
         }

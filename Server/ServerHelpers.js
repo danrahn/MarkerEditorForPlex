@@ -1,6 +1,6 @@
-import { ServerResponse } from "http";
 import { contentType } from "mime-types";
 import { gzip } from 'zlib';
+/** @typedef {!import('http').ServerResponse} ServerResponse */
 
 import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 import ServerError from "./ServerError.js";

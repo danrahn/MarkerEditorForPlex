@@ -140,9 +140,30 @@ class MarkerEpisodeNode extends MarkerNodeBase {
 }
 
 /**
+ * Singleton cache manager instance
+ * @type {MarkerCacheManager}
+ * @readonly */ // Externally readonly
+let Instance;
+
+/**
   * The MarkerCacheManager class compiles information about all markers present in the database.
   */
 class MarkerCacheManager {
+    /**
+     * Instantiate the singleton MarkerCacheManager.
+     * @param {DatabaseWrapper} database The connection to the Plex database.
+     * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers. */
+    static Create(database, tagId) {
+        if (Instance) {
+            Log.warn(`Marker cache already initialized, we shouldn't do it again!`);
+        }
+
+        Instance = new MarkerCacheManager(database, tagId);
+        return Instance;
+    }
+
+    static Close() { Instance = null; }
+
     /** All markers in the database.
      * @type {MarkerMap} */
     #allMarkers = {};
@@ -410,4 +431,4 @@ AND season.id=?
 
 }
 
-export default MarkerCacheManager;
+export { MarkerCacheManager, Instance as MarkerCache };

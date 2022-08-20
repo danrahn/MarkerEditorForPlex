@@ -8,8 +8,7 @@ import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
 import ImageTest from './TestClasses/ImageTest.js';
 
 // Server/Shared dependencies
-import { getState } from '../Server/PlexIntroEditor.js';
-import ServerState from '../Server/ServerState.js';
+import { ServerState, GetServerState } from '../Server/ServerState.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
 import QueryTest from './TestClasses/QueryTest.js';
 
@@ -90,7 +89,7 @@ class TestRunner {
     /**
      * Shut down the test server if necessary. */
     async #shutdown() {
-        if (getState() == ServerState.Running || getState() == ServerState.Suspended) {
+        if (GetServerState() == ServerState.Running || GetServerState() == ServerState.Suspended) {
             return fetch(`http://localhost:3233/shutdown`, { method : 'POST', headers : { accept : 'application/json' } }).then(d => d.json()).then(_ => {
                 TestLog.info('Finished running tests, cleaning up and exiting process.');
                 TestBase.Cleanup();

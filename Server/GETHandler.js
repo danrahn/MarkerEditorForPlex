@@ -1,14 +1,16 @@
 import { promises as FS } from 'fs';
-import { IncomingMessage, ServerResponse } from 'http';
 import { contentType, lookup } from 'mime-types';
 import { join } from 'path';
+/** @typedef {!import('http').IncomingMessage} IncomingMessage */
+/** @typedef {!import('http').ServerResponse} ServerResponse */
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { Config, getState, ProjectRoot, Thumbnails } from './PlexIntroEditor.js';
+import { Config } from './PlexIntroEditorConfig.js'
 import ServerError from './ServerError.js';
 import { sendCompressedData } from './ServerHelpers.js';
-import ServerState from './ServerState.js';
+import { ServerState, GetServerState } from './ServerState.js';
+import { Thumbnails } from './ThumbnailManager.js';
 
 class GETHandler {
 
@@ -37,10 +39,10 @@ class GETHandler {
         }
 
         try {
-            const contents = await FS.readFile(join(ProjectRoot, url));
+            const contents = await FS.readFile(join(Config.projectRoot(), url));
             sendCompressedData(res, 200, contents, mimetype);
         } catch (err) {
-            Log.warn(`Unable to server ${url}: ${err.message}`);
+            Log.warn(`Unable to serve ${url}: ${err.message}`);
             res.writeHead(404).end(`Not Found: ${err.message}`);
         }
     }
@@ -75,7 +77,7 @@ class ImageHandler {
         }
 
         try {
-            let contents = await FS.readFile(join(ProjectRoot, 'SVG', icon));
+            let contents = await FS.readFile(join(Config.projectRoot(), 'SVG', icon));
             if (Buffer.isBuffer(contents)) {
                 contents = contents.toString('utf-8');
             }
@@ -106,7 +108,7 @@ class ImageHandler {
             return badRequest('Preview thumbnails are not enabled');
         }
 
-        if (getState() == ServerState.Suspended) {
+        if (GetServerState() == ServerState.Suspended) {
             return badRequest(`Server is suspended, can't retrieve thumbnail.`);
         }
 

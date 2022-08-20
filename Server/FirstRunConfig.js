@@ -1,6 +1,7 @@
-import { existsSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { createInterface as createReadlineInterface, Interface } from 'node:readline';
+import { existsSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { createInterface as createReadlineInterface } from 'readline';
+/** @typedef {!import('readline').Interface} Interface */
 
 import { Log } from '../Shared/ConsoleLog.js';
 

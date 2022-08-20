@@ -2,7 +2,9 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
-import { BackupManager, MarkerCache, QueryManager } from "../PlexIntroEditor.js";
+import { PlexQueries } from "../PlexQueryManager.js";
+import { BackupManager } from "../MarkerBackupManager.js";
+import { MarkerCache } from "../MarkerCacheManager.js";
 import ServerError from "../ServerError.js";
 
 /**
@@ -18,7 +20,7 @@ class CoreCommands {
     static async addMarker(metadataId, startMs, endMs) {
         CoreCommands.#checkMarkerBounds(startMs, endMs);
 
-        const addResult = await QueryManager.addMarker(metadataId, startMs, endMs);
+        const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs);
         const allMarkers = addResult.allMarkers;
         const newMarker = addResult.newMarker;
         const markerData = new MarkerData(newMarker);
@@ -37,7 +39,7 @@ class CoreCommands {
      static async editMarker(markerId, startMs, endMs, userCreated) {
         CoreCommands.#checkMarkerBounds(startMs, endMs);
 
-        const currentMarker = await QueryManager.getSingleMarker(markerId);
+        const currentMarker = await PlexQueries.getSingleMarker(markerId);
         if (!currentMarker) {
             throw new ServerError('Intro marker not found', 400);
         }
@@ -45,7 +47,7 @@ class CoreCommands {
         const oldIndex = currentMarker.index;
 
         // Get all markers to adjust indexes if necessary
-        const allMarkers = await QueryManager.getEpisodeMarkers(currentMarker.episode_id);
+        const allMarkers = await PlexQueries.getEpisodeMarkers(currentMarker.episode_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
         allMarkers[oldIndex].start = startMs;
@@ -69,14 +71,14 @@ class CoreCommands {
         }
 
         // Make the edit, then adjust indexes
-        await QueryManager.editMarker(markerId, newIndex, startMs, endMs, userCreated);
+        await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated);
         for (const marker of allMarkers) {
             if (marker.index != marker.newIndex) {
                 // No await, just fire and forget.
                 // TODO: In some extreme case where an episode has dozens of
                 // markers, it would be much more efficient to make this a transaction
                 // instead of individual queries.
-                QueryManager.updateMarkerIndex(marker.id, marker.newIndex);
+                PlexQueries.updateMarkerIndex(marker.id, marker.newIndex);
             }
         }
 
@@ -93,12 +95,12 @@ class CoreCommands {
      * Removes the given marker from the database, rearranging indexes as necessary.
      * @param {number} markerId The marker id to remove from the database. */
     static async deleteMarker(markerId) {
-        const markerToDelete = await QueryManager.getSingleMarker(markerId);
+        const markerToDelete = await PlexQueries.getSingleMarker(markerId);
         if (!markerToDelete) {
             throw new ServerError("Could not find intro marker", 400);
         }
 
-        const allMarkers = await QueryManager.getEpisodeMarkers(markerToDelete.episode_id);
+        const allMarkers = await PlexQueries.getEpisodeMarkers(markerToDelete.episode_id);
         let deleteIndex = 0;
         for (const marker of allMarkers) {
             if (marker.id == markerId) {
@@ -107,7 +109,7 @@ class CoreCommands {
         }
 
         // Now that we're done rearranging, delete the original tag.
-        await QueryManager.deleteMarker(markerId);
+        await PlexQueries.deleteMarker(markerId);
 
         // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
         if (deleteIndex < allMarkers.length - 1) {
@@ -115,7 +117,7 @@ class CoreCommands {
             // Fire and forget, hopefully it worked, but it _shouldn't_ be the end of the world if it doesn't.
             for (const marker of allMarkers) {
                 if (marker.index > deleteIndex) {
-                    QueryManager.updateMarkerIndex(marker.id, marker.index - 1);
+                    PlexQueries.updateMarkerIndex(marker.id, marker.index - 1);
                 }
             }
         }

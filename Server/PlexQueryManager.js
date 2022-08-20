@@ -15,6 +15,7 @@
 /** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
 
 import { Log } from "../Shared/ConsoleLog.js";
+
 import CreateDatabase from "./CreateDatabase.cjs";
 import DatabaseWrapper from "./DatabaseWrapper.js";
 import ServerError from "./ServerError.js";
@@ -53,6 +54,12 @@ class TrimmedMarker {
         return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1);
     }
 }
+
+/**
+ * Singleton PlexQueryManager instance.
+ * @type {PlexQueryManager}
+ * @readonly */
+let Instance;
 
 /**
  * The PlexQueryManager handles the underlying queries made to the Plex database to retrieve
@@ -94,6 +101,11 @@ FROM taggings
      * @param {string} databasePath The path to the Plex database.
      * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data. */
     static async CreateInstance(databasePath, pureMode) {
+        if (Instance) {
+            Log.warn(`Query manager already initialized, we shouldn't be initializing it again`);
+            Instance.close();
+        }
+
         Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
         /** @type {DatabaseWrapper} */
         let db;
@@ -108,12 +120,16 @@ FROM taggings
         try {
             const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
             Log.info('PlexQueryManager: Database verified');
-            return Promise.resolve(new PlexQueryManager(db, pureMode, row.id));
+            Instance = new PlexQueryManager(db, pureMode, row.id);
+            return Instance;
         } catch (err) {
             Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
             throw ServerError.FromDbError(err);
         }
     }
+
+    /** Close the query connection. */
+    static Close() { Instance?.close(); Instance = null; }
 
     /**
      * Initializes the query manager. Should only be called via the static CreateInstance.
@@ -641,4 +657,4 @@ ORDER BY e.id ASC;`;
     }
 }
 
-export default PlexQueryManager;
+export { PlexQueryManager, Instance as PlexQueries };

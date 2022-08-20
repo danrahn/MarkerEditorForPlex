@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
+import { Log } from '../Shared/ConsoleLog.js';
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.
@@ -108,13 +108,38 @@ class PlexFeatures extends ConfigBase {
 }
 
 /**
+ * Singleton editor config instance.
+ * @type {PlexIntroEditorConfig}
+ * @readonly */ // Externally readonly
+let Instance;
+
+/**
  * Provides read-only access to the users application configuration.
  */
 class PlexIntroEditorConfig extends ConfigBase {
+    /**
+     * Create the singleton config instance.
+     * @param {string} projectRoot
+     * @param {*} testData */
+    static Create(projectRoot, testData) {
+        if (Instance != null) {
+            Log.warn(`Singleton PlexIntroEditorConfig already exists, we shouldn't be creating it again!`);
+        }
+
+        Instance = new PlexIntroEditorConfig(projectRoot, testData);
+        return Instance;
+    }
+
+    static Close() { Instance = null; }
 
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
      #Base = {}
+
+     /**
+      * The directory root of the project.
+      * @type {string} */
+     #root;
 
     /** The path to the root of Plex's data directory.
      * https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/
@@ -158,6 +183,7 @@ class PlexIntroEditorConfig extends ConfigBase {
 
         super(config, baseClass);
         this.#Base = baseClass;
+        this.#root = projectRoot;
 
         Log.setFromString(this.#getOrDefault('logLevel', 'Info'));
         this.#dataPath = this.#getOrDefault('dataPath', this.#getDefaultPlexDataPath());
@@ -231,6 +257,7 @@ class PlexIntroEditorConfig extends ConfigBase {
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     backupActions() { return this.#features.backupActions; }
     pureMode() { return this.#features.pureMode; }
+    projectRoot() { return this.#root; }
 }
 
-export default PlexIntroEditorConfig;
+export { PlexIntroEditorConfig, Instance as Config };

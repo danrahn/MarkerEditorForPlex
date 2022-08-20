@@ -1,105 +1,68 @@
 /** External dependencies */
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { createServer, IncomingMessage, Server as httpServer, ServerResponse } from 'http';
+import { createServer } from 'http';
 import Open from 'open';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+/** @typedef {!import('http').IncomingMessage} IncomingMessage */
+/** @typedef {!import('http').ServerResponse} ServerResponse */
+/** @typedef {!import('http').Server} httpServer */
 
 /** Server dependencies */
-import MarkerBackupManager from './MarkerBackupManager.js';
-import MarkerCacheManager from './MarkerCacheManager.js';
-import PlexIntroEditorConfig from './PlexIntroEditorConfig.js';
-import PlexQueryManager from './PlexQueryManager.js';
-import ThumbnailManager from './ThumbnailManager.js';
+import FirstRunConfig from './FirstRunConfig.js';
+import GETHandler from './GETHandler.js';
+import { MarkerBackupManager, BackupManager } from './MarkerBackupManager.js';
+import { MarkerCacheManager } from './MarkerCacheManager.js';
+import { PlexIntroEditorConfig, Config } from './PlexIntroEditorConfig.js';
+import { PlexQueryManager } from './PlexQueryManager.js';
+import ServerCommands from './ServerCommands.js';
+import ServerError from './ServerError.js';
+import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import { ServerState, GetServerState, SetServerState } from './ServerState.js';
+import { ThumbnailManager } from './ThumbnailManager.js';
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
 /** Server+Client shared dependencies */
 import { Log } from './../Shared/ConsoleLog.js';
-import FirstRunConfig from './FirstRunConfig.js';
-import ServerCommands from './ServerCommands.js';
-import ServerError from './ServerError.js';
-import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import GETHandler from './GETHandler.js';
-import ServerState from './ServerState.js';
 
 /**
  * HTTP server instance.
  * @type {httpServer} */
 let Server;
 
-/**
- * User configuration.
- * @type {PlexIntroEditorConfig} */
-let Config;
-
-/**
- * Manages retrieving preview thumbnails for episodes.
- * @type {ThumbnailManager}
- */
-let Thumbnails;
-
-/**
- * Manages basic marker information for the entire database.
- * @type {MarkerCacheManager}
- */
-let MarkerCache = null;
-
-/**
- * Manages executing queries to the Plex database.
- * @type {PlexQueryManager}
- */
-let QueryManager;
-
-/**
- * Records marker actions in a database to be restored if Plex removes them, or reverted
- * if changes in Plex's marker schema causes these markers to break the database.
- * @type {MarkerBackupManager} */
-let BackupManager;
-
-/**
- * Indicates whether we're in the middle of shutting down the server, and
- * should therefore immediately fail all incoming requests.
- * @type {number} */
-let CurrentState = ServerState.FirstBoot;
-
-/** @returns The current ServerState of the server. */
-function getState() { return CurrentState; }
-
 /** Global flag indicating if the server is running tests. */
 let IsTest = false;
-
-/** The root of the project, which is one directory up from the 'Server' folder we're currently in. */
-const ProjectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** Initializes and starts the server */
 async function run() {
     setupTerminateHandlers();
     const testData = checkTestData();
+    const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
     if (!testData.isTest) {
-        await FirstRunConfig(ProjectRoot);
+        await FirstRunConfig(projectRoot);
     }
 
-    Config = new PlexIntroEditorConfig(ProjectRoot, testData);
+    const config = PlexIntroEditorConfig.Create(projectRoot, testData);
 
     // Set up the database, and make sure it's the right one.
-    QueryManager = await PlexQueryManager.CreateInstance(Config.databasePath(), Config.pureMode());
-    if (Config.backupActions()) {
-        BackupManager = await MarkerBackupManager.CreateInstance(IsTest ? join(ProjectRoot, 'Test') : ProjectRoot);
+    const queryManager = await PlexQueryManager.CreateInstance(config.databasePath(), config.pureMode());
+    if (config.backupActions()) {
+        await MarkerBackupManager.CreateInstance(IsTest ? join(projectRoot, 'Test') : projectRoot);
     } else {
         Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
     }
 
-    Thumbnails = new ThumbnailManager(QueryManager.database(), Config.metadataPath());
-    if (Config.extendedMarkerStats()) {
-        MarkerCache = new MarkerCacheManager(QueryManager.database(), QueryManager.markerTagId());
+    ThumbnailManager.Create(queryManager.database(), config.metadataPath());
+    if (config.extendedMarkerStats()) {
+        const markerCache = MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
         try {
-            await MarkerCache.buildCache();
-            await BackupManager?.buildAllPurges(MarkerCache);
+            await markerCache.buildCache();
+            await BackupManager?.buildAllPurges();
         } catch (err) {
             Log.error(err.message, 'Failed to build marker cache:');
             Log.error('Continuing to server creating, but extended marker statistics will not be available.');
-            Config.disableExtendedMarkerStats();
-            MarkerCache = null;
+            config.disableExtendedMarkerStats();
+            MarkerCacheManager.Close();
         }
     }
 
@@ -107,13 +70,13 @@ async function run() {
     return launchServer();
 }
 
-export { run, getState, ProjectRoot, Config, QueryManager, MarkerCache, BackupManager, Thumbnails };
+export { run };
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
 function setupTerminateHandlers() {
     // Only need to do this on first boot, not if we're restarting/resuming
-    if (CurrentState != ServerState.FirstBoot) {
+    if (GetServerState() != ServerState.FirstBoot) {
         return;
     }
 
@@ -146,8 +109,8 @@ function setupTerminateHandlers() {
  * @param {string} message The message to log */
 function writeErrorToFile(message) {
     try {
-        const logDir = join(ProjectRoot, 'Logs');
-        if (!existsSync(join(ProjectRoot, 'Logs'))) {
+        const logDir = join(Config.projectRoot(), 'Logs');
+        if (!existsSync(join(Config.projectRoot(), 'Logs'))) {
             mkdirSync(logDir);
         }
 
@@ -169,13 +132,13 @@ function writeErrorToFile(message) {
  * @param {String} signal The signal that initiated this shutdown.
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
 function handleClose(signal, restart=false) {
-    CurrentState = ServerState.ShuttingDown;
+    SetServerState(ServerState.ShuttingDown);
     Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
     cleanupForShutdown();
     const exitFn = (error, restart) => {
         if (restart) {
             Log.info('Restarting server...');
-            CurrentState = ServerState.ReInit;
+            SetServerState(ServerState.ReInit);
             Server = null;
             run();
         } else if (!IsTest) {
@@ -206,13 +169,11 @@ function handleClose(signal, restart=false) {
 /** Properly close out open resources in preparation for shutting down the process. */
 function cleanupForShutdown() {
     ServerCommands.clear();
-    QueryManager?.close();
-    QueryManager = null;
-    BackupManager?.close();
-    BackupManager = null;
-    MarkerCache = null;
-    Thumbnails = null;
-    Config = null;
+    PlexQueryManager.Close();
+    MarkerBackupManager.Close();
+    MarkerCacheManager.Close();
+    ThumbnailManager.Close();
+    PlexIntroEditorConfig.Close();
 
     // Either we failed to resume the server, or we got a shutdown request in the middle of
     // resuming. Send a failure response now so the server can close cleanly.
@@ -240,11 +201,11 @@ function userRestart(res) {
 /** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database. */
 function userSuspend(res) {
     Log.verbose('Attempting to pause the server');
-    if (CurrentState != ServerState.Running) {
+    if (GetServerState() != ServerState.Running) {
         return sendJsonError(res, new ServerError('Server is either already suspended or shutting down.', 400))
     }
 
-    CurrentState = ServerState.Suspended;
+    SetServerState(ServerState.Suspended);
     cleanupForShutdown();
     Log.info('Server successfully suspended.');
     sendJsonSuccess(res);
@@ -261,8 +222,8 @@ let ResumeResponse;
  * @param {ServerResponse} res */
 function userResume(res) {
     Log.verbose('Attempting to resume the server');
-    if (CurrentState != ServerState.Suspended) {
-        Log.verbose(`userResume: Server isn't suspended (${CurrentState})`);
+    if (GetServerState() != ServerState.Suspended) {
+        Log.verbose(`userResume: Server isn't suspended (${GetServerState()})`);
         return sendJsonSuccess(res, { message : 'Server is not suspended' });
     }
 
@@ -288,12 +249,12 @@ async function launchServer() {
         Server.listen(Config.port(), Config.host(), () => {
             const url = `http://${Config.host()}:${Config.port()}`;
             Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-            if (Config.autoOpen() && CurrentState == ServerState.FirstBoot) {
+            if (Config.autoOpen() && GetServerState() == ServerState.FirstBoot) {
                 Log.info('Launching browser...');
                 Open(url);
             }
 
-            CurrentState = ServerState.Running;
+            SetServerState(ServerState.Running);
             resolve();
         });
     });
@@ -308,11 +269,11 @@ function shouldCreateServer() {
         return true;
     }
 
-    if (CurrentState != ServerState.Suspended) {
+    if (GetServerState() != ServerState.Suspended) {
         Log.warn('Calling launchServer when server already exists!');
     }
 
-    CurrentState = ServerState.Running;
+    SetServerState(ServerState.Running);
     if (ResumeResponse) {
         sendJsonSuccess(ResumeResponse, { message : 'Server resumed' });
         ResumeResponse = null;
@@ -329,7 +290,7 @@ function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
-    if (CurrentState == ServerState.ShuttingDown) {
+    if (GetServerState() == ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');
         if (method == 'get') {
             // GET methods don't return JSON
@@ -380,7 +341,7 @@ async function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    if (CurrentState == ServerState.Suspended && (endpoint != 'resume' && endpoint != 'shutdown')) {
+    if (GetServerState() == ServerState.Suspended && (endpoint != 'resume' && endpoint != 'shutdown')) {
         return sendJsonError(res, new ServerError('Server is suspended', 503));
     }
 

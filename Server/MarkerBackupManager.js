@@ -11,9 +11,9 @@ import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
-import MarkerCacheManager from "./MarkerCacheManager.js";
+import { MarkerCache } from "./MarkerCacheManager.js";
+import { PlexQueries } from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
-import { QueryManager } from "./PlexIntroEditor.js";
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
@@ -177,6 +177,12 @@ const SchemaUpgrades = [
 ];
 
 /**
+ * Singleton backup manager instance
+ * @type {MarkerBackupManager}
+ * @readonly */ // Externally readonly
+let Instance;
+
+/**
  * The MarkerRecorder class handles interactions with a database that keeps track of all the user's marker actions.
  *
  * The main motivation behind this class is Plex's behavior of wiping out all intro markers when a new episode is
@@ -209,11 +215,16 @@ class MarkerBackupManager {
      * opposed to creating a new MarkerBackupManager directly.
      * @param {string} projectRoot The root of this project, to determine where the backup database is. */
     static async CreateInstance(projectRoot) {
+        if (Instance) {
+            Log.warn(`Backup manager already initialized, we shouldn't be trying to do this again!`);
+            MarkerBackupManager.Close();
+        }
+
         Log.info('MarkerBackupManager: Initializing marker backup database...');
         /** @type {{id: number, uuid: string}[]} */
         let sections;
         try {
-            sections = await QueryManager.sectionUuids();
+            sections = await PlexQueries.sectionUuids();
         } catch (err) {
             Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
             throw err;
@@ -255,12 +266,16 @@ class MarkerBackupManager {
             }
 
             Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
-            return Promise.resolve(manager);
+            Instance = manager;
+            return manager;
         } catch (err) {
             Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
             throw err;
         }
     }
+
+    /** Clear out the singleton backup manager instance. */
+    static Close() { Instance?.close(); Instance = null; }
 
     /**
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
@@ -442,7 +457,7 @@ INSERT INTO actions
      * @returns {Promise<MarkerAction[]>}
      * @throws {ServerError} On failure. */
     async checkForPurges(metadataId) {
-        const markerData = await QueryManager.getMarkersAuto(metadataId);
+        const markerData = await PlexQueries.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
 
@@ -479,7 +494,7 @@ INSERT INTO actions
             return Promise.resolve();
         }
 
-        const episodes = await QueryManager.getEpisodesFromList(Object.keys(episodeMap));
+        const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
                 Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
@@ -496,9 +511,8 @@ INSERT INTO actions
     /**
      * Queries the backup database for markers from all sections of the server and checks
      * whether they exist in the Plex database.
-     * @param {MarkerCacheManager} cacheManager
      * @returns {Promise<void>} */
-    async buildAllPurges(cacheManager) {
+    async buildAllPurges() {
         let uuidString = '';
         let parameters = [];
         for (const uuid of Object.values(this.#uuids)) {
@@ -519,7 +533,7 @@ ORDER BY id DESC;`
 
         // If we need to update ids, hold off for now and rerun buildAllPurges once complete.
         if (await this.#verifySectionIds(actions)) {
-            return this.buildAllPurges(cacheManager);
+            return this.buildAllPurges();
         }
 
         for (const action of actions) {
@@ -527,7 +541,7 @@ ORDER BY id DESC;`
                 continue; // Last action was a user delete, ignore it.
             }
 
-            if (!cacheManager.markerExists(action.marker_id)) {
+            if (!MarkerCache.markerExists(action.marker_id)) {
                 this.#addToPurgeMap(action);
             }
         }
@@ -742,7 +756,7 @@ ORDER BY id DESC;`
             toRestore[markerAction.episode_id].push(markerAction);
         }
 
-        const markerData = await QueryManager.bulkRestore(toRestore);
+        const markerData = await PlexQueries.bulkRestore(toRestore);
         const newMarkers = markerData.newMarkers;
         const ignoredMarkers = markerData.identicalMarkers;
 
@@ -832,4 +846,4 @@ ORDER BY id DESC;`
     }
 }
 
-export default MarkerBackupManager;
+export { MarkerBackupManager, Instance as BackupManager };
