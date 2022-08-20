@@ -154,7 +154,8 @@ input:focus-visible {
   opacity: 0.8;
 }
 
-.selected .buttonIconAndText {
+.selected .buttonIconAndText,
+.bulkResultRow .buttonTextOnly {
   margin: 0;
 }
 
@@ -165,13 +166,15 @@ input:focus-visible {
 
 .showResult,
 .seasonResult,
-.episodeResult {
+.episodeResult,
+.bulkResultRow {
   display: flex;
   cursor: pointer;
 }
 
 .showResult,
-.seasonResult {
+.seasonResult,
+.bulkResultRow {
   justify-content: center;
 }
 
@@ -181,11 +184,13 @@ input:focus-visible {
 
 .showResult:hover,
 .seasonResult:hover,
-.episodeResult:hover {
+.episodeResult:hover,
+.bulkResultRow:hover {
   font-weight: bold;
 }
 
-.showResult>div {
+.showResult>div,
+.bulkResultRow>div {
   flex: 1;
 }
 
@@ -199,6 +204,14 @@ input:focus-visible {
 
 .seasonResult {
   padding: 10px 10px 10px 20px;
+}
+
+.bulkResultRow {
+  padding: 5px 10px 5px 20px;
+}
+
+.bulkActionTitle {
+  vertical-align: middle;
 }
 
 .seasonResult>div {
@@ -237,6 +250,10 @@ input:focus-visible {
   font-weight: bold;
   line-height: 23px;
   cursor: default;
+}
+
+.bulkResultRow {
+  line-height: 23px; /* TODO: not this */
 }
 
 .selected:hover {

@@ -202,6 +202,42 @@ class ResultRow {
 }
 
 /**
+ * A result row that offers bulk marker actions, like shifting everything X milliseconds.
+ */
+class BulkActionResultRow extends ResultRow {
+    constructor(mediaItem) {
+        super(mediaItem, 'bulkResultRow');
+    }
+
+    /**
+     * Build the bulk result row, returning the row */
+    buildRow() {
+        if (this.html()) {
+            Log.warn(`buildRow has already been called for this BulkActionResultRow, that shouldn't happen!`);
+            return this.html();
+        }
+
+        let titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
+        let emptyRow = buildNode('div');
+        let row = this.buildRowColumns(titleNode, emptyRow, null);
+        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
+            ButtonCreator.textButton('Shift Markers', this.#bulkShift.bind(this)));
+
+        this.setHtml(row);
+        return row;
+    }
+
+    // Override default behavior and don't show anything here, since we override this with our own actions.
+    episodeDisplay() { }
+
+    /**
+     * Launch the bulk shift overlay for the current media item (show/season). */
+    #bulkShift() {
+        Overlay.show('Not yet implemented.', 'OK');
+    }
+}
+
+/**
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
@@ -336,6 +372,7 @@ class ShowResultRow extends ResultRow {
         const addRow = row => plexUI.addRow(UISection.Seasons, row);
         this.#showTitle = new ShowResultRow(this.show());
         addRow(this.#showTitle.buildRow(true /*selected*/));
+        addRow(new BulkActionResultRow(this.show()).buildRow());
         addRow(buildNode('hr'));
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
@@ -506,6 +543,7 @@ class SeasonResultRow extends ResultRow {
         addRow(buildNode('hr'));
         this.#seasonTitle = new SeasonResultRow(clientState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow(true));
+        addRow(new BulkActionResultRow(this.season()).buildRow());
         addRow(buildNode('hr'));
 
         // Returned data doesn't guarantee order. Create the rows, then sort by index
