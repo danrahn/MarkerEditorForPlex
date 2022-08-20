@@ -233,7 +233,7 @@ class BulkActionResultRow extends ResultRow {
     /**
      * Launch the bulk shift overlay for the current media item (show/season). */
     #bulkShift() {
-        Overlay.show('Not yet implemented.', 'OK');
+        Overlay.show('Not yet implemented.');
     }
 }
 
@@ -335,7 +335,7 @@ class ShowResultRow extends ResultRow {
         }
 
         if (!PlexClientState.GetState().setActiveShow(this)) {
-            Overlay.show('Unable to retrieve data for that show. Please try again later.', 'OK');
+            Overlay.show('Unable to retrieve data for that show. Please try again later.');
             return;
         }
 
@@ -494,7 +494,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         if (!PlexClientState.GetState().setActiveSeason(this)) {
-            Overlay.show('Unable to retrieve data for that season. Please try again later.', 'OK');
+            Overlay.show('Unable to retrieve data for that season. Please try again later.');
             return;
         }
 

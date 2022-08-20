@@ -88,12 +88,12 @@ class MarkerTable {
      * @param {number} endTime The end time of the marker, in milliseconds. */
     checkValues(markerId, startTime, endTime) {
         if (isNaN(startTime) || isNaN(endTime)) {
-            Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`, 'OK');
+            Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`);
             return false;
         }
 
         if (startTime >= endTime) {
-            Overlay.show('Start time cannot be greater than or equal to the end time.', 'OK');
+            Overlay.show('Start time cannot be greater than or equal to the end time.');
             return false;
         }
 
@@ -107,8 +107,7 @@ class MarkerTable {
                     `Consider expanding the range of the existing marker.` :
                     `Adjust this marker's timings or delete the other marker first to avoid overlap.`;
                 Overlay.show(
-                    `That overlaps with an existing marker (${msToHms(row.startTime())}-${msToHms(row.endTime())}).<br>${message}`,
-                    'OK');
+                    `That overlaps with an existing marker (${msToHms(row.startTime())}-${msToHms(row.endTime())}).<br>${message}`);
                 return false;
             }
         }

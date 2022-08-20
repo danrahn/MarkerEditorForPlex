@@ -18,12 +18,12 @@ let Overlay = new function()
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
      * @param {string|HTMLElement} message The message to display.
-     * @param {string} buttonText The text of the button.
+     * @param {string} [buttonText='OK'] The text of the button. Defaults to 'OK'.
      * @param {Function} [buttonFunc=Overlay.dismiss] The function to invoke when the button is pressed.
      * Defaults to dismissing the overlay.
      * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
      */
-    this.show = function(message, buttonText, buttonFunc=Overlay.dismiss, dismissible=true)
+    this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true)
     {
         // Set focus to the button on start
         const focusOnLaunch = { fn : () => $('#overlayBtn').focus(), args : [] };

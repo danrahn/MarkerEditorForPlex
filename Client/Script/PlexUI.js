@@ -95,7 +95,7 @@ class PlexUI {
     init(libraries) {
         clearEle(this.#dropdown);
         if (libraries.length < 1) {
-            Overlay.show('No TV libraries found in the database.', 'OK');
+            Overlay.show('No TV libraries found in the database.');
             return;
         }
 

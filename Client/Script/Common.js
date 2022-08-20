@@ -237,7 +237,7 @@ function msToHms(ms) {
  * @param {Error|string} err */
 function errorResponseOverlay(message, err) {
     let errType = err instanceof FetchError ? 'Server Message' : 'Error';
-    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`, 'OK');
+    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`);
 }
 
 export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, jsonRequest, msToHms, pad0, plural };

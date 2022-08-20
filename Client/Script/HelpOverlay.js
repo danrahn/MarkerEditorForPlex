@@ -18,7 +18,7 @@ the future. The author is not responsible for any database corruption that may o
 
 /** Invokes the help overlay */
 function ShowHelpOverlay() {
-    Overlay.show(helpText, 'OK');
+    Overlay.show(helpText);
 }
 
 export default ShowHelpOverlay;
