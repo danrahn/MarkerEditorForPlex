@@ -1,4 +1,4 @@
-import { promises as FS } from 'fs';
+import { readFileSync } from 'fs';
 import { contentType, lookup } from 'mime-types';
 import { join } from 'path';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
@@ -39,7 +39,7 @@ class GETHandler {
         }
 
         try {
-            const contents = await FS.readFile(join(Config.projectRoot(), url));
+            const contents = readFileSync(join(Config.projectRoot(), url));
             sendCompressedData(res, 200, contents, mimetype);
         } catch (err) {
             Log.warn(`Unable to serve ${url}: ${err.message}`);
@@ -77,7 +77,7 @@ class ImageHandler {
         }
 
         try {
-            let contents = await FS.readFile(join(Config.projectRoot(), 'SVG', icon));
+            let contents = readFileSync(join(Config.projectRoot(), 'SVG', icon));
             if (Buffer.isBuffer(contents)) {
                 contents = contents.toString('utf-8');
             }

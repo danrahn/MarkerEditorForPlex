@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { createServer } from 'http';
 import Open from 'open';
-import { dirname, join, resolve } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
