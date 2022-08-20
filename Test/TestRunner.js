@@ -11,6 +11,7 @@ import ImageTest from './TestClasses/ImageTest.js';
 import { ServerState, GetServerState } from '../Server/ServerState.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
 import QueryTest from './TestClasses/QueryTest.js';
+import ShiftTest from './TestClasses/ShiftTest.js';
 
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
@@ -28,6 +29,7 @@ class TestRunner {
         MultipleMarkers : MultipleMarkers,
         ImageTest : ImageTest,
         QueryTest : QueryTest,
+        ShiftTest : ShiftTest,
     };
 
     constructor() {
@@ -74,6 +76,7 @@ class TestRunner {
             return this.#shutdown();
         } catch (ex) {
             TestLog.error(`TestRunner::runSpecific - Encountered an exception - ${ex.message}`);
+            TestLog.verbose(ex.stack ? ex.stack : `[Stack not found]`);
             return Promise.reject();
         }
     }

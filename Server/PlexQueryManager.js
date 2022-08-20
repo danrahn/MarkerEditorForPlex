@@ -654,6 +654,62 @@ ORDER BY e.id ASC;`;
     async sectionUuids() {
         return this.#database.all('SELECT id, uuid FROM library_sections;');
     }
+
+    /**
+     * Shift the given markers by the given offset
+     * @param {{[episodeId: number]: RawMarkerData[]}} markers The markers to shift
+     * @param {number} shift The time to shift the markers by, in milliseconds */
+    async shiftMarkers(markers, shift) {
+        const episodeIds = Object.keys(markers);
+        const episodeData = await this.getEpisodesFromList(episodeIds);
+        const limits = {};
+        for (const episode of episodeData) {
+            limits[episode.id] = episode.duration;
+        }
+
+        const transaction = new TransactionBuilder(this.#database);
+        let expectedShifts = 0;
+        for (const episodeMarkers of Object.values(markers)) {
+            for (const marker of episodeMarkers) {
+                ++expectedShifts;
+                const userCreated = marker.modified_date && marker.modified_date.endsWith('*');
+                const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+                let maxDuration = limits[marker.episode_id];
+                if (!maxDuration) {
+                    throw new ServerError(`Unable to find max episode duration, the episode id ${marker.episode_id} doesn't appear to be valid.`);
+                }
+
+                const newStart = Math.max(0, Math.min(marker.start + shift, maxDuration));
+                const newEnd = Math.max(0, Math.min(marker.end + shift, maxDuration));
+                if (newStart == newEnd) {
+                    // Shifted entirely outside of the episode? We don't want that.
+                    throw new ServerError(`Attempting to shift marker (${marker.start}-${marker.end}) by ${shift} ` +
+                        `puts it outside the bounds of the episode (0-${maxDuration})!`, 400);
+                }
+
+                transaction.addStatement(
+                    'UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ' WHERE id=?',
+                    [newStart, newEnd, marker.id]
+                );
+            }
+        }
+
+        await transaction.exec();
+        const newMarkers = await this.getMarkersForEpisodes(episodeIds);
+        // No ignored markers, no need to prune
+        if (newMarkers.length == expectedShifts) {
+            return newMarkers;
+        }
+
+        const pruned = [];
+        for (const marker of newMarkers) {
+            if (markers[marker.episode_id] && markers[marker.episode_id].find(x => x.id == marker.id)) {
+                pruned.push(marker);
+            }
+        }
+
+        return pruned;
+    }
 }
 
 export { PlexQueryManager, Instance as PlexQueries };

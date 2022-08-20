@@ -29,6 +29,7 @@ async function FirstRunConfig(projectRoot) {
             Log.warn('Not going through first-time setup, attempting to use defaults for everything.');
         }
 
+        rl.close();
         return;
     }
 
@@ -60,6 +61,7 @@ async function FirstRunConfig(projectRoot) {
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');
     writeFileSync(configPath, JSON.stringify(config, null, 4) + "\n");
+    rl.close();
 }
 
 /**

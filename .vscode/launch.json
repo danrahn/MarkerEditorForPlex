@@ -25,12 +25,17 @@
             "type" : "node",
             "request" : "launch",
             "name" : "Run Tests",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "args": [
-                "--test"
-            ],
+            "skipFiles": [ "<node_internals>/**" ],
+            "args": [ "--test" ],
+            "program": "${workspaceFolder}\\Test\\Test.js"
+        },
+        {
+            "type" : "node",
+            "request" : "launch",
+            "name" : "Run Specific Test",
+            "console": "integratedTerminal",
+            "skipFiles": [ "<node_internals>/**" ],
+            "args": [ "--test", "--ask-input" ],
             "program": "${workspaceFolder}\\Test\\Test.js"
         }
     ]

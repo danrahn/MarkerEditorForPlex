@@ -67,8 +67,8 @@ class DatabaseWrapper {
      * Perform a database action and return a Promise
      * instead of dealing with callbacks.
      * @param {(sql : string, ...args : any) => Database} fn 
-     * @param {string} query 
-     * @param {*} parameters 
+     * @param {string} query
+     * @param {*} parameters
      * @returns {Promise<any>} */
     async #action(fn, query, parameters=null) {
         return new Promise((resolve, _) => {

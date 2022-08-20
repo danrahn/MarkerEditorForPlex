@@ -286,21 +286,27 @@ class TestBase {
         Show1 : { Id : 1,
             Season1 : { Id : 2,
                 Episode1 : { Id : 3, },
-                Episode2 : { Id : 4,
-                    Marker1 : { Id : 1,
-                        Start : 15000,
-                        End : 45000
-                    },
-                },
-                Episode3 : { Id : 5, },
-            },
+                Episode2 : { Id : 4, 
+                    Marker1 : { Id : 1, Start : 15000, End : 45000, Index : 0 }, },
+                Episode3 : { Id : 5, }, },
             Season2 : { Id : 6,
-                Episode1 : { Id : 7, },
-            }
+                Episode1 : { Id : 7, }, }
         },
         Show2 : { Id : 8,
             Season1 : { Id : 9,
-                Episode1 : { Id : 10, },
+                Episode1 : { Id : 10, }, },
+        },
+        Show3 : { Id : 11,
+            Season1 : { Id : 12,
+                Episode1 : { Id : 13,
+                    Marker1 : { Id : 2, Start : 15000, End : 45000, Index : 0 }, },
+                Episode2 : { Id : 14,
+                    Marker1: { Id : 3, Start : 15000, End : 45000, Index : 0 },
+                    Marker2: { Id : 4, Start : 300000, End : 345000, Index : 1 }, },
+            },
+            Season2 : { Id : 15,
+                Episode1 : { Id : 16,
+                    Marker1: { Id : 5, Start : 13000, End : 47000, Index : 0 }, },
             },
         },
     }
@@ -341,17 +347,27 @@ class TestBase {
                                    (8,  1,                  2,             NULL,      "Show2",    1),
                                    (9,  1,                  3,             8,         "Season1",  1),
                                    (10, 1,                  4,             9,         "Episode1", 1),
+                                   (11, 1,                  2,             NULL,      "Show3",    1),
+                                   (12, 1,                  3,             11,        "Season1",  1),
+                                   (13, 1,                  4,             12,        "Episode1", 1),
+                                   (14, 1,                  4,             12,        "Episode2", 2),
+                                   (15, 1,                  3,             11,        "Season2",  2),
+                                   (16, 1,                  4,             15,        "Episode1", 1),
 
                                    (100,2,                  1,             NULL,      "Movie1",   1);`;
 
         // Need existing media, but only the metadata_item_id and duration field (for now)
+        // Make them all 10 minutes (10*60*1000=6000000)
         const mediaInsert = `
         INSERT INTO media_items (metadata_item_id, duration)
-        VALUES                  (3,                10000),
-                                (4,                10000),
-                                (5,                10000),
-                                (7,                10000),
-                                (10,               10000);`;
+        VALUES                  (3,                600000),
+                                (4,                600000),
+                                (5,                600000),
+                                (7,                600000),
+                                (10,               600000),
+                                (13,               600000),
+                                (14,               600000),
+                                (16,               600000);`;
 
         return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + mediaInsert + this.defaultMarkers());
     }
@@ -370,13 +386,24 @@ class TestBase {
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
     defaultMarkers() {
-        const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const dbMarkerInsert = (metadataId, index, start, end) => `
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
-                (${metadataId}, 1, ${index}, "intro", ${start}, ${end}, CURRENT_TIMESTAMP, "pv%3Aversion=5");`
-        return dbMarkerInsert(episode.Id, 0, episode.Marker1.Start, episode.Marker1.End);
+                (${metadataId}, 1, ${index}, "intro", ${start}, ${end}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+
+
+        let insertString = '';
+        let episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker2.Index, episode.Marker2.Start, episode.Marker2.End);
+        episode = TestBase.DefaultMetadata.Show3.Season2.Episode1;
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        return insertString;
     }
 
     /**

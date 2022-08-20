@@ -49,9 +49,20 @@ class QueryParser {
 
     /**
      * Parses the comma separated integer values in the given key, returning an array of those values.
-     * @param {string} key */
-    ia(key) {
-        const value = this.raw(key);
+     * @param {string} key
+     * @param {boolean} allowEmpty If true, returns an empty array if the given field isn't present*/
+    ia(key, allowEmpty=false) {
+        let value;
+        try {
+            value = this.raw(key);
+        } catch (ex) {
+            if (allowEmpty && ex instanceof QueryParameterException) {
+                return [];
+            }
+
+            throw ex;
+        }
+
         try {
             return value.split(',').map(numStr => parseInt(numStr));
         } catch (e) {

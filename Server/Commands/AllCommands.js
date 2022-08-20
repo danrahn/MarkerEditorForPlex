@@ -1,4 +1,4 @@
-import CoreCommands from './CoreCommands.js';
+import { CoreCommands } from './CoreCommands.js';
 import GeneralCommands from './GeneralCommands.js';
 import PurgeCommands from './PurgeCommands.js';
 import QueryCommands from './QueryCommands.js';

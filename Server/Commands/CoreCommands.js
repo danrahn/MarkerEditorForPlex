@@ -130,6 +130,65 @@ class CoreCommands {
     }
 
     /**
+     * Shift all markers for the given metadata id by the given number of milliseconds.
+     * @param {number} metadataId show, season, or episode metadata id
+     * @param {number} shift The number of milliseconds to shift markers
+     * @param {number} applyType The ShiftApplyType
+     * @param {number[]} ignoredMarkerIds Markers to ignore when shifting. */
+    static async shiftMarkers(metadataId, shift, applyType, ignoredMarkerIds) {
+        const markers = await PlexQueries.getMarkersAuto(metadataId);
+        /** @type {{ [episodeId: number]: RawMarkerData[] }} */
+        const seen = {};
+
+        const ignoreSet = new Set();
+        for (const markerId of ignoredMarkerIds) {
+            ignoreSet.add(markerId);
+        }
+
+        let foundConflict = false;
+        for (const marker of markers.markers) {
+            if (ignoreSet.has(marker.id)) {
+                continue;
+            }
+
+            if (!seen[marker.episode_id]) {
+                seen[marker.episode_id] = [];
+            } else {
+                foundConflict = true;
+            }
+
+            seen[marker.episode_id].push(marker);
+        }
+
+        if (applyType == ShiftApplyType.DontApply || (applyType == ShiftApplyType.TryApply && foundConflict)) {
+            const notRaw = [];
+            Object.values(seen).forEach(markers => markers.forEach(m => notRaw.push(new MarkerData(m))));
+            return {
+                applied : false,
+                conflict : foundConflict,
+                allMarkers : notRaw,
+            };
+        }
+
+        if (foundConflict) {
+            Log.verbose('Applying shift even though some episodes have multiple markers.');
+        }
+
+        // TODO: Check if shift causes overlap with ignored markers?
+        const shifted = await PlexQueries.shiftMarkers(seen, shift);
+        const markerData = [];
+        for (const marker of shifted) {
+            markerData.push(new MarkerData(marker));
+        }
+
+        return {
+            applied : true,
+            conflict : foundConflict,
+            allMarkers : markerData
+        };
+    }
+
+    /**
      * Checks whether the given startMs-endMs bounds are valid, throwing
      * a ServerError on failure.
      * @param {number} startMs
@@ -146,4 +205,15 @@ class CoreCommands {
     }
 }
 
-export default CoreCommands;
+/**
+ * Apply method when shifting markers. */
+const ShiftApplyType = {
+    /** Don't shift anything, even if there aren't any conflicts. */
+    DontApply : 1,
+    /** Try to shift markers, but fail if an episode has multiple markers. */
+    TryApply : 2,
+    /** Force shift all markers, even if there are conflicts. */
+    ForceApply : 3
+};
+
+export { CoreCommands, ShiftApplyType };

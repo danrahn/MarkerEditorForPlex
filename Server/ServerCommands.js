@@ -1,15 +1,13 @@
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
+import { ShiftApplyType } from './Commands/CoreCommands.js';
 
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import QueryParser from './QueryParse.js';
 import ServerError from './ServerError.js';
 
 class ServerCommands {
-    /** @type {PurgeCommands} */
-    #pc;
-
     /**
     * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
     * @type {{[endpoint: string]: (params : QueryParser) => Promise<any>}} */
@@ -17,6 +15,11 @@ class ServerCommands {
         add           : async (params) => await CoreCommands.addMarker(...params.ints('metadataId', 'start', 'end')),
         edit          : async (params) => await CoreCommands.editMarker(...params.ints('id', 'start', 'end', 'userCreated')),
         delete        : async (params) => await CoreCommands.deleteMarker(params.i('id')),
+        check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, ShiftApplyType.DontApply, []),
+        shift         : async (params) => await CoreCommands.shiftMarkers(
+                                                                ...params.ints('id', 'shift'),
+                                                                params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
+                                                                params.ia('ignored', true)),
 
         query         : async (params) => await QueryCommands.queryIds(params.ia('keys')),
         get_sections  : async (_     ) => await QueryCommands.getLibraries(),
