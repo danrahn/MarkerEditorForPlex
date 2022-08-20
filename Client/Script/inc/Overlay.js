@@ -7,6 +7,11 @@ import ThemeColors from '../ThemeColors.js';
 import ButtonCreator from '../ButtonCreator.js';
 
 /**
+ * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number,
+ *              closeButton?: boolean, setup?: {args: any[], fn: (...any) => void}}} OverlayOptions
+ * */
+
+/**
  * Class to display overlays on top of a webpage.
  *
  * Taken from PlexWeb/script/overlay.js
@@ -77,10 +82,12 @@ let Overlay = new function()
 
     /**
      * Generic overlay builder.
-     * @param {Object} options Options that define how the overlay is shown:
+     * @param {OverlayOptions} options Options that define how the overlay is shown:
      *  * `dismissible` : Determines whether the overlay can be dismissed.
      *  * `centered` : Determines whether the overlay is centered in the screen (versus closer to the top).
      *  * `noborder` : Determine whether to surround the overlay's children with a dark border (defaults to false).
+     *  * `delay` : Fade-in duration (defaults to 250ms).
+     *  * `closeButton` : Whether to add a close button in the top-right (defaults to false).
      *  * `setup` : A function to run after attaching the children to the DOM, but before triggering the show animation.
      * @param {...HTMLElement} children A list of elements to append to the overlay.
      */
