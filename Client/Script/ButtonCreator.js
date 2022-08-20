@@ -1,4 +1,5 @@
 import { appendChildren, buildNode } from "./Common.js";
+import Tooltip from "./inc/Tooltip.js";
 import ThemeColors from "./ThemeColors.js";
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
@@ -73,6 +74,8 @@ class ButtonCreator {
                 for (const className of value.split(' ')) {
                     button.classList.add(className);
                 }
+            } else if (attribute == 'tooltip') {
+                Tooltip.setTooltip(button, value);
             } else {
                 button.setAttribute(attribute, value);
             }
