@@ -14,6 +14,7 @@ import DatabaseWrapper from "./DatabaseWrapper.js";
 import { MarkerCache } from "./MarkerCacheManager.js";
 import { PlexQueries } from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
+import TransactionBuilder from "./TransactionBuilder.js";
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
@@ -320,13 +321,12 @@ class MarkerBackupManager {
     async #updateSectionIdAfterUpgrade() {
         Log.verbose('MarkerBackupManager: Setting section_id after upgrading schema.');
 
-        let query = '';
+        const transaction = new TransactionBuilder(this.#actions);
         for (const [section, uuid] of Object.entries(this.#uuids)) {
-            query += DatabaseWrapper.parameterize('UPDATE actions SET section_id=? WHERE section_uuid=?; ', [section, uuid])
-            query += `UPDATE actions SET section_id=${section} WHERE section_uuid="${uuid}"; `;
+            transaction.addStatement('UPDATE actions SET section_id=? WHERE section_uuid=?;', [section, uuid]);
         }
 
-        await this.#actions.exec(query);
+        await transaction.exec();
     }
 
     /**
@@ -423,7 +423,7 @@ INSERT INTO actions
      * @param {{marker : RawMarkerData, oldMarkerId : number}[]} restores The markers to record
      * @param {number} sectionId The id of the section this marker belongs to. */
     async recordRestores(restores, sectionId) {
-        let transaction = 'BEGIN TRANSACTION;\n';
+        const transaction = new TransactionBuilder(this.#actions);
 
         for (const restore of restores) {
             const query = `
@@ -434,17 +434,15 @@ INSERT INTO actions
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
             const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], restore.oldMarkerId];
-            transaction += DatabaseWrapper.parameterize(query, parameters);
+            transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
             const updateParameters = [restore.marker.id, restore.oldMarkerId, this.#uuids[sectionId]];
-            transaction += DatabaseWrapper.parameterize(updateQuery, updateParameters);
+            transaction.addStatement(updateQuery, updateParameters);
         }
 
-        transaction += `COMMIT TRANSACTION;`;
-
         try {
-            await this.#actions.exec(transaction);
+            await transaction.exec();
         } catch (err) {
             // Swallow the error, though we should probably actually do something about this.
             Log.error(err.message, 'MarkerBackupManager: Unable to record restoration of marker');

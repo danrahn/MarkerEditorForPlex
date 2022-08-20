@@ -19,6 +19,7 @@ import { Log } from "../Shared/ConsoleLog.js";
 import CreateDatabase from "./CreateDatabase.cjs";
 import DatabaseWrapper from "./DatabaseWrapper.js";
 import ServerError from "./ServerError.js";
+import TransactionBuilder from "./TransactionBuilder.js";
 
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
@@ -253,8 +254,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
      * @param {number[]} episodeMetadataIds
-     * @param {MultipleRowQuery} callback
-     * @returns {Promise<any[]>}*/
+     * @returns {Promise<RawEpisodeData[]>}*/
     async getEpisodesFromList(episodeMetadataIds) {
         let query = `
     SELECT
@@ -296,7 +296,6 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve all markers for the given episodes.
      * @param {number[]} episodeIds
-     * @param {MultipleMarkerQuery} callback
      * @returns {Promise<RawMarkerData[]>}*/
     async getMarkersForEpisodes(episodeIds) {
         let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
@@ -462,7 +461,7 @@ ORDER BY e.\`index\` ASC;`;
         let expectedInserts = 0;
         let identicalMarkers = [];
         let potentialRestores = 0;
-        let transaction = 'BEGIN TRANSACTION;\n';
+        const transaction = new TransactionBuilder(this.#database);
         for (const [episodeId, markerActions] of Object.entries(actions)) {
             // Calculate new indexes
             for (const action of markerActions) {
@@ -495,35 +494,35 @@ ORDER BY e.\`index\` ASC;`;
 
                 ++expectedInserts;
                 const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-                transaction +=
+                transaction.addStatement(
                     'INSERT INTO taggings ' +
                         '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
                     'VALUES ' +
-                        `(${episodeId}, ${this.#markerTagId}, ${marker.newIndex}, "intro", ${marker.start}, ${marker.end}, ${thumbUrl}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+                        `(?, ?, ?, "intro", ?, ?, ?, CURRENT_TIMESTAMP, "pv%3Aversion=5");`
+                , [episodeId, this.#markerTagId, marker.newIndex, marker.start, marker.end, thumbUrl]);
             }
 
             // updateMarkerIndex, without actually executing it.
             for (const marker of Object.values(existingMarkers[episodeId])) {
                 if (marker.index != marker.newIndex && marker.existing()) {
                     Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
-                    transaction += 'UPDATE taggings SET `index`=' + marker.newIndex + ' WHERE id=' + marker.id + ';\n';
+                    transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
                 }
             }
         }
 
         if (expectedInserts == 0) {
             // This is only expected if every marker we tried to restore already exists. In that case just
-            // immediately invoke the callback without any new markers, since we didn't add any.
+            // immediately return without any new markers, since we didn't add any.
             Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
             Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
             return Promise.resolve({ newMarkers : [], identicalMarkers : identicalMarkers });
         }
 
-        transaction += 'COMMIT TRANSACTION;';
-        Log.tmi('Built full restore query:\n' + transaction);
+        Log.tmi('Built full restore query:\n' + transaction.toString());
 
         try {
-            this.#database.exec(transaction);
+            transaction.exec();
         } catch (err) {
             throw ServerError.FromDbError(err);
         }
