@@ -1,5 +1,5 @@
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
-import { MarkerData } from '../Shared/PlexTypes.js';
+/** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */;
 
 /**
  * Class that contains helper methods used by various tests.
@@ -9,7 +9,7 @@ class TestHelpers {
     /**
      * Validate an added/edited/deleted marker to ensure it matches both what is expected,
      * and what is actually in the database. If an expected value is null, then it is not validated.
-     * @param {MarkerData} markerData The marker to validate. May also be a Failure response ({ Error : string })
+     * @param {SerializedMarkerData} markerData The marker to validate. May also be a Failure response ({ Error : string })
      * @param {number?} expectedEpisodeId
      * @param {number?} expectedSeasonId
      * @param {number?} expectedShowId

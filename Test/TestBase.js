@@ -16,6 +16,7 @@ import { run as mainRun } from "../Server/PlexIntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ServerState, GetServerState } from '../Server/ServerState.js';
+/** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -405,12 +406,33 @@ class TestBase {
     }
 
     /**
+     * Add a marker to the given episode via the 'add' endpoint, returning the JSON response.
+     * @param {number} episodeId The episode's metadata id
+     * @param {number} startMs
+     * @param {number} endMs
+     * @returns {Promise<SerializedMarkerData>} */
+    async addMarker(episodeId, startMs, endMs) {
+        return this.#addMarkerCore(episodeId, startMs, endMs, false /*raw*/);
+    }
+
+    /**
+     * Add a marker to the given episode via the 'add' endpoint, returning the raw request.
+     * @param {number} episodeId The episode's metadata id
+     * @param {number} startMs
+     * @param {number} endMs
+     * @returns {Promise<Response>} */
+    async addMarkerRaw(episodeId, startMs, endMs) {
+        return this.#addMarkerCore(episodeId, startMs, endMs, true /*raw*/);
+    }
+
+    /**
      * Add a marker to the given episode via the 'add' endpoint.
      * @param {number} episodeId The episode's metadata id
      * @param {number} startMs
      * @param {number} endMs
-     * @param {boolean} raw Whether the Response should be returned instead of the json response. */
-    async addMarker(episodeId, startMs, endMs, raw=false) {
+     * @param {boolean} raw Whether the Response should be returned instead of the json response.
+     * @returns {Promise<SerializedMarkerData|Response>} */
+    async #addMarkerCore(episodeId, startMs, endMs, raw=false) {
         return this.send('add', {
             metadataId : episodeId,
             start : startMs,
@@ -419,12 +441,28 @@ class TestBase {
     }
 
     /**
+     * Edit a marker with the given id via the 'edit' endpoint, returning the JSON response.
+     * @param {number} markerId
+     * @param {number} startMs
+     * @param {number} endMs
+     * @returns {Promise<SerializedMarkerData>} */
+    async editMarker(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, false /*raw*/); }
+
+    /**
+     * Edit a marker with the given id via the 'edit' endpoint, returning the raw Response.
+     * @param {number} markerId
+     * @param {number} startMs
+     * @param {number} endMs
+     * @returns {Promise<Response>} */
+    async editMarkerRaw(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, true /*raw*/); }
+    /**
      * Edit a marker with the given id via the 'edit' endpoint.
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
-     * @param {boolean} raw Whether the Response should be returned instead of the json response. */
-    async editMarker(markerId, startMs, endMs, raw=false) {
+     * @param {boolean} raw Whether the Response should be returned instead of the json response.
+     * @returns {Promise<SerializedMarkerData|Response>} */
+    async #editMarkerCore(markerId, startMs, endMs, raw) {
         return this.send('edit', {
             id : markerId,
             start : startMs,

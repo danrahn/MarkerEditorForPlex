@@ -9,7 +9,9 @@
  * @typedef {{[metadataId: number]: SeasonData}} SeasonMap A map of season metadata ids to the season itself.
  * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
- * @typedef {{applied: boolean, conflict: boolean, allMarkers: MarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
+ * @typedef {{start: number, end: number, index: number, id: number, episodeId: number,
+ *            seasonId: number, showId: number, sectionId: number}} SerializedMarkerData
+ * @typedef {{applied: boolean, conflict: boolean, allMarkers: SerializedMarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
  */
 

@@ -59,7 +59,7 @@ class BasicCRUD extends TestBase {
     async testNegativeStart() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.addMarker(show.Season1.Episode1.Id, -1, 10000, true /*raw*/);
+        let response = await this.addMarkerRaw(show.Season1.Episode1.Id, -1, 10000);
 
         return TestHelpers.verifyBadRequest(response, 'add with negative startMs');
     }
@@ -69,7 +69,7 @@ class BasicCRUD extends TestBase {
     async testEqualStartAndEnd() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.addMarker(show.Season1.Episode1.Id, 10000, 10000, true /*raw*/);
+        let response = await this.addMarkerRaw(show.Season1.Episode1.Id, 10000, 10000);
 
         return TestHelpers.verifyBadRequest(response, 'add with equal startMs and endMs');
     }
@@ -91,7 +91,7 @@ class BasicCRUD extends TestBase {
      * which isn't an episode. */
     async #addToWrongMetadataType(metadataId) {
         this.expectFailure();
-        let response = await this.addMarker(metadataId, 0, 10000, true /*raw*/);
+        let response = await this.addMarkerRaw(metadataId, 0, 10000);
 
         return TestHelpers.verifyBadRequest(response);
     }
@@ -120,7 +120,7 @@ class BasicCRUD extends TestBase {
         // Don't surface expected errors from the main application log
         this.expectFailure();
         /* MarkerId of 100 = arbitrary bad value */
-        let response = await this.editMarker(100, 0, 10000, true /*raw*/);
+        let response = await this.editMarkerRaw(100, 0, 10000);
 
         return TestHelpers.verifyBadRequest(response, 'edit of nonexistent marker');
     }
