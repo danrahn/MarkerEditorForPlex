@@ -53,7 +53,7 @@ class BulkShiftOverlay {
                     { keyup : this.#onTimeShiftChange.bind(this) })),
             appendChildren(buildNode('div', { id : 'bulkShiftButtons' }),
                 ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
-                ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all markers, even if some episodes have multiple markers.'}),
+                ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'}),
                 ButtonCreator.textButton('Customize', this.#check.bind(this), { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss)
             )
@@ -142,9 +142,75 @@ class BulkShiftOverlay {
     }
 
     /**
+     * Map of error messages
+     * @type {{[messageType: string]: string}}
+     * @readonly */
+    #messages = {
+        unresolved : 'Some episodes have multiple markers, please resolve below.',
+        unresolvedAgain : 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.',
+        cutoff : 'The current shift will cut off some markers. Are you sure you want to continue?',
+        error : 'The current shift completely moves at least one selected marker beyond the bounds of the episode.<br>' +
+                'Do you want to ignore those and continue?',
+        unresolvedPlus : 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.<br>' +
+                         'Additionally, some markers are either cut off or completely beyond the bounds of an episode (or both).<br>' +
+                         'Cut off markers will be applied and invalid markers will be ignored.',
+        cutoffPlus : 'The current shift will cut off some markers, and ignore markers beyond the bounds of the episode.<br>' +
+                     'Are you sure you want to continue?'
+    }
+
+    /**
+     * Display a message in the bulk shift overlay.
+     * @param {string} messageType
+     * @param {boolean} addForceButton True to also add an additional 'force apply' button below the message */
+    #showMessage(messageType, addForceButton=false) {
+        let message = this.#messages[messageType];
+        if (!message) {
+            Log.warn(messageType, 'Attempting to show an invalid error message');
+            message = 'The shift could not be applied, please try again later.';
+        }
+
+        const attributes = { id : 'resolveShiftMessage', resolveMessage : messageType };
+        let node;
+        if (addForceButton) {
+            node = appendChildren(buildNode('div', attributes),
+                buildNode('h4', {}, message),
+                ButtonCreator.textButton('Force shift', this.#forceApply.bind(this), { id : 'shiftForceApplySub', class : 'shiftForceApply' })
+            );
+        } else {
+            node = buildNode('h4', attributes, message);
+        }
+
+        const container = $('#bulkShiftContainer');
+        const currentNode = $('#resolveShiftMessage');
+        if (currentNode) {
+            container.insertBefore(node, currentNode);
+            container.removeChild(currentNode);
+            return;
+        }
+
+        const customizeTable = $('#bulkShiftCustomizeTable');
+        if (customizeTable) {
+            container.insertBefore(node, customizeTable);
+        } else {
+            container.appendChild(node);
+        }
+    }
+
+    /**
+     * Return the current message type, or false if there isn't one showing.
+     * @returns {string|false} */
+    #getMessageType() {
+        const message = $('#resolveShiftMessage');
+        if (!message) {
+            return false;
+        }
+
+        return message.getAttribute('resolveMessage');
+    }
+
+    /**
      * Attempts to apply the given shift to all markers under the given metadata id.
-     * If any episode has multiple markers, shows the customization table.
-     * NYI */
+     * If any episode has multiple markers, shows the customization table. */
     async #tryApply() {
         let shift = this.#shiftValue();
         if (!shift) {
@@ -152,40 +218,39 @@ class BulkShiftOverlay {
         }
 
         const ignoreInfo = this.#getIgnored();
-        const container = $('#bulkShiftContainer');
         const customizeTable = $('#bulkShiftCustomizeTable');
         if (ignoreInfo.hasUnresolved) {
             Log.assert(customizeTable, `How do we know we have unresolved markers if the table isn't showing?`);
 
             // If we've already shown the warning
-            const warningH3 = $('#resolveShiftH3');
-            if (warningH3) {
-                // If resolveShiftH3 exists, show a similar div, but this time ask the user if they want
-                // to ignore the unresolved items.
-                container.insertBefore(appendChildren(buildNode('div', { id : 'forceShiftWithUnresolved' }),
-                    buildNode('h3', {}, 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.'),
-                    ButtonCreator.textButton('Force shift', this.#forceApply.bind(this), { id : 'shiftForceApplySub', class : 'shiftForceApply' })
-                ), customizeTable);
-                container.removeChild(warningH3);
-                return;
+            const existingMessage = this.#getMessageType();
+            if (existingMessage && existingMessage != 'unresolvedPlus' && (ignoreInfo.hasCutoff || ignoreInfo.hasCutoff)) {
+                return this.#showMessage('unresolvedPlus', true);
+            }
+
+            if (existingMessage && existingMessage != 'unresolvedAgain') {
+                return this.#showMessage('unresolvedAgain', true);
             }
 
             // If we are already showing the force shift subdialog, just flash the button
-            if ($('#forceShiftWithUnresolved')) {
+            if (existingMessage == 'unresolvedAgain' || existingMessage == 'unresolvedPlus') {
                 return this.#flashButton($('#shiftApply'), 'red');
             }
 
-            // No initial warning, no force shift subdialog, show resolveShiftH3.
-            const resolveShiftH3 = buildNode('h3', { id : 'resolveShiftH3' }, 'Some episodes have multiple markers, please resolve below.');
-            if (customizeTable) {
-                // Assume nothing's changed marker-wise, and keep the existing table with its checked state if it exists
-                container.insertBefore(resolveShiftH3, customizeTable);
-            } else {
-                $('#bulkShiftContainer').appendChild(resolveShiftH3);
+            this.#showMessage('unresolved');
+            if (!customizeTable) {
                 this.#check();
             }
 
             return;
+        }
+
+        if (ignoreInfo.hasCutoff) {
+            return this.#showMessage(ignoreInfo.hasError ? 'cutoff' : 'cutoffPlus', true);
+        }
+
+        if (ignoreInfo.hasError) {
+            return this.#showMessage('error', true);
         }
 
         const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, false /*force*/, ignoreInfo.ignored);
@@ -206,14 +271,13 @@ class BulkShiftOverlay {
         }
 
         this.#episodeData = shiftResult.episodeData;
-        Log.assert(shiftResult.conflict, `We should only have !applied && !conflict during check_shift, not shift. What happened?`);
-        $('#bulkShiftContainer').appendChild(buildNode('h3', { id : 'resolveShiftH3' }, 'Some episodes have multiple markers, please resolve below.'));
+        Log.assert(shiftResult.conflict || shiftResult.overflow, `We should only have !applied && !conflict during check_shift, not shift. What happened?`);
+        this.#showMessage(shiftResult.overflow ? 'error' : 'unresolved', shiftResult.overflow);
         this.#showCustomizeTable(shiftResult);
     }
 
     /**
-     * Force applies the given shift to all markers under the given metadata id.
-     * NYI */
+     * Force applies the given shift to all markers under the given metadata id. */
     async #forceApply() {
         let shift = this.#shiftValue();
         if (!shift) {
@@ -223,7 +287,15 @@ class BulkShiftOverlay {
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
         const ignoreInfo = this.#getIgnored();
         try {
-            await ServerCommand.shift(this.#mediaItem.metadataId, shift, true /*force*/, ignoreInfo.ignored);
+            const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, true /*force*/, ignoreInfo.ignored);
+            if (!shiftResult.applied) {
+                Log.assert(shiftResult.overflow, `Force apply should only fail if overflow was found.`);
+                this.#episodeData = shiftResult.episodeData;
+                this.#showCustomizeTable(shiftResult);
+                this.#showMessage('error', true);
+                return;
+            }
+
             $('.shiftForceApply').forEach(async f => {
                 await this.#flashButton(f, 'green');
                 Overlay.dismiss();
@@ -240,9 +312,6 @@ class BulkShiftOverlay {
         } catch (ex) {
             $('.shiftForceApply').forEach(f => this.#flashButton(f, 'red'));
         }
-
-        console.log(shift);
-        Log.info('Force applying...');
     }
 
     /**
@@ -353,6 +422,7 @@ class BulkShiftOverlay {
                 row.setAttribute('mstart', marker.start);
                 row.setAttribute('mend', marker.end);
                 row.setAttribute('eid', marker.episodeId);
+                row.setAttribute('mid', marker.id);
                 if (multiple) {
                     row.classList.add('bulkShiftSemi');
                 } else {
@@ -420,6 +490,7 @@ class BulkShiftOverlay {
         // Markers that are both off and 'semi' selected are ignored.
         $('tr.bulkShiftOff', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
         $('tr.bulkShiftSemi', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
+        $('tr.bulkShiftOn td:nth-child(5).bulkShiftOff', customizeTable).forEach(td => ignored.push(parseInt(td.parentElement.getAttribute('mid'))));
         return {
             ignored : ignored,
             tableVisible : true,
