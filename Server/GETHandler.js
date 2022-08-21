@@ -36,6 +36,7 @@ class GETHandler {
         const mimetype = contentType(lookup(url));
         if (!mimetype) {
             res.writeHead(404).end(`Bad MIME type: ${url}`);
+            return;
         }
 
         try {
