@@ -2,7 +2,9 @@
     text-align: center;
 }
 
-#bulkShiftContainer h1, h2 {
+#bulkShiftContainer h1,
+#bulkShiftContainer h2,
+#bulkShiftContainer h3 {
     text-align: center;
 }
 
