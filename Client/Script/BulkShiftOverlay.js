@@ -95,6 +95,18 @@ class BulkShiftOverlay {
     }
 
     /**
+     * Mark the given timing nodes as active or inactive.
+     * @param {boolean} active
+     * @param  {...HTMLElement} nodes */
+    #markActive(active, ...nodes) {
+        if (active) {
+            nodes.forEach(n => n.classList.remove('bulkShiftInactive'));
+        } else {
+            nodes.forEach(n => n.classList.add('bulkShiftInactive'));
+        }
+    }
+
+    /**
      * Adjust the styling of the new start/end values of the given row.
      * If the start/end of the marker is getting cut off, show it in yellow
      * If both the start/end are beyond the bounds of the episode, show both in red.
@@ -105,10 +117,13 @@ class BulkShiftOverlay {
         }
 
         if (!checked) {
-            BulkShiftClasses.set(row.childNodes[4], BulkShiftClasses.Type.Reset);
-            BulkShiftClasses.set(row.childNodes[5], BulkShiftClasses.Type.Reset);
+            this.#markActive(true, row.children[2], row.children[3]);
+            BulkShiftClasses.set(row.childNodes[4], BulkShiftClasses.Type.Reset, false);
+            BulkShiftClasses.set(row.childNodes[5], BulkShiftClasses.Type.Reset, false);
             return;
         }
+
+        this.#markActive(false, row.children[2], row.children[3]);
 
         const eid = parseInt(row.getAttribute('eid'));
         const start = parseInt(row.getAttribute('mstart')) + shift;
@@ -121,23 +136,24 @@ class BulkShiftOverlay {
         newStartNode.innerText = msToHms(newStart);
         newEndNode.innerText = msToHms(newEnd);
         if (end < 0 || start > maxDuration) {
+            this.#markActive(true, row.children[2], row.children[3]);
             [newStartNode, newEndNode].forEach(n => {
-                BulkShiftClasses.set(n,  BulkShiftClasses.Type.Error);
+                BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
             });
 
             return;
         }
 
         if (start < 0) {
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn);
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true);
         } else {
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Reset);
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Reset, true);
         }
 
         if (end > maxDuration) {
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn);
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true);
         } else {
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Reset);
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Reset, true);
         }
     }
 
@@ -513,9 +529,11 @@ const BulkShiftClasses = {
     /**
      * Set the class of the given node.
      * @param {HTMLTableCellElement} node
-     * @param {number} idx BulkShiftClasses.Type value */
-    set : (node, idx) => {
+     * @param {number} idx BulkShiftClasses.Type value
+     * @param {boolean} active Whether this node is active */
+    set : (node, idx, active) => {
         const names = BulkShiftClasses.classNames;
+        active ? node.classList.remove('bulkShiftInactive') : node.classList.add('bulkShiftInactive');
         if (idx == -1) {
             node.classList.remove(names[1]);
             node.classList.remove(names[2]);

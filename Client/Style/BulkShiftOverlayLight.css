@@ -20,3 +20,7 @@
 .bulkShiftSemi:hover {
     background-color: #CC7 !important;
 }
+
+.bulkShiftInactive {
+    color: #717171;
+}
