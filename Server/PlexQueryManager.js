@@ -658,10 +658,10 @@ ORDER BY e.id ASC;`;
     /**
      * Shift the given markers by the given offset
      * @param {{[episodeId: number]: RawMarkerData[]}} markers The markers to shift
+     * @param {RawEpisodeData[]} episodeData 
      * @param {number} shift The time to shift the markers by, in milliseconds */
-    async shiftMarkers(markers, shift) {
+    async shiftMarkers(markers, episodeData, shift) {
         const episodeIds = Object.keys(markers);
-        const episodeData = await this.getEpisodesFromList(episodeIds);
         const limits = {};
         for (const episode of episodeData) {
             limits[episode.id] = episode.duration;
@@ -682,7 +682,7 @@ ORDER BY e.id ASC;`;
                 const newStart = Math.max(0, Math.min(marker.start + shift, maxDuration));
                 const newEnd = Math.max(0, Math.min(marker.end + shift, maxDuration));
                 if (newStart == newEnd) {
-                    // Shifted entirely outside of the episode? We don't want that.
+                    // Shifted entirely outside of the episode? We should have already checked for that.
                     throw new ServerError(`Attempting to shift marker (${marker.start}-${marker.end}) by ${shift} ` +
                         `puts it outside the bounds of the episode (0-${maxDuration})!`, 400);
                 }

@@ -7,6 +7,8 @@ import { PlexQueries } from "../PlexQueryManager.js";
 import { BackupManager } from "../MarkerBackupManager.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
 import ServerError from "../ServerError.js";
+/** @typedef {!import('../PlexQueryManager.js').RawMarkerData} RawMarkerData */
+/** @typedef {!import('../PlexQueryManager.js').RawEpisodeData} RawEpisodeData */
 
 /**
  * Core add/edit/delete commands
@@ -162,16 +164,22 @@ class CoreCommands {
             seen[marker.episode_id].push(marker);
         }
 
-        if (applyType == ShiftApplyType.DontApply || (applyType == ShiftApplyType.TryApply && foundConflict)) {
+        /** @type {number[]} */
+        const episodeIds = Object.keys(seen);
+        const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
+        const foundOverflow = CoreCommands.#checkOverflow(seen, rawEpisodeData, shift);
+
+        if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
             /** @type {MarkerData[]} */
             const notRaw = [];
             Object.values(seen).forEach(markers => markers.forEach(m => notRaw.push(new MarkerData(m))));
             /** @type {{[episodeId: number]: EpisodeData}} */
             const episodeData = {};
-            (await PlexQueries.getEpisodesFromList(Object.keys(seen))).forEach(e => episodeData[e.id] = new EpisodeData(e));
+            rawEpisodeData.forEach(e => episodeData[e.id] = new EpisodeData(e));
             return {
                 applied : false,
                 conflict : foundConflict,
+                overflow : foundOverflow,
                 allMarkers : notRaw,
                 episodeData : episodeData,
             };
@@ -182,7 +190,7 @@ class CoreCommands {
         }
 
         // TODO: Check if shift causes overlap with ignored markers?
-        const shifted = await PlexQueries.shiftMarkers(seen, shift);
+        const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, shift);
         const markerData = [];
         for (const marker of shifted) {
             markerData.push(new MarkerData(marker));
@@ -191,8 +199,31 @@ class CoreCommands {
         return {
             applied : true,
             conflict : foundConflict,
+            overflow : false,
             allMarkers : markerData,
         };
+    }
+
+    /**
+     * @param {{ [episodeId: string]: RawMarkerData[] }} seen
+     * @param {RawEpisodeData[]} rawEpisodeData */
+    static #checkOverflow(seen, rawEpisodeData, shift) {
+        const limits = {};
+        for (const episode of rawEpisodeData) {
+            limits[episode.id] = episode.duration;
+        }
+
+        for (const episodeId of Object.keys(limits)) {
+            for (const marker of seen[episodeId]) {
+                const newStart = marker.start + shift;
+                const newEnd = marker.end + shift;
+                if (newEnd <= 0 || newStart >= limits[episodeId]) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

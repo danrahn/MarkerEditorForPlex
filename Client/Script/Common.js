@@ -74,7 +74,7 @@ const ServerCommand = {
      * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
      * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    shift : async (id, shift, force, ignored=[]) => jsonRequest('shift', { id : id, shift : shift, force : force ? 1 : 0, ignored : ignored }),
+    shift : async (id, shift, force, ignored=[]) => jsonRequest('shift', { id : id, shift : shift, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
 
     /**

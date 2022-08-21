@@ -16,7 +16,7 @@
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, index: number,
  *            seasonName: string, seasonIndex: number, showName: string, duration: number}} SerializedEpisodeData
- * @typedef {{applied: boolean, conflict: boolean, allMarkers: SerializedMarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
+ * @typedef {{applied: boolean, conflict: boolean, overflow: boolean, allMarkers: SerializedMarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
  * 
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow

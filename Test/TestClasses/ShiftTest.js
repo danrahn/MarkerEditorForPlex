@@ -91,13 +91,15 @@ class ShiftTest extends TestBase {
 
         // Shift too early
         let shift = -45000;
+        /** @type {ShiftResult} */
         let result = await this.send('shift', {
             id : episode.Id,
             shift : shift,
             force : 0,
-        }, true);
-
-        TestHelpers.verifyBadRequest(result);
+        });
+        TestHelpers.verify(result, `Expected shift beyond episode bounds to return JSON, found nothing.`);
+        TestHelpers.verify(result.applied === false, `Expected shift beyond episode bounds to have applied=false, found ${result.applied}`);
+        TestHelpers.verify(result.overflow, `Expected shift beyond episode bounds to have overflow bit set, found ${result.overflow}`);
 
         // Shift too late
         shift = 600000;
@@ -105,8 +107,11 @@ class ShiftTest extends TestBase {
             id : episode.Id,
             shift : shift,
             force : 0,
-        }, true);
-        TestHelpers.verifyBadRequest(result);
+        });
+
+        TestHelpers.verify(result, `Expected shift beyond episode bounds to return JSON, found nothing.`);
+        TestHelpers.verify(result.applied === false, `Expected shift beyond episode bounds to have applied=false, found ${result.applied}`);
+        TestHelpers.verify(result.overflow, `Expected shift beyond episode bounds to have overflow bit set, found ${result.overflow}`);
     }
 
     /**
@@ -252,6 +257,7 @@ class ShiftTest extends TestBase {
         TestHelpers.verify(result, `Expected successful 'shift' to return an object, found nothing.`);
         TestHelpers.verify(result.applied === true, `Expected successful 'shift' to return applied=true, found ${result.applied}.`);
         TestHelpers.verify(result.conflict == expectConflict, `Expected shift.conflict to be ${expectConflict}, found ${result.conflict}.`);
+        TestHelpers.verify(result.overflow === false, `Expected successful 'shift' to have overflow bit unset, found ${result.overflow}.`);
 
         let newMarkers = result.allMarkers;
         TestHelpers.verify(newMarkers instanceof Array, `Expected successful 'shift' to have an allMarkers field with an array of shifted markers.`);
