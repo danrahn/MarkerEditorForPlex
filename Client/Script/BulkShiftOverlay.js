@@ -2,9 +2,11 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
 import ButtonCreator from "./ButtonCreator.js";
-import { $, appendChildren, buildNode, pad0, ServerCommand } from "./Common.js";
+import { $, appendChildren, buildNode, pad0, ServerCommand, timeToMs } from "./Common.js";
+import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import TableElements from "./TableElements.js";
+import ThemeColors from "./ThemeColors.js";
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
 
@@ -34,8 +36,8 @@ class BulkShiftOverlay {
                 buildNode('label', { for : 'shiftTime' }, 'Time offset: '),
                 buildNode('input', { type : 'text', placeholder : 'ms or mm:ss[.000]', name : 'shiftTime', id : 'shiftTime' })),
             appendChildren(buildNode('div', { id : 'bulkShiftButtons' }),
-                ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
-                ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { tooltip : 'Force apply the given time shift to all markers, even if some episodes have multiple markers.'}),
+                ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
+                ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApply', tooltip : 'Force apply the given time shift to all markers, even if some episodes have multiple markers.'}),
                 ButtonCreator.textButton('Customize', this.#check.bind(this), { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss)
             )
@@ -49,6 +51,11 @@ class BulkShiftOverlay {
      * If any episode has multiple markers, shows the customization table.
      * NYI */
     async #tryApply() {
+        let shift = this.#shiftValue();
+        if (!shift) {
+            return this.#flashButton($('#shiftApply'), 'red');
+        }
+
         Log.info('Trying to apply...');
     }
 
@@ -56,6 +63,12 @@ class BulkShiftOverlay {
      * Force applies the given shift to all markers under the given metadata id.
      * NYI */
     async #forceApply() {
+        let shift = this.#shiftValue();
+        if (!shift) {
+            return this.#flashButton($('#shiftForceApply'), 'red');
+        }
+
+        console.log(shift);
         Log.info('Force applying...');
     }
 
@@ -65,6 +78,27 @@ class BulkShiftOverlay {
         const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId);
         Log.info(shiftResult, 'Got Result');
         this.#showCustomizeTable(shiftResult);
+    }
+
+    /**
+     * Retrieve the current ms time of the shift input.
+     * @returns {number|false} */
+    #shiftValue() {
+        let shift = timeToMs($('#shiftTime').value, true /*allowNegative*/);
+        if (shift == 0 || isNaN(shift)) {
+            return false;
+        }
+
+        return shift;
+    }
+
+    /**
+     * Flash the background of the given button the given theme color.
+     * @param {HTMLElement} button
+     * @param {string} color */
+    #flashButton(button, color) {
+        Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, 500);
+        Animation.queueDelayed({ backgroundColor : 'transparent' }, button, 500, 500, true);
     }
 
     /**

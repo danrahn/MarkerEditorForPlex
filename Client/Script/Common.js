@@ -92,7 +92,7 @@ const ServerCommand = {
      * Retrieve all shows in the given section.
      * @param {number} id
      * @returns {Promise<SerializedShowData[]>} */
-    getSection : async (id) => jsonRequest('get_section'< { id : id }),
+    getSection : async (id) => jsonRequest('get_section', { id : id }),
 
     /**
      * Retrieve all seasons in the given show.
@@ -381,6 +381,59 @@ function msToHms(ms) {
     return time;
 }
 
+
+/**
+ * Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
+ * @param {string} value The time to parse
+ * @returns The number of milliseconds indicated by `value`. */
+function timeToMs(value, allowNegative=false) {
+    let ms = 0;
+    if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
+        return parseInt(value);
+    }
+
+    // I'm sure this can be improved on.
+    let result = /^(-)?(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
+    if (!result || (!allowNegative && result[1])) {
+        return NaN;
+    }
+
+    if (result[5]) {
+        ms = parseInt(result[5]);
+        switch (result[5].length) {
+            case 1:
+                ms *= 100;
+                break;
+            case 2:
+                ms *= 10;
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (result[4]) {
+        ms += parseInt(result[4]) * 1000;
+    }
+
+    if (result[3]) {
+        ms += parseInt(result[3]) * 60 * 1000;
+    }
+
+    // Because the above regex isn't great, if we have mm:ss.000, result[2]
+    // will be populated but result[3] won't. This catches that and adds
+    // result[2] as minutes instead of as hours like we do below.
+    if (result[2] && !result[3]) {
+        ms += parseInt(result[2]) * 60 * 1000;
+    }
+
+    if (result[2] && result[3]) {
+        ms += parseInt(result[2]) * 60 * 60 * 1000;
+    }
+
+    return ms * (result[1] ? -1 : 1);
+}
+
 /**
  * Displays an overlay for the given error
  * @param {string} message
@@ -390,4 +443,4 @@ function errorResponseOverlay(message, err) {
     Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`);
 }
 
-export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, msToHms, pad0, plural, ServerCommand };
+export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, msToHms, pad0, plural, ServerCommand, timeToMs };

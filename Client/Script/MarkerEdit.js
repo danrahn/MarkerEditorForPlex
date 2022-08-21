@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import Tooltip from "./inc/Tooltip.js";
@@ -148,8 +148,8 @@ class MarkerEdit {
      * On success, make the temporary row permanent and rearrange the markers based on their start time. */
     async onMarkerAddConfirm() {
         const inputs = $('input[type="text"]', this.markerRow.row());
-        const startTime = MarkerEdit.timeToMs(inputs[0].value);
-        const endTime = MarkerEdit.timeToMs(inputs[1].value);
+        const startTime = timeToMs(inputs[0].value);
+        const endTime = timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
         const episode = PlexClientState.GetState().getEpisode(metadataId);
         if (!episode.checkValues(this.markerRow.markerId(), startTime, endTime)) {
@@ -173,8 +173,8 @@ class MarkerEdit {
     /** Commits a marker edit, assuming it passes marker validation. */
     async onMarkerEditConfirm() {
         const inputs = $('input[type="text"]', this.markerRow.row());
-        const startTime = MarkerEdit.timeToMs(inputs[0].value);
-        const endTime = MarkerEdit.timeToMs(inputs[1].value);
+        const startTime = timeToMs(inputs[0].value);
+        const endTime = timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
         const episode = PlexClientState.GetState().getEpisode(metadataId);
         const userCreated = this.markerRow.createdByUser();
@@ -228,58 +228,6 @@ class MarkerEdit {
 
         e.preventDefault();
         input.value = msToHms(PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).duration);
-    }
-
-    /**
-     * Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
-     * @param {string} value The time to parse
-     * @returns The number of milliseconds indicated by `value`. */
-    static timeToMs(value) {
-        let ms = 0;
-        if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
-            return parseInt(value);
-        }
-
-        // I'm sure this can be improved on.
-        let result = /^(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
-        if (!result) {
-            return NaN;
-        }
-
-        if (result[4]) {
-            ms = parseInt(result[4]);
-            switch (result[4].length) {
-                case 1:
-                    ms *= 100;
-                    break;
-                case 2:
-                    ms *= 10;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        if (result[3]) {
-            ms += parseInt(result[3]) * 1000;
-        }
-
-        if (result[2]) {
-            ms += parseInt(result[2]) * 60 * 1000;
-        }
-
-        // Because the above regex isn't great, if we have mm:ss.000, result[1]
-        // will be populated but result[2] won't. This catches that and adds
-        // result[1] as minutes instead of as hours like we do below.
-        if (result[1] && !result[2]) {
-            ms += parseInt(result[1]) * 60 * 1000;
-        }
-
-        if (result[1] && result[2]) {
-            ms += parseInt(result[1]) * 60 * 60 * 1000;
-        }
-
-        return ms;
     }
 }
 
@@ -405,7 +353,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * Sets the src of a thumbnail image based on the current input.
      * @param {Element} editGroup The DOM element containing a start or end marker's time input and thumbnail. */
     #refreshImage(editGroup) {
-        const seconds = parseInt(MarkerEdit.timeToMs($$('.timeInput', editGroup).value) / 1000);
+        const seconds = parseInt(timeToMs($$('.timeInput', editGroup).value) / 1000);
         if (isNaN(seconds)) {
             return; // Don't ask for a thumbnail if the input isn't valid.
         }
