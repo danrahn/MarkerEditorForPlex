@@ -1,7 +1,7 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 import ButtonCreator from "./ButtonCreator.js";
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, jsonRequest, pad0 } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, ServerCommand, pad0 } from "./Common.js";
 import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
@@ -11,7 +11,7 @@ import TableElements from "./TableElements.js";
 import ThemeColors from "./ThemeColors.js";
 
 /** @typedef {!import("../../Server/MarkerBackupManager.js").MarkerAction} MarkerAction */
-/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
 /** @typedef {!import("../../Server/PlexQueryManager.js").RawMarkerData} RawMarkerData */
 
 
@@ -165,10 +165,9 @@ class PurgeNonActionInfo {
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
         $$('.restoreButton img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
-        const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
 
         try {
-            const restoreData = await jsonRequest('restore_purge', parameters);
+            const restoreData = await ServerCommand.restorePurge(markers, PlexClientState.GetState().activeSection());
             this.#resetConfirmImg('restoreButton');
             this.#restoreInfo.successFn(restoreData.newMarkers);
         } catch (err) {
@@ -199,10 +198,9 @@ class PurgeNonActionInfo {
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
         $$('.ignoreConfirm img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
-        const parameters = { markerIds : markers.join(','), sectionId: PlexClientState.GetState().activeSection() };
 
         try {
-            await jsonRequest('ignore_purge', parameters);
+            await ServerCommand.ignorePurge(markers, PlexClientState.GetState().activeSection());
             this.#resetConfirmImg('ignoreConfirm');
             this.#ignoreConfirmInfo.successFn();
         } catch (err) {
@@ -765,7 +763,7 @@ class PurgedMarkerManager {
         }
 
         try {
-            this.#onMarkersFound(await jsonRequest('all_purges', { sectionId : section }));
+            this.#onMarkersFound(await ServerCommand.allPurges(section));
         } catch (err) {
             errorResponseOverlay(`Something went wrong retrieving purged markers. Please try again later.`, err);
         }
@@ -787,7 +785,7 @@ class PurgedMarkerManager {
 
         // No try/catch, caller must handle
         /** @type {MarkerAction[]} */
-        const actions = await jsonRequest('purge_check', { id : showId });
+        const actions = await ServerCommand.purgeCheck(showId);
         for (const action of actions) {
             this.#addToCache(action);
         }

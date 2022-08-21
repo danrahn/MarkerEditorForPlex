@@ -76,7 +76,8 @@ class QueryCommands {
 
     /**
      * Retrieve all episodes for the season specified by the given metadataId.
-     * @param {number} metadataId The metadata id for the season of a show. */
+     * @param {number} metadataId The metadata id for the season of a show.
+     * @returns {Promise<EpisodeData[]>} */
     static async getEpisodes(metadataId) {
         const rows = await PlexQueries.getEpisodes(metadataId);
 
@@ -84,6 +85,7 @@ class QueryCommands {
         // has thumbnails attached is asynchronous, so keep track of how many results have
         // come in, and only return once we've processed all rows.
         let waitingFor = rows.length;
+        /** @type {EpisodeData[]} */
         let episodes = [];
         return new Promise((resolve, _) => {
             const useThumbnails = Config.useThumbnails();

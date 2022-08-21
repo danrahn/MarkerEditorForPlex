@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, jsonRequest, pad0, plural } from "./Common.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from "./Common.js";
 import { Log } from "../../Shared/ConsoleLog.js";
 import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
@@ -356,7 +356,7 @@ class ShowResultRow extends ResultRow {
     async #getSeasons() {
         const show = this.show();
         try {
-            this.#showSeasons(await jsonRequest('get_seasons', { id : show.metadataId }));
+            this.#showSeasons(await ServerCommand.getSeasons(show.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the seasons for ${show.title}`,err);
         }
@@ -506,7 +506,7 @@ class SeasonResultRow extends ResultRow {
     async #getEpisodes() {
         const season = this.season();
         try {
-            await this.#parseEpisodes(await jsonRequest('get_episodes', { id : season.metadataId }));
+            await this.#parseEpisodes(await ServerCommand.getEpisodes(season.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the episodes for ${season.title}.`, err);
         }
@@ -523,7 +523,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         try {
-            this.#showEpisodesAndMarkers(await jsonRequest('query', { keys : queryString.join(',') }));
+            this.#showEpisodesAndMarkers(await ServerCommand.query(queryString));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the markers for these episodes, please try again.`, err);
         }

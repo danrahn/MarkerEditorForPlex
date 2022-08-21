@@ -1,6 +1,6 @@
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 import ButtonCreator from './ButtonCreator.js';
-import { $, $$, buildNode, appendChildren, errorMessage, clearEle, jsonRequest, errorResponseOverlay } from './Common.js';
+import { $, $$, buildNode, appendChildren, errorMessage, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -448,7 +448,7 @@ class ClientSettingsUI {
     async #onPauseConfirm() {
         Log.info('Attempting to pause server.');
         try {
-            await jsonRequest('suspend', {});
+            await ServerCommand.suspend();
             ServerPausedOverlay.Show();
         } catch (err) {
             errorResponseOverlay('Failed to pause server.', err);
@@ -476,7 +476,7 @@ class ClientSettingsUI {
     async #onRestartConfirm() {
         Log.info('Attempting to restart server.');
         try {
-            await jsonRequest('restart', {});
+            await ServerCommand.restart();
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
             $('#srConfirm').value = 'Try Again.';
@@ -527,7 +527,7 @@ class ClientSettingsUI {
     async #onShutdownConfirm() {
         Log.info('Attempting to shut down server.');
         try {
-            await jsonRequest('shutdown', {});
+            await ServerCommand.shutdown();
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to shut down server: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
@@ -639,7 +639,7 @@ class ClientSettingsUI {
         // but for now assume that only one person is interacting with the application, and keep
         // the client and server side logging levels in sync.
         try {
-            await jsonRequest('log_settings', { level : logLevel, dark : Log.getDarkConsole(), trace : Log.getTrace() });
+            await ServerCommand.logSettings(logLevel, Log.getDarkConsole(), Log.getTrace());
         } catch (err) {
             // For logging
             errorMessage(err);

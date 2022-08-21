@@ -19,6 +19,9 @@ import TransactionBuilder from "./TransactionBuilder.js";
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
 
+/** @typedef {!import('../Shared/PlexTypes.js').PurgeShow} PurgeShow */
+/** @typedef {!import('../Shared/PlexTypes.js').PurgeSection} PurgeSection */
+
 
 /*
 Backup table V1:
@@ -130,8 +133,6 @@ CREATE TABLE IF NOT EXISTS actions (
  *            episodeData: EpisodeData? }} MarkerAction
  */
 
-/** @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow */
-/** @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection */
 /**
  * A map of purged markers
  * @typedef {{ [sectionId: number] : PurgeSection }} PurgeMap

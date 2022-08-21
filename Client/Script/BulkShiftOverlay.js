@@ -2,7 +2,7 @@ import { Log } from "../../Shared/ConsoleLog.js";
 import { SeasonData, ShowData } from "../../Shared/PlexTypes.js";
 
 import ButtonCreator from "./ButtonCreator.js";
-import { $, appendChildren, buildNode, jsonRequest, pad0 } from "./Common.js";
+import { $, appendChildren, buildNode, pad0, ServerCommand } from "./Common.js";
 import Overlay from "./inc/Overlay.js";
 import TableElements from "./TableElements.js";
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
@@ -62,8 +62,7 @@ class BulkShiftOverlay {
     /**
      * Retrieves marker information for the current metadata id and displays it in a table for the user. */
     async #check() {
-        /** @type {ShiftResult} */
-        const shiftResult = await jsonRequest('check_shift', { id : this.#mediaItem.metadataId });
+        const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId);
         Log.info(shiftResult, 'Got Result');
         this.#showCustomizeTable(shiftResult);
     }

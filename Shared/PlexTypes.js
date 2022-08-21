@@ -11,8 +11,16 @@
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  * @typedef {{start: number, end: number, index: number, id: number, episodeId: number,
  *            seasonId: number, showId: number, sectionId: number}} SerializedMarkerData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
+ *            sortTitle: string, originalTitle: string, seasonCount: number, episodeCount: number }} SerializedShowData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, index: number,
+ *            seasonName: string, seasonIndex: number, showName: string, duration: number}} SerializedEpisodeData
  * @typedef {{applied: boolean, conflict: boolean, allMarkers: SerializedMarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
+ * 
+ * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
+ * @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection
  */
 
 /**
@@ -149,6 +157,9 @@ class PlexData {
         this.#seasons = {};
     }
 
+    /**
+     * Transforms a show title to the search-friendly title.
+     * @param {string} title */
     static #transformTitle(title) {
         return title.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
     }

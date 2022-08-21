@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, errorResponseOverlay, jsonRequest, plural } from "./Common.js";
+import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from "./Common.js";
 import { Chart, PieChartOptions } from "./inc/Chart.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
@@ -28,7 +28,7 @@ class MarkerBreakdownManager {
             'Cancel');
 
         try {
-            const markerStats = await jsonRequest('get_stats', { id : PlexClientState.GetState().activeSection() });
+            const markerStats = await ServerCommand.getMarkerStats(PlexClientState.GetState().activeSection());
             MarkerBreakdownManager.#showMarkerBreakdown(markerStats);
         } catch (err) {
             errorResponseOverlay('Failed to show breakdown', err);

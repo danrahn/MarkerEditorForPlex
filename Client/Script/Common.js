@@ -1,6 +1,12 @@
 import { Log } from '../../Shared/ConsoleLog.js';
 import Overlay from './inc/Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedShowData} SerializedShowData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 
 /**
  * Removes all children from the given element.
@@ -26,6 +32,150 @@ class FetchError extends Error {
         }
     }
 }
+
+/**
+ * Map of all available server endpoints.
+ * Keep in sync with ServerCommands.#commandMap
+ */
+const ServerCommand = {
+    /**
+     * Add a marker to the Plex database
+     * @param {number} metadataId
+     * @param {number} start
+     * @param {number} end
+     * @returns {Promise<SerializedMarkerData>} */
+    add : async (metadataId, start, end) => jsonRequest('add', { metadataId: metadataId, start : start, end : end }),
+
+    /**
+     * Edit an existing marker with the given id.
+     * @param {number} id 
+     * @param {number} start
+     * @param {number} end 
+     * @param {boolean} userCreated true if user created, false if Plex generated
+     * @returns {Promise<SerializedMarkerData>} */
+    edit : async (id, start, end, userCreated) => jsonRequest('edit', { id : id, start : start, end : end, userCreated : userCreated ? 1 : 0 }),
+
+    /**
+     * Delete the marker with the given id.
+     * @param {number} id
+     * @returns {Promise<SerializedMarkerData>} */
+    delete : async (id) => jsonRequest('delete', { id : id }),
+
+    /**
+     * Retrieve all markers under the given metadata id that may be affected by a shift operation.
+     * @param {number} id
+     * @returns {Promise<ShiftResult>} */
+    checkShift : async (id) => jsonRequest('check_shift', { id : id }),
+
+    /**
+     * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
+     * @param {number} id The metadata id of the item to shift markers for.
+     * @param {number} shift The number of milliseconds to shift markers (positive or negative).
+     * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
+     * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
+     * @returns {Promise<ShiftResult>} */
+    shift : async (id, shift, force, ignored=[]) => jsonRequest('shift', { id : id, shift : shift, force : force ? 1 : 0, ignored : ignored }),
+
+
+    /**
+     * Retrieve markers for all episodes ids in `keys`.
+     * @param {number[]} keys The list of episode ids to grab the markers of.
+     * @returns {Promise<SerializedMarkerData[]>} */
+    query : async (keys) => jsonRequest('query', { keys : keys.join(',') }),
+
+    /**
+     * Retrieve all TV library sections in the database.
+     * @returns {Promise<{id: number, name: string}[]} */
+    getSections : async () => jsonRequest('get_sections'),
+
+    /**
+     * Retrieve all shows in the given section.
+     * @param {number} id
+     * @returns {Promise<SerializedShowData[]>} */
+    getSection : async (id) => jsonRequest('get_section'< { id : id }),
+
+    /**
+     * Retrieve all seasons in the given show.
+     * @param {number} id
+     * @returns {Promise<SerializedSeasonData[]>} */
+    getSeasons : async (id) => jsonRequest('get_seasons', { id : id }),
+
+    /**
+     * Retrieve all episodes in the given season.
+     * @param {number} id
+     * @returns {Promise<SerializedEpisodeData>} */
+    getEpisodes : async (id) => jsonRequest('get_episodes', { id : id }),
+
+    /**
+     * Retrieve marker breakdown stats for the given section.
+     * @param {number} id
+     * @returns {Promise<{[episodesWithNMarkers: number]: number}>} */
+    getMarkerStats : async (id) => jsonRequest('get_stats', { id : id }),
+
+    /**
+     * Retrieve the marker breakdown stats for a single show.
+     * @param {number} id
+     * @param {boolean} includeSeasons True to include season data, false to leave it out.
+     * @returns {Promise<{showData: MarkerBreakdownMap, seasonData?: { [seasonId: number]: MarkerBreakdownMap }}>} */
+    getBreakdown : async (id, includeSeasons) => jsonRequest('get_breakdown', { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
+
+
+    /**
+     * Retrieve the configuration settings relevant to the client application.
+     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, backupActions: boolean }>} */
+    getConfig : async () => jsonRequest('get_config'),
+
+    /**
+     * Set server-side log settings.
+     * @param {number} level The log level.
+     * @param {number} dark 1 to color messages for a dark console (if supported), 0 for light mode.
+     * @param {number} trace 1 to log stack traces, 0 otherwise */
+    logSettings : async (level, dark, trace) => jsonRequest('log_settings', { level : level, dark : dark, trace : trace }),
+
+
+    /**
+     * Check for markers that should exist for the given metadata id, but aren't in the Plex database.
+     * @param {number} id The show/season/episode id.
+     * @returns {Promise<SerializedMarkerData[]>} */
+    purgeCheck : async (id) => jsonRequest('purge_check', { id : id }),
+
+    /**
+     * Find all purges in the given library section.
+     * @param {number} sectionId
+     * @returns {Promise<PurgeSection>} */
+    allPurges : async (sectionId) => jsonRequest('all_purges', { sectionId : sectionId }),
+
+    /**
+     * Restore the given purged markers associated with the given section.
+     * @param {number[]} markerIds Array of purged marker ids to restore.
+     * @param {number} sectionId
+     * @returns {Promise<{newMarkers: SerializedMarkerData[], existingMarkers: SerializedMarkerData[]}>} */
+    restorePurge : async (markerIds, sectionId) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId }),
+
+    /**
+     * Ignore the given purged markers associated with the given section.
+     * @param {number[]} markerIds
+     * @param {number} sectionId
+     * @returns {Promise<void>} */
+    ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds : markerIds, sectionId : sectionId }),
+
+    /**
+     * Shutdown Plex Intro Editor.
+     * @returns {Promise<void>} */
+    shutdown : async () => jsonRequest('shutdown'),
+    /**
+     * Restart Plex Intro Editor.
+     * @returns {Promise<void>} */
+    restart : async () => jsonRequest('restart'),
+    /**
+     * Suspend Plex Intro Editor.
+     * @returns {Promise<void>} */
+    suspend : async () => jsonRequest('suspend'),
+    /**
+     * Resume a suspended Plex Intro Editor.
+     * @returns {Promise<void>} */
+    resume : async () => jsonRequest('resume'),
+};
 
 /**
  * Generic method to make a request to the given endpoint that expects a JSON response.
@@ -240,4 +390,4 @@ function errorResponseOverlay(message, err) {
     Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`);
 }
 
-export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, jsonRequest, msToHms, pad0, plural };
+export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, msToHms, pad0, plural, ServerCommand };

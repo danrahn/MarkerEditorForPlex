@@ -1,4 +1,4 @@
-import { errorResponseOverlay, jsonRequest } from "./Common.js";
+import { errorResponseOverlay, ServerCommand } from "./Common.js";
 import Overlay from "./inc/Overlay.js";
 
 /**
@@ -21,7 +21,7 @@ class ServerPausedOverlay {
 async function onResume(_, button) {
     button.innerText = 'Resuming...';
     try {
-        await jsonRequest('resume');
+        await ServerCommand.resume();
         window.location.reload();
     } catch (err) {
         button.innerText = 'Resume';

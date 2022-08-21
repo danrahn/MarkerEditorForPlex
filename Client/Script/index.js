@@ -1,4 +1,4 @@
-import { $, errorMessage, errorResponseOverlay, jsonRequest } from './Common.js';
+import { $, errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import SettingsManager from './ClientSettings.js';
@@ -34,7 +34,7 @@ function setup()
 async function mainSetup() {
     let config = {};
     try {
-        config = await jsonRequest('get_config');
+        config = await ServerCommand.getConfig();
     } catch (err) {
         Log.warn(errorMessage(err), 'Unable to get app config, assuming everything is disabled. Server responded with');
     }
@@ -44,7 +44,7 @@ async function mainSetup() {
     new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
 
     try {
-        PlexUI.Get().init(await jsonRequest('get_sections'));
+        PlexUI.Get().init(await ServerCommand.getSections());
     } catch (err) {
         errorResponseOverlay('Error getting libraries, please verify you have provided the correct database path and try again.', err);
         return;

@@ -1,5 +1,5 @@
 
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, jsonRequest } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import Overlay from "./inc/Overlay.js";
@@ -180,7 +180,7 @@ class ExistingMarkerRow extends MarkerRow {
         }
 
         try {
-            const rawMarkerData = await jsonRequest('delete', { id : this.markerId() });
+            const rawMarkerData = await ServerCommand.delete(this.markerId());
             Overlay.dismiss();
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());

@@ -1,4 +1,4 @@
-import { errorMessage, errorResponseOverlay, jsonRequest } from './Common.js';
+import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
 
@@ -7,8 +7,8 @@ import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 import SettingsManager from './ClientSettings.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
-/** @typedef {!import("../../Server/MarkerBackupManager.js").PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
+/** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
 
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
@@ -193,10 +193,9 @@ class PlexClientState {
             return;
         }
 
-        const params = { id : show.show().metadataId, includeSeasons : seasons.length == 0 ? 0 : 1 };
         let response;
         try {
-            response = await jsonRequest('get_breakdown', params);
+            response = await ServerCommand.getBreakdown(show.show().metadataId, seasons.length == 0 /*includeSeasons*/);
         } catch (err) {
             Log.warn(`Failed to update ("${errorMessage(err)}"), marker stats will be incorrect.`);
             return;
@@ -353,7 +352,7 @@ class PlexClientState {
         }
 
         try {
-            const shows = await jsonRequest('get_section', { id : this.#activeSection });
+            const shows = await ServerCommand.getSection(this.#activeSection);
             let allShows = {};
             this.#shows[this.#activeSection] = allShows;
             for (const show of shows) {

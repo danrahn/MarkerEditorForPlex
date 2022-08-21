@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, jsonRequest, msToHms } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import Tooltip from "./inc/Tooltip.js";
@@ -157,8 +157,7 @@ class MarkerEdit {
         }
 
         try {
-            /** @type {SerializedMarkerData} */
-            const rawMarkerData = await jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime });
+            const rawMarkerData = await ServerCommand.add(metadataId, startTime, endTime);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
         } catch (err) {
@@ -178,15 +177,14 @@ class MarkerEdit {
         const endTime = MarkerEdit.timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
         const episode = PlexClientState.GetState().getEpisode(metadataId);
-        const userCreated = this.markerRow.createdByUser() ? 1 : 0;
+        const userCreated = this.markerRow.createdByUser();
         const markerId = this.markerRow.markerId();
         if (!episode.checkValues(markerId, startTime, endTime)) {
             return;
         }
 
         try {
-            /** @type {SerializedMarkerData} */
-            const rawMarkerData = await jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated });
+            const rawMarkerData = await ServerCommand.edit(markerId, startTime, endTime, userCreated);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(editedMarker.episodeId).editMarker(editedMarker);
             this.resetAfterEdit();
