@@ -7,7 +7,7 @@ import ThemeColors from '../ThemeColors.js';
 import ButtonCreator from '../ButtonCreator.js';
 
 /**
- * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number,
+ * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number, forceFullscreen?: number
  *              closeButton?: boolean, setup?: {args?: any[], fn: (...any) => void}}} OverlayOptions
  * */
 
@@ -127,7 +127,7 @@ let Overlay = new function()
             Animation.fireNow({ opacity : 1 }, overlayNode, delay);
         }
 
-        if (container.clientHeight / window.innerHeight > 0.7)
+        if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7)
         {
             addFullscreenOverlayElements(container);
         }

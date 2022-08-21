@@ -1,0 +1,22 @@
+.bulkShiftOn {
+    background: rgba(0,100,0,0.2) !important;
+}
+.bulkShiftOn:hover {
+    background: rgba(0,100,0,0.3) !important;
+}
+
+.bulkShiftOff {
+    background-color: #f66a !important;
+}
+
+.bulkShiftOff:hover {
+    background-color: #d66a !important;
+}
+
+.bulkShiftSemi {
+    background-color: #DD8 !important;
+}
+
+.bulkShiftSemi:hover {
+    background-color: #CC7 !important;
+}

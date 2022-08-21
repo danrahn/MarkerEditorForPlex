@@ -735,7 +735,12 @@ class SettingsManager {
             const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
             return buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
         };
-        this.#themeStyles = [styleNode('theme'), styleNode('Overlay'), styleNode('Settings')];
+        this.#themeStyles = [
+            styleNode('theme'),
+            styleNode('Overlay'),
+            styleNode('Settings'),
+            styleNode('BulkShiftOverlay'),
+        ];
         for (const style of this.#themeStyles) {
             $$('head').appendChild(style);
         }

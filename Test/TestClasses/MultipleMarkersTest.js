@@ -121,7 +121,7 @@ class MultipleMarkers extends TestBase {
      * @param {number} end */
     async #failOverlap(start, end) {
         const show = TestBase.DefaultMetadata.Show1;
-        let error = await this.addMarker(show.Season1.Episode2.Id, start, end, true);
+        let error = await this.addMarkerRaw(show.Season1.Episode2.Id, start, end);
 
         TestHelpers.verifyBadRequest(error, `overlapping marker ${start}-${end}`);
     }

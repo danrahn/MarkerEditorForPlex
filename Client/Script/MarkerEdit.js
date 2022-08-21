@@ -8,6 +8,7 @@ import SettingsManager from "./ClientSettings.js";
 import { MarkerRow } from "./MarkerTableRow.js";
 import PlexClientState from "./PlexClientState.js";
 import { Log } from "../../Shared/ConsoleLog.js";
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 
 /**
@@ -156,6 +157,7 @@ class MarkerEdit {
         }
 
         try {
+            /** @type {SerializedMarkerData} */
             const rawMarkerData = await jsonRequest('add', { metadataId : metadataId, start : startTime, end : endTime });
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
@@ -183,6 +185,7 @@ class MarkerEdit {
         }
 
         try {
+            /** @type {SerializedMarkerData} */
             const rawMarkerData = await jsonRequest('edit', { id : markerId, start : startTime, end : endTime, userCreated : userCreated });
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(editedMarker.episodeId).editMarker(editedMarker);

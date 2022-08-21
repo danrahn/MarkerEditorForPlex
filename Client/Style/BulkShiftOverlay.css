@@ -1,0 +1,29 @@
+#bulkShiftContainer {
+    text-align: center;
+}
+
+#bulkShiftContainer h1, h2 {
+    text-align: center;
+}
+
+#bulkShiftContainer hr {
+    width: 60%;
+    min-width: 600px;
+    margin-top: 15px;
+}
+
+#bulkShiftContainer .buttonContainer {
+    text-align: center;
+    width: auto;
+}
+
+#bulkShiftContainer .buttonContainer input[type=button] {
+    border-radius: 3px;
+    padding: 4px;
+}
+
+#bulkShiftButtons > .button {
+    padding: 3px 5px 3px 5px;
+    border-radius: 2px;
+    margin: 5px 10px 5px 10px;
+}

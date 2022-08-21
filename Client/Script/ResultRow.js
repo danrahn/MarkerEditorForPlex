@@ -5,6 +5,7 @@ import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTyp
 import Tooltip from "./inc/Tooltip.js";
 import Overlay from "./inc/Overlay.js";
 
+import BulkShiftOverlay from "./BulkShiftOverlay.js";
 import ButtonCreator from "./ButtonCreator.js";
 import ClientEpisodeData from "./ClientEpisodeData.js";
 import SettingsManager from "./ClientSettings.js";
@@ -233,7 +234,7 @@ class BulkActionResultRow extends ResultRow {
     /**
      * Launch the bulk shift overlay for the current media item (show/season). */
     #bulkShift() {
-        Overlay.show('Not yet implemented.');
+        new BulkShiftOverlay(this.mediaItem()).show();
     }
 }
 

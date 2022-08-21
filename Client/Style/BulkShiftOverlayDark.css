@@ -1,0 +1,22 @@
+.bulkShiftOn {
+    background: rgba(0,100,0,0.3) !important; /** TODO: Scope #1116 to specific tables (and similar below) */
+}
+.bulkShiftOn:hover {
+    background: rgba(0,100,0,0.4) !important;
+}
+
+.bulkShiftOff {
+    background-color: #612121 !important;
+}
+
+.bulkShiftOff:hover {
+    background-color: #812121 !important;
+}
+
+.bulkShiftSemi {
+    background-color: #551 !important;
+}
+
+.bulkShiftSemi:hover {
+    background-color: #662 !important;
+}
