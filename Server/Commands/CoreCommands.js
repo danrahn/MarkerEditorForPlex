@@ -1,5 +1,6 @@
 import { Log } from "../../Shared/ConsoleLog.js";
-import { MarkerData } from "../../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData } from "../../Shared/PlexTypes.js";
+/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
 import { PlexQueries } from "../PlexQueryManager.js";
@@ -134,7 +135,8 @@ class CoreCommands {
      * @param {number} metadataId show, season, or episode metadata id
      * @param {number} shift The number of milliseconds to shift markers
      * @param {number} applyType The ShiftApplyType
-     * @param {number[]} ignoredMarkerIds Markers to ignore when shifting. */
+     * @param {number[]} ignoredMarkerIds Markers to ignore when shifting.
+     * @returns {Promise<ShiftResult>} */
     static async shiftMarkers(metadataId, shift, applyType, ignoredMarkerIds) {
         const markers = await PlexQueries.getMarkersAuto(metadataId);
         /** @type {{ [episodeId: number]: RawMarkerData[] }} */
@@ -161,12 +163,17 @@ class CoreCommands {
         }
 
         if (applyType == ShiftApplyType.DontApply || (applyType == ShiftApplyType.TryApply && foundConflict)) {
+            /** @type {MarkerData[]} */
             const notRaw = [];
             Object.values(seen).forEach(markers => markers.forEach(m => notRaw.push(new MarkerData(m))));
+            /** @type {{[episodeId: number]: EpisodeData}} */
+            const episodeData = {};
+            (await PlexQueries.getEpisodesFromList(Object.keys(seen))).forEach(e => episodeData[e.id] = new EpisodeData(e));
             return {
                 applied : false,
                 conflict : foundConflict,
                 allMarkers : notRaw,
+                episodeData : episodeData,
             };
         }
 
@@ -184,7 +191,7 @@ class CoreCommands {
         return {
             applied : true,
             conflict : foundConflict,
-            allMarkers : markerData
+            allMarkers : markerData,
         };
     }
 

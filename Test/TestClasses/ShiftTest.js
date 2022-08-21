@@ -1,5 +1,6 @@
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
+/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 
 /**
  * Test the behavior of bulk shifting markers. */
@@ -20,6 +21,7 @@ class ShiftTest extends TestBase {
             this.shiftSingleEpisodeWithMultipleMarkersTryApplyWithIgnoreTest,
             this.shiftSingleEpisodeWithMultipleMarkersForceApplyTest,
             this.shiftSeasonWithIgnoreTest,
+            this.tryShiftSeasonWithoutIgnoreTest,
             this.shiftShowWithIgnoreTest
         ]
     }
@@ -51,8 +53,8 @@ class ShiftTest extends TestBase {
     async checkShiftSingleEpisodeTest() {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const expectedMarker = episode.Marker1;
-        const result = await this.send('check_shift', { id : episode.Id });
-        TestHelpers.verify(result && result.allMarkers && result.allMarkers.length == 1, `Bad response from check_shift: ${result}`);
+        /** @type {ShiftResult} */
+        const result = await this.#verifyAttemptedShift(episode.Id, 1, 1, true, false);
         const checkedMarker = result.allMarkers[0];
 
         return TestHelpers.validateMarker(checkedMarker, episode.Id, null, null, expectedMarker.Start, expectedMarker.End, expectedMarker.Index, this.testDatabase);
@@ -135,24 +137,14 @@ class ShiftTest extends TestBase {
      * Ensure we don't apply anything when only checking the shift and the episode has multiple markers. */
     async shiftSingleEpisodeWithMultipleMarkersDontApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        const result = await this.send('check_shift', { id : episode.Id });
-        TestHelpers.verify(result, `Expected check_shift to return a valid object, found nothing.`);
-        TestHelpers.verify(result.applied === false, `Expected result.applied to be false, found ${result.applied}.`);
-        TestHelpers.verify(result.conflict === true, `Expected result.conflict to be true, found ${result.conflict}.`);
-        TestHelpers.verify(result.allMarkers instanceof Array, `Expected result.allMarkers to be an array.`);
-        TestHelpers.verify(result.allMarkers.length == 2, `Expected result.allMarkers.length to be 2, found ${result.allMarkers.length}.`);
+        return this.#verifyAttemptedShift(episode.Id, 2, 1, true);
     }
 
     /**
      * Ensure we don't apply anything when an episode has multiple markers and we aren't forcing the operation. */
     async shiftSingleEpisodeWithMultipleMarkersTryApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        const result = await this.send('shift', { id : episode.Id, shift : 3000, force : 0 });
-        TestHelpers.verify(result, `Expected shift to return a valid object, found nothing.`);
-        TestHelpers.verify(result.applied === false, `Expected result.applied to be false, found ${result.applied}.`);
-        TestHelpers.verify(result.conflict === true, `Expected result.conflict to be true, found ${result.conflict}.`);
-        TestHelpers.verify(result.allMarkers instanceof Array, `Expected result.allMarkers to be an array.`);
-        TestHelpers.verify(result.allMarkers.length == 2, `Expected result.allMarkers.length to be 2, found ${result.allMarkers.length}.`);
+        return this.#verifyAttemptedShift(episode.Id, 2, 1);
     }
 
     /**
@@ -207,6 +199,13 @@ class ShiftTest extends TestBase {
     }
 
     /**
+     * Ensure we don't apply if any episodes in the season have multiple markers when not force applying. */
+    async tryShiftSeasonWithoutIgnoreTest() {
+        const season = TestBase.DefaultMetadata.Show3.Season1;
+        return this.#verifyAttemptedShift(season.Id, 3, 2, true);
+    }
+
+    /**
      * Ensure multiple markers in a show are shifted when the ignore list ensures all episodes only have a single
      * marker to shift. */
     async shiftShowWithIgnoreTest() {
@@ -235,7 +234,8 @@ class ShiftTest extends TestBase {
      * @param {number} expectedLength The expected number of shifted markers.
      * @param {number[]} [ignoreList=[]] The list of marker ids to ignore.
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
-     * @param {boolean} force Whether the shift operation should be forced. */
+     * @param {boolean} force Whether the shift operation should be forced.
+     * @returns {Promise<ShiftResult>} */
     async #verifyShift(metadataId, shift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
         const params = {
             id : metadataId,
@@ -246,6 +246,7 @@ class ShiftTest extends TestBase {
             params.ignored = ignoreList.join(',');
         }
 
+        /** @type {ShiftResult} */
         let result = await this.send('shift', params);
 
         TestHelpers.verify(result, `Expected successful 'shift' to return an object, found nothing.`);
@@ -255,6 +256,35 @@ class ShiftTest extends TestBase {
         let newMarkers = result.allMarkers;
         TestHelpers.verify(newMarkers instanceof Array, `Expected successful 'shift' to have an allMarkers field with an array of shifted markers.`);
         TestHelpers.verify(newMarkers.length == expectedLength, `Expected ${expectedLength} shifted marker(s), found ${newMarkers.length}`);
+        return result;
+    }
+
+    /**
+     * Verifies that the shift request doesn't result in markers actually being shifted, returning the result.
+     * @param {number} metadataId
+     * @param {number} expectedMarkerCount
+     * @param {number} expectedEpisodeCount
+     * @param {boolean} [checkOnly=false]
+     * @param {boolean} [expectConflict=true] */
+    async #verifyAttemptedShift(metadataId, expectedMarkerCount, expectedEpisodeCount, checkOnly=false, expectConflict=true) {
+        /**
+         * @type {ShiftResult}
+         * @readonly */ // readonly after assign
+        let result;
+        if (checkOnly) {
+            result = await this.send('check_shift', { id : metadataId });
+        } else {
+            result = await this.send('shift', { id : metadataId, shift : 3000, force : 0 });
+        }
+
+        TestHelpers.verify(result, `Expected shift to return a valid object, found nothing.`);
+        TestHelpers.verify(result.applied === false, `Expected result.applied to be false, found ${result.applied}.`);
+        TestHelpers.verify(result.conflict === expectConflict, `Expected result.conflict to be true, found ${result.conflict}.`);
+        TestHelpers.verify(result.allMarkers instanceof Array, `Expected result.allMarkers to be an array.`);
+        TestHelpers.verify(result.allMarkers.length == expectedMarkerCount, `Expected result.allMarkers.length to be ${expectedMarkerCount}, found ${result.allMarkers.length}.`);
+        TestHelpers.verify(result.episodeData, `Expected non-applied shift to return episode data, didn't find any.`);
+        const episodeCount = Object.keys(result.episodeData).length;
+        TestHelpers.verify(episodeCount == expectedEpisodeCount, `Expected EpisodeData for ${expectedEpisodeCount} episode(s), found ${episodeCount}`);
         return result;
     }
 }
