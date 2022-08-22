@@ -373,23 +373,38 @@ INSERT INTO actions
 
     /**
      * Records a marker that was edited in the Plex database.
-     * @param {MarkerData} marker */
-    async recordEdit(marker, oldStart, oldEnd) {
-        if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record edited marker - unexpected section id');
-            return Promise.resolve();
+     * @param {MarkerData[]} markers
+     * @param {{[markerId: number]: {start : number, end : number}}} oldMarkerTimings */
+    async recordEdits(markers, oldMarkerTimings) {
+        const transaction = new TransactionBuilder(this.#actions);
+        for (const marker of markers) {
+            if (!marker.sectionId in this.#uuids) {
+                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record edited marker - unexpected section id');
+                continue;
+            }
+
+            const oldTimings = oldMarkerTimings[marker.id];
+            if (!oldTimings) {
+                Log.error(marker.id, 'MarkerBackupManager: Unable to record edited marker - marker id not in old timings map');
+                continue;
+            }
+
+            const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
+            const query = `
+    INSERT INTO actions
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
+            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate, this.#uuids[marker.sectionId]];
+            transaction.addStatement(query, parameters);
         }
 
-        const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
-        const query = `
-INSERT INTO actions
-(op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid) VALUES
-(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
-        const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldStart, oldEnd, marker.createDate, this.#uuids[marker.sectionId]];
+        if (transaction.empty()) {
+            return;
+        }
 
         try {
-            this.#actions.run(query, parameters);
-            Log.verbose(`MarkerBackupManager: Marker edit of id ${marker.id} added to backup.`);
+            await transaction.exec();
+            Log.verbose(`MarkerBackupManager: Backed up ${transaction.statementCount()} marker edit(s).`);
         } catch (err) {
             Log.error(err.message, 'MarkerBackupManager: Unable to record edited marker');
         }
@@ -397,25 +412,33 @@ INSERT INTO actions
 
     /**
      * Records a marker that was deleted from the Plex database.
-     * @param {MarkerData} marker */
-    async recordDelete(marker) {
-        if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record deleted marker - unexpected section id');
-            return Promise.resolve();
+     * @param {MarkerData[]} marker */
+    async recordDeletes(markers) {
+        const transaction = new TransactionBuilder(this.#actions);
+        for (const marker of markers) {
+            if (!(marker.sectionId in this.#uuids)) {
+                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record deleted marker - unexpected section id');
+                continue;
+            }
+
+            const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
+            const query = `
+    INSERT INTO actions
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
+            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId]];
+            transaction.addStatement(query, parameters);
         }
 
-        const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
-        const query = `
-INSERT INTO actions
-(op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
-(?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
-        const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId]];
+        if (transaction.empty()) {
+            return;
+        }
 
         try {
-            await this.#actions.run(query, parameters);
-            Log.verbose(`MarkerBackupManager: Marker delete of id ${marker.id} added to backup.`);
+            await transaction.exec();
+            Log.verbose(`MarkerBackupManager: ${transaction.statementCount()} marker delete(s) added to backup.`);
         } catch (err) {
-            Log.error(err.message, 'MarkerBackupManager: Unable to record deleted marker');
+            Log.error(err.message, 'MarkerBackupManager: Unable to record deleted markers');
         }
     }
 

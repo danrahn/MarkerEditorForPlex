@@ -82,7 +82,7 @@ class CoreCommands {
         const oldEnd = newMarker.end;
         newMarker.start = startMs;
         newMarker.end = endMs;
-        await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
+        await BackupManager?.recordEdits([newMarker], { [newMarker.id]: { start : oldStart, end : oldEnd } });
         return newMarker;
     }
 
@@ -120,7 +120,7 @@ class CoreCommands {
         const deletedMarker = new MarkerData(markerToDelete);
         MarkerCache?.removeMarkerFromCache(markerId);
         LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
-        await BackupManager?.recordDelete(deletedMarker);
+        await BackupManager?.recordDeletes([deletedMarker]);
         return Promise.resolve(deletedMarker);
     }
 
@@ -193,8 +193,9 @@ class CoreCommands {
         for (const marker of shifted) {
             const nonRaw = new MarkerData(marker);
             markerData.push(nonRaw);
-            await BackupManager?.recordEdit(nonRaw, oldMarkerMap[marker.id].start, oldMarkerMap[marker.id].end);
         }
+
+        await BackupManager?.recordEdits(markerData, oldMarkerMap);
 
         return {
             applied : true,
@@ -213,7 +214,7 @@ class CoreCommands {
      *               markers: SerializedMarkerData,
      *               deletedMarkers: SerializedMarkerData[],
      *               episodeData?: SerializedEpisodeData[]}>}
-     * */
+     */
     static async bulkDelete(metadataId, dryRun, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
         const ignoreSet = new Set();
@@ -272,9 +273,10 @@ class CoreCommands {
             const nonRaw = new MarkerData(deletedMarker);
             MarkerCache?.removeMarkerFromCache(deletedMarker.id);
             LegacyMarkerBreakdown.Update(nonRaw, markerCounts[deletedMarker.episode_id]--, -1);
-            await BackupManager?.recordDelete(nonRaw);
             deleted.push(nonRaw);
         }
+
+        await BackupManager?.recordDeletes(deleted);
         return {
             markers : serializedMarkers,
             deletedMarkers : deleted
