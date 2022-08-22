@@ -156,15 +156,16 @@ class ShiftTest extends TestBase {
      * Ensure we apply the shift when an episode has multiple markers, but only one isn't being ignored. */
     async shiftSingleEpisodeWithMultipleMarkersTryApplyWithIgnoreTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        const shift = 3000;
+        const shift = 345000;
         const result = await this.#verifyShift(episode.Id, shift, 1, [episode.Marker2.Id]);
         const newMarker = result.allMarkers[0];
-        await TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, this.testDb);
+        await TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, this.testDb);
 
         // Fake marker data to verify that the second marker wasn't changed
         const marker2 = episode.Marker2;
-        const fakeMarkerData = { id : marker2.Id, start : marker2.Start, end : marker2.End, index : marker2.Index };
-        return TestHelpers.validateMarker(fakeMarkerData, null, null, null, marker2.Start, marker2.End, marker2.Index);
+        TestHelpers.verify(marker2.Index == 1, `This test assumes marker2 has an index of 1, test data has changed!`);
+        const fakeMarkerData = { id : marker2.Id, start : marker2.Start, end : marker2.End, index : 0 };
+        return TestHelpers.validateMarker(fakeMarkerData, null, null, null, marker2.Start, marker2.End, 0, this.testDb);
     }
 
     /**

@@ -730,6 +730,7 @@ ORDER BY e.id ASC;`;
             for (const marker of markerGroup) {
                 if (marker.newIndex != marker.index) {
                     transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
+                    marker.index = marker.newIndex;
                 }
             }
         }

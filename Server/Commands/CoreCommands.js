@@ -185,12 +185,21 @@ class CoreCommands {
         const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, shift);
 
         // Now make sure all indexes are in order
-        await PlexQueries.reindex(metadataId);
+        const reindexResult = await PlexQueries.reindex(metadataId);
+        const reindexMap = {};
+        for (const marker of reindexResult.markers) {
+            reindexMap[marker.id] = marker;
+        }
+
         const markerData = [];
         /** @type {{[markerId: number]: RawMarkerData}} */
         const oldMarkerMap = {};
         markers.markers.forEach(m => oldMarkerMap[m.id] = m);
         for (const marker of shifted) {
+            if (reindexMap[marker.id]) {
+                marker.index = reindexMap[marker.id].index;
+            }
+
             const nonRaw = new MarkerData(marker);
             markerData.push(nonRaw);
         }
