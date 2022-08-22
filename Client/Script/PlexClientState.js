@@ -6,6 +6,7 @@ import ClientEpisodeData from './ClientEpisodeData.js';
 import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 import SettingsManager from './ClientSettings.js';
+import { PlexUI } from './PlexUI.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
@@ -17,7 +18,7 @@ import SettingsManager from './ClientSettings.js';
 class PlexClientState {
     /** @type {number} */
     #activeSection = -1;
-    /** @type {Object<number, ShowMap>} */
+    /** @type {{[sectionId: number]: ShowMap}} */
     #shows = {};
     /** @type {ShowData[]} */
     #activeSearch = [];
@@ -251,9 +252,8 @@ class PlexClientState {
 
     /**
       * Search for shows that match the given query.
-      * @param {string} query The show to search for.
-      * @param {Function<Object>} successFunc The function to invoke after search the search results have been compiled. */
-    search(query, successFunc)
+      * @param {string} query The show to search for. */
+    async search(query)
     {
         // Ignore non-word characters to improve matching if there are spacing or quote mismatches. Don't use \W though, since that also clears out unicode characters.
         // Rather than import some heavy package that's aware of unicode word characters, just clear out the most common characters we want to ignore.
@@ -293,7 +293,7 @@ class PlexClientState {
         });
 
         this.#activeSearch = result;
-        successFunc();
+        return;
     }
 
     /**
@@ -306,6 +306,11 @@ class PlexClientState {
         //   search view:
         //   * Adjust "(!)" text if restoration removes all purged markers for a given item
         //   * Adjust tooltips to note the new number of purged markers (or remove entirely if there aren't any left)
+
+        // Update non-active shows (as they're all cached for quick search results)
+        for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
+            this.updateNonActiveBreakdown(searchRow, []);
+        }
 
         if (!this.#activeShow) {
             return;

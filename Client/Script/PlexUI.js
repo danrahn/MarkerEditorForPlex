@@ -58,6 +58,9 @@ class PlexUI {
      * @type {number} */
     #searchTimer;
 
+    /** @type {ShowResultRow[]} */
+    #activeSearch = [];
+
     /** Creates the singleton PlexUI for this session. */
     static Initialize() {
         if (PlexUI.#plexUI) {
@@ -180,6 +183,12 @@ class PlexUI {
         this.showSections(uiSections);
     }
 
+    /**
+     * Retrieve all ShowResultRows in the search result list. */
+    getActiveSearchRows() {
+        return this.#activeSearch;
+    }
+
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
         const section = parseInt(this.#dropdown.value);
@@ -196,11 +205,10 @@ class PlexUI {
      * set a timeout to invoke a search after a quarter of a second has passed.
      * @this {PlexUI}
      * @param {KeyboardEvent} e */
-    #onSearchInput(e) {
+    async #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
         if (e.key == 'Enter') {
-            this.#search();
-            return;
+            return this.#search();
         }
 
         // List of modifiers to ignore as input, take from
@@ -225,11 +233,7 @@ class PlexUI {
     #search() {
         // Remove any existing show/season/marker data
         this.clearAllSections();
-        PlexClientState.GetState().search(this.#searchBox.value, this.#afterSearchCompleted.bind(this));
-    }
-
-    /** After a show search has completed, creates a DOM entry entry for each match. */
-    #afterSearchCompleted() {
+        PlexClientState.GetState().search(this.#searchBox.value);
         this.clearAndShowSections(UISection.Shows);
         PlexClientState.GetState().clearActiveShow();
         let showList = this.#uiSections[UISection.Shows];
@@ -239,8 +243,11 @@ class PlexUI {
             return;
         }
 
+        this.#activeSearch = [];
         for (const show of searchResults) {
-            showList.appendChild(new ShowResultRow(show).buildRow());
+            const newRow = new ShowResultRow(show);
+            this.#activeSearch.push(newRow);
+            showList.appendChild(newRow.buildRow());
         }
     }
 
