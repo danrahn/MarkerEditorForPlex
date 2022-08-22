@@ -309,7 +309,10 @@ class PlexClientState {
 
         // Update non-active shows (as they're all cached for quick search results)
         for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
-            this.updateNonActiveBreakdown(searchRow, []);
+            if (unpurged.get(searchRow.mediaItem().metadataId)) {
+                Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
+                this.updateNonActiveBreakdown(searchRow, []);
+            }
         }
 
         if (!this.#activeShow) {
