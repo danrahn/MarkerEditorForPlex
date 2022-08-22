@@ -1,26 +1,26 @@
-.bulkShiftOn {
+.bulkActionOn {
     background: rgba(0,100,0,0.2) !important;
 }
-.bulkShiftOn:hover {
+.bulkActionOn:hover {
     background: rgba(0,100,0,0.3) !important;
 }
 
-.bulkShiftOff {
+.bulkActionOff {
     background-color: #f66a !important;
 }
 
-.bulkShiftOff:hover {
+.bulkActionOff:hover {
     background-color: #d66a !important;
 }
 
-.bulkShiftSemi {
+.bulkActionSemi {
     background-color: #DD8 !important;
 }
 
-.bulkShiftSemi:hover {
+.bulkActionSemi:hover {
     background-color: #CC7 !important;
 }
 
-.bulkShiftInactive {
+.bulkActionInactive {
     color: #717171;
 }

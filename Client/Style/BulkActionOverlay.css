@@ -1,30 +1,30 @@
-#bulkShiftContainer {
+#bulkActionContainer {
     text-align: center;
 }
 
-#bulkShiftContainer h1,
-#bulkShiftContainer h2,
-#bulkShiftContainer h3 {
+#bulkActionContainer h1,
+#bulkActionContainer h2,
+#bulkActionContainer h3 {
     text-align: center;
 }
 
-#bulkShiftContainer hr {
+#bulkActionContainer hr {
     width: 60%;
     min-width: 600px;
     margin-top: 15px;
 }
 
-#bulkShiftContainer .buttonContainer {
+#bulkActionContainer .buttonContainer {
     text-align: center;
     width: auto;
 }
 
-#bulkShiftContainer .buttonContainer input[type=button] {
+#bulkActionContainer .buttonContainer input[type=button] {
     border-radius: 3px;
     padding: 4px;
 }
 
-#bulkShiftButtons > .button {
+#bulkActionButtons > .button {
     padding: 3px 5px 3px 5px;
     border-radius: 2px;
     margin: 5px 10px 5px 10px;

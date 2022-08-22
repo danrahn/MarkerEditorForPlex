@@ -1,26 +1,26 @@
-.bulkShiftOn {
+.bulkActionOn {
     background: rgba(0,100,0,0.3) !important; /** TODO: Scope #1116 to specific tables (and similar below) */
 }
-.bulkShiftOn:hover {
+.bulkActionOn:hover {
     background: rgba(0,100,0,0.4) !important;
 }
 
-.bulkShiftOff {
+.bulkActionOff {
     background-color: #612121 !important;
 }
 
-.bulkShiftOff:hover {
+.bulkActionOff:hover {
     background-color: #812121 !important;
 }
 
-.bulkShiftSemi {
+.bulkActionSemi {
     background-color: #551 !important;
 }
 
-.bulkShiftSemi:hover {
+.bulkActionSemi:hover {
     background-color: #662 !important;
 }
 
-.bulkShiftInactive {
+.bulkActionInactive {
     color: #919191;
 }

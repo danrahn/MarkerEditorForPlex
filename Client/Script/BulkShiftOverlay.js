@@ -37,7 +37,7 @@ class BulkShiftOverlay {
     /**
      * Launch the bulk shift overlay. */
     show() {
-        let container = buildNode('div', { id : 'bulkShiftContainer' })
+        let container = buildNode('div', { id : 'bulkActionContainer' })
         let title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
         appendChildren(container,
             title,
@@ -51,7 +51,7 @@ class BulkShiftOverlay {
                     id : 'shiftTime' },
                     0,
                     { keyup : this.#onTimeShiftChange.bind(this) })),
-            appendChildren(buildNode('div', { id : 'bulkShiftButtons' }),
+            appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
                 ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'}),
                 ButtonCreator.textButton('Customize', this.#check.bind(this), { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
@@ -100,9 +100,9 @@ class BulkShiftOverlay {
      * @param  {...HTMLElement} nodes */
     #markActive(active, ...nodes) {
         if (active) {
-            nodes.forEach(n => n.classList.remove('bulkShiftInactive'));
+            nodes.forEach(n => n.classList.remove('bulkActionInactive'));
         } else {
-            nodes.forEach(n => n.classList.add('bulkShiftInactive'));
+            nodes.forEach(n => n.classList.add('bulkActionInactive'));
         }
     }
 
@@ -196,7 +196,7 @@ class BulkShiftOverlay {
             node = buildNode('h4', attributes, message);
         }
 
-        const container = $('#bulkShiftContainer');
+        const container = $('#bulkActionContainer');
         const currentNode = $('#resolveShiftMessage');
         if (currentNode) {
             container.insertBefore(node, currentNode);
@@ -440,9 +440,9 @@ class BulkShiftOverlay {
                 row.setAttribute('eid', marker.episodeId);
                 row.setAttribute('mid', marker.id);
                 if (multiple) {
-                    row.classList.add('bulkShiftSemi');
+                    row.classList.add('bulkActionSemi');
                 } else {
-                    row.classList.add('bulkShiftOn');
+                    row.classList.add('bulkActionOn');
                 }
 
                 this.#styleRow(row, !multiple, shift);
@@ -451,7 +451,7 @@ class BulkShiftOverlay {
         }
 
         table.appendChild(rows);
-        $('#bulkShiftContainer').appendChild(table);
+        $('#bulkActionContainer').appendChild(table);
     }
 
     /**
@@ -463,8 +463,8 @@ class BulkShiftOverlay {
         const row = checkbox.parentElement.parentElement.parentElement;
         this.#styleRow(row, checked);
         if (!linked) {
-            row.classList.remove(checked ? 'bulkShiftOff': 'bulkShiftOn');
-            row.classList.add(checked ? 'bulkShiftOn' : 'bulkShiftOff');
+            row.classList.remove(checked ? 'bulkActionOff': 'bulkActionOn');
+            row.classList.add(checked ? 'bulkActionOn' : 'bulkActionOff');
             return;
         }
 
@@ -480,13 +480,13 @@ class BulkShiftOverlay {
         for (const linkedCheckbox of linkedCheckboxes) {
             const linkedRow = linkedCheckbox.parentElement.parentElement.parentElement;
             if (anyChecked) {
-                linkedRow.classList.remove('bulkShiftSemi');
-                linkedRow.classList.remove(linkedCheckbox.checked ? 'bulkShiftOff' : 'bulkShiftOn');
-                linkedRow.classList.add(linkedCheckbox.checked ? 'bulkShiftOn' : 'bulkShiftOff');
+                linkedRow.classList.remove('bulkActionSemi');
+                linkedRow.classList.remove(linkedCheckbox.checked ? 'bulkActionOff' : 'bulkActionOn');
+                linkedRow.classList.add(linkedCheckbox.checked ? 'bulkActionOn' : 'bulkActionOff');
             } else {
-                linkedRow.classList.remove('bulkShiftOn');
-                linkedRow.classList.remove('bulkShiftOff');
-                linkedRow.classList.add('bulkShiftSemi');
+                linkedRow.classList.remove('bulkActionOn');
+                linkedRow.classList.remove('bulkActionOff');
+                linkedRow.classList.add('bulkActionSemi');
             }
         }
         Log.info('Click! - ' + checked + ' - ' + linked);
@@ -501,18 +501,18 @@ class BulkShiftOverlay {
         }
 
         const ignored = [];
-        const hasUnresolved = !!$$('tr.bulkShiftSemi', customizeTable);
+        const hasUnresolved = !!$$('tr.bulkActionSemi', customizeTable);
 
         // Markers that are both off and 'semi' selected are ignored.
-        $('tr.bulkShiftOff', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
-        $('tr.bulkShiftSemi', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
-        $('tr.bulkShiftOn td:nth-child(5).bulkShiftOff', customizeTable).forEach(td => ignored.push(parseInt(td.parentElement.getAttribute('mid'))));
+        $('tr.bulkActionOff', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
+        $('tr.bulkActionSemi', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
+        $('tr.bulkActionOn td:nth-child(5).bulkActionOff', customizeTable).forEach(td => ignored.push(parseInt(td.parentElement.getAttribute('mid'))));
         return {
             ignored : ignored,
             tableVisible : true,
             hasUnresolved : hasUnresolved,
-            hasCutoff : !!$$('td.bulkShiftSemi', customizeTable),
-            hasError  : !!$$('td.bulkShiftOff', customizeTable),
+            hasCutoff : !!$$('td.bulkActionSemi', customizeTable),
+            hasError  : !!$$('td.bulkActionOff', customizeTable),
         };
     }
 }
@@ -520,7 +520,7 @@ class BulkShiftOverlay {
 /**
  * Small helper to apply styles to a table item. */
 const BulkShiftClasses = {
-    classNames : ['bulkShiftOn', 'bulkShiftOff', 'bulkShiftSemi'],
+    classNames : ['bulkActionOn', 'bulkActionOff', 'bulkActionSemi'],
     Type : {
         Reset : -1,
         Error :  1,
@@ -533,7 +533,7 @@ const BulkShiftClasses = {
      * @param {boolean} active Whether this node is active */
     set : (node, idx, active) => {
         const names = BulkShiftClasses.classNames;
-        active ? node.classList.remove('bulkShiftInactive') : node.classList.add('bulkShiftInactive');
+        active ? node.classList.remove('bulkActionInactive') : node.classList.add('bulkActionInactive');
         if (idx == -1) {
             node.classList.remove(names[1]);
             node.classList.remove(names[2]);
