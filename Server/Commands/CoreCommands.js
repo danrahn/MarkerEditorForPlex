@@ -71,21 +71,11 @@ class CoreCommands {
             if (marker.id == markerId) {
                 newIndex = index;
             }
-
-            marker.newIndex = index;
         }
 
         // Make the edit, then adjust indexes
         await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated);
-        for (const marker of allMarkers) {
-            if (marker.index != marker.newIndex) {
-                // No await, just fire and forget.
-                // TODO: In some extreme case where an episode has dozens of
-                // markers, it would be much more efficient to make this a transaction
-                // instead of individual queries.
-                PlexQueries.updateMarkerIndex(marker.id, marker.newIndex);
-            }
-        }
+        await PlexQueries.reindex(currentMarker.episode_id);
 
         const newMarker = new MarkerData(currentMarker);
         const oldStart = newMarker.start;
@@ -93,7 +83,7 @@ class CoreCommands {
         newMarker.start = startMs;
         newMarker.end = endMs;
         await BackupManager?.recordEdit(newMarker, oldStart, oldEnd);
-        return Promise.resolve(newMarker);
+        return newMarker;
     }
 
     /**
@@ -193,9 +183,17 @@ class CoreCommands {
 
         // TODO: Check if shift causes overlap with ignored markers?
         const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, shift);
+
+        // Now make sure all indexes are in order
+        await PlexQueries.reindex(metadataId);
         const markerData = [];
+        /** @type {{[markerId: number]: RawMarkerData}} */
+        const oldMarkerMap = {};
+        markers.markers.forEach(m => oldMarkerMap[m.id] = m);
         for (const marker of shifted) {
-            markerData.push(new MarkerData(marker));
+            const nonRaw = new MarkerData(marker);
+            markerData.push(nonRaw);
+            await BackupManager?.recordEdit(nonRaw, oldMarkerMap[marker.id].start, oldMarkerMap[marker.id].end);
         }
 
         return {
@@ -211,7 +209,11 @@ class CoreCommands {
      * @param {number} metadataId Metadata id of the episode/season/show
      * @param {boolean} dryRun Whether we should just gather data about what we would delete.
      * @param {number[]} ignoredMarkerIds List of marker ids to not delete.
-     * @returns {Promise<{markers: SerializedMarkerData, episodeData?: SerializedEpisodeData[]}>} */
+     * @returns {Promise<{
+     *               markers: SerializedMarkerData,
+     *               deletedMarkers: SerializedMarkerData[],
+     *               episodeData?: SerializedEpisodeData[]}>}
+     * */
     static async bulkDelete(metadataId, dryRun, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
         const ignoreSet = new Set();
@@ -221,11 +223,19 @@ class CoreCommands {
 
         const episodeIds = new Set();
         const toDelete = [];
+        /** @type {{[episodeId: number]: RawMarkerData[]}} */
+        const markerCounts = {};
         for (const marker of markerInfo.markers) {
-            episodeIds.add(marker.episode_id);
             if (!ignoreSet.has(marker.id)) {
+                episodeIds.add(marker.episode_id);
                 toDelete.push(marker);
             }
+
+            if (!markerCounts[marker.episode_id]) {
+                markerCounts[marker.episode_id] = 0;
+            }
+
+            ++markerCounts[marker.episode_id];
         }
 
         if (dryRun) {
@@ -242,18 +252,32 @@ class CoreCommands {
             rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
             return {
                 markers : serializedMarkers,
+                deletedMarkers : [],
                 episodeData : serializedEpisodeData
             };
         }
 
         await PlexQueries.bulkDelete(toDelete);
-        // Return value is any remaining markers associated with the id. Should line up with ignoredMarkerIds
-        const newMarkerInfo = await PlexQueries.getMarkersAuto(metadataId);
+
+        // Now make sure all indexes are in order. Should only be needed if ignoredMarkerIds isn't empty,
+        // but do it unconditionally since we can also get our updated marker info from it, as the return
+        // value is any remaining markers associated with the id. Should line up with ignoredMarkerIds.
+        const newMarkerInfo = await PlexQueries.reindex(metadataId);
+
         Log.assert(newMarkerInfo.markers.length == ignoredMarkerIds.length, `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
         const serializedMarkers = [];
         newMarkerInfo.markers.forEach(m => serializedMarkers.push(new MarkerData(m)));
+        const deleted = [];
+        for (const deletedMarker of toDelete) {
+            const nonRaw = new MarkerData(deletedMarker);
+            MarkerCache?.removeMarkerFromCache(deletedMarker.id);
+            LegacyMarkerBreakdown.Update(nonRaw, markerCounts[deletedMarker.episode_id]--, -1);
+            await BackupManager?.recordDelete(nonRaw);
+            deleted.push(nonRaw);
+        }
         return {
-            markers : serializedMarkers
+            markers : serializedMarkers,
+            deletedMarkers : deleted
         }
     }
 

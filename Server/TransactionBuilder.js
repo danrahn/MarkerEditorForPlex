@@ -29,6 +29,7 @@ class TransactionBuilder {
     }
 
     empty() { return this.#commands.length == 0; }
+    statementCount() { return this.#commands.length; }
     toString() {
         if (this.#cache) {
             return this.#cache;

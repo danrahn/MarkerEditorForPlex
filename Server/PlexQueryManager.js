@@ -422,12 +422,7 @@ ORDER BY e.\`index\` ASC;`;
         await this.#database.run(addQuery, parameters);
 
         // Insert succeeded, update indexes of other markers if necessary
-        for (const marker of allMarkers) {
-            if (marker.index != marker.newIndex) {
-                // No await, just fire-and-forget
-                this.updateMarkerIndex(marker.id, marker.newIndex);
-            }
-        }
+        await this.reindex(metadataId);
 
         const newMarker = await this.getNewMarker(metadataId, startMs, endMs);
         return Promise.resolve({ allMarkers : allMarkers, newMarker : newMarker });
@@ -709,6 +704,42 @@ ORDER BY e.id ASC;`;
         }
 
         return pruned;
+    }
+
+    /**
+     * Ensure the indexes for the markers under the given show/season/episode metadataId are in order.
+     * @param {number} metadataId */
+    async reindex(metadataId) {
+        const markerInfo = await this.getMarkersAuto(metadataId);
+        /** @type {{[episodeId: number]: RawMarkerData[]}} */
+        const episodeMap = {};
+        for (const marker of markerInfo.markers) {
+            if (!episodeMap[marker.episode_id]) {
+                episodeMap[marker.episode_id] = [];
+            }
+
+            episodeMap[marker.episode_id].push(marker);
+        }
+
+        const transaction = new TransactionBuilder(this.#database);
+        for (const markerGroup of Object.values(episodeMap)) {
+            markerGroup.sort((a, b) => a.start - b.start).forEach((marker, index) => {
+                marker.newIndex = index;
+            });
+
+            for (const marker of markerGroup) {
+                if (marker.newIndex != marker.index) {
+                    transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
+                }
+            }
+        }
+
+        if (!transaction.empty()) {
+            Log.verbose(`PlexQueryManager::reindex: Reindexing ${transaction.statementCount()} markers.`);
+            await transaction.exec();
+        }
+
+        return markerInfo;
     }
 
     /**
