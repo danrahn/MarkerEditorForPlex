@@ -150,7 +150,7 @@ class MarkerTable {
       * @param {MarkerData} partialMarker The marker that has been edited.
       * Not a "real" marker, but a partial representation of one that has
       * all the fields required to successfully edit the real marker it represents. */
-    editMarker(partialMarker) {
+    editMarker(partialMarker, forceReset=false) {
         const newIndex = partialMarker.index;
         let oldIndex = -1;
         // First loop - find the one we edited, modify its fields, and store its old index.
@@ -200,6 +200,10 @@ class MarkerTable {
             }
         });
 
+        if (forceReset) {
+            this.#rows[oldIndex].reset();
+        }
+
         this.#rows.splice(newIndex, 0, this.#rows.splice(oldIndex, 1)[0]);
         this.#markers.splice(newIndex, 0, this.#markers.splice(oldIndex, 1)[0]);
     }
@@ -208,8 +212,8 @@ class MarkerTable {
      * Deletes a marker for this episode and updates the HTML marker table accordingly.
      * @param {MarkerData} deletedMarker The marker to delete. This is _not_ the same
      * marker that's in {@linkcode this.markers}, but a standalone copy.
-     * @param {HTMLElement} row The HTML row for the deleted marker. */
-    deleteMarker(deletedMarker, row) {
+     * @param {HTMLElement} [row=null] The HTML row for the deleted marker. */
+    deleteMarker(deletedMarker, row=null) {
         let tableBody = this.#tbody();
         if (this.#markers.length == 1) {
             tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
@@ -217,6 +221,19 @@ class MarkerTable {
             for (let index = deletedMarker.index + 1; index < this.#markers.length; ++index) {
                 tableBody.children[index].firstChild.innerText = (index - 1).toString();
             }
+        }
+
+        if (!row) {
+            for (const markerRow of this.#rows) {
+                if (markerRow.markerId() == deletedMarker.id) {
+                    row = markerRow.row();
+                }
+            }
+        }
+
+        if (!row) {
+            Log.warn('Attempted to delete a marker without a row! Data may be incorrect');
+            return;
         }
 
         tableBody.removeChild(row);

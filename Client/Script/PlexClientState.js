@@ -2,6 +2,7 @@ import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
 
+import { BulkActionType } from './BulkActionCommon.js';
 import ClientEpisodeData from './ClientEpisodeData.js';
 import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
@@ -10,6 +11,7 @@ import { PlexUI } from './PlexUI.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
+/** @typedef {!import('./BulkDeleteOverlay.js').BulkActionCommon} BulkMarkerResult */
 
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
@@ -301,11 +303,6 @@ class PlexClientState {
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged.
      * @param {MarkerData[]} newMarkers List of newly restored markers, if any. */
     notifyPurgeChange(unpurged, newMarkers) {
-        // TODO:
-        // * Show/Season level views should update as expected, but the following are still needed at the
-        //   search view:
-        //   * Adjust "(!)" text if restoration removes all purged markers for a given item
-        //   * Adjust tooltips to note the new number of purged markers (or remove entirely if there aren't any left)
 
         // Update non-active shows (as they're all cached for quick search results)
         for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
@@ -319,7 +316,6 @@ class PlexClientState {
             return;
         }
 
-        // V1 - Add applicable markers to any visible table. Does not consider "(!)" text.
         const showData = unpurged.get(this.#activeShow.mediaItem().metadataId);
         if (!showData) {
             // The currently active show didn't have any purged markers adjusted.
@@ -327,13 +323,13 @@ class PlexClientState {
         }
 
         if (!this.#activeSeason) {
-            this.#activeShow.notifyPurgeChange(showData, newMarkers);
+            this.#activeShow.notifyPurgeChange(showData);
             return;
         }
 
         const seasonData = showData.get(this.#activeSeason.mediaItem().metadataId);
         if (!seasonData) {
-            this.#activeShow.notifyPurgeChange(showData, newMarkers);
+            this.#activeShow.notifyPurgeChange(showData);
             return;
         }
 
@@ -341,6 +337,51 @@ class PlexClientState {
         // any conflicts when updating marker breakdown caches.
         this.#activeSeason.notifyPurgeChange(seasonData, newMarkers);
         this.#activeShow.notifyPurgeChange(showData);
+    }
+
+    /**
+     * Ensure all the right UI bits are updated after a bulk marker action.
+     * TODO: Very similar to notifyPurgeChange. Can anything be shared?
+     * @param {BulkMarkerResult} markers 
+     * @param {number} bulkActionType */
+    notifyBulkActionChange(markers, bulkActionType) {
+        // Shifts/edits don't result in different marker breakdowns,
+        // so most of this can be skipped.
+        const isShift = bulkActionType == BulkActionType.Shift;
+        if (!isShift) {
+            for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
+                if (markers[searchRow.show().metadataId]) {
+                    this.updateNonActiveBreakdown(searchRow, []);
+                }
+            }
+        }
+
+        if (!this.#activeShow) {
+            return;
+        }
+
+        const showData = markers[this.#activeShow.show().metadataId];
+        if (!this.#activeShow) {
+            if (!isShift) {
+                this.#activeShow.notifyBulkAction(showData);
+            }
+            return;
+        }
+
+        const seasonData = showData[this.#activeSeason.season().metadataId];
+        if (!seasonData) {
+            if (!isShift) {
+                this.#activeShow.notifyBulkAction(showData);
+            }
+            return;
+        }
+
+        // If possible we want to update the activeSeason first to avoid
+        // any conflicts when updating marker breakdown caches.
+        this.#activeSeason.notifyBulkAction(seasonData, bulkActionType);
+        if (!isShift) {
+            this.#activeShow.notifyBulkAction(showData);
+        }
     }
 
     /** Comparator that sorts shows by sort title, falling back to the regular title if needed.

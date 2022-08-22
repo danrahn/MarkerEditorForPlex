@@ -1,21 +1,23 @@
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from "./Common.js";
-import { Log } from "../../Shared/ConsoleLog.js";
-import { MarkerData, PlexData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
+import { MarkerData, PlexData, SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
-import Tooltip from "./inc/Tooltip.js";
-import Overlay from "./inc/Overlay.js";
+import Tooltip from './inc/Tooltip.js';
+import Overlay from './inc/Overlay.js';
 
-import BulkShiftOverlay from "./BulkShiftOverlay.js";
-import ButtonCreator from "./ButtonCreator.js";
-import ClientEpisodeData from "./ClientEpisodeData.js";
-import SettingsManager from "./ClientSettings.js";
-import PlexClientState from "./PlexClientState.js";
-import { PlexUI, UISection } from "./PlexUI.js";
-import PurgedMarkerManager from "./PurgedMarkerManager.js";
-import { PurgedSeason, PurgedShow } from "./PurgedMarkerCache.js";
-import ThemeColors from "./ThemeColors.js";
+import { BulkActionType } from './BulkActionCommon.js';
+import BulkDeleteOverlay from './BulkDeleteOverlay.js';
+import BulkShiftOverlay from './BulkShiftOverlay.js';
+import ButtonCreator from './ButtonCreator.js';
+import ClientEpisodeData from './ClientEpisodeData.js';
+import SettingsManager from './ClientSettings.js';
+import PlexClientState from './PlexClientState.js';
+import { PlexUI, UISection } from './PlexUI.js';
+import PurgedMarkerManager from './PurgedMarkerManager.js';
+import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
+import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import("../../Server/MarkerBackupManager.js").MarkerAction} MarkerAction */
+/** @typedef {!import('../../Server/MarkerBackupManager.js').MarkerAction} MarkerAction */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -222,7 +224,8 @@ class BulkActionResultRow extends ResultRow {
         let emptyRow = buildNode('div');
         let row = this.buildRowColumns(titleNode, emptyRow, null);
         appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.textButton('Shift Markers', this.#bulkShift.bind(this)));
+            ButtonCreator.textButton('Shift Markers', this.#bulkShift.bind(this), { style : 'margin-right: 10px'}),
+            ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this)));
 
         this.setHtml(row);
         return row;
@@ -235,6 +238,12 @@ class BulkActionResultRow extends ResultRow {
      * Launch the bulk shift overlay for the current media item (show/season). */
     #bulkShift() {
         new BulkShiftOverlay(this.mediaItem()).show();
+    }
+
+    /**
+     * Launch the bulk delete overlay for the current media item (show/season). */
+    #bulkDelete() {
+        new BulkDeleteOverlay(this.mediaItem()).show();
     }
 }
 
@@ -320,6 +329,21 @@ class ShowResultRow extends ResultRow {
         }
 
         /*async*/ PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
+    }
+
+    /**
+     * Update marker breakdown data after a bulk update.
+     * @param {{[seasonId: number]: MarkerData[]}} changedMarkers */
+    notifyBulkAction(changedMarkers) {
+        let needsUpdate = [];
+        for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
+            // Only need to update if the season was affected
+            if (changedMarkers[seasonId]) {
+                needsUpdate.push(seasonRow);
+            }
+        }
+
+        PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
@@ -472,6 +496,34 @@ class SeasonResultRow extends ResultRow {
                 episode.updateMarkerBreakdown(0 /*delta*/);
             }
         }.bind(this));
+    }
+
+    /**
+     * Update marker tables if necessary after a bulk operation
+     * @param {MarkerData[]} changedMarkers
+     * @param {number} bulkActionType */
+    notifyBulkAction(changedMarkers, bulkActionType) {
+        for (const marker of changedMarkers) {
+            const episode = this.#episodes[marker.episodeId];
+            if (!episode) {
+                continue;
+            }
+
+            switch (bulkActionType) {
+                case BulkActionType.Shift:
+                    episode.episode().editMarker(marker, true);
+                    break;
+                case BulkActionType.Add:
+                    episode.episode().addMarker(marker, null /*oldRow*/);
+                    break;
+                case BulkActionType.Delete:
+                    episode.episode().deleteMarker(marker);
+                    break;
+                default:
+                    Log.warn(bulkActionType, `Can't parse bulk action change, invalid bulkActionType`);
+                    return;
+            }
+        }
     }
 
     /**

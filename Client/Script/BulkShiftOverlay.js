@@ -1,13 +1,14 @@
-import { Log } from "../../Shared/ConsoleLog.js";
-import { SeasonData, ShowData } from "../../Shared/PlexTypes.js";
+import { Log } from '../../Shared/ConsoleLog.js';
+import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
-import ButtonCreator from "./ButtonCreator.js";
-import { $, $$, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from "./Common.js";
-import Animation from "./inc/Animate.js";
-import Overlay from "./inc/Overlay.js";
-import { PlexUI, UISection } from "./PlexUI.js";
-import TableElements from "./TableElements.js";
-import ThemeColors from "./ThemeColors.js";
+import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
+import ButtonCreator from './ButtonCreator.js';
+import { $, $$, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+import Animation from './inc/Animate.js';
+import Overlay from './inc/Overlay.js';
+import PlexClientState from './PlexClientState.js';
+import TableElements from './TableElements.js';
+import ThemeColors from './ThemeColors.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
@@ -271,16 +272,9 @@ class BulkShiftOverlay {
 
         const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, false /*force*/, ignoreInfo.ignored);
         if (shiftResult.applied) {
+            const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
+            PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
             await this.#flashButton($('#shiftApply'), 'green');
-
-            // If we modified a season, go up a level and show all seasons
-            // so we don't have to update marker timings in-place.
-            // TODO: update in-place
-            if (this.#mediaItem instanceof SeasonData) {
-                // 'Back to seasons' callback
-                PlexUI.Get().clearAndShowSections(UISection.Episodes);
-                PlexUI.Get().showSections(UISection.Seasons);
-            }
 
             Overlay.dismiss();
             return;
@@ -312,19 +306,13 @@ class BulkShiftOverlay {
                 return;
             }
 
+            const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
+            PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
             $('.shiftForceApply').forEach(async f => {
                 await this.#flashButton(f, 'green');
                 Overlay.dismiss();
             });
-            
-            // If we modified a season, go up a level and show all seasons
-            // so we don't have to update marker timings in-place.
-            // TODO: update in-place
-            if (this.#mediaItem instanceof SeasonData) {
-                // 'Back to seasons' callback
-                PlexUI.Get().clearAndShowSections(UISection.Episodes);
-                PlexUI.Get().showSections(UISection.Seasons);
-            }
+
         } catch (ex) {
             $('.shiftForceApply').forEach(f => this.#flashButton(f, 'red'));
         }
@@ -370,38 +358,11 @@ class BulkShiftOverlay {
             existingTable.parentElement.removeChild(existingTable);
         }
 
-        const getCheckbox = (checked, mid, eid) => {
-            const checkboxName = `mid_check_${mid}`;
-            const checkbox = buildNode('input', {
-                type : 'checkbox',
-                name : checkboxName,
-                id : checkboxName,
-                eid : eid,
-                mid : mid,
-                linked : checked ? 0 : 1 });
-            checkbox.addEventListener('change', this.#onMarkerChecked.bind(this, checkbox));
-            if (checked) {
-                checkbox.setAttribute('checked', 'checked');
-            }
-
-            return appendChildren(buildNode('div'),
-                buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${mid} Shift Checkbox`),
-                checkbox);
-        }
-
-        const sortedMarkers = shiftResult.allMarkers.sort((a, b) => {
-            /** @type {EpisodeData} */
-            const aEd = shiftResult.episodeData[a.episodeId];
-            /** @type {EpisodeData} */
-            const bEd = shiftResult.episodeData[b.episodeId];
-            if (aEd.seasonIndex != bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
-            if (aEd.index != bEd.index) { return aEd.index - bEd.index; }
-            return a.index - b.index;
-        });
+        const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
 
         const table = buildNode('table', { class : 'markerTable', id : 'bulkShiftCustomizeTable' });
         const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all' });
-        mainCheckbox.addEventListener('change', this.#selectUnselectAll.bind(this, mainCheckbox));
+        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkShiftCustomizeTable'));
         table.appendChild(
             appendChildren(buildNode('thead'),
                 TableElements.rawTableRow(
@@ -428,7 +389,9 @@ class BulkShiftOverlay {
             for (const marker of checkGroup) {
                 let shift = this.#shiftValue() || 0;
                 const row = TableElements.rawTableRow(
-                    getCheckbox(!multiple, marker.id, marker.episodeId),
+                    BulkActionCommon.checkbox(!multiple, marker.id, marker.episodeId, 
+                        { linked : multiple ? 1 : 0 },
+                        this.#onMarkerChecked, this),
                     `S${pad0(eInfo.seasonIndex, 2)}E${pad0(eInfo.index, 2)}`,
                     TableElements.timeData(marker.start),
                     TableElements.timeData(marker.end),

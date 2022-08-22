@@ -1,6 +1,7 @@
-import { appendChildren, buildNode } from "./Common.js";
-import Tooltip from "./inc/Tooltip.js";
-import ThemeColors from "./ThemeColors.js";
+import { Log } from '../../Shared/ConsoleLog.js';
+import { $$, appendChildren, buildNode } from './Common.js';
+import Tooltip from './inc/Tooltip.js';
+import ThemeColors from './ThemeColors.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
 
@@ -20,7 +21,7 @@ class ButtonCreator {
         let button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes);
         return appendChildren(button,
             buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }),
-            buildNode('span', {}, text));
+            buildNode('span', { class : 'buttonText' }, text));
     }
 
     /**
@@ -41,6 +42,7 @@ class ButtonCreator {
         return appendChildren(button,
             buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }));
     }
+
     /**
      * Creates a tabbable button that doesn't have an icon.
      * @param {string} text The text of the button.
@@ -48,9 +50,21 @@ class ButtonCreator {
      * @param {AttributeMap} [attributes={}] Additional attributes to set on the button. */
     static textButton(text, clickHandler, attributes={}) {
         let button = ButtonCreator.#tableButtonHolder('buttonTextOnly', clickHandler, attributes);
-        return appendChildren(button, buildNode('span', {}, text));
+        return appendChildren(button, buildNode('span', { class : 'buttonText' }, text));
     }
 
+    /**
+     * Sets the text of the given button.
+     * @param {HTMLElement} button
+     * @param {string} newText */
+    static setText(button, newText) {
+        const span = $$('.buttonText', button);
+        if (!span) {
+            Log.warn('Called setText on non-text button!');
+        }
+
+        span.innerText = newText;
+    }
 
     /**
      * Returns an empty button with the given class

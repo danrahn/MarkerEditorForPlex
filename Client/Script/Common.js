@@ -86,7 +86,7 @@ const ServerCommand = {
      * Delete all markers associated with the given media item, except those specified in `ignored`.
      * @param {number} id
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
-     * @returns {Promise<{markers: SerializedMarkerData[]}>} */
+     * @returns {Promise<{markers: SerializedMarkerData[], deletedMarkers: SerializedMarkerData[]}>} */
     bulkDelete : async (id, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, ignored : ignored.join(',') }),
 
     /**
@@ -449,10 +449,11 @@ function timeToMs(value, allowNegative=false) {
 /**
  * Displays an overlay for the given error
  * @param {string} message
- * @param {Error|string} err */
-function errorResponseOverlay(message, err) {
+ * @param {Error|string} err
+ * @param {() => void} [onDismiss=Overlay.dismiss] */
+function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
     let errType = err instanceof FetchError ? 'Server Message' : 'Error';
-    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`);
+    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`, 'OK', onDismiss);
 }
 
 export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, msToHms, pad0, plural, ServerCommand, timeToMs };

@@ -64,8 +64,8 @@ class ClientEpisodeData extends EpisodeData {
       * @param {MarkerData} partialMarker The marker that has been edited.
       * Not a "real" marker, but a partial representation of one that has
       * all the fields required to successfully edit the real marker it represents. */
-    editMarker(partialMarker) {
-        this.#markerTable.editMarker(partialMarker);
+    editMarker(partialMarker, forceReset=false) {
+        this.#markerTable.editMarker(partialMarker, forceReset);
     }
 
     /**

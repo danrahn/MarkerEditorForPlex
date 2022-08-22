@@ -43,7 +43,7 @@ class TableElements {
      * Return a custom object for rawTableRow to parse that will center the given column.
      * @param {string} value The text of the column. */
     static centeredColumn(value) {
-        return TableElements.#classColumn(value, 'centeredColumn');
+        return TableElements.customClassColumn(value, 'centeredColumn');
     }
 
     /**
@@ -53,26 +53,26 @@ class TableElements {
         // Avoid some of the jerkiness of the width used by thumbnails by making
         // time input fields wider across the board if thumbnails are enabled.
         const className = SettingsManager.Get().useThumbnails() ? 'thumbnailEnabledTimeColumn' : 'timeColumn';
-        return TableElements.#classColumn(value, className);
+        return TableElements.customClassColumn(value, className);
     }
 
     /** Returns a time column that doesn't take thumbnails into consideration. */
     static shortTimeColumn(value) {
-        return TableElements.#classColumn(value, 'shortTimeColumn');
+        return TableElements.customClassColumn(value, 'shortTimeColumn');
     }
 
     /**
      * Returns a column with a fixed width and centered contents.
      * @param {string} value The text of the column. */
     static dateColumn(value) {
-        return TableElements.#classColumn(value, 'centeredColumn timeColumn');
+        return TableElements.customClassColumn(value, 'centeredColumn timeColumn');
     }
 
     /**
      * Return a column with a fixed width and centered contents.
      * @param {string} value The text of the column. */
     static optionsColumn(value) {
-        return TableElements.#classColumn(value, 'optionsColumn centeredColumn');
+        return TableElements.customClassColumn(value, 'optionsColumn centeredColumn');
     }
 
     /** Returns a spanning table row indicating an episode has no existing markers. */
@@ -107,9 +107,9 @@ class TableElements {
     /**
      * Return an object for rawTableRow to parse that will attach the given class name(s) to the column.
      * @param {string} value The text for the column.
-     * @param {*} className The class name for the column.
+     * @param {string} className The class name for the column.
      * @returns {CustomClassColumn} */
-    static #classColumn(value, className) {
+    static customClassColumn(value, className) {
         return new CustomClassColumn(value, { class : className });
     }
 
