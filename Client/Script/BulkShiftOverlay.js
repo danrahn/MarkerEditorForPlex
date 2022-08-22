@@ -59,7 +59,7 @@ class BulkShiftOverlay {
             )
         );
 
-        Overlay.build({ closeButton: true, forceFullscreen : true, setup : { fn : () => $('#shiftTime').focus() } }, container);
+        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => $('#shiftTime').focus() } }, container);
     }
 
     /**
@@ -400,10 +400,12 @@ class BulkShiftOverlay {
         });
 
         const table = buildNode('table', { class : 'markerTable', id : 'bulkShiftCustomizeTable' });
+        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all' });
+        mainCheckbox.addEventListener('change', this.#selectUnselectAll.bind(this, mainCheckbox));
         table.appendChild(
             appendChildren(buildNode('thead'),
                 TableElements.rawTableRow(
-                    '',
+                    mainCheckbox,
                     'Episode',
                     TableElements.shortTimeColumn('Start Time'),
                     TableElements.shortTimeColumn('End Time'),
@@ -455,6 +457,16 @@ class BulkShiftOverlay {
     }
 
     /**
+     * Bulk check/uncheck all items in the table.
+     * @param {HTMLInputElement} checkbox */
+    #selectUnselectAll(checkbox) {
+        const table = $('#bulkShiftCustomizeTable');
+        if (!table) { return; } // How?
+
+        $('tbody input[type=checkbox]', table).forEach(c => { c.checked = checkbox.checked; c.dispatchEvent(new Event('change')); });
+    }
+
+    /**
      * Update marker row colors when a row is checked/unchecked
      * @param {HTMLInputElement} checkbox */
     #onMarkerChecked(checkbox) {
@@ -470,7 +482,7 @@ class BulkShiftOverlay {
 
         /** @type {NodeListOf<DOMString>} */
         const linkedCheckboxes = $(`input[type="checkbox"][eid="${checkbox.getAttribute('eid')}"]`, row.parentElement);
-        console.log(linkedCheckboxes);
+
         // TODO: keep track of if any have ever been checked?
         let anyChecked = checked;
         if (!anyChecked) {
@@ -489,7 +501,6 @@ class BulkShiftOverlay {
                 linkedRow.classList.add('bulkActionSemi');
             }
         }
-        Log.info('Click! - ' + checked + ' - ' + linked);
     }
 
     /**
