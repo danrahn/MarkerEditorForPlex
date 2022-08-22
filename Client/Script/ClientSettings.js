@@ -739,7 +739,7 @@ class SettingsManager {
             styleNode('theme'),
             styleNode('Overlay'),
             styleNode('Settings'),
-            styleNode('BulkShiftOverlay'),
+            styleNode('BulkActionOverlay'),
         ];
         for (const style of this.#themeStyles) {
             $$('head').appendChild(style);
