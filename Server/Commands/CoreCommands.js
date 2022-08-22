@@ -1,6 +1,8 @@
 import { Log } from "../../Shared/ConsoleLog.js";
 import { EpisodeData, MarkerData } from "../../Shared/PlexTypes.js";
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
 import { PlexQueries } from "../PlexQueryManager.js";
@@ -202,6 +204,57 @@ class CoreCommands {
             overflow : false,
             allMarkers : markerData,
         };
+    }
+
+    /**
+     * Delete all markers associated with the given metadataId, unless its id is in `ignoredMarkerIds`
+     * @param {number} metadataId Metadata id of the episode/season/show
+     * @param {boolean} dryRun Whether we should just gather data about what we would delete.
+     * @param {number[]} ignoredMarkerIds List of marker ids to not delete.
+     * @returns {Promise<{markers: SerializedMarkerData, episodeData?: SerializedEpisodeData[]}>} */
+    static async bulkDelete(metadataId, dryRun, ignoredMarkerIds) {
+        const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
+        const ignoreSet = new Set();
+        for (const markerId of ignoredMarkerIds) {
+            ignoreSet.add(markerId);
+        }
+
+        const episodeIds = new Set();
+        const toDelete = [];
+        for (const marker of markerInfo.markers) {
+            episodeIds.add(marker.episode_id);
+            if (!ignoreSet.has(marker.id)) {
+                toDelete.push(marker);
+            }
+        }
+
+        if (dryRun) {
+            // All we really do for a dry run is grab all markers for the given metadata item,
+            // and associated episode data for the customization table
+
+            const serializedMarkers = [];
+            for (const marker of markerInfo.markers) {
+                serializedMarkers.push(new MarkerData(marker));
+            }
+
+            const serializedEpisodeData = {};
+            const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
+            rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
+            return {
+                markers : serializedMarkers,
+                episodeData : serializedEpisodeData
+            };
+        }
+
+        await PlexQueries.bulkDelete(toDelete);
+        // Return value is any remaining markers associated with the id. Should line up with ignoredMarkerIds
+        const newMarkerInfo = await PlexQueries.getMarkersAuto(metadataId);
+        Log.assert(newMarkerInfo.markers.length == ignoredMarkerIds.length, `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
+        const serializedMarkers = [];
+        newMarkerInfo.markers.forEach(m => serializedMarkers.push(new MarkerData(m)));
+        return {
+            markers : serializedMarkers
+        }
     }
 
     /**

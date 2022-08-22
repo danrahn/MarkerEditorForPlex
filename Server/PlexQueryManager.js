@@ -710,6 +710,17 @@ ORDER BY e.id ASC;`;
 
         return pruned;
     }
+
+    /**
+     * Delete all markers with the given ids.
+     * @param {RawMarkerData[]} markers */
+    async bulkDelete(markers) {
+        const transaction = new TransactionBuilder(this.#database);
+        for (const marker of markers) {
+            transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [marker.id]);
+        }
+        return transaction.exec();
+    }
 }
 
 export { PlexQueryManager, Instance as PlexQueries };

@@ -64,7 +64,7 @@ class QueryParser {
         }
 
         try {
-            return value.split(',').map(numStr => parseInt(numStr));
+            return value.length == 0 ? [] : value.split(',').map(numStr => parseInt(numStr));
         } catch (e) {
             throw new QueryParameterException(`Invalid value provided for ${key}`);
         }

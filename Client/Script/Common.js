@@ -76,6 +76,18 @@ const ServerCommand = {
      * @returns {Promise<ShiftResult>} */
     shift : async (id, shift, force, ignored=[]) => jsonRequest('shift', { id : id, shift : shift, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
+    /**
+     * Query for all markers that would be deleted for the given metadata id.
+     * @param {number} id
+     * @returns {Promise<{markers: SerializedMarkerData[], episodeData?: SerializedEpisodeData[]}>} */
+    checkBulkDelete : async (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, ignored : [] }),
+
+    /**
+     * Delete all markers associated with the given media item, except those specified in `ignored`.
+     * @param {number} id
+     * @param {number[]} [ignored =[]] List of marker ids to not delete.
+     * @returns {Promise<{markers: SerializedMarkerData[]}>} */
+    bulkDelete : async (id, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, ignored : ignored.join(',') }),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.
