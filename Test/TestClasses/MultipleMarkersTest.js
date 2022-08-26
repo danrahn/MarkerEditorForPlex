@@ -1,5 +1,5 @@
-import TestBase from "../TestBase.js";
-import TestHelpers from "../TestHelpers.js";
+import TestBase from '../TestBase.js';
+import TestHelpers from '../TestHelpers.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 
 /**
@@ -13,6 +13,7 @@ class MultipleMarkers extends TestBase {
             this.testAddAfterExisting,
             this.testAddBeforeExisting,
             this.testAddOverlapFails,
+            this.testReindexAfterDelete,
         ];
     }
 
@@ -113,6 +114,18 @@ class MultipleMarkers extends TestBase {
 
         // Identical
         await this.#failOverlap(15000, 45000);
+    }
+
+    /**
+     * Ensure that marker indexes are resolved correctly after one is deleted. */
+    async testReindexAfterDelete() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
+        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : episode.Marker2.Index }, null, null, null, null, null, 1, this.testDb);
+        let response = await this.send('delete', { id : episode.Marker1.Id });
+        TestHelpers.verify(response && response.id == episode.Marker1.Id, `Expected marker delete to return the marker we deleted.`);
+
+        // Verify the index of the second marker is now 0
+        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : 0 }, null, null, null, null, null, 0, this.testDb);
     }
 
     /**

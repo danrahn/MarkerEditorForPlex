@@ -169,6 +169,9 @@ class MarkerTable {
         }
 
         if (newIndex == oldIndex) {
+            if (forceReset) {
+                this.#rows[oldIndex].reset(); // Still want to reset timings even if the index is the same.
+            }
             return; // Same position, no rearranging needed.
         }
 
@@ -227,13 +230,14 @@ class MarkerTable {
             for (const markerRow of this.#rows) {
                 if (markerRow.markerId() == deletedMarker.id) {
                     row = markerRow.row();
+                    break;
                 }
             }
-        }
 
-        if (!row) {
-            Log.warn('Attempted to delete a marker without a row! Data may be incorrect');
-            return;
+            if (!row) {
+                Log.warn('Attempted to delete a marker without a row! Data may be incorrect');
+                return;
+            }
         }
 
         tableBody.removeChild(row);

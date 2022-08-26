@@ -1,13 +1,13 @@
-import { $, buildNode, clearEle } from "./Common.js";
+import { $, buildNode, clearEle } from './Common.js';
 
-import Overlay from "./inc/Overlay.js";
+import Overlay from './inc/Overlay.js';
 
-import SettingsManager from "./ClientSettings.js";
-import PlexClientState from "./PlexClientState.js";
-import { ShowResultRow } from "./ResultRow.js";
-import { Log } from "../../Shared/ConsoleLog.js";
+import SettingsManager from './ClientSettings.js';
+import PlexClientState from './PlexClientState.js';
+import { ShowResultRow } from './ResultRow.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
+/** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
 
 
 /**

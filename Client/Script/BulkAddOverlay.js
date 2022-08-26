@@ -1,0 +1,464 @@
+import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+
+import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
+import ButtonCreator from './ButtonCreator.js';
+import { $, appendChildren, buildNode, errorResponseOverlay, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+import Overlay from './inc/Overlay.js';
+import PlexClientState from './PlexClientState.js';
+import TableElements from './TableElements.js';
+import Tooltip from './inc/Tooltip.js';
+
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerData} MarkerData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResultEntry} SerializedBulkAddResultEntry */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes.js').ShowData} ShowData */
+
+/**
+ * UI for bulk adding markers to a given show/season
+ */
+class BulkAddOverlay {
+    /** @type {ShowData|SeasonData} */
+    #mediaItem;
+
+    /**
+     * @type {SerializedBulkAddResult} */
+    #tableData = {};
+
+    /** @type {number} */
+    #inputTimer = 0;
+
+    /** @type {{[episodeId: number]: BulkAddRow}}*/
+    #tableRows = {};
+    /** @type {number} Cached ms of the current start input to prevent repeated calculations. */
+    #cachedStart = NaN;
+    /** @type {number} Cached ms of the current end input to prevent repeated calculations. */
+    #cachedEnd = NaN;
+    /** @type {number} The current resolution type. */
+    #cachedApplyType = BulkMarkerResolveType.Fail;
+
+    /**
+     * List of descriptions for the various bulk marker resolution actions. */
+    static #descriptions = [
+        '',
+        'If any added marker conflicts with existing markers, fail the entire operation',
+        'If any added markers conflict with existing markers, merge them with into the existing marker(s)',
+        'If any added marker conflicts with existing markers, don\'t add the marker to the episode'
+    ];
+
+    /**
+     * Construct a new bulk add overlay.
+     * @param {ShowData|SeasonData} mediaItem */
+    constructor(mediaItem) {
+        this.#mediaItem = mediaItem;
+    }
+
+    /**
+     * Launch the bulk add overlay. */
+    show() {
+        let container = buildNode('div', { id : 'bulkActionContainer' });
+        let title = buildNode('h1', {}, 'Bulk Add Markers');
+        appendChildren(container,
+            title,
+            buildNode('hr'),
+            appendChildren(buildNode('div', { id : 'timeZone' }),
+                buildNode('label', { for : 'addStart' }, 'Start: '),
+                buildNode('input', {
+                    type : 'text',
+                    placeholder : 'ms or ms:ss[.000]',
+                    name : 'addStart',
+                    id : 'addStart' },
+                    0,
+                    { keyup : this.#onBulkAddInputChange.bind(this) }
+                ),
+                buildNode('label', { for : 'addEnd' }, 'End: '),
+                buildNode('input', {
+                    type : 'text',
+                    placeholder : 'ms or ms:ss[.000]',
+                    name : 'addEnd',
+                    id : 'addEnd' },
+                    0,
+                    { keyup : this.#onBulkAddInputChange.bind(this) }
+                )),
+            appendChildren(buildNode('div', { id : 'bulkAddApplyType' }),
+                buildNode('label', { for : 'applyTypeSelect' }, 'Apply Action: '),
+                appendChildren(
+                    buildNode('select', { id : 'applyTypeSelect' }, 0, { change : this.#onApplyTypeChange.bind(this) }),
+                    buildNode('option', { value : 1, selected : 'selected' }, 'Fail'),
+                    buildNode('option', { value : 2 }, 'Merge'),
+                    buildNode('option', { value : 3 }, 'Ignore')),
+                buildNode('div', { id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[BulkMarkerResolveType.Fail])
+            ),
+            buildNode('hr'),
+            appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
+                ButtonCreator.textButton('Apply', this.#apply.bind(this), { id  : 'bulkAddApply' }),
+                ButtonCreator.textButton('Customize', this.#check.bind(this)),
+                ButtonCreator.textButton('Cancel', Overlay.dismiss, { id : 'bulkAddCancel' })
+            )
+        );
+
+        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => $('#addStart').focus() } }, container);
+    }
+
+    /**
+     * Processes time input
+     * @param {MouseEvent} e */
+    #onBulkAddInputChange(e) {
+        this.#cachedStart = timeToMs($('#addStart').value);
+        this.#cachedEnd = timeToMs($('#addEnd').value);
+        clearTimeout(this.#inputTimer);
+        if (e.key == 'Enter') {
+            this.#updateTableStats();
+        }
+
+        this.#inputTimer = setTimeout(this.#updateTableStats.bind(this), 250);
+    }
+
+    /**
+     * Processes bulk marker resolution type change. */
+    #onApplyTypeChange() {
+        const sel = $('#applyTypeSelect');
+        if (!sel) { return; }
+        const val = parseInt(sel.value);
+        this.#cachedApplyType = val;
+        $('#applyTypeDescription').innerText = BulkAddOverlay.#descriptions[val];
+        this.#updateTableStats();
+    }
+
+    /**
+     * Attempts to apply the current marker to the selected episodes. */
+    async #apply() {
+        const startTime = this.startTime();
+        const endTime = this.endTime();
+        const resolveType = this.resolveType();
+        if (isNaN(startTime) || isNaN(endTime)) {
+            return BulkActionCommon.flashButton('bulkAddApply', 'red');
+        }
+
+        try {
+            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#getIgnored());
+            if (!result.applied) {
+                BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
+                return;
+            }
+
+            const episodes = Object.values(result.episodeMap);
+            let addCount = 0;
+            let editCount = 0;
+            let deleteCount = 0;
+            /** @type {BulkMarkerResult} */
+            const adds = {};
+            /** @type {BulkMarkerResult} */
+            const edits = {};
+            /** @type {BulkMarkerResult} */
+            const deletes = {};
+            for (const episodeInfo of episodes) {
+                if (episodeInfo.deletedMarkers) {
+                    for (const deleted of episodeInfo.deletedMarkers) {
+                        if (!deletes[deleted.showId]) { deletes[deleted.showId] = {}; }
+                        if (!deletes[deleted.showId][deleted.seasonId]) { deletes[deleted.showId][deleted.seasonId] = []; }
+                        deletes[deleted.showId][deleted.seasonId].push(new MarkerData().setFromJson(deleted));
+                        ++deleteCount;
+                    }
+                }
+
+                const marker = episodeInfo.changedMarker;
+                if (!marker) { continue; }
+                const mapToUse = episodeInfo.isAdd ? adds : edits;
+                const showId = marker.showId;
+                if (!mapToUse[showId]) { mapToUse[showId] = {}; }
+                const seasonId = marker.seasonId;
+                if (!mapToUse[showId][seasonId]) { mapToUse[showId][seasonId] = []; };
+                mapToUse[showId][seasonId].push(new MarkerData().setFromJson(marker));
+                episodeInfo.isAdd ? ++addCount : ++editCount;
+            }
+
+            BulkActionCommon.flashButton('bulkAddApply', 'green', 250).then(() => {
+                Overlay.show(`<h2>Bulk Add Succeeded</h2><hr>` +
+                    `Markers Added: ${addCount}<br>` +
+                    `Markers Edited: ${editCount}<br>` +
+                    `Markers Deleted: ${deleteCount}<br>` +
+                    `Episodes Ignored: ${result.ignoredEpisodes.length}`);
+            });
+
+
+            // Need to do this more efficiently. We can duplicate lots of server calls by separating these three.
+            await PlexClientState.GetState().notifyBulkActionChange(deletes, BulkActionType.Delete);
+            await PlexClientState.GetState().notifyBulkActionChange(adds, BulkActionType.Add);
+            await PlexClientState.GetState().notifyBulkActionChange(edits, BulkActionType.Shift);
+
+        } catch(err) {
+            await BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
+            errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
+        }
+    }
+
+    /**
+     * Request current marker statistics for the given episode group to check whether
+     * a bulk add will conflict with anything. */
+    async #check() {
+        try {
+            this.#tableData = await ServerCommand.checkBulkAdd(this.#mediaItem.metadataId);
+            this.#showCustomizeTable();
+        } catch (err) {
+            errorResponseOverlay('Unable to check bulk add, please try again later', err, this.show.bind(this));
+        }
+    }
+
+    /**
+     * Displays a table of all episodes in the group, with color coded columns
+     * to let the user know when a marker add will fail/be merged with existing markers. */
+    #showCustomizeTable() {
+        this.#tableRows = {};
+        const existingTable = $('#bulkAddCustomizeTable');
+        if (existingTable) {
+            existingTable.parentElement.removeChild(existingTable);
+        }
+
+        const table = buildNode('table', { class : 'markerTable', id : 'bulkAddCustomizeTable' });
+        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all', checked : 'checked' });
+        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkAddCustomizeTable'));
+        table.appendChild(
+            appendChildren(buildNode('thead'),
+                TableElements.rawTableRow(
+                    mainCheckbox,
+                    'Episode',
+                    'Title',
+                    TableElements.shortTimeColumn('Start'),
+                    TableElements.shortTimeColumn('End')
+                )
+            )
+        );
+
+        const episodeData = Object.values(this.#tableData.episodeMap).sort((a, b) => {
+            if (a.episodeData.seasonIndex != b.episodeData.seasonIndex) {
+                return a.episodeData.seasonIndex - b.episodeData.seasonIndex;
+            }
+
+            return a.episodeData.index - b.episodeData.index;
+        });
+
+        const rows = buildNode('tbody');
+        for (const episodeInfo of episodeData) {
+            const row = new BulkAddRow(this, episodeInfo);
+            this.#tableRows[episodeInfo.episodeData.metadataId] = row;
+            rows.appendChild(row.build());
+        }
+
+        table.appendChild(rows);
+        $('#bulkActionContainer').appendChild(table);
+        this.#updateTableStats();
+    }
+
+    startTime() { return this.#cachedStart; }
+    endTime() { return this.#cachedEnd; }
+    resolveType() { return this.#cachedApplyType; }
+
+    /** Update all items in the customization table, if present. */
+    #updateTableStats() {
+        const table = $('#bulkAddCustomizeTable');
+        if (!table) { return; }
+        Object.values(this.#tableRows).forEach(row => row.update());
+    }
+
+    /** Return the list of unchecked episodes.
+     * @returns {number[]} */
+    #getIgnored() {
+        const ignored = [];
+        for (const [episodeId, row] of Object.entries(this.#tableRows)) {
+            if (row.disabled()) {
+                ignored.push(episodeId);
+            }
+        }
+
+        return ignored;
+    }
+}
+
+/**
+ * Represents a single row in the bulk add customization table.
+ */
+class BulkAddRow {
+    /** @type {HTMLTableRowElement} */
+    #html;
+    /** @type {BulkAddOverlay} */
+    #parent;
+    /** @type {SerializedEpisodeData} */
+    #episodeInfo;
+    /** @type {HTMLTableCellElement} */
+    #startTd;
+    /** @type {HTMLTableCellElement} */
+    #endTd;
+    /** @type {SerializedMarkerData[]} */
+    #existingMarkers;
+    /** @type {boolean} */
+    #disabled = false;
+
+    /**
+     * @param {BulkAddOverlay} parent
+     * @param {SerializedBulkAddResultEntry} episodeInfo */
+    constructor(parent, episodeInfo) {
+        this.#parent = parent;
+        this.#episodeInfo = episodeInfo.episodeData;
+        this.#existingMarkers = episodeInfo.existingMarkers;
+    }
+
+    disabled() { return this.#disabled; }
+
+    /** Create and return the table row.
+     * @returns {HTMLTableRowElement} */
+    build() {
+        const startTime = this.#parent.startTime();
+        const endTime = this.#parent.endTime();
+        const row = TableElements.rawTableRow(
+            BulkActionCommon.checkbox(true, null, this.#episodeInfo.metadataId, {}, this.#onMarkerChecked, this),
+            `S${pad0(this.#episodeInfo.seasonIndex, 2)}E${pad0(this.#episodeInfo.index, 2)}`,
+            this.#episodeInfo.title,
+            isNaN(startTime) ? '-' : TableElements.timeData(endTime),
+            isNaN(endTime) ? '-' : TableElements.timeData(endTime)
+        );
+
+        this.#html = row;
+        this.#startTd = this.#html.children[3];
+        this.#endTd = this.#html.children[4];
+        return row;
+    }
+
+    /**
+     * Update the text/colors of this row. */
+    update() {
+        if (this.#disabled) {
+            return;
+        }
+
+        const startTimeBase = this.#parent.startTime();
+        const endTimeBase = this.#parent.endTime();
+        const resolveType = this.#parent.resolveType();
+        const warnClass = resolveType == BulkMarkerResolveType.Merge ? 'bulkActionSemi' : 'bulkActionOff';
+        this.#clear();
+        let start = startTimeBase;
+        let end = endTimeBase;
+        let semiWarn = false;
+        let isWarn = false;
+        let tooltip = '';
+        if (!isNaN(startTimeBase) && !isNaN(endTimeBase) && startTimeBase < endTimeBase) {
+            for (const existingMarker of this.#existingMarkers) {
+                if (start >= existingMarker.start && start <= existingMarker.end) {
+                    isWarn = true;
+                    semiWarn = false;
+                    this.#startTd.classList.add(warnClass);
+                    tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                    if (resolveType == BulkMarkerResolveType.Merge) {
+                        start = existingMarker.start;
+                        end = Math.max(end, existingMarker.end);
+                    } else {
+                        this.#setSingleClass(this.#endTd, warnClass);
+                    }
+                } else if (end >= existingMarker.start && end <= existingMarker.end) {
+                    isWarn = true;
+                    semiWarn = false;
+                    this.#setSingleClass(this.#endTd, warnClass);
+                    tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                    if (resolveType == BulkMarkerResolveType.Merge) {
+                        start = Math.min(start, existingMarker.start);
+                    }
+
+                    this.#startTd.classList.add(warnClass);
+                } else if (end > this.#episodeInfo.duration) {
+                    isWarn = true;
+                    if (!this.#endTd.classList.contains('bulkActionOff')) {
+                        semiWarn = true;
+                        this.#endTd.classList.add('bulkActionSemi');
+                    }
+
+                    tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
+                    end = this.#episodeInfo.duration;
+                    start = Math.min(start, end);
+                }
+            }
+
+            if (tooltip.length != 0) {
+                tooltip = tooltip.substring(4);
+                Tooltip.setTooltip(this.#startTd, tooltip);
+                Tooltip.setTooltip(this.#endTd, tooltip);
+            } else {
+                Tooltip.removeTooltip(this.#startTd);
+                Tooltip.removeTooltip(this.#endTd);
+            }
+
+            if (!isWarn) {
+                this.#setClassBoth('bulkActionOn');
+            }
+
+            if (resolveType == BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
+                this.#html.classList.add('bulkActionInactive');
+            } else {
+                this.#html.classList.remove('bulkActionInactive');
+            }
+
+
+
+            this.#startTd.innerText = msToHms(start);
+            this.#endTd.innerText = msToHms(end);
+        } else {
+            isWarn = true;
+            this.#startTd.innerText = '--:--:--.---';
+            this.#endTd.innerText = '--:--:--.---';
+            this.#setClassBoth(warnClass);
+        }
+    }
+
+    /**
+     * Processes this row being checked/unchecked.
+     * @param {HTMLInputElement} checkbox */
+    #onMarkerChecked(checkbox) {
+        const checked = checkbox.checked;
+        this.#disabled = !checked;
+        const row = this.#html;
+        if (checked) {
+            row.classList.remove('bulkActionInactive');
+            this.update();
+        } else {
+            row.classList.add('bulkActionInactive');
+            this.#clear(true /*clearText*/);
+        }
+    }
+
+    /**
+     * Clears any custom classes of the start/end columns.
+     * @param {boolean} clearText Whether to also reset the start/end time text. */
+    #clear(clearText=false) {
+        for (const td of [this.#startTd, this.#endTd]) {
+            if (clearText) {
+                td.innerText = '--:--:--.---';
+            }
+
+            td.classList.remove('bulkActionOn');
+            td.classList.remove('bulkActionOff');
+            td.classList.remove('bulkActionSemi');
+        }
+    }
+
+    /**
+     * Add the given class to both the start and end columns.
+     * @param {string} className */
+    #setClassBoth(className) {
+        this.#startTd.classList.add(className);
+        this.#endTd.classList.add(className);
+    }
+
+    /**
+     * Add the given class to both the start and end columns, clearing out any other custom classes.
+     * @param {HTMLTableCellElement} td
+     * @param {string} className */
+    #setSingleClass(td, className) {
+        td.classList.remove('bulkActionOn');
+        td.classList.remove('bulkActionOff');
+        td.classList.remove('bulkActionSemi');
+        td.classList.add(className);
+    }
+}
+
+export default BulkAddOverlay;

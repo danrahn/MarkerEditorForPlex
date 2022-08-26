@@ -1,9 +1,9 @@
-import { contentType } from "mime-types";
+import { contentType } from 'mime-types';
 import { gzip } from 'zlib';
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
-import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
-import ServerError from "./ServerError.js";
+import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
+import ServerError from './ServerError.js';
 
 /**
  * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.

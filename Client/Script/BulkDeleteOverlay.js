@@ -1,14 +1,12 @@
 import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
-import Animation from './inc/Animate.js';
 import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import PlexClientState from './PlexClientState.js';
 import TableElements from './TableElements.js';
-import ThemeColors from './ThemeColors.js';
 
 
 /**
@@ -19,7 +17,7 @@ class BulkDeleteOverlay {
     #mediaItem;
 
     /**
-     * Construct a new shift overlay.
+     * Construct a new bulk delete overlay.
      * @param {ShowData|SeasonData} mediaItem */
     constructor(mediaItem) {
         this.#mediaItem = mediaItem;
@@ -53,27 +51,16 @@ class BulkDeleteOverlay {
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
 
             PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Delete);
-            await this.#flashButton($('#deleteApply'), 'green');
+            await BulkActionCommon.flashButton('deleteApply', 'green');
             if (result.markers.length == 0) {
                 return Overlay.dismiss();
             }
 
             this.#showCustomizationTable();
         } catch (err) {
-            await this.#flashButton($('#deleteApply'), 'red', 250);
+            await BulkActionCommon.flashButton('deleteApply', 'red', 250);
             errorResponseOverlay('Unable to bulk delete, please try again later', err, this.show.bind(this));
         }
-    }
-
-    /**
-     * Flash the background of the given button the given theme color.
-     * @param {HTMLElement} button
-     * @param {string} color */
-    async #flashButton(button, color, duration=500) {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, duration);
-        return new Promise((resolve, _) => {
-            Animation.queueDelayed({ backgroundColor : 'transparent' }, button, duration, duration, true, resolve);
-        });
     }
 
     /**

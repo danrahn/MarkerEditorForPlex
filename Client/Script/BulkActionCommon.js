@@ -1,6 +1,10 @@
 import { MarkerData } from '../../Shared/PlexTypes.js';
 
+import Animation from './inc/Animate.js';
 import { $, appendChildren, buildNode } from './Common.js';
+import ThemeColors from './ThemeColors.js';
+import { Log } from '../../Shared/ConsoleLog.js';
+
 /** @typedef {!import("../../Shared/PlexTypes").SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import("../../Shared/PlexTypes").SerializedMarkerData} SerializedMarkerData */
 
@@ -85,6 +89,20 @@ class BulkActionCommon {
         }
 
         return markerMap;
+    }
+
+    /**
+     * Flash the background of the given button the given theme color.
+     * @param {string|HTMLElement} buttonId
+     * @param {string} color
+     * @param {number} [duration=500] */
+    static async flashButton(buttonId, color, duration=500) {
+        const button = typeof buttonId === 'string' ? $(`#${buttonId}`) : buttonId;
+        if (!button) { Log.warn(`BulkActionCommon::flashButton - Didn't find button`); return; }
+        Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, duration);
+        return new Promise((resolve, _) => {
+            Animation.queueDelayed({ backgroundColor : 'transparent' }, button, duration, duration, true, resolve);
+        });
     }
 }
 

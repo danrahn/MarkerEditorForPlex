@@ -83,9 +83,10 @@ function setupTerminateHandlers() {
     // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
     process.on('uncaughtException', (err) => {
         Log.critical(err.message);
-        Log.verbose(err.stack ? err.stack : '(Could not find stack trace)');
+        const stack = err.stack ? err.stack : '(Could not find stack trace)';
+        IsTest ? Log.error(stack) : Log.verbose(stack);
         Log.error('The server ran into an unexpected problem, exiting...');
-        writeErrorToFile(err.message + '\n' + err.stack ? err.stack : '(Could not find stack trace)');
+        writeErrorToFile(err.message + '\n' + stack);
         cleanupForShutdown();
         process.exit(1);
     });
@@ -286,7 +287,7 @@ function shouldCreateServer() {
  * Entrypoint for incoming connections to the server.
  * @type {Http.RequestListener}
  */
-function serverMain(req, res) {
+async function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
@@ -310,9 +311,11 @@ function serverMain(req, res) {
         // Only serve static resources via GET, and only accept queries for JSON via POST.
         switch (method) {
             case 'get':
-                return GETHandler.handleRequest(req, res);
+                await GETHandler.handleRequest(req, res);
+                return;
             case 'post':
-                return handlePost(req, res);
+                await handlePost(req, res);
+                return;
             default:
                 return sendJsonError(res, new ServerError(`Unexpected method "${req.method?.toUpperCase()}"`, 405));
         }

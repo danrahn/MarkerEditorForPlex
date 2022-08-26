@@ -1,6 +1,8 @@
 import { Log } from '../../Shared/ConsoleLog.js';
+import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import Overlay from './inc/Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedShowData} SerializedShowData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
@@ -88,6 +90,22 @@ const ServerCommand = {
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
      * @returns {Promise<{markers: SerializedMarkerData[], deletedMarkers: SerializedMarkerData[]}>} */
     bulkDelete : async (id, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, ignored : ignored.join(',') }),
+
+    /**
+     * Retrieve episode and marker information relevant to a bulk_add operation.
+     * @param {number} id Show/Season metadata id.
+     * @returns {Promise<SerializedBulkAddResult>} */
+    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : ''}),
+
+    /**
+     * Bulk adds a marker to the given metadata id.
+     * @param {number} id Show/Season metadata id.
+     * @param {number} start Start time of the marker, in milliseconds.
+     * @param {number} end End time of the marker, in milliseconds.
+     * @param {number} resolveType The BulkMarkerResolveType.
+     * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
+     * @returns {Promise<SerializedBulkAddResult>} */
+    bulkAdd : async (id, start, end, resolveType, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, resolveType : resolveType, ignored : ignored.join(',')}),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.

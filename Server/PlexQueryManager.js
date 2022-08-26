@@ -11,15 +11,18 @@
  * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
  */
 
+/** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
+/** @typedef {!import('../Shared/PlexTypes.js').BulkAddResultEntry} BulkAddResultEntry */
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
 
-import { Log } from "../Shared/ConsoleLog.js";
+import { Log } from '../Shared/ConsoleLog.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../Shared/PlexTypes.js';
 
-import CreateDatabase from "./CreateDatabase.cjs";
-import DatabaseWrapper from "./DatabaseWrapper.js";
-import ServerError from "./ServerError.js";
-import TransactionBuilder from "./TransactionBuilder.js";
+import CreateDatabase from './CreateDatabase.cjs';
+import DatabaseWrapper from './DatabaseWrapper.js';
+import ServerError from './ServerError.js';
+import TransactionBuilder from './TransactionBuilder.js';
 
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
@@ -253,7 +256,7 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
-     * @param {number[]} episodeMetadataIds
+     * @param {Iterable<number>} episodeMetadataIds
      * @returns {Promise<RawEpisodeData[]>}*/
     async getEpisodesFromList(episodeMetadataIds) {
         let query = `
@@ -429,6 +432,24 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Helper that adds an 'add marker' statement to the given transaction.
+     * @param {TransactionBuilder} transaction
+     * @param {number} episodeId The episode to add the marker to.
+     * @param {number} newIndex New marker's index in the list of existing markers.
+     * @param {number} startMs Start time of the new marker, in milliseconds.
+     * @param {number} endMs End time of the new marker, in milliseconds. */
+    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs) {
+        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+        const addQuery =
+            'INSERT INTO taggings ' +
+                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+            'VALUES ' +
+                '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
+        const parameters = [episodeId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+        transaction.addStatement(addQuery, parameters);
+    }
+
+    /**
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
      * @returns {Promise<{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[]}} */
@@ -488,13 +509,7 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 ++expectedInserts;
-                const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
-                transaction.addStatement(
-                    'INSERT INTO taggings ' +
-                        '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-                    'VALUES ' +
-                        `(?, ?, ?, "intro", ?, ?, ?, CURRENT_TIMESTAMP, "pv%3Aversion=5");`
-                , [episodeId, this.#markerTagId, marker.newIndex, marker.start, marker.end, thumbUrl]);
+                this.#addMarkerStatement(transaction, episodeId, marker.newIndex, marker.start, marker.end);
             }
 
             // updateMarkerIndex, without actually executing it.
@@ -752,6 +767,171 @@ ORDER BY e.id ASC;`;
             transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [marker.id]);
         }
         return transaction.exec();
+    }
+
+    /**
+     * Add a marker to every episode under metadataId (a show, season, or episode id)
+     * @param {RawMarkerData[]} markerData Existing markers for the given metadata id.
+     * @param {number} metadataId
+     * @param {number} baseStart Marker start, in milliseconds
+     * @param {number} baseEnd Marker end, in milliseconds
+     * @param {number} resolveType The `BulkMarkerResolveType`
+     * @param {number[]} ignored List of episode ids to skip.
+     * @returns {Promise<BulkAddResult>} */
+    async bulkAdd(markerData, metadataId, baseStart, baseEnd, resolveType, ignored=[]) {
+        // This is all very inefficient. It's probably fine even in extreme scenarios since DB queries will take
+        // up the majority of the time, but there are most definitely more efficient ways to do this.
+        const existingMarkers = markerData.markers;
+        const ignoredEpisodes = new Set(ignored);
+        const episodeIds = new Set();
+        const newIgnoredEpisodes = [];
+        switch (markerData.typeInfo.metadata_type) {
+            case 4: // Single episode. No reason to go through bulk, but might as well support it
+                if (!ignoredEpisodes.has(metadataId)) { episodeIds.add(metadataId); }
+                break;
+            case 3: // Season
+            {
+                const ids = await this.#database.all(`SELECT id FROM metadata_items WHERE parent_id=?;`, [metadataId]);
+                ids.forEach(i => episodeIds.add(i.id));
+                break;
+            }
+            case 2: // Show
+            {
+                const ids = await this.#database.all(`SELECT e.id FROM metadata_items e INNER JOIN metadata_items p ON p.id=e.parent_id WHERE p.parent_id=?;`, [metadataId]);
+                ids.forEach(i => episodeIds.add(i.id));
+                break;
+            }
+            default:
+                throw new ServerError(`Attempting to bulk add to an unexpected media type '${markerData.typeInfo.metadata_type}'`, 400);
+        }
+
+        // This could probably be combined with the switch above, but it shouldn't be _that_ much slower
+        const episodeData = await this.getEpisodesFromList(episodeIds);
+
+        /** @type {{[episodeId: number]: BulkAddResultEntry}} */
+        const episodeMarkerMap = {};
+        episodeData.forEach(e => episodeMarkerMap[e.id] = { episodeData : new EpisodeData(e), existingMarkers : [] });
+        existingMarkers.forEach(m => episodeMarkerMap[m.episode_id].existingMarkers.push(new MarkerData(m)));
+        Object.values(episodeMarkerMap).forEach(ed => ed.existingMarkers.sort((a, b) => a.start - b.start));
+
+        // For dry runs, we just return all episodes and their associated markers (if any)
+        if (resolveType == BulkMarkerResolveType.DryRun) {
+            return {
+                applied : false,
+                episodeMap : episodeMarkerMap
+            };
+        }
+
+        // First conflict pass
+        for (const marker of existingMarkers) {
+            if (ignoredEpisodes.has(marker.episode_id)) { continue; }
+            if (baseStart <= marker.start ? baseEnd >= marker.start : baseStart <= marker.end) {
+                // Conflict.
+                if (resolveType == BulkMarkerResolveType.Fail) {
+                    // Still a success, because the users _wants_ this to fail.
+                    return {
+                        applied : false,
+                        conflict : true,
+                        episodeMap : episodeMarkerMap
+                    };
+                }
+
+                if (resolveType == BulkMarkerResolveType.Ignore) {
+                    episodeIds.delete(marker.episode_id);
+                    ignoredEpisodes.add(marker.episode_id);
+                    newIgnoredEpisodes.push(marker.episode_id);
+                }
+            }
+        }
+
+        const mergeEdited = new Set(); // Set of RawMarkerData ids that were edited. Map from RawMarkerData after reindex to map to episodeMap.editedMarkers
+        const plainAdd = new Set(); // Set of episodeIds that have a normal add. Correlate after reindex with start and end time, map to episodeMap.addedMarkers
+        const transaction = new TransactionBuilder(this.#database);
+        for (const episodeId of episodeIds) {
+            if (ignoredEpisodes.has(episodeId)) { continue; }
+            const episodeEnd = Math.min(episodeMarkerMap[episodeId].episodeData.duration, baseEnd);
+            const episodeMarkers = episodeMarkerMap[episodeId].existingMarkers;
+            if (!episodeMarkers || episodeMarkers.length == 0) {
+                this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, baseStart, episodeEnd);
+                plainAdd.add(episodeId);
+                episodeMarkerMap[episodeId].isAdd = true;
+                continue;
+            }
+
+            // Process merges and envelops.
+            for (let i = 0; i < episodeMarkers.length; ++i) {
+                let episodeMarker = episodeMarkers[i];
+                if (episodeMarker.end < baseStart) {
+                    if (i == episodeMarkers.length - 1) {
+                        // We're adding beyond the last marker
+                        this.#addMarkerStatement(transaction, episodeId, episodeMarkers.length, baseStart, episodeEnd);
+                        plainAdd.add(episodeId);
+                        episodeMarkerMap[episodeId].isAdd = true;
+                    }
+
+                    continue;
+                }
+
+                if (baseStart <= episodeMarker.start ? episodeEnd >= episodeMarker.start : baseStart <= episodeMarker.end) {
+                    // If we have a conflict here, resolve type better be merge.
+                    if (resolveType != BulkMarkerResolveType.Merge) {
+                        throw new ServerError(`Attempted to merge markers during a bulk add when the user didn't request it`, 500);
+                    }
+
+                    episodeMarker.start = Math.min(baseStart, episodeMarker.start);
+                    episodeMarker.end = Math.max(episodeEnd, episodeMarker.end);
+                    while (i < episodeMarkers.length - 1 && episodeMarkers[i + 1].start <= episodeMarker.end) {
+                        // Merge next marker into existing, deleting next marker.
+                        const nextMarker = episodeMarkers[++i];
+                        episodeMarker.end = Math.max(episodeMarker.end, nextMarker.end);
+                        transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [nextMarker.id]);
+                        if (!episodeMarkerMap[episodeId].deletedMarkers) {
+                            episodeMarkerMap[episodeId].deletedMarkers = [];
+                        }
+
+                        episodeMarkerMap[episodeId].deletedMarkers.push(nextMarker);
+                    }
+
+                    const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${episodeMarker.createdByUser ? " || '*'" : ''}`;
+                    transaction.addStatement(
+                        `UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=${thumbUrl} WHERE id=?;`,
+                        [episodeMarker.start, episodeMarker.end, episodeMarker.id]);
+                    episodeMarkerMap[episodeId].isAdd = false;
+                    mergeEdited.add(episodeMarker.id);
+                    break;
+                }
+
+                this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd);
+                episodeMarkerMap[episodeId].isAdd = true;
+                plainAdd.add(episodeId);
+                break;
+            }
+        }
+
+        // Clear existing markers and refill with reindexed markers
+        Object.values(episodeMarkerMap).forEach(eg => eg.existingMarkers = []);
+
+        await transaction.exec();
+        const newMarkers = (await this.reindex(metadataId)).markers;
+        for (const marker of newMarkers) {
+            const markerData = new MarkerData(marker);
+            if (mergeEdited.has(marker.id)) {
+                episodeMarkerMap[marker.episode_id].changedMarker = markerData;
+            } else if (plainAdd.has(marker.episode_id) && marker.start == baseStart) {
+                // End may be truncated, so only check for start. All the checks above should guarantee
+                // that only checking the start is unique.
+                episodeMarkerMap[marker.episode_id].changedMarker = markerData;
+            }
+
+            episodeMarkerMap[marker.episode_id].existingMarkers.push(markerData);
+        }
+
+        Object.values(episodeMarkerMap).forEach(eg => eg.existingMarkers.sort((a, b) => a.start - b.start));
+        return {
+            applied : true,
+            episodeMap : episodeMarkerMap,
+            ignoredEpisodes : Array.from(ignoredEpisodes),
+        }
     }
 }
 

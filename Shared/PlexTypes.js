@@ -21,6 +21,36 @@
  * 
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
  * @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection
+ * 
+ * @typedef {{
+ *          episodeData: EpisodeData,
+ *          existingMarkers: MarkerData[],
+ *          changedMarker: MarkerData?,
+ *          isAdd: boolean?,
+ *          deletedMarkers: MarkerData[]?
+ *      }} BulkAddResultEntry
+ * 
+ * @typedef {{
+ *      applied: boolean,
+ *      conflict: boolean?,
+ *      episodeMap: {[episodeId: number]: BulkAddResultEntry},
+ *      ignoredEpisodes: number[]?
+ * }} BulkAddResult
+ * 
+ * @typedef {{
+ *          episodeData: SerializedEpisodeData,
+ *          existingMarkers: SerializedMarkerData[],
+ *          changedMarker: SerializedMarkerData?,
+ *          isAdd: boolean?,
+ *          deletedMarkers: SerializedMarkerData[]?
+ *      }} SerializedBulkAddResultEntry
+ * 
+ * @typedef {{
+ *      applied: boolean,
+ *      conflict: boolean?,
+ *      episodeMap: {[episodeId: number]: SerializedBulkAddResultEntry},
+ *      ignoredEpisodes: number[]?
+ * }} SerializedBulkAddResult
  */
 
 /**
@@ -385,4 +415,17 @@ class MarkerData extends PlexData {
     }
 }
 
-export { PlexData, ShowData, SeasonData, EpisodeData, MarkerData }
+/**
+ * Behavior of bulk marker actions that might conflict with existing markers. */
+const BulkMarkerResolveType = {
+    /** Don't apply anything, just check existing markers and whether there are any conflicts */
+    DryRun : 0,
+    /** Try to apply, but fail the entire operation if any markers overlap with existing ones. */
+    Fail   : 1,
+    /** Force apply, merging any overlapping markers into a single longer marker. */
+    Merge  : 2,
+    /** Apply if there aren't any overlapping markers, skipping episodes that do have overlap. */
+    Ignore : 3,
+};
+
+export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData }

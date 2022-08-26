@@ -13,6 +13,7 @@ import { ConsoleLog } from '../Shared/ConsoleLog.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
+import BulkAddTest from './TestClasses/BulkAddTest.js';
 
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
@@ -32,6 +33,7 @@ class TestRunner {
         QueryTest : QueryTest,
         ShiftTest : ShiftTest,
         BulkDeleteTest : BulkDeleteTest,
+        BulkAddTest : BulkAddTest,
     };
 
     constructor() {

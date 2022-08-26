@@ -11,7 +11,7 @@ import { PlexUI } from './PlexUI.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
-/** @typedef {!import('./BulkDeleteOverlay.js').BulkActionCommon} BulkMarkerResult */
+/** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
 
 /**
 * A class that keeps track of the currently UI state of Plex Intro Editor,
@@ -344,43 +344,60 @@ class PlexClientState {
      * TODO: Very similar to notifyPurgeChange. Can anything be shared?
      * @param {BulkMarkerResult} markers 
      * @param {number} bulkActionType */
-    notifyBulkActionChange(markers, bulkActionType) {
+    async notifyBulkActionChange(markers, bulkActionType) {
         // Shifts/edits don't result in different marker breakdowns,
-        // so most of this can be skipped.
+        // so most of this can be skipped (for now).
         const isShift = bulkActionType == BulkActionType.Shift;
-        if (!isShift) {
-            for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
-                if (markers[searchRow.show().metadataId]) {
-                    this.updateNonActiveBreakdown(searchRow, []);
-                }
-            }
-        }
 
         if (!this.#activeShow) {
-            return;
+            return this.#updateBulkActionSearchRow(markers, bulkActionType);
         }
 
         const showData = markers[this.#activeShow.show().metadataId];
-        if (!this.#activeShow) {
-            if (!isShift) {
-                this.#activeShow.notifyBulkAction(showData);
-            }
-            return;
+
+        if (!showData) {
+            return this.#updateBulkActionSearchRow(markers, bulkActionType);
+        }
+
+        if (!this.#activeSeason) {
+            this.#activeShow.notifyBulkAction(showData);
+            return this.#updateBulkActionSearchRow(markers, bulkActionType);
         }
 
         const seasonData = showData[this.#activeSeason.season().metadataId];
         if (!seasonData) {
             if (!isShift) {
-                this.#activeShow.notifyBulkAction(showData);
+                await this.#activeShow.notifyBulkAction(showData);
             }
-            return;
+            return this.#updateBulkActionSearchRow(markers, bulkActionType);
         }
 
         // If possible we want to update the activeSeason first to avoid
         // any conflicts when updating marker breakdown caches.
         this.#activeSeason.notifyBulkAction(seasonData, bulkActionType);
         if (!isShift) {
-            this.#activeShow.notifyBulkAction(showData);
+            await this.#activeShow.notifyBulkAction(showData);
+        }
+
+        return this.#updateBulkActionSearchRow(markers, bulkActionType);
+    }
+
+    /**
+     * Updates marker breakdown after a bulk action for the search row result, if present.
+     * @param {BulkMarkerResult} markers
+     * @param {number} bulkActionType */
+    async #updateBulkActionSearchRow(markers, bulkActionType) {
+        // Shifts don't update marker counts (for now)
+        if (bulkActionType == BulkActionType.Shift) {
+            return;
+        }
+
+        const affectedShows = Object.keys(markers).length;
+        Log.assert(affectedShows <= 1, `Bulk actions should target a single show, found ${affectedShows}`);
+        for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
+            if (markers[searchRow.show().metadataId]) {
+                return this.updateNonActiveBreakdown(searchRow, []);
+            }
         }
     }
 

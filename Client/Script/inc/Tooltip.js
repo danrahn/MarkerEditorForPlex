@@ -38,16 +38,18 @@ let Tooltip = new function()
     {
         this.setText(element, tooltip);
         element.setAttribute("ttDelay", delay);
-        element.addEventListener("mousemove", function(e)
-        {
-            Tooltip.showTooltip(e, this.getAttribute("tt"), this.getAttribute("ttDelay"));
-        });
+        element.addEventListener("mousemove", mouseMoveListener);
 
-        element.addEventListener("mouseleave", function()
-        {
-            Tooltip.dismiss();
-        });
+        element.addEventListener("mouseleave", Tooltip.dismiss);
     };
+
+    /**
+     * Common mousemove listener for tooltips
+     * @param {MouseEvent} e */
+    let mouseMoveListener = function(e)
+    {
+        Tooltip.showTooltip(e, this.getAttribute("tt"), this.getAttribute("ttDelay"));
+    }
 
     /**
      * Sets the tooltip text for the given element.
@@ -63,6 +65,15 @@ let Tooltip = new function()
             $("#tooltip").innerHTML = tooltip;
         }
     };
+
+    /**
+     * Removes the tooltip from the given element
+     * @param {HTMLElement} element */
+    this.removeTooltip = function(element) {
+        element.removeAttribute('tt');
+        element.removeEventListener('mousemove', mouseMoveListener);
+        element.removeEventListener('mouseleave', Tooltip.dismiss);
+    }
 
     /**
      * Retrieve the current tooltip text for the given element,

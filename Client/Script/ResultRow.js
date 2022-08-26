@@ -6,6 +6,7 @@ import Tooltip from './inc/Tooltip.js';
 import Overlay from './inc/Overlay.js';
 
 import { BulkActionType } from './BulkActionCommon.js';
+import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -221,11 +222,13 @@ class BulkActionResultRow extends ResultRow {
         }
 
         let titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
-        let emptyRow = buildNode('div');
-        let row = this.buildRowColumns(titleNode, emptyRow, null);
-        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.textButton('Shift Markers', this.#bulkShift.bind(this), { style : 'margin-right: 10px'}),
-            ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this)));
+        let row = buildNode('div', { class : 'bulkResultRow' });
+        appendChildren(row,
+            titleNode,
+            appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
+                ButtonCreator.textButton('Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px'}),
+                ButtonCreator.textButton('Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px'}),
+                ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this))));
 
         this.setHtml(row);
         return row;
@@ -233,6 +236,12 @@ class BulkActionResultRow extends ResultRow {
 
     // Override default behavior and don't show anything here, since we override this with our own actions.
     episodeDisplay() { }
+
+    /**
+     * Launch the bulk add overlay for the current media item (show/season). */
+    #bulkAdd() {
+        new BulkAddOverlay(this.mediaItem()).show();
+    }
 
     /**
      * Launch the bulk shift overlay for the current media item (show/season). */
@@ -334,7 +343,7 @@ class ShowResultRow extends ResultRow {
     /**
      * Update marker breakdown data after a bulk update.
      * @param {{[seasonId: number]: MarkerData[]}} changedMarkers */
-    notifyBulkAction(changedMarkers) {
+    async notifyBulkAction(changedMarkers) {
         let needsUpdate = [];
         for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
             // Only need to update if the season was affected
@@ -343,7 +352,7 @@ class ShowResultRow extends ResultRow {
             }
         }
 
-        PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
+        return PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
@@ -503,6 +512,9 @@ class SeasonResultRow extends ResultRow {
      * @param {MarkerData[]} changedMarkers
      * @param {number} bulkActionType */
     notifyBulkAction(changedMarkers, bulkActionType) {
+        // Sort by index high to low to to avoid the marker table from
+        // getting indexes out of sync.
+        changedMarkers.sort((a, b) => b.index - a.index);
         for (const marker of changedMarkers) {
             const episode = this.#episodes[marker.episodeId];
             if (!episode) {

@@ -231,7 +231,7 @@ class BulkShiftOverlay {
     async #tryApply() {
         let shift = this.#shiftValue();
         if (!shift) {
-            return this.#flashButton($('#shiftApply'), 'red');
+            return BulkActionCommon.flashButton('shiftApply', 'red');
         }
 
         const ignoreInfo = this.#getIgnored();
@@ -251,7 +251,7 @@ class BulkShiftOverlay {
 
             // If we are already showing the force shift subdialog, just flash the button
             if (existingMessage == 'unresolvedAgain' || existingMessage == 'unresolvedPlus') {
-                return this.#flashButton($('#shiftApply'), 'red');
+                return BulkActionCommon.flashButton('shiftApply', 'red');
             }
 
             this.#showMessage('unresolved');
@@ -274,7 +274,7 @@ class BulkShiftOverlay {
         if (shiftResult.applied) {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
-            await this.#flashButton($('#shiftApply'), 'green');
+            await BulkActionCommon.flashButton('shiftApply', 'green');
 
             Overlay.dismiss();
             return;
@@ -291,7 +291,7 @@ class BulkShiftOverlay {
     async #forceApply() {
         let shift = this.#shiftValue();
         if (!shift) {
-            $('.shiftForceApply').forEach(f => this.#flashButton(f, 'red'));
+            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
         }
 
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
@@ -309,12 +309,12 @@ class BulkShiftOverlay {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
             $('.shiftForceApply').forEach(async f => {
-                await this.#flashButton(f, 'green');
+                await BulkActionCommon.flashButton(f, 'green');
                 Overlay.dismiss();
             });
 
         } catch (ex) {
-            $('.shiftForceApply').forEach(f => this.#flashButton(f, 'red'));
+            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
         }
     }
 
@@ -336,17 +336,6 @@ class BulkShiftOverlay {
         }
 
         return shift;
-    }
-
-    /**
-     * Flash the background of the given button the given theme color.
-     * @param {HTMLElement} button
-     * @param {string} color */
-    async #flashButton(button, color) {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, 500);
-        return new Promise((resolve, _) => {
-            Animation.queueDelayed({ backgroundColor : 'transparent' }, button, 500, 500, true, resolve);
-        });
     }
 
     /**

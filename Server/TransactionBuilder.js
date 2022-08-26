@@ -1,4 +1,5 @@
-import DatabaseWrapper from "./DatabaseWrapper.js";
+import { Log } from '../Shared/ConsoleLog.js';
+import DatabaseWrapper from './DatabaseWrapper.js';
 
 class TransactionBuilder {
     /** @type {string[]} */
@@ -47,6 +48,7 @@ class TransactionBuilder {
     /**
      * Executes the current transaction.*/
     async exec() {
+        Log.tmi(this.toString(), `Running transaction`);
         return this.#db.exec(this.toString());
     }
 }

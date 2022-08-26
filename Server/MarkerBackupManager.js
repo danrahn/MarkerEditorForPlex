@@ -349,23 +349,32 @@ class MarkerBackupManager {
 
     /**
      * Records a marker that was added to the Plex database.
-     * @param {MarkerData} marker */
-    async recordAdd(marker) {
-        if (!(marker.sectionId in this.#uuids)) {
-            Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
-            return Promise.resolve();
+     * @param {MarkerData[]} markers */
+    async recordAdds(markers) {
+        const transaction = new TransactionBuilder(this.#actions);
+        for (const marker of markers) {
+            if (!(marker.sectionId in this.#uuids)) {
+                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
+                return Promise.resolve();
+            }
+    
+            // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
+            const query = `
+    INSERT INTO actions
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5", ?)`;
+            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, this.#uuids[marker.sectionId]];
+    
+            transaction.addStatement(query, parameters);
         }
 
-        // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
-        const query = `
-INSERT INTO actions
-(op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
-(?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5", ?)`;
-        const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, this.#uuids[marker.sectionId]];
+        if (transaction.empty()) {
+            return;
+        }
 
         try {
-            this.#actions.run(query, parameters);
-            Log.verbose(`MarkerBackupManager: Marker add of id ${marker.id} added to backup.`);
+            await transaction.exec();
+            Log.verbose(`MarkerBackupManager: ${transaction.statementCount()} marker add(s) added to backup.`);
         } catch (err) {
             Log.error(err.message, 'MarkerBackupManager: Unable to record added marker');
         }
