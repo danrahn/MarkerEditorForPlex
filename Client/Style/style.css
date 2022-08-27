@@ -245,6 +245,10 @@ input:focus-visible {
   padding: 2px;
 }
 
+.goBack>.buttonTextOnly {
+  font-weight: bold; /* Always bold to avoid shifting on hover */
+}
+
 .selected {
   background: rgba(0,100,0,0.2);
   font-weight: bold;

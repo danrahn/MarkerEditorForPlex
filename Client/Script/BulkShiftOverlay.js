@@ -1,14 +1,15 @@
 import { Log } from '../../Shared/ConsoleLog.js';
 import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
-import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
+import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
-import { $, $$, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
 import Overlay from './inc/Overlay.js';
 import PlexClientState from './PlexClientState.js';
 import TableElements from './TableElements.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
 
 /**
@@ -18,15 +19,18 @@ class BulkShiftOverlay {
     /** @type {ShowData|SeasonData} */
     #mediaItem;
 
-    /** @type {{[episodeId: number]: SerializedEpisodeData}} */
-    #episodeData;
-
     /** @type {HTMLInputElement} */
     #timeInput;
     /**
      * Timer id to track shift user input.
      * @type {number} */
     #inputTimer;
+
+    /** @type {BulkActionTable} */
+    #table;
+
+    /** @type {number} Cached shift time, in milliseconds */
+    #shiftMs;
 
     /**
      * Construct a new shift overlay.
@@ -71,8 +75,7 @@ class BulkShiftOverlay {
     #onTimeShiftChange(e) {
         clearTimeout(this.#inputTimer);
         this.#checkShiftValue();
-        const table = $('#bulkShiftCustomizeTable');
-        if (!table) {
+        if (!this.#table) {
             return;
         }
 
@@ -89,85 +92,15 @@ class BulkShiftOverlay {
      * Adjust the styling of all rows in the customize table after
      * the shift changes. */
     #adjustNewTimes() {
-        const table = $('#bulkShiftCustomizeTable');
-        if (!table) { return; }
-
-        const shift = this.#shiftValue() || 0;
-
-        $('.bulkShiftRow', table).forEach(row => {
-            this.#styleRow(row, $$('input[type=checkbox]', row).checked, shift);
-        });
+        this.#table?.rows().forEach(row => row.update());
     }
 
     /**
-     * Mark the given timing nodes as active or inactive.
-     * @param {boolean} active
-     * @param  {...HTMLElement} nodes */
-    #markActive(active, ...nodes) {
-        if (active) {
-            nodes.forEach(n => n.classList.remove('bulkActionInactive'));
-        } else {
-            nodes.forEach(n => n.classList.add('bulkActionInactive'));
-        }
-    }
-
-    /**
-     * Adjust the styling of the new start/end values of the given row.
-     * If the start/end of the marker is getting cut off, show it in yellow
-     * If both the start/end are beyond the bounds of the episode, show both in red.
-     * If the row is unchecked, clear all styling. */
-    #styleRow(row, checked, shift=null) {
-        if (shift === null) {
-            shift = this.#shiftValue() || 0;
-        }
-
-        if (!checked) {
-            this.#markActive(true, row.children[2], row.children[3]);
-            BulkShiftClasses.set(row.childNodes[4], BulkShiftClasses.Type.Reset, false);
-            BulkShiftClasses.set(row.childNodes[5], BulkShiftClasses.Type.Reset, false);
-            return;
-        }
-
-        this.#markActive(false, row.children[2], row.children[3]);
-
-        const eid = parseInt(row.getAttribute('eid'));
-        const start = parseInt(row.getAttribute('mstart')) + shift;
-        const end = parseInt(row.getAttribute('mend')) + shift;
-        const maxDuration = this.#episodeData[eid].duration;
-        const newStart = Math.max(0, Math.min(start, maxDuration))
-        const newEnd = Math.max(0, Math.min(end, maxDuration));
-        const newStartNode = row.childNodes[4];
-        const newEndNode = row.childNodes[5];
-        newStartNode.innerText = msToHms(newStart);
-        newEndNode.innerText = msToHms(newEnd);
-        if (end < 0 || start > maxDuration) {
-            this.#markActive(true, row.children[2], row.children[3]);
-            [newStartNode, newEndNode].forEach(n => {
-                BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
-            });
-
-            return;
-        }
-
-        if (start < 0) {
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true);
-        } else {
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Reset, true);
-        }
-
-        if (end > maxDuration) {
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true);
-        } else {
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Reset, true);
-        }
-    }
-
-    /**
-     * Map of error messages
+ * Map of error messages
      * @type {{[messageType: string]: string}}
      * @readonly */
     #messages = {
-        unresolved : 'Some episodes have multiple markers, please resolve below.',
+        unresolved : 'Some episodes have multiple markers, please resolve below or Force Apply.',
         unresolvedAgain : 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.',
         cutoff : 'The current shift will cut off some markers. Are you sure you want to continue?',
         error : 'The current shift completely moves at least one selected marker beyond the bounds of the episode.<br>' +
@@ -176,7 +109,8 @@ class BulkShiftOverlay {
                          'Additionally, some markers are either cut off or completely beyond the bounds of an episode (or both).<br>' +
                          'Cut off markers will be applied and invalid markers will be ignored.',
         cutoffPlus : 'The current shift will cut off some markers, and ignore markers beyond the bounds of the episode.<br>' +
-                     'Are you sure you want to continue?'
+                     'Are you sure you want to continue?',
+        invalidOffset : `Couldn't parse time offset, make sure it's valid.`
     }
 
     /**
@@ -209,7 +143,7 @@ class BulkShiftOverlay {
             return;
         }
 
-        const customizeTable = $('#bulkShiftCustomizeTable');
+        const customizeTable = this.#table?.html();
         if (customizeTable) {
             container.insertBefore(node, customizeTable);
         } else {
@@ -233,15 +167,16 @@ class BulkShiftOverlay {
      * Attempts to apply the given shift to all markers under the given metadata id.
      * If any episode has multiple markers, shows the customization table. */
     async #tryApply() {
-        let shift = this.#shiftValue();
+        let shift = this.shiftValue();
         if (!shift) {
+            this.#checkShiftValue();
+            this.#showMessage('invalidOffset');
             return BulkActionCommon.flashButton('shiftApply', 'red');
         }
 
         const ignoreInfo = this.#getIgnored();
-        const customizeTable = $('#bulkShiftCustomizeTable');
         if (ignoreInfo.hasUnresolved) {
-            Log.assert(customizeTable, `How do we know we have unresolved markers if the table isn't showing?`);
+            Log.assert(this.#table, `How do we know we have unresolved markers if the table isn't showing?`);
 
             // If we've already shown the warning
             const existingMessage = this.#getMessageType();
@@ -259,7 +194,7 @@ class BulkShiftOverlay {
             }
 
             this.#showMessage('unresolved');
-            if (!customizeTable) {
+            if (!this.#table) {
                 this.#check();
             }
 
@@ -284,7 +219,6 @@ class BulkShiftOverlay {
             return;
         }
 
-        this.#episodeData = shiftResult.episodeData;
         Log.assert(shiftResult.conflict || shiftResult.overflow, `We should only have !applied && !conflict during check_shift, not shift. What happened?`);
         this.#showMessage(shiftResult.overflow ? 'error' : 'unresolved', shiftResult.overflow);
         this.#showCustomizeTable(shiftResult);
@@ -293,7 +227,7 @@ class BulkShiftOverlay {
     /**
      * Force applies the given shift to all markers under the given metadata id. */
     async #forceApply() {
-        let shift = this.#shiftValue();
+        let shift = this.shiftValue();
         if (!shift) {
             $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
         }
@@ -304,7 +238,6 @@ class BulkShiftOverlay {
             const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, true /*force*/, ignoreInfo.ignored);
             if (!shiftResult.applied) {
                 Log.assert(shiftResult.overflow, `Force apply should only fail if overflow was found.`);
-                this.#episodeData = shiftResult.episodeData;
                 this.#showCustomizeTable(shiftResult);
                 this.#showMessage('error', true);
                 return;
@@ -326,25 +259,21 @@ class BulkShiftOverlay {
      * Retrieves marker information for the current metadata id and displays it in a table for the user. */
     async #check() {
         const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId);
-        this.#episodeData = shiftResult.episodeData;
         this.#showCustomizeTable(shiftResult);
     }
 
     /**
      * Retrieve the current ms time of the shift input.
-     * @returns {number|false} */
-    #shiftValue() {
-        let shift = timeToMs(this.#timeInput.value, true /*allowNegative*/);
-        if (shift == 0 || isNaN(shift)) {
-            return false;
-        }
+     * @returns {number} */
+    shiftValue() { return this.#shiftMs; }
 
-        return shift;
-    }
+    table() { return this.#table; }
 
     /** Marks the time input red if the shift value is invalid. */
     #checkShiftValue() {
-        if (this.#shiftValue() === false) {
+        this.#shiftMs = timeToMs(this.#timeInput.value, true /*allowNegative*/);
+        if (isNaN(this.#shiftMs)) {
+            this.#shiftMs = 0;
             this.#timeInput.classList.add('badInput');
         } else {
             this.#timeInput.classList.remove('badInput');
@@ -355,30 +284,18 @@ class BulkShiftOverlay {
      * Display a table of all markers applicable to this instance's metadata id.
      * @param {ShiftResult} shiftResult */
     #showCustomizeTable(shiftResult) {
-        const existingTable = $('#bulkShiftCustomizeTable');
-        if (existingTable) {
-            existingTable.parentElement.removeChild(existingTable);
-        }
+        this.#table?.remove();
+        this.#table = new BulkActionTable();
+
+        this.#table.buildTableHead(
+            'Episode',
+            TableElements.shortTimeColumn('Start Time'),
+            TableElements.shortTimeColumn('End Time'),
+            TableElements.shortTimeColumn('New Start'),
+            TableElements.shortTimeColumn('New End')
+        );
 
         const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
-
-        const table = buildNode('table', { class : 'markerTable', id : 'bulkShiftCustomizeTable' });
-        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all' });
-        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkShiftCustomizeTable'));
-        table.appendChild(
-            appendChildren(buildNode('thead'),
-                TableElements.rawTableRow(
-                    mainCheckbox,
-                    'Episode',
-                    TableElements.shortTimeColumn('Start Time'),
-                    TableElements.shortTimeColumn('End Time'),
-                    TableElements.shortTimeColumn('New Start'),
-                    TableElements.shortTimeColumn('New End'))
-            )
-        )
-
-        const rows = buildNode('tbody');
-
         for (let i = 0; i < sortedMarkers.length; ++i) {
             let checkGroup = [];
             const eInfo = shiftResult.episodeData[sortedMarkers[i].episodeId];
@@ -389,98 +306,224 @@ class BulkShiftOverlay {
 
             const multiple = checkGroup.length > 1;
             for (const marker of checkGroup) {
-                let shift = this.#shiftValue() || 0;
-                const row = TableElements.rawTableRow(
-                    BulkActionCommon.checkbox(!multiple, marker.id, marker.episodeId, 
-                        { linked : multiple ? 1 : 0 },
-                        this.#onMarkerChecked, this),
-                    `S${pad0(eInfo.seasonIndex, 2)}E${pad0(eInfo.index, 2)}`,
-                    TableElements.timeData(marker.start),
-                    TableElements.timeData(marker.end),
-                    TableElements.timeData(marker.start),
-                    TableElements.timeData(marker.end),
-                );
-
-                row.classList.add('bulkShiftRow');
-                row.setAttribute('mstart', marker.start);
-                row.setAttribute('mend', marker.end);
-                row.setAttribute('eid', marker.episodeId);
-                row.setAttribute('mid', marker.id);
-                if (multiple) {
-                    row.classList.add('bulkActionSemi');
-                } else {
-                    row.classList.add('bulkActionOn');
-                }
-
-                this.#styleRow(row, !multiple, shift);
-                rows.appendChild(row);
+                const row = new BulkShiftRow(this, marker, eInfo, multiple);
+                this.#table.addRow(row, multiple);
+                row.update();
             }
         }
 
-        table.appendChild(rows);
-        $('#bulkActionContainer').appendChild(table);
+        $('#bulkActionContainer').appendChild(this.#table.html());
     }
 
     /**
-     * Update marker row colors when a row is checked/unchecked
-     * @param {HTMLInputElement} checkbox */
-    #onMarkerChecked(checkbox) {
-        const checked = checkbox.checked;
-        const linked = checkbox.getAttribute('linked') != '0';
-        const row = checkbox.parentElement.parentElement.parentElement;
-        this.#styleRow(row, checked);
-        if (!linked) {
-            row.classList.remove(checked ? 'bulkActionOff': 'bulkActionOn');
-            row.classList.add(checked ? 'bulkActionOn' : 'bulkActionOff');
-            return;
-        }
-
-        /** @type {NodeListOf<DOMString>} */
-        const linkedCheckboxes = $(`input[type="checkbox"][eid="${checkbox.getAttribute('eid')}"]`, row.parentElement);
-
-        // TODO: keep track of if any have ever been checked?
-        let anyChecked = checked;
-        if (!anyChecked) {
-            linkedCheckboxes.forEach(c => anyChecked = anyChecked || c.checked);
-        }
-
-        for (const linkedCheckbox of linkedCheckboxes) {
-            const linkedRow = linkedCheckbox.parentElement.parentElement.parentElement;
-            if (anyChecked) {
-                linkedRow.classList.remove('bulkActionSemi');
-                linkedRow.classList.remove(linkedCheckbox.checked ? 'bulkActionOff' : 'bulkActionOn');
-                linkedRow.classList.add(linkedCheckbox.checked ? 'bulkActionOn' : 'bulkActionOff');
-            } else {
-                linkedRow.classList.remove('bulkActionOn');
-                linkedRow.classList.remove('bulkActionOff');
-                linkedRow.classList.add('bulkActionSemi');
-            }
-        }
+     * Just an intellisense hack.
+     * @returns {BulkShiftRow[]} */
+    #tableRows() {
+        return this.#table.rows();
     }
 
     /**
      * Return information about ignored markers in the shift table. */
     #getIgnored() {
-        const customizeTable = $('#bulkShiftCustomizeTable');
-        if (!customizeTable) {
+        if (!this.#table) {
             return { ignored : [], tableVisible : false, hasUnresolved : false, hasCutoff : false, hasError : false };
         }
 
-        const ignored = [];
-        const hasUnresolved = !!$$('tr.bulkActionSemi', customizeTable);
+        const ignored = this.#table.getIgnored();
+        let hasUnresolved = false;
+        let hasCutoff = false;
+        let hasError = false;
+        for (const row of this.#tableRows()) {
+            hasUnresolved = hasUnresolved || row.isUnresolved();
+            hasCutoff = hasCutoff || row.isCutoff();
+            if (row.isError()) {
+                hasError = true;
+                ignored.push(row.markerId());
+            }
+        }
 
-        // Markers that are both off and 'semi' selected are ignored.
-        $('tr.bulkActionOff', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
-        $('tr.bulkActionSemi', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
-        $('tr.bulkActionOn td:nth-child(5).bulkActionOff', customizeTable).forEach(td => ignored.push(parseInt(td.parentElement.getAttribute('mid'))));
         return {
             ignored : ignored,
             tableVisible : true,
             hasUnresolved : hasUnresolved,
-            hasCutoff : !!$$('td.bulkActionSemi', customizeTable),
-            hasError  : !!$$('td.bulkActionOff', customizeTable),
+            hasCutoff : hasCutoff,
+            hasError  : hasError,
         };
     }
+}
+
+/**
+ * Represents a single row in the bulk shift table.
+ */
+class BulkShiftRow extends BulkActionRow {
+    /** @type {BulkShiftOverlay} */
+    #parent;
+    /** @type {SerializedMarkerData} */
+    #marker;
+    /** @type {SerializedEpisodeData} */
+    #episode;
+    /**
+     * Whether there are other linked rows that are associated with the same episode
+     * @type {boolean} */
+    #linked = false;
+    /**
+     * Caches whether this row was enabled during the last update.
+     * @type {boolean} */
+    #enabledLastUpdate = null;
+    /**
+     * Tracks whether this row is partially shifted off the start/end of the episode.
+     * Always false if the row is disabled.
+     * @type {boolean} */
+    #isWarn = false;
+    /**
+     * Tracks whether this row is completely shifted off the start/end of the episode.
+     * Always false if the row is disabled.
+     * @type {boolean} */
+    #isError = false;
+
+    /**
+     * @param {BulkShiftOverlay} parent
+     * @param {SerializedMarkerData} marker
+     * @param {SerializedEpisodeData} episode
+     * @param {boolean} linked Whether other markers with this episode id exist. */
+    constructor(parent, marker, episode, linked) {
+        super(parent.table(), marker.id);
+        this.#parent = parent;
+        this.#marker = marker;
+        this.#episode = episode;
+        this.#linked = linked;
+    }
+
+    episodeId() { return this.#marker.episodeId; }
+    markerId() { return this.#marker.id; }
+    /** Returns whether this row is linked to other rows that share the same episode id. */
+    linked() { return this.#linked; }
+    /** Returns whether any part of the shifted marker in this row is cut off by the start/end of the episode. */
+    isCutoff() { return this.#isWarn; }
+    /** Returns whether the shifted marker is completely beyond the bounds of the episode. */
+    isError() { return this.#isError; }
+    /** Returns whether this marker is linked and no linked markers are checked. */
+    isUnresolved() { return this.row.children[1].classList.contains('bulkActionSemi'); }
+
+    /** Build and return the marker row. */
+    build() {
+        const row = this.buildRow(
+            this.createCheckbox(!this.#linked, this.#marker.id, this.#marker.episodeId, { linked : this.#linked ? 1 : 0 }),
+            `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
+            TableElements.timeData(this.#marker.start),
+            TableElements.timeData(this.#marker.end),
+            TableElements.timeData(this.#marker.start),
+            TableElements.timeData(this.#marker.end),
+        );
+
+        if (this.#linked) {
+            BulkShiftClasses.set(row.children[1], BulkShiftClasses.Type.Warn, true);
+            this.#markActive(false, row.children[4], row.children[5]);
+        } else {
+            BulkShiftClasses.set(row.children[1], BulkShiftClasses.Type.On, true);
+            this.#markActive(false, row.children[2], row.children[3]);
+            row.children[4].classList.add('bulkActionSemi');
+            row.children[5].classList.add('bulkActionSemi');
+        }
+
+        return this.row;
+    }
+
+    /**
+     * Mark the given timing nodes as active or inactive.
+     * @param {boolean} active
+     * @param  {...HTMLElement} nodes */
+    #markActive(active, ...nodes) {
+        if (active) {
+            nodes.forEach(n => n.classList.remove('bulkActionInactive'));
+        } else {
+            nodes.forEach(n => n.classList.add('bulkActionInactive'));
+        }
+    }
+
+    /**
+     * Adjust the styling of the new start/end values of the given row.
+     * If the start/end of the marker is getting cut off, show it in yellow
+     * If both the start/end are beyond the bounds of the episode, show both in red.
+     * If the row is unchecked, clear all styling. */
+    update() {
+        this.#isError = false;
+        this.#isWarn = false;
+        const shift = this.#parent.shiftValue() || 0;
+        if (this.enabled !== this.#enabledLastUpdate) {
+            this.#markActive(!this.enabled, this.row.children[2], this.row.children[3]);
+            if (!this.enabled) {
+                BulkShiftClasses.set(this.row.children[4], BulkShiftClasses.Type.Reset, false);
+                BulkShiftClasses.set(this.row.children[5], BulkShiftClasses.Type.Reset, false);
+            } else {
+                this.#markActive(this.enabled, this.row.children[4], this.row.children[5]);
+            }
+
+            this.#enabledLastUpdate = this.enabled;
+        }
+
+        const start = this.#marker.start + shift;
+        const end = this.#marker.end + shift;
+        const maxDuration = this.#episode.duration;
+        const newStart = Math.max(0, Math.min(start, maxDuration));
+        const newEnd = Math.max(0, Math.min(end, maxDuration));
+        const newStartNode = this.row.children[4];
+        const newEndNode = this.row.children[5];
+        newStartNode.innerText = msToHms(newStart);
+        newEndNode.innerText = msToHms(newEnd);
+        // If we aren't enabled, skip custom coloring.
+        if (this.enabled) {
+            if (end < 0 || start > maxDuration) {
+                this.#markActive(true, this.row.children[2], this.row.children[3]);
+                [newStartNode, newEndNode].forEach(n => {
+                    BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
+                });
+    
+                this.#isError = true;
+    
+                return;
+            }
+    
+            if (start < 0) {
+                BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true);
+                this.#isWarn = true;
+            } else {
+                BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.On, true);
+            }
+    
+            if (end > maxDuration) {
+                this.#isWarn = true;
+                BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true);
+            } else {
+                BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.On, true);
+            }
+        }
+
+
+        if (!this.#linked) {
+            BulkShiftClasses.set(this.row.children[1], this.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error, true);
+            return;
+        }
+
+        const linkedRows = [];
+        let anyChecked = this.enabled;
+        for (const row of this.#parent.table().rows()) {
+            Log.assert(row instanceof BulkShiftRow, `How did a non-shift row get here?`);
+            if (row.episodeId() == this.episodeId()) {
+                linkedRows.push(row);
+                anyChecked = anyChecked || row.enabled;
+            }
+        }
+
+        for (const linkedRow of linkedRows) {
+            if (anyChecked) {
+                BulkShiftClasses.set(linkedRow.row.children[1], linkedRow.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error, true);
+            } else {
+                BulkShiftClasses.set(linkedRow.row.children[1], BulkShiftClasses.Type.Warn, true);
+            }
+        }
+    }
+
 }
 
 /**
@@ -489,6 +532,7 @@ const BulkShiftClasses = {
     classNames : ['bulkActionOn', 'bulkActionOff', 'bulkActionSemi'],
     Type : {
         Reset : -1,
+        On    :  0,
         Error :  1,
         Warn  :  2,
     },
@@ -501,6 +545,7 @@ const BulkShiftClasses = {
         const names = BulkShiftClasses.classNames;
         active ? node.classList.remove('bulkActionInactive') : node.classList.add('bulkActionInactive');
         if (idx == -1) {
+            node.classList.remove(names[0]);
             node.classList.remove(names[1]);
             node.classList.remove(names[2]);
             return;
