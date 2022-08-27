@@ -159,7 +159,7 @@ class CoreCommands {
         if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
             /** @type {MarkerData[]} */
             const notRaw = [];
-            Object.values(seen).forEach(markers => markers.forEach(m => notRaw.push(new MarkerData(m))));
+            markers.markers.forEach(rm => notRaw.push(new MarkerData(rm)));
             /** @type {{[episodeId: number]: EpisodeData}} */
             const episodeData = {};
             rawEpisodeData.forEach(e => episodeData[e.id] = new EpisodeData(e));
