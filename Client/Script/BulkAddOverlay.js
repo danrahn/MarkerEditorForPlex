@@ -109,8 +109,12 @@ class BulkAddOverlay {
      * Processes time input
      * @param {MouseEvent} e */
     #onBulkAddInputChange(e) {
-        this.#cachedStart = timeToMs($('#addStart').value);
-        this.#cachedEnd = timeToMs($('#addEnd').value);
+        const start = $('#addStart');
+        const end = $('#addEnd');
+        this.#cachedStart = timeToMs(start.value);
+        this.#cachedEnd = timeToMs(end.value);
+        isNaN(this.#cachedStart) ? start.classList.add('badInput') : start.classList.remove('badInput');
+        isNaN(this.#cachedEnd) ? end.classList.add('badInput') : end.classList.remove('badInput');
         clearTimeout(this.#inputTimer);
         if (e.key == 'Enter') {
             this.#updateTableStats();

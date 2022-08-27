@@ -4,11 +4,9 @@ import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
 import { $, $$, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
-import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 import PlexClientState from './PlexClientState.js';
 import TableElements from './TableElements.js';
-import ThemeColors from './ThemeColors.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
@@ -23,6 +21,8 @@ class BulkShiftOverlay {
     /** @type {{[episodeId: number]: SerializedEpisodeData}} */
     #episodeData;
 
+    /** @type {HTMLInputElement} */
+    #timeInput;
     /**
      * Timer id to track shift user input.
      * @type {number} */
@@ -40,18 +40,21 @@ class BulkShiftOverlay {
     show() {
         let container = buildNode('div', { id : 'bulkActionContainer' })
         let title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
+        this.#timeInput = buildNode(
+            'input', {
+                type : 'text',
+                placeholder : 'ms or mm:ss[.000]',
+                name : 'shiftTime',
+                id : 'shiftTime'
+            },
+            0,
+            { keyup : this.#onTimeShiftChange.bind(this) })
         appendChildren(container,
             title,
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'shiftZone' }),
                 buildNode('label', { for : 'shiftTime' }, 'Time offset: '),
-                buildNode('input', {
-                    type : 'text',
-                    placeholder : 'ms or mm:ss[.000]',
-                    name : 'shiftTime',
-                    id : 'shiftTime' },
-                    0,
-                    { keyup : this.#onTimeShiftChange.bind(this) })),
+                this.#timeInput),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
                 ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'}),
@@ -60,13 +63,14 @@ class BulkShiftOverlay {
             )
         );
 
-        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => $('#shiftTime').focus() } }, container);
+        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => this.#timeInput?.focus() } }, container);
     }
 
     /**
      * @param {KeyboardEvent} e */
     #onTimeShiftChange(e) {
         clearTimeout(this.#inputTimer);
+        this.#checkShiftValue();
         const table = $('#bulkShiftCustomizeTable');
         if (!table) {
             return;
@@ -330,12 +334,21 @@ class BulkShiftOverlay {
      * Retrieve the current ms time of the shift input.
      * @returns {number|false} */
     #shiftValue() {
-        let shift = timeToMs($('#shiftTime').value, true /*allowNegative*/);
+        let shift = timeToMs(this.#timeInput.value, true /*allowNegative*/);
         if (shift == 0 || isNaN(shift)) {
             return false;
         }
 
         return shift;
+    }
+
+    /** Marks the time input red if the shift value is invalid. */
+    #checkShiftValue() {
+        if (this.#shiftValue() === false) {
+            this.#timeInput.classList.add('badInput');
+        } else {
+            this.#timeInput.classList.remove('badInput');
+        }
     }
 
     /**
@@ -406,16 +419,6 @@ class BulkShiftOverlay {
 
         table.appendChild(rows);
         $('#bulkActionContainer').appendChild(table);
-    }
-
-    /**
-     * Bulk check/uncheck all items in the table.
-     * @param {HTMLInputElement} checkbox */
-    #selectUnselectAll(checkbox) {
-        const table = $('#bulkShiftCustomizeTable');
-        if (!table) { return; } // How?
-
-        $('tbody input[type=checkbox]', table).forEach(c => { c.checked = checkbox.checked; c.dispatchEvent(new Event('change')); });
     }
 
     /**

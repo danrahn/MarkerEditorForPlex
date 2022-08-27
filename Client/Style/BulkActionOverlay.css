@@ -14,6 +14,10 @@
     margin-top: 15px;
 }
 
+#bulkActionContainer input[type=text].badInput {
+    background-color: #ff414141;
+}
+
 #bulkActionContainer tr {
     cursor: default;
 }
