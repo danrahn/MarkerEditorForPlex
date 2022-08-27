@@ -64,6 +64,7 @@ class BulkActionRow {
         this.row = TableElements.rawTableRow(...columns);
         this.row.addEventListener('click', this.onRowClick.bind(this));
         this.row.classList.add('noSelect'); // Selection gets annoying with multiselect
+        return this.row;
     }
 
 
@@ -188,6 +189,10 @@ class BulkActionTable {
     /**
      * Remove this table from the DOM. */
     remove() {
+        for (const check of this.#multiSelectChecks) {
+            check.parentNode.removeChild(check);
+        }
+
         if (this.#html) {
             this.#html.parentNode.removeChild(this.#html);
         }

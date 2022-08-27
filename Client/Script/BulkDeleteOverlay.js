@@ -1,7 +1,7 @@
 import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
-import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
+import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import Overlay from './inc/Overlay.js';
@@ -15,6 +15,9 @@ import TableElements from './TableElements.js';
 class BulkDeleteOverlay {
     /** @type {ShowData|SeasonData} */
     #mediaItem;
+
+    /** @type {BulkActionTable} */
+    #table;
 
     /**
      * Construct a new bulk delete overlay.
@@ -45,7 +48,7 @@ class BulkDeleteOverlay {
     /**
      * Attempt to delete all markers associated with this overlay's metadata id, minus any unchecked items. */
     async #deleteAll() {
-        const ignored = this.#getIgnored();
+        const ignored = this.#table.getIgnored();
         try {
             const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, ignored);
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
@@ -67,70 +70,70 @@ class BulkDeleteOverlay {
      * Display a table of all markers associated with the overlay's metadata id. */
     async #showCustomizationTable() {
         const data = await ServerCommand.checkBulkDelete(this.#mediaItem.metadataId);
-        const existingTable = $('#bulkDeleteCustomizeTable');
-        if (existingTable) {
-            existingTable.parentElement.removeChild(existingTable);
-        }
+        this.#table?.remove();
+        this.#table = new BulkActionTable();
 
         ButtonCreator.setText($('#deleteApply'), 'Delete Selected');
         const sortedMarkers = BulkActionCommon.sortMarkerList(data.markers, data.episodeData);
 
-        const table = buildNode('table', { class : 'markerTable', id : 'bulkDeleteCustomizeTable' });
-        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all', checked : 'checked' });
-        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkDeleteCustomizeTable'));
-        table.appendChild(
-            appendChildren(buildNode('thead'),
-                TableElements.rawTableRow(
-                    mainCheckbox,
-                    'Episode',
-                    TableElements.customClassColumn('Name', 'bulkActionEpisodeColumn'),
-                    TableElements.shortTimeColumn('Start Time'),
-                    TableElements.shortTimeColumn('End Time'))
-            )
+        this.#table.buildTableHead(
+            'Episode',
+            TableElements.customClassColumn('Name', 'bulkActionEpisodeColumn'),
+            TableElements.shortTimeColumn('Start Time'),
+            TableElements.shortTimeColumn('End Time')
         );
 
-        const rows = buildNode('tbody');
         for (const marker of sortedMarkers) {
-            const eInfo = data.episodeData[marker.episodeId];
-            const row = TableElements.rawTableRow(
-                BulkActionCommon.checkbox(true, marker.id, marker.episodeId, {}, this.#onMarkerChecked, this),
-                `S${pad0(eInfo.seasonIndex, 2)}E${pad0(eInfo.index, 2)}`,
-                TableElements.customClassColumn(eInfo.title, 'bulkActionEpisodeColumn'),
-                TableElements.timeData(marker.start),
-                TableElements.timeData(marker.end),
-            );
-
-            row.setAttribute('eid', marker.episodeId);
-            row.setAttribute('mid', marker.id);
-            row.classList.add('bulkActionOn');
-            rows.appendChild(row);
+            this.#table.addRow(new BulkDeleteRow(this.#table, marker, data.episodeData[marker.episodeId]));
         }
 
-        table.appendChild(rows);
-        $('#bulkActionContainer').appendChild(table);
+        $('#bulkActionContainer').appendChild(this.#table.html());
     }
+}
+
+/**
+ * Represents a single row in the bulk delete customization table.
+ */
+class BulkDeleteRow extends BulkActionRow {
+    /** @type {SerializedMarkerData} */
+    #marker;
+    /** @type {SerializedEpisodeData} */
+    #episode;
 
     /**
-     * Update marker row colors when a row is checked/unchecked
-     * @param {HTMLInputElement} checkbox */
-    #onMarkerChecked(checkbox) {
-        const row = checkbox.parentElement.parentElement.parentElement;
-        const checked = checkbox.checked;
-        row.classList.remove(checked ? 'bulkActionOff': 'bulkActionOn');
-        row.classList.add(checked ? 'bulkActionOn' : 'bulkActionOff');
+     * @param {BulkActionTable} table
+     * @param {SerializedMarkerData} markerInfo
+     * @param {SerializedEpisodeData} episodeInfo */
+    constructor(table, markerInfo, episodeInfo) {
+        super(table, markerInfo.id);
+        this.#marker = markerInfo;
+        this.#episode = episodeInfo;
     }
 
-    /**
-     * Retrieve the list of markers to ignore when bulk-deleting. */
-    #getIgnored() {
-        const customizeTable = $('#bulkDeleteCustomizeTable');
-        if (!customizeTable) {
-            return [];
+    /** Construct the table row. */
+    build() {
+        const row = this.buildRow(
+            this.createCheckbox(true /*checked*/, this.#marker.id, this.#marker.episodeId),
+            `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
+            TableElements.customClassColumn(this.#episode.title, 'bulkActionEpisodeColumn'),
+            TableElements.timeData(this.#marker.start),
+            TableElements.timeData(this.#marker.end),
+        );
+
+        row.children[3].classList.add('bulkActionOff');
+        row.children[4].classList.add('bulkActionOff');
+        return row;
+    }
+
+    /** Update the table row after being checked/unchecked. */
+    update() {
+        // Select only the times, using the episode/name for multiselect.
+        // Only highlight times in red if selected, indicating that those
+        // markers will be deleted.
+        for (const col of [this.row.children[3], this.row.children[4]]) {
+            this.enabled ? col.classList.add('bulkActionOff') : col.classList.remove('bulkActionOff');
+            this.enabled ? col.classList.remove('bulkActionInactive') : col.classList.add('bulkActionInactive');
         }
-
-        const ignored = [];
-        $('tr.bulkActionOff', customizeTable).forEach(r => ignored.push(parseInt(r.getAttribute('mid'))));
-        return ignored;
     }
 }
 
