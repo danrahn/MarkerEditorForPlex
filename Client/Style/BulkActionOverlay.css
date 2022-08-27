@@ -14,9 +14,17 @@
     margin-top: 15px;
 }
 
+#bulkActionContainer tr {
+    cursor: default;
+}
+
 #bulkActionContainer .buttonContainer {
     text-align: center;
     width: auto;
+}
+
+#bulkActionContainer .multiSelectCheck {
+    position: absolute;
 }
 
 #bulkActionContainer .buttonContainer input[type=button] {

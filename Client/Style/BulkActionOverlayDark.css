@@ -6,21 +6,34 @@
 }
 
 .bulkActionOff {
-    background-color: #612121 !important;
+    background-color: #612121a1 !important;
 }
 
 .bulkActionOff:hover {
-    background-color: #812121 !important;
+    background-color: #812121a1 !important;
 }
 
 .bulkActionSemi {
-    background-color: #551 !important;
+    background-color: #551a !important;
 }
 
 .bulkActionSemi:hover {
-    background-color: #662 !important;
+    background-color: #662a !important;
 }
 
 .bulkActionInactive {
     color: #919191;
 }
+
+#bulkActionContainer input[type=text] {
+    background-color: #41414141;
+}
+
+#bulkActionContainer tr.selectedRow {
+    background-color: #0387;
+}
+
+#bulkActionContainer tr:hover {
+    background-color: #04C7;
+}
+

@@ -24,3 +24,11 @@
 .bulkActionInactive {
     color: #717171;
 }
+
+#bulkActionContainer tr.selectedRow {
+    background-color: #48a8;
+}
+
+#bulkActionContainer tr:hover {
+    background-color: #4AF8;
+}

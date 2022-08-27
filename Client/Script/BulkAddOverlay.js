@@ -1,6 +1,6 @@
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
 
-import { BulkActionCommon, BulkActionType } from './BulkActionCommon.js';
+import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
 import Overlay from './inc/Overlay.js';
@@ -23,15 +23,15 @@ class BulkAddOverlay {
     /** @type {ShowData|SeasonData} */
     #mediaItem;
 
+    /** @type {BulkActionTable} */
+    #table;
     /**
      * @type {SerializedBulkAddResult} */
-    #tableData = {};
+    #serverResponse = {};
 
     /** @type {number} */
     #inputTimer = 0;
 
-    /** @type {{[episodeId: number]: BulkAddRow}}*/
-    #tableRows = {};
     /** @type {number} Cached ms of the current start input to prevent repeated calculations. */
     #cachedStart = NaN;
     /** @type {number} Cached ms of the current end input to prevent repeated calculations. */
@@ -54,6 +54,9 @@ class BulkAddOverlay {
     constructor(mediaItem) {
         this.#mediaItem = mediaItem;
     }
+
+    /** Return the customization table for this operation. */
+    table() { return this.#table; }
 
     /**
      * Launch the bulk add overlay. */
@@ -138,7 +141,7 @@ class BulkAddOverlay {
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#getIgnored());
+            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#table.getIgnored());
             if (!result.applied) {
                 BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
                 return;
@@ -200,7 +203,7 @@ class BulkAddOverlay {
      * a bulk add will conflict with anything. */
     async #check() {
         try {
-            this.#tableData = await ServerCommand.checkBulkAdd(this.#mediaItem.metadataId);
+            this.#serverResponse = await ServerCommand.checkBulkAdd(this.#mediaItem.metadataId);
             this.#showCustomizeTable();
         } catch (err) {
             errorResponseOverlay('Unable to check bulk add, please try again later', err, this.show.bind(this));
@@ -211,28 +214,14 @@ class BulkAddOverlay {
      * Displays a table of all episodes in the group, with color coded columns
      * to let the user know when a marker add will fail/be merged with existing markers. */
     #showCustomizeTable() {
-        this.#tableRows = {};
-        const existingTable = $('#bulkAddCustomizeTable');
-        if (existingTable) {
-            existingTable.parentElement.removeChild(existingTable);
+        if (this.#table) {
+            this.#table.remove();
         }
+        this.#table = new BulkActionTable();
 
-        const table = buildNode('table', { class : 'markerTable', id : 'bulkAddCustomizeTable' });
-        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all', checked : 'checked' });
-        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkAddCustomizeTable'));
-        table.appendChild(
-            appendChildren(buildNode('thead'),
-                TableElements.rawTableRow(
-                    mainCheckbox,
-                    'Episode',
-                    'Title',
-                    TableElements.shortTimeColumn('Start'),
-                    TableElements.shortTimeColumn('End')
-                )
-            )
-        );
+        this.#table.buildTableHead('Episode', 'Title', TableElements.shortTimeColumn('Start'), TableElements.shortTimeColumn('End'));
 
-        const episodeData = Object.values(this.#tableData.episodeMap).sort((a, b) => {
+        const episodeData = Object.values(this.#serverResponse.episodeMap).sort((a, b) => {
             if (a.episodeData.seasonIndex != b.episodeData.seasonIndex) {
                 return a.episodeData.seasonIndex - b.episodeData.seasonIndex;
             }
@@ -240,15 +229,11 @@ class BulkAddOverlay {
             return a.episodeData.index - b.episodeData.index;
         });
 
-        const rows = buildNode('tbody');
         for (const episodeInfo of episodeData) {
-            const row = new BulkAddRow(this, episodeInfo);
-            this.#tableRows[episodeInfo.episodeData.metadataId] = row;
-            rows.appendChild(row.build());
+            this.#table.addRow(new BulkAddRow(this, episodeInfo));
         }
 
-        table.appendChild(rows);
-        $('#bulkActionContainer').appendChild(table);
+        $('#bulkActionContainer').appendChild(this.#table.html());
         this.#updateTableStats();
     }
 
@@ -258,31 +243,14 @@ class BulkAddOverlay {
 
     /** Update all items in the customization table, if present. */
     #updateTableStats() {
-        const table = $('#bulkAddCustomizeTable');
-        if (!table) { return; }
-        Object.values(this.#tableRows).forEach(row => row.update());
-    }
-
-    /** Return the list of unchecked episodes.
-     * @returns {number[]} */
-    #getIgnored() {
-        const ignored = [];
-        for (const [episodeId, row] of Object.entries(this.#tableRows)) {
-            if (row.disabled()) {
-                ignored.push(episodeId);
-            }
-        }
-
-        return ignored;
+        this.#table?.rows().forEach(row => row.update());
     }
 }
 
 /**
  * Represents a single row in the bulk add customization table.
  */
-class BulkAddRow {
-    /** @type {HTMLTableRowElement} */
-    #html;
+class BulkAddRow extends BulkActionRow {
     /** @type {BulkAddOverlay} */
     #parent;
     /** @type {SerializedEpisodeData} */
@@ -293,45 +261,43 @@ class BulkAddRow {
     #endTd;
     /** @type {SerializedMarkerData[]} */
     #existingMarkers;
-    /** @type {boolean} */
-    #disabled = false;
 
     /**
      * @param {BulkAddOverlay} parent
      * @param {SerializedBulkAddResultEntry} episodeInfo */
     constructor(parent, episodeInfo) {
+        super(parent.table(), episodeInfo.episodeData.metadataId);
         this.#parent = parent;
         this.#episodeInfo = episodeInfo.episodeData;
         this.#existingMarkers = episodeInfo.existingMarkers;
     }
-
-    disabled() { return this.#disabled; }
 
     /** Create and return the table row.
      * @returns {HTMLTableRowElement} */
     build() {
         const startTime = this.#parent.startTime();
         const endTime = this.#parent.endTime();
-        const row = TableElements.rawTableRow(
-            BulkActionCommon.checkbox(true, null, this.#episodeInfo.metadataId, {}, this.#onMarkerChecked, this),
+        this.buildRow(
+            this.createCheckbox(true, null /*mid*/, this.#episodeInfo.metadataId),
             `S${pad0(this.#episodeInfo.seasonIndex, 2)}E${pad0(this.#episodeInfo.index, 2)}`,
             this.#episodeInfo.title,
             isNaN(startTime) ? '-' : TableElements.timeData(endTime),
-            isNaN(endTime) ? '-' : TableElements.timeData(endTime)
-        );
-
-        this.#html = row;
-        this.#startTd = this.#html.children[3];
-        this.#endTd = this.#html.children[4];
-        return row;
+            isNaN(endTime) ? '-' : TableElements.timeData(endTime));
+        this.#startTd = this.row.children[3];
+        this.#endTd = this.row.children[4];
+        return this.row;
     }
 
     /**
      * Update the text/colors of this row. */
     update() {
-        if (this.#disabled) {
+        if (!this.enabled) {
+            this.row.classList.add('bulkActionInactive');
+            this.#clear(true /*clearText*/);
             return;
         }
+        
+        this.row.classList.remove('bulkActionInactive');
 
         const startTimeBase = this.#parent.startTime();
         const endTimeBase = this.#parent.endTime();
@@ -343,87 +309,69 @@ class BulkAddRow {
         let semiWarn = false;
         let isWarn = false;
         let tooltip = '';
-        if (!isNaN(startTimeBase) && !isNaN(endTimeBase) && startTimeBase < endTimeBase) {
-            for (const existingMarker of this.#existingMarkers) {
-                if (start >= existingMarker.start && start <= existingMarker.end) {
-                    isWarn = true;
-                    semiWarn = false;
-                    this.#startTd.classList.add(warnClass);
-                    tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
-                    if (resolveType == BulkMarkerResolveType.Merge) {
-                        start = existingMarker.start;
-                        end = Math.max(end, existingMarker.end);
-                    } else {
-                        this.#setSingleClass(this.#endTd, warnClass);
-                    }
-                } else if (end >= existingMarker.start && end <= existingMarker.end) {
-                    isWarn = true;
-                    semiWarn = false;
-                    this.#setSingleClass(this.#endTd, warnClass);
-                    tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
-                    if (resolveType == BulkMarkerResolveType.Merge) {
-                        start = Math.min(start, existingMarker.start);
-                    }
-
-                    this.#startTd.classList.add(warnClass);
-                } else if (end > this.#episodeInfo.duration) {
-                    isWarn = true;
-                    if (!this.#endTd.classList.contains('bulkActionOff')) {
-                        semiWarn = true;
-                        this.#endTd.classList.add('bulkActionSemi');
-                    }
-
-                    tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
-                    end = this.#episodeInfo.duration;
-                    start = Math.min(start, end);
-                }
-            }
-
-            if (tooltip.length != 0) {
-                tooltip = tooltip.substring(4);
-                Tooltip.setTooltip(this.#startTd, tooltip);
-                Tooltip.setTooltip(this.#endTd, tooltip);
-            } else {
-                Tooltip.removeTooltip(this.#startTd);
-                Tooltip.removeTooltip(this.#endTd);
-            }
-
-            if (!isWarn) {
-                this.#setClassBoth('bulkActionOn');
-            }
-
-            if (resolveType == BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
-                this.#html.classList.add('bulkActionInactive');
-            } else {
-                this.#html.classList.remove('bulkActionInactive');
-            }
-
-
-
-            this.#startTd.innerText = msToHms(start);
-            this.#endTd.innerText = msToHms(end);
-        } else {
-            isWarn = true;
+        if (isNaN(startTimeBase) || isNaN(endTimeBase) || startTimeBase >= endTimeBase) {
             this.#startTd.innerText = '--:--:--.---';
             this.#endTd.innerText = '--:--:--.---';
             this.#setClassBoth(warnClass);
+            return;
         }
-    }
 
-    /**
-     * Processes this row being checked/unchecked.
-     * @param {HTMLInputElement} checkbox */
-    #onMarkerChecked(checkbox) {
-        const checked = checkbox.checked;
-        this.#disabled = !checked;
-        const row = this.#html;
-        if (checked) {
-            row.classList.remove('bulkActionInactive');
-            this.update();
-        } else {
-            row.classList.add('bulkActionInactive');
-            this.#clear(true /*clearText*/);
+        for (const existingMarker of this.#existingMarkers) {
+            if (start >= existingMarker.start && start <= existingMarker.end) {
+                isWarn = true;
+                semiWarn = false;
+                this.#startTd.classList.add(warnClass);
+                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                if (resolveType == BulkMarkerResolveType.Merge) {
+                    start = existingMarker.start;
+                    end = Math.max(end, existingMarker.end);
+                } else {
+                    this.#setSingleClass(this.#endTd, warnClass);
+                }
+            } else if (end >= existingMarker.start && end <= existingMarker.end) {
+                isWarn = true;
+                semiWarn = false;
+                this.#setSingleClass(this.#endTd, warnClass);
+                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                if (resolveType == BulkMarkerResolveType.Merge) {
+                    start = Math.min(start, existingMarker.start);
+                }
+
+                this.#startTd.classList.add(warnClass);
+            } else if (end > this.#episodeInfo.duration) {
+                isWarn = true;
+                if (!this.#endTd.classList.contains('bulkActionOff')) {
+                    semiWarn = true;
+                    this.#endTd.classList.add('bulkActionSemi');
+                }
+
+                tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
+                end = this.#episodeInfo.duration;
+                start = Math.min(start, end);
+            }
         }
+
+        if (tooltip.length != 0) {
+            tooltip = tooltip.substring(4);
+            Tooltip.setTooltip(this.#startTd, tooltip);
+            Tooltip.setTooltip(this.#endTd, tooltip);
+        } else {
+            Tooltip.removeTooltip(this.#startTd);
+            Tooltip.removeTooltip(this.#endTd);
+        }
+
+        if (!isWarn) {
+            this.#setClassBoth('bulkActionOn');
+        }
+
+        if (resolveType == BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
+            this.row.classList.add('bulkActionInactive');
+        } else {
+            this.row.classList.remove('bulkActionInactive');
+        }
+
+        this.#startTd.innerText = msToHms(start);
+        this.#endTd.innerText = msToHms(end);
     }
 
     /**
