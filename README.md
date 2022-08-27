@@ -1,6 +1,6 @@
 # Plex Intro Editor
 
-Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete intro markers for episodes. It can also be used to add multiple intro markers, for example to skip credits or a "previously on XYZ" section (as seen in the image below).
+Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete individual intro markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple intro markers, for example to skip credits or a "previously on XYZ" section (as seen in the image below).
 
 ![image](https://user-images.githubusercontent.com/7410989/182755772-5aabbfe9-4c25-486c-8798-d7ed09337edb.png)
 
