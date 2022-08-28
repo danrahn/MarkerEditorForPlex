@@ -6,9 +6,11 @@ node_modules
 
 # VS Code envrionment
 .vscode
+.git
 
 Backup
 dist
 Logs
 Test
 npm-debug.log
+config.json

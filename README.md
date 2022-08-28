@@ -9,15 +9,24 @@ Plex does not let users modify or add intro markers, relying solely on their own
 
 ## Installation
 
+For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/PlexIntroEditor/wiki/installation).
+
 If running Windows, download the latest [release](https://github.com/danrahn/PlexIntroEditor/releases), extract the contents to a new folder, and double click PlexIntroEditor.exe.
+
+In Docker:
+
+```bash
+docker run -p 3233:3232 \
+           -v /path/to/config:/Data \
+           -v /path/to/PlexData:/PlexDataDirectory \
+           -it danrahn/plex-intro-editor:latest
+```
 
 For all other platforms (or to run from source):
 
 1. Install [Node.js](https://nodejs.org/en/)
 2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
 3. Install dependencies by running `npm install` from the root of the project
-
-For more detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/PlexIntroEditor/wiki/installation).
 
 ## Configuration
 

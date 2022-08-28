@@ -122,7 +122,19 @@ FROM taggings
 
         Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
         try {
-            const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
+            let row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
+            if (!row) {
+                // What's the path forward if/when Plex adds custom extensions to the `taggings` table?
+                // Probably some gross solution that invokes shell commands to Plex SQLite.
+                Log.error(`PlexQueryManager: tags table exists, but didn't find intro tag. Plex SQLite is required to modify this table, so we cannot continue.`);
+                Log.error(`                  Either ensure at least one episode has an intro marker, or manually run the following using Plex SQLite:`);
+                Log.error();
+                Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`);
+                Log.error();
+                Log.error(`See https://support.plex.tv/articles/repair-a-corrupted-database/ for more information on Plex SQLite and the database location.`);
+                throw new ServerError(`Plex database must contain at least one intro marker.`, 500);
+            }
+
             Log.info('PlexQueryManager: Database verified');
             Instance = new PlexQueryManager(db, pureMode, row.id);
             return Instance;

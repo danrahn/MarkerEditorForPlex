@@ -1,9 +1,13 @@
 # LTS
 FROM node:16
 
+# Set production env
+ARG NODE_ENV=production
+ENV NODE_ENV $NODE_ENV
+
 # Copy package[-lock].json to install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm ci && npm cache clean --force
 
 # Copy everything else over
 COPY . .
