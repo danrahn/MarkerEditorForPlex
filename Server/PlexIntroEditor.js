@@ -38,16 +38,18 @@ async function run() {
     setupTerminateHandlers();
     const testData = checkTestData();
     const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+    // In docker, the location of the config and backup data files are not the project root.
+    const dataRoot = process.env.IS_DOCKER ? '/Data' : projectRoot;
     if (!testData.isTest) {
-        await FirstRunConfig(projectRoot);
+        await FirstRunConfig(dataRoot);
     }
 
-    const config = PlexIntroEditorConfig.Create(projectRoot, testData);
+    const config = PlexIntroEditorConfig.Create(projectRoot, testData, dataRoot);
 
     // Set up the database, and make sure it's the right one.
     const queryManager = await PlexQueryManager.CreateInstance(config.databasePath(), config.pureMode());
     if (config.backupActions()) {
-        await MarkerBackupManager.CreateInstance(IsTest ? join(projectRoot, 'Test') : projectRoot);
+        await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
     } else {
         Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
     }
@@ -110,8 +112,9 @@ function setupTerminateHandlers() {
  * @param {string} message The message to log */
 function writeErrorToFile(message) {
     try {
-        const logDir = join(Config.projectRoot(), 'Logs');
-        if (!existsSync(join(Config.projectRoot(), 'Logs'))) {
+        // Early init failures won't have a valid Config, so grab the project root directly.
+        let logDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Logs');
+        if (!existsSync(logDir)) {
             mkdirSync(logDir);
         }
 
@@ -250,6 +253,9 @@ async function launchServer() {
         Server.listen(Config.port(), Config.host(), () => {
             const url = `http://${Config.host()}:${Config.port()}`;
             Log.info(`Server running at ${url} (Ctrl+C to exit)`);
+            if (process.env.IS_DOCKER) {
+                Log.info(`NOTE: External port will be different when run in Docker, based on '-p' passed into docker run`)
+            }
             if (Config.autoOpen() && GetServerState() == ServerState.FirstBoot) {
                 Log.info('Launching browser...');
                 Open(url);

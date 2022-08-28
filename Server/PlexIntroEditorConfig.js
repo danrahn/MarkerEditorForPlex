@@ -120,13 +120,14 @@ class PlexIntroEditorConfig extends ConfigBase {
     /**
      * Create the singleton config instance.
      * @param {string} projectRoot
-     * @param {*} testData */
-    static Create(projectRoot, testData) {
+     * @param {*} testData
+     * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
+    static Create(projectRoot, testData, dataRoot) {
         if (Instance != null) {
             Log.warn(`Singleton PlexIntroEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
-        Instance = new PlexIntroEditorConfig(projectRoot, testData);
+        Instance = new PlexIntroEditorConfig(projectRoot, testData, dataRoot);
         return Instance;
     }
 
@@ -163,7 +164,7 @@ class PlexIntroEditorConfig extends ConfigBase {
     #features;
 
     /** Creates a new PlexIntroEditorConfig. */
-    constructor(projectRoot, testData) {
+    constructor(projectRoot, testData, dataRoot) {
         Log.info('Reading configuration...');
         let baseClass = {};
 
@@ -173,10 +174,10 @@ class PlexIntroEditorConfig extends ConfigBase {
             configFile = join('Test', testData.configOverride);
         }
 
-        const configPath = join(projectRoot, configFile);
+        const configPath = join(dataRoot, configFile);
         let config = {};
         if (testData.isTest || existsSync(configPath)) {
-            config = JSON.parse(readFileSync(join(projectRoot, configFile)));
+            config = JSON.parse(readFileSync(configPath));
         } else {
             Log.warn('Unable to find config.json, attempting to use default values for everything.');
         }
@@ -186,11 +187,21 @@ class PlexIntroEditorConfig extends ConfigBase {
         this.#root = projectRoot;
 
         Log.setFromString(this.#getOrDefault('logLevel', 'Info'));
-        this.#dataPath = this.#getOrDefault('dataPath', this.#getDefaultPlexDataPath());
-        this.#dbPath = this.#getOrDefault('database', join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+        if (process.env.IS_DOCKER) {
+            // Config _should_ have the right values in Docker, but "help" the user out
+            // by forcing it in case they were altered afterwards.
+            this.#dataPath = '/PlexDataDirectory';
+            this.#dbPath = join(config.dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
+            this.#host = '0.0.0.0';
+            this.#port = 3232;
+        } else {
+            this.#dataPath = this.#getOrDefault('dataPath', this.#getDefaultPlexDataPath());
+            this.#dbPath = this.#getOrDefault('database', join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+            this.#host = this.#getOrDefault('host', 'localhost');
+            this.#port = this.#getOrDefault('port', 3232);
+            }
+
         this.#verifyPathExists(this.#dbPath, 'database');
-        this.#host = this.#getOrDefault('host', 'localhost');
-        this.#port = this.#getOrDefault('port', 3232);
         this.#features = new PlexFeatures(this.#Base.json.features);
 
         // We only need the data path if preview thumbnails are enabled, so don't

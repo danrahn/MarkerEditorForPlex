@@ -215,8 +215,8 @@ class MarkerBackupManager {
     /**
      * Create a new MarkerBackupManager instance. This should always be used
      * opposed to creating a new MarkerBackupManager directly.
-     * @param {string} projectRoot The root of this project, to determine where the backup database is. */
-    static async CreateInstance(projectRoot) {
+     * @param {string} dataRoot The root of this project, to determine where the backup database is. */
+    static async CreateInstance(dataRoot) {
         if (Instance) {
             Log.warn(`Backup manager already initialized, we shouldn't be trying to do this again!`);
             MarkerBackupManager.Close();
@@ -237,7 +237,7 @@ class MarkerBackupManager {
             uuids[section.id] = section.uuid;
         }
 
-        const dbPath = joinPath(projectRoot, 'Backup');
+        const dbPath = joinPath(dataRoot, 'Backup');
         if (!existsSync(dbPath)) {
             Log.verbose('MarkerBackupManager: Backup path does not exist, creating it.');
             mkdirSync(dbPath);

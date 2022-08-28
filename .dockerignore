@@ -1,0 +1,14 @@
+# Similar to .gitignore, but ignores broader swaths
+# of files not relevant to running the app itself
+
+# Dockerfile takes care of npm install
+node_modules
+
+# VS Code envrionment
+.vscode
+
+Backup
+dist
+Logs
+Test
+npm-debug.log

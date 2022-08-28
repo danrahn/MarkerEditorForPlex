@@ -8,9 +8,10 @@ import { Log } from '../Shared/ConsoleLog.js';
 /**
  * Checks whether config.json exists. If it doesn't, asks the user
  * to go through first-run config setup.
- * @param {string} projectRoot */
-async function FirstRunConfig(projectRoot) {
-    const configPath = join(projectRoot, 'config.json');
+ * @param {string} dataRoot */
+async function FirstRunConfig(dataRoot) {
+    const configPath = join(dataRoot, 'config.json');
+
     if (existsSync(configPath)) {
         Log.verbose('config.json exists, skipping first run config.');
         return;
@@ -45,15 +46,26 @@ async function FirstRunConfig(projectRoot) {
     console.log();
 
     let config = {};
-    let dataPath = await askUser('Plex data directory path', 'auto', rl, existsSync, 'Path does not exist');
-    if (dataPath != 'auto') { config.dataPath = dataPath; }
-    let database = await askUser('Plex database path', 'auto', rl, existsSync, 'File does not exist');
-    if (database != 'auto') { config.database = database; }
-    config.host = await askUser('Plex Intro Editor host', 'localhost', rl);
-    config.port = await askUser('Plex Intro Editor port', '3232', rl, validPort, 'Invalid port number');
+
+    const isDocker = process.env.IS_DOCKER;
+    if (isDocker) {
+        // In Docker, file paths are static, provided by the user during docker run
+        config.dataPath = '/PlexDataDirectory';
+        config.database = join(config.dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
+        config.host = '0.0.0.0';
+        config.port = 3232;
+    } else {
+        let dataPath = await askUser('Plex data directory path', 'auto', rl, existsSync, 'Path does not exist');
+        if (dataPath != 'auto') { config.dataPath = dataPath; }
+        let database = await askUser('Plex database path', 'auto', rl, existsSync, 'File does not exist');
+        if (database != 'auto') { config.database = database; }
+        config.host = await askUser('Plex Intro Editor host', 'localhost', rl);
+        config.port = await askUser('Plex Intro Editor port', '3232', rl, validPort, 'Invalid port number');
+    }
+
     config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info', rl);
     config.features = {};
-    config.features.autoOpen = await askUserYesNo('Do you want the app to open in the browser automatically', true, rl);
+    config.features.autoOpen = !isDocker && await askUserYesNo('Do you want the app to open in the browser automatically', true, rl);
     config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
     config.features.backupActions = await askUserYesNo('Do you want to track/backup custom marker actions', true, rl);
     config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
