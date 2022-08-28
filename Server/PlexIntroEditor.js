@@ -20,7 +20,6 @@ import ServerError from './ServerError.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { ServerState, GetServerState, SetServerState } from './ServerState.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
 /** Server+Client shared dependencies */
 import { Log } from './../Shared/ConsoleLog.js';

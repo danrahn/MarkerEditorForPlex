@@ -2,9 +2,6 @@
 import { existsSync, mkdirSync } from "fs";
 import { join as joinPath } from "path";
 
-// Common-JS dependencies
-import CreateDatabase from "./CreateDatabase.cjs";
-
 // Client/Server shared dependencies
 import { Log } from "../Shared/ConsoleLog.js";
 import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
@@ -15,7 +12,6 @@ import { MarkerCache } from "./MarkerCacheManager.js";
 import { PlexQueries } from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
 import TransactionBuilder from "./TransactionBuilder.js";
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
 /** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
 
@@ -252,7 +248,7 @@ class MarkerBackupManager {
         }
 
         try {
-            const db = new DatabaseWrapper(await CreateDatabase(fullPath, true /*allowCreate*/));
+            const db = await DatabaseWrapper.CreateDatabase(fullPath, true /*allowCreate*/);
             Log.tmi('MarkerBackupManager: Opened database, checking schema');
             await db.exec(CheckVersionTable);
             const row = await db.get('SELECT version FROM schema_version;');

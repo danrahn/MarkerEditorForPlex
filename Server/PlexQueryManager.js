@@ -13,13 +13,11 @@
 
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResultEntry} BulkAddResultEntry */
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 /** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
 
 import { Log } from '../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../Shared/PlexTypes.js';
 
-import CreateDatabase from './CreateDatabase.cjs';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
@@ -114,7 +112,7 @@ FROM taggings
         /** @type {DatabaseWrapper} */
         let db;
         try {
-            db = new DatabaseWrapper(await CreateDatabase(databasePath, false /*fAllowCreate*/));
+            db = await DatabaseWrapper.CreateDatabase(databasePath, false /*fAllowCreate*/);
         } catch (err) {
             Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
             throw ServerError.FromDbError(err);

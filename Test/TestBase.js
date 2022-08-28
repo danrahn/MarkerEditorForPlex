@@ -4,9 +4,6 @@ import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-// Common-JS dependencies
-import CreateDatabase from "../Server/CreateDatabase.cjs";
-
 // Client/Server shared dependencies
 import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 
@@ -97,7 +94,7 @@ class TestBase {
         }
 
         try {
-            this.testDb = new DatabaseWrapper(await CreateDatabase(TestBase.testDbPath, true /*allowCreate*/));
+            this.testDb = await DatabaseWrapper.CreateDatabase(TestBase.testDbPath, true /*allowCreate*/);
         } catch (err) {
             TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
             throw err;
@@ -380,7 +377,7 @@ class TestBase {
             mkdirSync(testBackupPath);
         }
 
-        this.backupDb = new DatabaseWrapper(await CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/));
+        this.backupDb = await DatabaseWrapper.CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/);
     }
 
     /** @returns The INSERT statements that will add the default markers to the test database. */

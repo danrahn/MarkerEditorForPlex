@@ -1,3 +1,4 @@
+import CreateDatabase from "./CreateDatabase.cjs";
 import ServerError from "./ServerError.js"
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
@@ -8,6 +9,15 @@ import ServerError from "./ServerError.js"
  * implementation is callback-based.
  */
 class DatabaseWrapper {
+    /**
+     * Return a new database wrapper for the database at the given path.
+     * @param {string} path The path to the database.
+     * @param {boolean} allowCreate Determines whether we're okay with create a new database if it doesn't exist.
+     * @returns {Promise<DatabaseWrapper>} */
+    static async CreateDatabase(path, allowCreate) {
+        return new DatabaseWrapper(await CreateDatabase(path, allowCreate));
+    }
+
     /** @type {SqliteDatabase} */
     #db;
 
