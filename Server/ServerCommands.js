@@ -15,9 +15,9 @@ class ServerCommands {
         add           : async (params) => await CoreCommands.addMarker(...params.ints('metadataId', 'start', 'end')),
         edit          : async (params) => await CoreCommands.editMarker(...params.ints('id', 'start', 'end', 'userCreated')),
         delete        : async (params) => await CoreCommands.deleteMarker(params.i('id')),
-        check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, ShiftApplyType.DontApply, []),
+        check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, 0, ShiftApplyType.DontApply, []),
         shift         : async (params) => await CoreCommands.shiftMarkers(
-                                                                ...params.ints('id', 'shift'),
+                                                                ...params.ints('id', 'startShift', 'endShift'),
                                                                 params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
                                                                 params.ia('ignored', true)),
         bulk_delete   : async (params) => await CoreCommands.bulkDelete(params.i('id'), params.i('dryRun'), params.ia('ignored', true)),

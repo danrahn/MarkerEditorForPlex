@@ -122,11 +122,12 @@ class CoreCommands {
     /**
      * Shift all markers for the given metadata id by the given number of milliseconds.
      * @param {number} metadataId show, season, or episode metadata id
-     * @param {number} shift The number of milliseconds to shift markers
+     * @param {number} startShift The number of milliseconds to shift marker starts.
+     * @param {number} endShift The number of milliseconds to shift marker ends.
      * @param {number} applyType The ShiftApplyType
      * @param {number[]} ignoredMarkerIds Markers to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    static async shiftMarkers(metadataId, shift, applyType, ignoredMarkerIds) {
+    static async shiftMarkers(metadataId, startShift, endShift, applyType, ignoredMarkerIds) {
         const markers = await PlexQueries.getMarkersAuto(metadataId);
         /** @type {{ [episodeId: number]: RawMarkerData[] }} */
         const seen = {};
@@ -154,7 +155,7 @@ class CoreCommands {
         /** @type {number[]} */
         const episodeIds = Object.keys(seen);
         const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
-        const foundOverflow = CoreCommands.#checkOverflow(seen, rawEpisodeData, shift);
+        const foundOverflow = CoreCommands.#checkOverflow(seen, rawEpisodeData, startShift, endShift);
 
         if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
             /** @type {MarkerData[]} */
@@ -177,7 +178,7 @@ class CoreCommands {
         }
 
         // TODO: Check if shift causes overlap with ignored markers?
-        const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, shift);
+        const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, startShift, endShift);
 
         // Now make sure all indexes are in order
         const reindexResult = await PlexQueries.reindex(metadataId);
@@ -352,8 +353,10 @@ class CoreCommands {
 
     /**
      * @param {{ [episodeId: string]: RawMarkerData[] }} seen
-     * @param {RawEpisodeData[]} rawEpisodeData */
-    static #checkOverflow(seen, rawEpisodeData, shift) {
+     * @param {RawEpisodeData[]} rawEpisodeData
+     * @param {number} startShift
+     * @param {number} endShift */
+    static #checkOverflow(seen, rawEpisodeData, startShift, endShift) {
         const limits = {};
         for (const episode of rawEpisodeData) {
             limits[episode.id] = episode.duration;
@@ -361,9 +364,9 @@ class CoreCommands {
 
         for (const episodeId of Object.keys(limits)) {
             for (const marker of seen[episodeId]) {
-                const newStart = marker.start + shift;
-                const newEnd = marker.end + shift;
-                if (newEnd <= 0 || newStart >= limits[episodeId]) {
+                const newStart = marker.start + startShift;
+                const newEnd = marker.end + endShift;
+                if (newEnd <= 0 || newStart >= limits[episodeId] || newEnd <= newStart) {
                     return true;
                 }
             }

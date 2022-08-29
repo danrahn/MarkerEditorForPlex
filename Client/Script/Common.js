@@ -72,11 +72,12 @@ const ServerCommand = {
     /**
      * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
      * @param {number} id The metadata id of the item to shift markers for.
-     * @param {number} shift The number of milliseconds to shift markers (positive or negative).
+     * @param {number} startShift The number of milliseconds to shift marker starts (positive or negative).
+     * @param {number} endShift The number of milliseconds to shift marker ends (positive or negative).
      * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
      * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    shift : async (id, shift, force, ignored=[]) => jsonRequest('shift', { id : id, shift : shift, force : force ? 1 : 0, ignored : ignored.join(',') }),
+    shift : async (id, startShift, endShift, force, ignored=[]) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
     /**
      * Query for all markers that would be deleted for the given metadata id.

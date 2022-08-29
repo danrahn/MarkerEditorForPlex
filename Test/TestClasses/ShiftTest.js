@@ -22,7 +22,8 @@ class ShiftTest extends TestBase {
             this.shiftSingleEpisodeWithMultipleMarkersForceApplyTest,
             this.shiftSeasonWithIgnoreTest,
             this.tryShiftSeasonWithoutIgnoreTest,
-            this.shiftShowWithIgnoreTest
+            this.shiftShowWithIgnoreTest,
+            this.splitShiftSeasonTest,
         ]
     }
 
@@ -33,7 +34,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeTest() {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const shift = 3000;
-        const result = await this.#verifyShift(episode.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         return TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, this.testDb);
     }
@@ -43,7 +44,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeNegativeTest() {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const shift = -3000;
-        const result = await this.#verifyShift(episode.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         return TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, this.testDb);
     }
@@ -66,7 +67,7 @@ class ShiftTest extends TestBase {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const shift = -16000;
         TestHelpers.verify(episode.Marker1.Start + shift < 0, `episode.Marker1.Start + shift < 0: Can't test start cutoff if we don't shift this enough!`);
-        const result = await this.#verifyShift(episode.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         return TestHelpers.validateMarker(newMarker, episode.Id, null, null, 0, episode.Marker1.End + shift, 0, this.testDb);
     }
@@ -77,41 +78,44 @@ class ShiftTest extends TestBase {
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
         const shift = 600000 - 16000;
         TestHelpers.verify(episode.Marker1.End + shift > 600000, `episode.Marker1.End + shift > 600000: Can't test end cutoff if we don't shift this enough!`);
-        const result = await this.#verifyShift(episode.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         return TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, 600000, 0, this.testDb);
     }
 
     /**
-     * Ensure we fail to offset a marker that would either force the end time to be 0 or
-     * less, or the start time to be greater than or equal to the duration of the episode. */
+     * Ensure we fail to offset a marker that would put it beyond the bounds of the
+     * episode, or the shift results in the start time being greater than the end time. */
     async shiftSingleEpisodeTooMuchTest() {
         this.expectFailure();
         const episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
 
         // Shift too early
-        let shift = -45000;
+        await this.#verifyBadShift(episode, -45000, -45000);
+
+        // Shift too late
+        await this.#verifyBadShift(episode, 600000, 600000);
+
+        // Separate shift results in equal start/end
+        await this.#verifyBadShift(episode, 15000, -15000);
+
+        // Separate shifts end in crossing start/end
+        await this.#verifyBadShift(episode, 16000, -16000);
+    }
+
+    async #verifyBadShift(episode, startShift, endShift) {
         /** @type {ShiftResult} */
         let result = await this.send('shift', {
             id : episode.Id,
-            shift : shift,
-            force : 0,
-        });
-        TestHelpers.verify(result, `Expected shift beyond episode bounds to return JSON, found nothing.`);
-        TestHelpers.verify(result.applied === false, `Expected shift beyond episode bounds to have applied=false, found ${result.applied}`);
-        TestHelpers.verify(result.overflow, `Expected shift beyond episode bounds to have overflow bit set, found ${result.overflow}`);
-
-        // Shift too late
-        shift = 600000;
-        result = await this.send('shift', {
-            id : episode.Id,
-            shift : shift,
+            startShift : startShift,
+            endShift : endShift,
             force : 0,
         });
 
-        TestHelpers.verify(result, `Expected shift beyond episode bounds to return JSON, found nothing.`);
-        TestHelpers.verify(result.applied === false, `Expected shift beyond episode bounds to have applied=false, found ${result.applied}`);
-        TestHelpers.verify(result.overflow, `Expected shift beyond episode bounds to have overflow bit set, found ${result.overflow}`);
+        TestHelpers.verify(result, `Expected shift with invalid bounds to return JSON, found nothing.`);
+        TestHelpers.verify(result.applied === false, `Expected shift with invalid bounds to have applied=false, found ${result.applied}`);
+        TestHelpers.verify(result.overflow, `Expected shift with invalid bounds to have overflow bit set, found ${result.overflow}`);
+
     }
 
     /**
@@ -120,7 +124,7 @@ class ShiftTest extends TestBase {
         // Really the same as shiftSingleEpisodeTest
         const season = TestBase.DefaultMetadata.Show1.Season1;
         const shift = 3000;
-        const result = await this.#verifyShift(season.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(season.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         const oldMarker = season.Episode2.Marker1;
         return TestHelpers.validateMarker(newMarker, null, season.Id, null, oldMarker.Start + shift, oldMarker.End + shift, 0, this.testDb);
@@ -131,7 +135,7 @@ class ShiftTest extends TestBase {
     async shiftSingleShowTest() {
         const show = TestBase.DefaultMetadata.Show1;
         const shift = 3000;
-        const result = await this.#verifyShift(show.Id, shift, 1);
+        const result = await this.#verifyJoinedShift(show.Id, shift, 1);
         const newMarker = result.allMarkers[0];
         const oldMarker = show.Season1.Episode2.Marker1;
         return TestHelpers.validateMarker(newMarker, null, null, show.Id, oldMarker.Start + shift, oldMarker.End + shift, 0, this.testDb);
@@ -157,7 +161,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeWithMultipleMarkersTryApplyWithIgnoreTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         const shift = 345000;
-        const result = await this.#verifyShift(episode.Id, shift, 1, [episode.Marker2.Id]);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1, [episode.Marker2.Id]);
         const newMarker = result.allMarkers[0];
         await TestHelpers.validateMarker(newMarker, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, this.testDb);
 
@@ -173,7 +177,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeWithMultipleMarkersForceApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         const shift = 3000;
-        const result = await this.#verifyShift(episode.Id, shift, 2, [], true, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 2, [], true, 1);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -189,7 +193,7 @@ class ShiftTest extends TestBase {
     async shiftSeasonWithIgnoreTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const shift = 3000;
-        const result = await this.#verifyShift(season.Id, shift, 2, [season.Episode2.Marker2.Id]);
+        const result = await this.#verifyJoinedShift(season.Id, shift, 2, [season.Episode2.Marker2.Id]);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -217,7 +221,7 @@ class ShiftTest extends TestBase {
     async shiftShowWithIgnoreTest() {
         const show = TestBase.DefaultMetadata.Show3;
         const shift = 3000;
-        const result = await this.#verifyShift(show.Id, shift, 3, [show.Season1.Episode2.Marker1.Id]);
+        const result = await this.#verifyJoinedShift(show.Id, shift, 3, [show.Season1.Episode2.Marker1.Id]);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -234,6 +238,19 @@ class ShiftTest extends TestBase {
     }
 
     /**
+     * Ensure markers are shifted correctly when a separate start and end shift time are given. */
+    async splitShiftSeasonTest() {
+        const season = TestBase.DefaultMetadata.Show1.Season1;
+        // Cut off 6 seconds, 3 from the start and 3 from the end.
+        const startShift = 3000;
+        const endShift = -3000;
+        const result = await this.#verifySplitShift(season.Id, startShift, endShift, 1);
+        const newMarker = result.allMarkers[0];
+        const oldMarker = season.Episode2.Marker1;
+        return TestHelpers.validateMarker(newMarker, null, season.Id, null, oldMarker.Start + startShift, oldMarker.End + endShift, 0, this.testDb);
+    }
+
+    /**
      * Helper that validates a successfully applied shift.
      * @param {number} metadataId The show/season/episode metadata id.
      * @param {number} shift The ms to shift.
@@ -242,10 +259,25 @@ class ShiftTest extends TestBase {
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
      * @param {boolean} force Whether the shift operation should be forced.
      * @returns {Promise<ShiftResult>} */
-    async #verifyShift(metadataId, shift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
+    async #verifyJoinedShift(metadataId, shift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
+        return this.#verifySplitShift(metadataId, shift, shift, expectedLength, ignoreList, expectConflict, force);
+    }
+
+    /**
+     * Helper that validates a successfully applied shift with separate start and end shifts.
+     * @param {number} metadataId The show/season/episode metadata id.
+     * @param {number} startShift The ms to shift the start of markers.
+     * @param {number} endShift The ms to shift the end of markers.
+     * @param {number} expectedLength The expected number of shifted markers.
+     * @param {number[]} [ignoreList=[]] The list of marker ids to ignore.
+     * @param {boolean} expectConflict Whether we expect to encounter a conflict.
+     * @param {boolean} force Whether the shift operation should be forced.
+     * @returns {Promise<ShiftResult>} */
+    async #verifySplitShift(metadataId, startShift, endShift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
         const params = {
             id : metadataId,
-            shift : shift,
+            startShift : startShift,
+            endShift : endShift,
             force : force
         };
         if (ignoreList.length != 0) {
@@ -281,7 +313,7 @@ class ShiftTest extends TestBase {
         if (checkOnly) {
             result = await this.send('check_shift', { id : metadataId });
         } else {
-            result = await this.send('shift', { id : metadataId, shift : 3000, force : 0 });
+            result = await this.send('shift', { id : metadataId, startShift : 3000, endShift : 3000, force : 0 });
         }
 
         TestHelpers.verify(result, `Expected shift to return a valid object, found nothing.`);

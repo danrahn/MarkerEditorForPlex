@@ -679,8 +679,9 @@ ORDER BY e.id ASC;`;
      * Shift the given markers by the given offset
      * @param {{[episodeId: number]: RawMarkerData[]}} markers The markers to shift
      * @param {RawEpisodeData[]} episodeData 
-     * @param {number} shift The time to shift the markers by, in milliseconds */
-    async shiftMarkers(markers, episodeData, shift) {
+     * @param {number} startShift The time to shift marker starts by, in milliseconds
+     * @param {number} endShift The time to shift marker ends by, in milliseconds */
+    async shiftMarkers(markers, episodeData, startShift, endShift) {
         const episodeIds = Object.keys(markers);
         const limits = {};
         for (const episode of episodeData) {
@@ -699,11 +700,11 @@ ORDER BY e.id ASC;`;
                     throw new ServerError(`Unable to find max episode duration, the episode id ${marker.episode_id} doesn't appear to be valid.`);
                 }
 
-                const newStart = Math.max(0, Math.min(marker.start + shift, maxDuration));
-                const newEnd = Math.max(0, Math.min(marker.end + shift, maxDuration));
+                const newStart = Math.max(0, Math.min(marker.start + startShift, maxDuration));
+                const newEnd = Math.max(0, Math.min(marker.end + endShift, maxDuration));
                 if (newStart == newEnd) {
                     // Shifted entirely outside of the episode? We should have already checked for that.
-                    throw new ServerError(`Attempting to shift marker (${marker.start}-${marker.end}) by ${shift} ` +
+                    throw new ServerError(`Attempting to shift marker (${marker.start}-${marker.end}) by ${startShift}${endShift} ` +
                         `puts it outside the bounds of the episode (0-${maxDuration})!`, 400);
                 }
 

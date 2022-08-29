@@ -20,7 +20,14 @@ class BulkShiftOverlay {
     #mediaItem;
 
     /** @type {HTMLInputElement} */
-    #timeInput;
+    #startTimeInput;
+
+    /** @type {HTMLInputElement} */
+    #endTimeInput;
+
+    /** @type {boolean} */
+    #separateShift = false;
+
     /**
      * Timer id to track shift user input.
      * @type {number} */
@@ -29,8 +36,11 @@ class BulkShiftOverlay {
     /** @type {BulkActionTable} */
     #table;
 
-    /** @type {number} Cached shift time, in milliseconds */
-    #shiftMs;
+    /** @type {number} Cached start shift time, in milliseconds */
+    #startShiftMs;
+
+    /** @type {number} Cached end shift time, in milliseconds */
+    #endShiftMs;
 
     /**
      * Construct a new shift overlay.
@@ -44,21 +54,46 @@ class BulkShiftOverlay {
     show() {
         let container = buildNode('div', { id : 'bulkActionContainer' })
         let title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
-        this.#timeInput = buildNode(
+        this.#startTimeInput = buildNode(
             'input', {
                 type : 'text',
                 placeholder : 'ms or mm:ss[.000]',
-                name : 'shiftTime',
-                id : 'shiftTime'
+                name : 'shiftStartTime',
+                id : 'shiftStartTime'
             },
             0,
-            { keyup : this.#onTimeShiftChange.bind(this) })
+            { keyup : this.#onTimeShiftChange.bind(this) });
+
+        this.#endTimeInput = buildNode(
+                'input', {
+                    type : 'text',
+                    placeholder : 'ms or mm:ss[.000]',
+                    name : 'shiftEndTime',
+                    id : 'shiftEndTime',
+                    class : 'hidden'
+                },
+                0,
+                { keyup : this.#onTimeShiftChange.bind(this) });
+
+        const separateShiftCheck = buildNode(
+            'input', {
+                type : 'checkbox',
+                name : 'separateShiftCheck',
+                id : 'separateShiftCheck'
+            });
+
+        separateShiftCheck.addEventListener('change', this.#onSeparateShiftChange.bind(this, separateShiftCheck));
         appendChildren(container,
             title,
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'shiftZone' }),
-                buildNode('label', { for : 'shiftTime' }, 'Time offset: '),
-                this.#timeInput),
+                buildNode('label', { for : 'shiftStartTime', id : 'shiftStartTimeLabel' }, 'Time shift: '),
+                this.#startTimeInput,
+                buildNode('label', { for : 'shiftEndTime', class : 'hidden', id : 'shiftEndTimeLabel' }, 'End shift: '),
+                this.#endTimeInput),
+            appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
+                buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
+                separateShiftCheck),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
                 ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'}),
@@ -67,7 +102,7 @@ class BulkShiftOverlay {
             )
         );
 
-        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => this.#timeInput?.focus() } }, container);
+        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => this.#startTimeInput?.focus() } }, container);
     }
 
     /**
@@ -85,7 +120,26 @@ class BulkShiftOverlay {
         }
 
         this.#inputTimer = setTimeout(this.#adjustNewTimes.bind(this), 250);
+    }
 
+    /**
+     * Update UI when the user enables/disables the 'separate start/end' checkbox
+     * @param {HTMLInputElement} checkbox */
+    #onSeparateShiftChange(checkbox) {
+        this.#separateShift = checkbox.checked;
+        if (!this.#separateShift) {
+            $('#shiftStartTimeLabel').innerText = 'Time shift: ';
+            $('#shiftEndTimeLabel').classList.add('hidden');
+            this.#endTimeInput.classList.add('hidden');
+        } else {
+            $('#shiftStartTimeLabel').innerText = 'Start shift: ';
+            $('#shiftEndTimeLabel').classList.remove('hidden');
+            this.#endTimeInput.classList.remove('hidden');
+            if (!this.#endTimeInput.value) { this.#endTimeInput.value = this.#startTimeInput.value; }
+            this.#checkShiftValue();
+        }
+
+        this.#adjustNewTimes();
     }
 
     /**
@@ -167,8 +221,9 @@ class BulkShiftOverlay {
      * Attempts to apply the given shift to all markers under the given metadata id.
      * If any episode has multiple markers, shows the customization table. */
     async #tryApply() {
-        let shift = this.shiftValue();
-        if (!shift) {
+        let startShift = this.shiftStartValue();
+        let endShift = this.shiftEndValue();
+        if (isNaN(startShift) || isNaN(endShift) || (!startShift && !endShift)) {
             this.#checkShiftValue();
             this.#showMessage('invalidOffset');
             return BulkActionCommon.flashButton('shiftApply', 'red');
@@ -209,7 +264,7 @@ class BulkShiftOverlay {
             return this.#showMessage('error', true);
         }
 
-        const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, false /*force*/, ignoreInfo.ignored);
+        const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, startShift, endShift, false /*force*/, ignoreInfo.ignored);
         if (shiftResult.applied) {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
@@ -227,15 +282,16 @@ class BulkShiftOverlay {
     /**
      * Force applies the given shift to all markers under the given metadata id. */
     async #forceApply() {
-        let shift = this.shiftValue();
-        if (!shift) {
+        const startShift = this.shiftStartValue();
+        const endShift = this.shiftEndValue();
+        if (isNaN(startShift) || isNaN(endShift) || (!startShift && !endShift)) {
             $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
         }
 
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
         const ignoreInfo = this.#getIgnored();
         try {
-            const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, shift, true /*force*/, ignoreInfo.ignored);
+            const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, startShift, endShift, true /*force*/, ignoreInfo.ignored);
             if (!shiftResult.applied) {
                 Log.assert(shiftResult.overflow, `Force apply should only fail if overflow was found.`);
                 this.#showCustomizeTable(shiftResult);
@@ -263,20 +319,33 @@ class BulkShiftOverlay {
     }
 
     /**
-     * Retrieve the current ms time of the shift input.
+     * Retrieve the current ms time of the start shift input.
      * @returns {number} */
-    shiftValue() { return this.#shiftMs; }
+    shiftStartValue() { return this.#startShiftMs; }
+
+    /**
+     * Retrieve the current ms time of the end shift input, or the start time if we're not separating the shift.
+     * @returns {number} */
+    shiftEndValue() { return this.#separateShift ? this.#endShiftMs : this.#startShiftMs; }
 
     table() { return this.#table; }
 
     /** Marks the time input red if the shift value is invalid. */
     #checkShiftValue() {
-        this.#shiftMs = timeToMs(this.#timeInput.value, true /*allowNegative*/);
-        if (isNaN(this.#shiftMs)) {
-            this.#shiftMs = 0;
-            this.#timeInput.classList.add('badInput');
-        } else {
-            this.#timeInput.classList.remove('badInput');
+        const checkTime = (val, input) => {
+            if (isNaN(val)) {
+                input.classList.add('badInput');
+            } else {
+                input.classList.remove('badInput');
+            }
+        }
+
+        this.#startShiftMs = timeToMs(this.#startTimeInput.value, true /*allowNegative*/);
+        checkTime(this.#startShiftMs, this.#startTimeInput);
+        if (this.#separateShift) {
+            this.#endShiftMs = timeToMs(this.#endTimeInput.value, true /*allowNegative*/);
+            // If end is less than or equal to start, mark it invalid.
+            checkTime(this.#endShiftMs, this.#endTimeInput);
         }
     }
 
@@ -449,7 +518,8 @@ class BulkShiftRow extends BulkActionRow {
     update() {
         this.#isError = false;
         this.#isWarn = false;
-        const shift = this.#parent.shiftValue() || 0;
+        const startShift = this.#parent.shiftStartValue() || 0;
+        const endShift = this.#parent.shiftEndValue() || 0;
         if (this.enabled !== this.#enabledLastUpdate) {
             this.#markActive(!this.enabled, this.row.children[2], this.row.children[3]);
             if (!this.enabled) {
@@ -462,8 +532,8 @@ class BulkShiftRow extends BulkActionRow {
             this.#enabledLastUpdate = this.enabled;
         }
 
-        const start = this.#marker.start + shift;
-        const end = this.#marker.end + shift;
+        const start = this.#marker.start + startShift;
+        const end = this.#marker.end + endShift;
         const maxDuration = this.#episode.duration;
         const newStart = Math.max(0, Math.min(start, maxDuration));
         const newEnd = Math.max(0, Math.min(end, maxDuration));
@@ -473,7 +543,7 @@ class BulkShiftRow extends BulkActionRow {
         newEndNode.innerText = msToHms(newEnd);
         // If we aren't enabled, skip custom coloring.
         if (this.enabled) {
-            if (end < 0 || start > maxDuration) {
+            if (end < 0 || start > maxDuration || end <= start) {
                 this.#markActive(true, this.row.children[2], this.row.children[3]);
                 [newStartNode, newEndNode].forEach(n => {
                     BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
