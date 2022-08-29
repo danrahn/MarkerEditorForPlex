@@ -36,5 +36,6 @@ See [Configuring Plex Intro Editor](https://github.com/danrahn/PlexIntroEditor/w
 
 For full usage instruction, see [Using Plex Intro Editor](https://github.com/danrahn/PlexIntroEditor/wiki/usage).
 
-0. Back up your Plex database
-1. Run `node app.js` from the root of the project
+0. (Strongly encouraged) Shut down PMS
+1. Back up your Plex database
+2. Run `node app.js` from the root of the project
