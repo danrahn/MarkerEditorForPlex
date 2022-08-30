@@ -3,7 +3,7 @@ import { MarkerData } from "../../Shared/PlexTypes.js";
 
 import { BackupManager } from "../MarkerBackupManager.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
-import { Config } from "../PlexIntroEditorConfig.js";
+import { Config } from "../IntroEditorConfig.js";
 import ServerError from "../ServerError.js";
 
 class PurgeCommands {
@@ -41,7 +41,7 @@ class PurgeCommands {
         const existingMarkers = restoredMarkerData.existingMarkers;
 
         if (restoredMarkers.length == 0) {
-            Log.verbose(`PlexIntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
+            Log.verbose(`IntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
         }
 
         let markerData = [];

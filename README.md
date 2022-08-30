@@ -1,4 +1,4 @@
-# Plex Intro Editor
+# Intro Editor for Plex
 
 Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete individual intro markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple intro markers, for example to skip credits or a "previously on XYZ" section (as seen in the image below).
 
@@ -9,9 +9,9 @@ Plex does not let users modify or add intro markers, relying solely on their own
 
 ## Installation
 
-For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/PlexIntroEditor/wiki/installation).
+For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/IntroEditorForPlex/wiki/installation).
 
-If running Windows, download the latest [release](https://github.com/danrahn/PlexIntroEditor/releases), extract the contents to a new folder, and double click PlexIntroEditor.exe.
+If running Windows, download the latest [release](https://github.com/danrahn/IntroEditorForPlex/releases), extract the contents to a new folder, and double click IntroEditorForPlex.exe.
 
 In Docker:
 
@@ -19,22 +19,22 @@ In Docker:
 docker run -p 3233:3232 \
            -v /path/to/config:/Data \
            -v /path/to/PlexData:/PlexDataDirectory \
-           -it danrahn/plex-intro-editor:latest
+           -it danrahn/intro-editor-for-plex:latest
 ```
 
 For all other platforms (or to run from source):
 
 1. Install [Node.js](https://nodejs.org/en/)
-2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/PlexIntroEditor/archive/refs/heads/main.zip)
+2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/IntroEditorForPlex/archive/refs/heads/main.zip)
 3. Install dependencies by running `npm install` from the root of the project
 
 ## Configuration
 
-See [Configuring Plex Intro Editor](https://github.com/danrahn/PlexIntroEditor/wiki/configuration) for details on the various settings within `config.json`.
+See [Configuring Intro Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/configuration) for details on the various settings within `config.json`.
 
 ## Using the Application
 
-For full usage instruction, see [Using Plex Intro Editor](https://github.com/danrahn/PlexIntroEditor/wiki/usage).
+For full usage instruction, see [Using Intro Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/usage).
 
 0. (Strongly encouraged) Shut down PMS
 1. Back up your Plex database

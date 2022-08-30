@@ -13,7 +13,7 @@ import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
 import { MarkerBackupManager, BackupManager } from './MarkerBackupManager.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
-import { PlexIntroEditorConfig, Config } from './PlexIntroEditorConfig.js';
+import { IntroEditorConfig, Config } from './IntroEditorConfig.js';
 import { PlexQueryManager } from './PlexQueryManager.js';
 import ServerCommands from './ServerCommands.js';
 import ServerError from './ServerError.js';
@@ -22,7 +22,7 @@ import { ServerState, GetServerState, SetServerState } from './ServerState.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
 
 /** Server+Client shared dependencies */
-import { Log } from './../Shared/ConsoleLog.js';
+import { Log } from '../Shared/ConsoleLog.js';
 
 /**
  * HTTP server instance.
@@ -43,7 +43,7 @@ async function run() {
         await FirstRunConfig(dataRoot);
     }
 
-    const config = PlexIntroEditorConfig.Create(projectRoot, testData, dataRoot);
+    const config = IntroEditorConfig.Create(projectRoot, testData, dataRoot);
 
     // Set up the database, and make sure it's the right one.
     const queryManager = await PlexQueryManager.CreateInstance(config.databasePath(), config.pureMode());
@@ -122,7 +122,7 @@ function writeErrorToFile(message) {
         let time = `${now.getFullYear()}.${padLeft(now.getMonth() + 1)}.${padLeft(now.getDate())}.` +
             `${padLeft(now.getHours())}.${padLeft(now.getMinutes())}.${padLeft(now.getSeconds())}.` +
             `${padLeft(now.getMilliseconds(), 3)}`;
-        const filename = `PlexIntroEditor.${time}.err`;
+        const filename = `IntroEditor.${time}.err`;
         writeFileSync(join(logDir, filename), message);
         Log.verbose(`Wrote error file to ${join(logDir, filename)}`);
     } catch (ex) {
@@ -176,7 +176,7 @@ function cleanupForShutdown() {
     MarkerBackupManager.Close();
     MarkerCacheManager.Close();
     ThumbnailManager.Close();
-    PlexIntroEditorConfig.Close();
+    IntroEditorConfig.Close();
 
     // Either we failed to resume the server, or we got a shutdown request in the middle of
     // resuming. Send a failure response now so the server can close cleanly.

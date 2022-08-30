@@ -21,7 +21,7 @@ async function FirstRunConfig(dataRoot) {
         input: process.stdin,
         output: process.stdout });
     console.log();
-    if (!await askUserYesNo('Welcome to Plex Intro Editor! It looks like this is your first run, as config.json\n' +
+    if (!await askUserYesNo('Welcome to Intro Editor for Plex! It looks like this is your first run, as config.json\n' +
                             'could not be found. Would you like to go through the first-time setup', true, rl)) {
         if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
             writeFileSync(configPath, "{}\n");
@@ -40,7 +40,7 @@ async function FirstRunConfig(dataRoot) {
     console.log();
     console.log('If you are asked to provide a path, provide it without quotes or other escaped characters.');
     console.log();
-    console.log('For more information about what these settings control, see https://github.com/danrahn/PlexIntroEditor/wiki/Configuration');
+    console.log('For more information about what these settings control, see https://github.com/danrahn/IntroEditorForPlex/wiki/Configuration');
     console.log();
     await askUserCore('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ', rl);
     console.log();
@@ -59,8 +59,8 @@ async function FirstRunConfig(dataRoot) {
         if (dataPath != 'auto') { config.dataPath = dataPath; }
         let database = await askUser('Plex database path', 'auto', rl, existsSync, 'File does not exist');
         if (database != 'auto') { config.database = database; }
-        config.host = await askUser('Plex Intro Editor host', 'localhost', rl);
-        config.port = await askUser('Plex Intro Editor port', '3232', rl, validPort, 'Invalid port number');
+        config.host = await askUser('Editor host', 'localhost', rl);
+        config.port = await askUser('Editor port', '3232', rl, validPort, 'Invalid port number');
     }
 
     config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info', rl);

@@ -19,7 +19,7 @@ import { Log } from '../Shared/ConsoleLog.js';
  * required (i.e. the private method itself uses private members of the base class).
  *
  * It's not super clean, and probably much easier to just make the base members public, or
- * duplicate the code between PlexFeatures and PlexIntroEditorConfig, but where's the fun in that?
+ * duplicate the code between PlexFeatures and IntroEditorConfig, but where's the fun in that?
  */
 class ConfigBase {
     /** The raw configuration file.
@@ -109,14 +109,14 @@ class PlexFeatures extends ConfigBase {
 
 /**
  * Singleton editor config instance.
- * @type {PlexIntroEditorConfig}
+ * @type {IntroEditorConfig}
  * @readonly */ // Externally readonly
 let Instance;
 
 /**
  * Provides read-only access to the users application configuration.
  */
-class PlexIntroEditorConfig extends ConfigBase {
+class IntroEditorConfig extends ConfigBase {
     /**
      * Create the singleton config instance.
      * @param {string} projectRoot
@@ -124,10 +124,10 @@ class PlexIntroEditorConfig extends ConfigBase {
      * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
     static Create(projectRoot, testData, dataRoot) {
         if (Instance != null) {
-            Log.warn(`Singleton PlexIntroEditorConfig already exists, we shouldn't be creating it again!`);
+            Log.warn(`Singleton IntroEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
-        Instance = new PlexIntroEditorConfig(projectRoot, testData, dataRoot);
+        Instance = new IntroEditorConfig(projectRoot, testData, dataRoot);
         return Instance;
     }
 
@@ -163,7 +163,7 @@ class PlexIntroEditorConfig extends ConfigBase {
      * @type {PlexFeatures} */
     #features;
 
-    /** Creates a new PlexIntroEditorConfig. */
+    /** Creates a new IntroEditorConfig. */
     constructor(projectRoot, testData, dataRoot) {
         Log.info('Reading configuration...');
         let baseClass = {};
@@ -271,4 +271,4 @@ class PlexIntroEditorConfig extends ConfigBase {
     projectRoot() { return this.#root; }
 }
 
-export { PlexIntroEditorConfig, Instance as Config };
+export { IntroEditorConfig, Instance as Config };

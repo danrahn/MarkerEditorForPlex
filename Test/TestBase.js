@@ -9,7 +9,7 @@ import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
 
 // Server/test dependencies/typedefs
 import TestHelpers from "./TestHelpers.js";
-import { run as mainRun } from "../Server/PlexIntroEditor.js";
+import { run as mainRun } from "../Server/IntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ServerState, GetServerState } from '../Server/ServerState.js';
@@ -137,7 +137,7 @@ class TestBase {
     }
 
     /**
-     * Starts the Plex Intro Editor. Expects to have been run via launch.json's "Run Tests"
+     * Starts the intro editor. Expects to have been run via launch.json's "Run Tests"
      * configuration, which will pass in the right command line arguments to mainRun. */
     async startService() {
         if (GetServerState() == ServerState.FirstBoot) {

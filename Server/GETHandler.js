@@ -6,7 +6,7 @@ import { join } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { Config } from './PlexIntroEditorConfig.js'
+import { Config } from './IntroEditorConfig.js'
 import ServerError from './ServerError.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import { ServerState, GetServerState } from './ServerState.js';

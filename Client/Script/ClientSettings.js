@@ -205,7 +205,7 @@ class RememberLastSectionSetting extends SettingBase {
 }
 
 /**
- * `ClientSettings` is responsible for holding the local user settings for Plex Intro Editor.
+ * `ClientSettings` is responsible for holding the local user settings for the Intro Editor.
  */
 class ClientSettings {
     /** Key used for getting and retrieving settings from {@linkcode localStorage} */

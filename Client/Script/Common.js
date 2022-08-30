@@ -191,19 +191,19 @@ const ServerCommand = {
     ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds : markerIds, sectionId : sectionId }),
 
     /**
-     * Shutdown Plex Intro Editor.
+     * Shutdown Intro Editor.
      * @returns {Promise<void>} */
     shutdown : async () => jsonRequest('shutdown'),
     /**
-     * Restart Plex Intro Editor.
+     * Restart Intro Editor.
      * @returns {Promise<void>} */
     restart : async () => jsonRequest('restart'),
     /**
-     * Suspend Plex Intro Editor.
+     * Suspend Intro Editor.
      * @returns {Promise<void>} */
     suspend : async () => jsonRequest('suspend'),
     /**
-     * Resume a suspended Plex Intro Editor.
+     * Resume a suspended Intro Editor.
      * @returns {Promise<void>} */
     resume : async () => jsonRequest('resume'),
 };

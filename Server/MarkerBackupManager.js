@@ -313,7 +313,7 @@ class MarkerBackupManager {
     /**
      * Updates the backup database to set the correct section_id, which will be -1 if
      * the user performed any actions with the V1 database schema.
-     * This should be a one-time operation (per server associated with PlexIntroEditor).
+     * This should be a one-time operation (per server associated with this application).
      * @param {() => void} callback Callback to invoke after updating the database's section ids. */
     async #updateSectionIdAfterUpgrade() {
         Log.verbose('MarkerBackupManager: Setting section_id after upgrading schema.');
@@ -595,7 +595,7 @@ ORDER BY id DESC;`
             this.#purgeCache = {};
         }
 
-        // Each instance of PlexIntroEditor is tied to a single server's database,
+        // Each instance of this application is tied to a single server's database,
         // so it's okay to use the section_id instead of the globally unique section_uuid.
         if (!this.#purgeCache[action.section_id]) {
             this.#purgeCache[action.section_id] = {};

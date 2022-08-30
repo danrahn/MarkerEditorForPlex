@@ -1,7 +1,7 @@
 import { readdirSync } from 'fs';
 import { join } from 'path';
 
-import { Config } from '../../Server/PlexIntroEditorConfig.js';
+import { Config } from '../../Server/IntroEditorConfig.js';
 
 import TestBase from "../TestBase.js";
 import TestHelpers from '../TestHelpers.js';

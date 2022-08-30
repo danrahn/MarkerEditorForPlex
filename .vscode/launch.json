@@ -7,7 +7,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch PlexIntroEditor",
+            "name": "Launch IntroEditor",
             "skipFiles": [
                 "<node_internals>/**"
             ],

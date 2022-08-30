@@ -3,7 +3,7 @@ import { EpisodeData, MarkerData, SeasonData, ShowData } from "../../Shared/Plex
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
-import { Config } from "../PlexIntroEditorConfig.js";
+import { Config } from "../IntroEditorConfig.js";
 import { PlexQueries } from "../PlexQueryManager.js";
 import ServerError from "../ServerError.js";
 import { Thumbnails } from "../ThumbnailManager.js";

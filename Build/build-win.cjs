@@ -9,7 +9,7 @@ const { exec } = require('child_process');
 let { version } = require('../package.json');
 const iconPath = resolve(__dirname, 'app.ico');
 
-const appName = 'Plex Intro Editor';
+const appName = 'Intro Editor for Plex';
 const rc = {
     CompanyName : appName,
     ProductName : appName,
@@ -17,7 +17,7 @@ const rc = {
     FileVersion : version,
     ProductVersion : version,
     InternalappName: appName + 'exe',
-    LegalCopyright: "PlexIntroEditor.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license."
+    LegalCopyright: "IntroEditorForPlex.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license."
 };
 
 /**
@@ -46,7 +46,7 @@ async function transpile() {
 async function toExe() {
     await exeCompile({
         input: resolve(__dirname, '../dist/built.js'),
-        output: resolve(__dirname, '../dist/PlexIntroEditor.exe'),
+        output: resolve(__dirname, '../dist/IntroEditorForPlex.exe'),
         build: true,
         ico: iconPath,
         rc: Object.assign({
@@ -82,7 +82,7 @@ async function toExe() {
 }
 
 /**
- * Full pipeline to create PlexIntroEditor.exe. */
+ * Full pipeline to create IntroEditorForPlex.exe. */
 async function buildWin() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous dist folder');
@@ -105,7 +105,7 @@ async function buildWin() {
 
     if (process.argv.indexOf('--zip') != -1) {
         msg('Zipping everything up');
-        exec(`powershell Compress-Archive ${resolve(__dirname, '../dist')}/* ${resolve(__dirname, '../dist')}/PlexIntroEditor.v${version}-win64.zip`, (err) => {
+        exec(`powershell Compress-Archive ${resolve(__dirname, '../dist')}/* ${resolve(__dirname, '../dist')}/IntroEditorForPlex.v${version}-win64.zip`, (err) => {
             if (err) { console.error(err.message); } else { console.log('Done!'); }
         });
     } else {

@@ -14,7 +14,7 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
 
 /**
-* A class that keeps track of the currently UI state of Plex Intro Editor,
+* A class that keeps track of the currently UI state of the Intro Editor,
 * including search results and the active show/season.
 */
 class PlexClientState {
