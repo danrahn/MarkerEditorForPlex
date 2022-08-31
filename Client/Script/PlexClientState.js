@@ -414,7 +414,7 @@ class PlexClientState {
       * @returns {Promise<void>} */
     async #populateShows() {
         if (this.#shows[this.#activeSection]) {
-            return Promise.resolve();
+            return;
         }
 
         try {

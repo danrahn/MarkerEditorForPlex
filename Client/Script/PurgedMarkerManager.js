@@ -777,7 +777,7 @@ class PurgedMarkerManager {
         let show = section.getOrAdd(showId);
 
         if (show.status == PurgeCacheStatus.Complete) {
-            return Promise.resolve();
+            return;
         } else if (show.status == PurgeCacheStatus.PartiallyInitialized) {
             // Partial state, this shouldn't happen! Overwrite.
             show = section.addNewGroup(show.id);

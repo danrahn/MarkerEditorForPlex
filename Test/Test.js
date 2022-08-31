@@ -14,7 +14,9 @@ try {
         await testRunner.runAll();
     }
 } catch (ex) {
-    TestLog.error(`Failed to run all tests.`);
+    TestLog.error(`Failed to run tests.`);
+    TestLog.error(ex.message);
+    TestLog.error(ex.stack ? ex.stack : `[No stack trace available]`);
 }
 
 /**

@@ -44,21 +44,16 @@ class TestRunner {
      * Run all available test classes. */
     async runAll() {
         TestLog.info(`Running all tests`);
-        try {
-            let totals = { success : 0, fail : 0 };
-            for (const classDef of Object.values(TestRunner.TestClasses)) {
-                let testClass = new classDef();
-                const result = await testClass.runTests();
-                totals.success += result.success;
-                totals.fail += result.fail;
-            }
-
-            this.printResults(totals);
-            return this.#shutdown();
-        } catch (ex) {
-            TestLog.error(`TestRunner::runAll - Encountered an exception - ${ex.message}`);
-            return Promise.reject();
+        let totals = { success : 0, fail : 0 };
+        for (const classDef of Object.values(TestRunner.TestClasses)) {
+            let testClass = new classDef();
+            const result = await testClass.runTests();
+            totals.success += result.success;
+            totals.fail += result.fail;
         }
+
+        this.printResults(totals);
+        return this.#shutdown();
     }
 
     /**
@@ -69,20 +64,13 @@ class TestRunner {
         TestLog.info(`Running ${className}${testMethod ? '::' + testMethod : ''}`);
         // Could do some manipulation to ignore casing, but require exact casing for now
         if (!TestRunner.TestClasses[className]) {
-            TestLog.error(`Test class ${className} not found. Make sure casing is correct.`);
-            return Promise.reject();
+            throw new Error(`Test class ${className} not found. Make sure casing is correct.`);
         }
 
-        try {
-            let testClass = new TestRunner.TestClasses[className]();
-            const result = await testClass.runTests(testMethod);
-            this.printResults(result);
-            return this.#shutdown();
-        } catch (ex) {
-            TestLog.error(`TestRunner::runSpecific - Encountered an exception - ${ex.message}`);
-            TestLog.verbose(ex.stack ? ex.stack : `[Stack not found]`);
-            return Promise.reject();
-        }
+        let testClass = new TestRunner.TestClasses[className]();
+        const result = await testClass.runTests(testMethod);
+        this.printResults(result);
+        return this.#shutdown();
     }
 
     /**

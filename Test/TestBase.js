@@ -169,7 +169,7 @@ class TestBase {
 
         await this.testDb?.close();
         await this.backupDb?.close();
-        return Promise.resolve(result);
+        return result;
     }
 
     async runSingle(testFn) {
@@ -177,7 +177,7 @@ class TestBase {
         const success = await this.#runSingleInternal(testFn);
         await this.testDb?.close();
         await this.backupDb?.close();
-        return Promise.resolve({ success : success ? 1 : 0, fail : success ? 0 : 1 });
+        return { success : success ? 1 : 0, fail : success ? 0 : 1 };
     }
 
     async #runSingleInternal(testMethod) {
@@ -209,7 +209,7 @@ class TestBase {
      * and database, allowing us to reset the server state between tests. */
     async suspend() {
         if (GetServerState() != ServerState.Running) {
-            return Promise.resolve();
+            return;
         }
 
         try {
@@ -225,7 +225,7 @@ class TestBase {
      * Resumes the test server after being suspended for cleanup. */
     async resume() {
         if (GetServerState() != ServerState.Suspended) {
-            return Promise.resolve();
+            return;
         }
 
         await this.send('resume');

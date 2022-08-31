@@ -15,11 +15,11 @@ class GeneralCommands {
      * Retrieve a subset of the app configuration that the frontend needs access to.
      * This is only async to conform with the command handler signature. */
     static async getConfig() {
-        return Promise.resolve({
+        return {
             useThumbnails : Config.useThumbnails(),
             extendedMarkerStats : Config.extendedMarkerStats(),
             backupActions : Config.backupActions()
-        });
+        };
     }
 
     /**

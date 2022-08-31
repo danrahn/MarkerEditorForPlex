@@ -16,7 +16,7 @@ class PurgeCommands {
 
         const markers = await BackupManager.checkForPurges(metadataId);
         Log.info(markers, `Found ${markers.length} missing markers:`);
-        return Promise.resolve(markers);
+        return markers;
     }
 
     /**
@@ -26,7 +26,7 @@ class PurgeCommands {
         PurgeCommands.#checkBackupManagerEnabled();
 
         const purges = await BackupManager.purgesForSection(sectionId);
-        return Promise.resolve(purges);
+        return purges;
     }
 
     /**
@@ -56,7 +56,7 @@ class PurgeCommands {
             existingMarkerData.push(new MarkerData(existingMarker));
         }
 
-        return Promise.resolve({ newMarkers : markerData, existingMarkers : existingMarkerData });
+        return { newMarkers : markerData, existingMarkers : existingMarkerData };
     }
 
     /**

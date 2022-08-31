@@ -30,7 +30,7 @@ class QueryCommands {
             markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
         }
 
-        return Promise.resolve(markers);
+        return markers;
     }
 
     /**
@@ -42,7 +42,7 @@ class QueryCommands {
             libraries.push({ id : row.id, name : row.name });
         }
 
-        return Promise.resolve(libraries);
+        return libraries;
     }
 
     /**
@@ -56,7 +56,7 @@ class QueryCommands {
             shows.push(new ShowData(show));
         }
 
-        return Promise.resolve(shows);
+        return shows;
     }
 
     /**
@@ -71,7 +71,7 @@ class QueryCommands {
             seasons.push(new SeasonData(season));
         }
 
-        return Promise.resolve(seasons);
+        return seasons;
     }
 
     /**
@@ -129,7 +129,7 @@ class QueryCommands {
 
             const buckets = MarkerCache.getSectionOverview(sectionId);
             if (buckets) {
-                return Promise.resolve(buckets);
+                return buckets;
             }
 
             // Something went wrong with our global cache. Fall back to markerBreakdownCache.
@@ -137,7 +137,7 @@ class QueryCommands {
 
         if (LegacyMarkerBreakdown.Cache[sectionId]) {
             Log.verbose('Found cached data, returning it');
-            return Promise.resolve(LegacyMarkerBreakdown.Cache[sectionId]);
+            return LegacyMarkerBreakdown.Cache[sectionId];
         }
 
         const rows = await PlexQueries.markerStatsForSection(sectionId);
@@ -164,7 +164,7 @@ class QueryCommands {
 
         ++buckets[countCur];
         LegacyMarkerBreakdown.Cache[sectionId] = buckets;
-        return Promise.resolve(buckets);
+        return buckets;
     }
 
     /**
@@ -191,7 +191,7 @@ class QueryCommands {
             throw new ServerError(`No marker data found for showId ${showId}.`, 400);
         }
 
-        return Promise.resolve(data);
+        return data;
     }
 }
 

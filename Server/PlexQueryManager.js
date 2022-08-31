@@ -365,7 +365,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         const markers = await this.#getMarkersForMetadataItem(metadataId, where);
-        return Promise.resolve({ markers : markers, typeInfo : typeInfo });
+        return { markers : markers, typeInfo : typeInfo };
     }
 
     /**
@@ -378,7 +378,7 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError(`Metadata item ${metadataId} not found in database.`, 400);
         }
 
-        return Promise.resolve(row);
+        return row;
     }
 
     /**
@@ -438,7 +438,7 @@ ORDER BY e.\`index\` ASC;`;
         await this.reindex(metadataId);
 
         const newMarker = await this.getNewMarker(metadataId, startMs, endMs);
-        return Promise.resolve({ allMarkers : allMarkers, newMarker : newMarker });
+        return { allMarkers : allMarkers, newMarker : newMarker };
     }
 
     /**
@@ -536,7 +536,7 @@ ORDER BY e.\`index\` ASC;`;
             // immediately return without any new markers, since we didn't add any.
             Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
             Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
-            return Promise.resolve({ newMarkers : [], identicalMarkers : identicalMarkers });
+            return { newMarkers : [], identicalMarkers : identicalMarkers };
         }
 
         Log.tmi('Built full restore query:\n' + transaction.toString());
@@ -573,7 +573,7 @@ ORDER BY e.\`index\` ASC;`;
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
 
-        return Promise.resolve({ newMarkers : newMarkers, identicalMarkers : identicalMarkers });
+        return { newMarkers : newMarkers, identicalMarkers : identicalMarkers };
     }
 
     /**

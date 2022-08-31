@@ -107,7 +107,7 @@ class ImageTest extends TestBase {
         TestHelpers.verifyHeader(response.headers, 'Content-Type', 'img/svg+xml', endpoint);
 
         if (ImageTest.#colorExceptions[endpoint.substring(endpoint.lastIndexOf('/') + 1).toLowerCase()]) {
-            return Promise.resolve();
+            return;
         }
 
         const text = await response.text();

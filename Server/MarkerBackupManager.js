@@ -204,7 +204,7 @@ class MarkerBackupManager {
 
     /** @type {(async (callback: Function) => void)[]} */
     #schemaUpgradeCallbacks = [
-        async () => { return Promise.resolve(); },
+        async () => { },
         this.#updateSectionIdAfterUpgrade.bind(this)
     ];
 
@@ -333,14 +333,14 @@ class MarkerBackupManager {
      * @returns Whether section ids need to be updated */
     async #verifySectionIds(actions) {
         if (actions.length <= 0 || actions[0].section_id != -1) {
-            return Promise.resolve(false);
+            return false;
         }
 
         // Remnants of schema 1 => 2 transition. The initial transition should have
         // properly updated the section_id for the current server, but this is possible
         // if the user has multiple servers that are using the same backup database.
         await this.#updateSectionIdAfterUpgrade();
-        return Promise.resolve(true);
+        return true;
     }
 
     /**
@@ -351,7 +351,7 @@ class MarkerBackupManager {
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
                 Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
-                return Promise.resolve();
+                return;
             }
     
             // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
@@ -510,7 +510,7 @@ class MarkerBackupManager {
         }
 
         await this.#populateEpisodeData(episodeMap);
-        return Promise.resolve(pruned);
+        pruned;
     }
 
     /**
@@ -518,7 +518,7 @@ class MarkerBackupManager {
      * @param {{ [episodeId: number]: [MarkerAction] }} episodeMap  */
     async #populateEpisodeData(episodeMap) {
         if (Object.keys(episodeMap).length == 0) {
-            return Promise.resolve();
+            return;
         }
 
         const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap));
@@ -670,7 +670,7 @@ ORDER BY id DESC;`
         }
 
         if (!this.#purgeCache[sectionId]) {
-            return Promise.resolve({});
+            return {};
         }
 
         let needsEpisodeData = {};
@@ -691,7 +691,7 @@ ORDER BY id DESC;`
         }
 
         await this.#populateEpisodeData(needsEpisodeData);
-        return Promise.resolve(this.#purgeCache[sectionId]);
+        return this.#purgeCache[sectionId];
     }
 
     /**
@@ -731,7 +731,7 @@ ORDER BY id DESC;`
             return this.#getExpectedMarkers(metadataId, mediaType, sectionId);
         }
 
-        return Promise.resolve(actions);
+        return actions;
     }
 
     /**
@@ -823,7 +823,7 @@ ORDER BY id DESC;`
 
         await this.recordRestores(restoredList, sectionId);
 
-        return Promise.resolve({ restoredMarkers : newMarkers, existingMarkers : ignoredMarkers.map(x => x.getRaw()) });
+        return { restoredMarkers : newMarkers, existingMarkers : ignoredMarkers.map(x => x.getRaw()) };
     }
 
     /**

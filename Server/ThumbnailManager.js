@@ -3,6 +3,7 @@ import { join as joinPath } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
+import ServerError from './ServerError.js';
 
 /** @typedef {{[metadataId: number]: EpisodeCache}} EpisodeCacheMap */
 
@@ -79,40 +80,36 @@ class ThumbnailManager {
      */
     async hasThumbnails(metadataId) {
         if (this.#cache[metadataId]) {
-            return Promise.resolve(this.#cache[metadataId].hasThumbs);
+            return this.#cache[metadataId].hasThumbs;
         }
 
-        try {
-            const rows = await this.#database.all(ThumbnailManager.#hashQuery, [metadataId]);
+        const rows = await this.#database.all(ThumbnailManager.#hashQuery, [metadataId]);
 
-            // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
-            let newest = { path : '', mtime : 0, found : 0 };
-            for (const row of rows) {
-                const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
-                const stats = statSync(bifPath, { throwIfNoEntry : false });
-                if (stats !== undefined) {
-                    if (stats.mtimeMs > newest.mtime) {
-                        newest.path = bifPath;
-                        newest.mtime = stats.mtimeMs;
-                    }
-
-                    ++newest.found;
+        // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
+        let newest = { path : '', mtime : 0, found : 0 };
+        for (const row of rows) {
+            const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
+            const stats = statSync(bifPath, { throwIfNoEntry : false });
+            if (stats !== undefined) {
+                if (stats.mtimeMs > newest.mtime) {
+                    newest.path = bifPath;
+                    newest.mtime = stats.mtimeMs;
                 }
-            }
 
-            if (newest.path.length > 0) {
-                const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
-                Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
-                this.#cache[metadataId] = new EpisodeCache(true, newest.path);
-                return Promise.resolve(true);
+                ++newest.found;
             }
-
-            Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
-            this.#cache[metadataId] = new EpisodeCache(false);
-            return Promise.resolve(false);
-        } catch (err) {
-            return Promise.reject(err);
         }
+
+        if (newest.path.length > 0) {
+            const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
+            Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
+            this.#cache[metadataId] = new EpisodeCache(true, newest.path);
+            return true;
+        }
+
+        Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
+        this.#cache[metadataId] = new EpisodeCache(false);
+        return false;
     }
 
     /**
@@ -147,7 +144,8 @@ class ThumbnailManager {
      */
     async #getThumbnailCore(metadataId, timestamp) {
         if (!this.#cache[metadataId] || !this.#cache[metadataId].hasThumbs) {
-            return Promise.reject('No thumbnails');
+            // We only expect to be called if thumbnails are actually available.
+            throw new ServerError(`No thumbnails for ${metadataId}`);
         }
 
         let thumbCache = this.#cache[metadataId];
@@ -158,7 +156,7 @@ class ThumbnailManager {
                 Log.verbose(`Found cached thumbnail with rank ${thumbCache.cachedThumbnails[index].rank}.`);
                 thumbCache.cachedThumbnails[index].rank = ThumbnailManager.#maxCache + 1;
                 this.#touchCache();
-                return Promise.resolve(thumbCache.cachedThumbnails[index].data);
+                return thumbCache.cachedThumbnails[index].data;
             }
         }
 

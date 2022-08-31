@@ -58,14 +58,14 @@ class TestHelpers {
         // Verified returned fields, make sure it's in the db as well
         TestHelpers.verify(allIssues.length == 0, allIssues);
         if (!database) {
-            return Promise.resolve();
+            return;
         }
 
         const rows = await database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`);
 
         if (isDeleted) {
             TestHelpers.verify(rows.length == 0, `Found a marker with id ${markerData.id} that should be deleted!`);
-            return Promise.resolve();
+            return;
         }
 
         TestHelpers.verify(rows.length == 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);

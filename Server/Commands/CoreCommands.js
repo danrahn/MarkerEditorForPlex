@@ -33,7 +33,7 @@ class CoreCommands {
         LegacyMarkerBreakdown.Update(markerData, allMarkers.length - 1, 1 /*delta*/);
         MarkerCache?.addMarkerToCache(newMarker);
         await BackupManager?.recordAdds([markerData]);
-        return Promise.resolve(markerData);
+        return markerData;
     }
 
     /**
@@ -116,7 +116,7 @@ class CoreCommands {
         MarkerCache?.removeMarkerFromCache(markerId);
         LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
         await BackupManager?.recordDeletes([deletedMarker]);
-        return Promise.resolve(deletedMarker);
+        return deletedMarker;
     }
 
     /**

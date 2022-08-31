@@ -235,7 +235,7 @@ async function jsonRequest(endpoint, parameters={}) {
             throw new FetchError(response ? response.Error : `Request to ${url} failed`);
         }
 
-        return Promise.resolve(response);
+        return response;
     } catch (err) {
         throw new FetchError(err.message, err.stack);
     }
