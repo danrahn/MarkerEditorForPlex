@@ -100,7 +100,9 @@ class QueryCommands {
                         if (waitingFor == 0) {
                             resolve(episodes);
                         }
-                    }).catch(() => {
+                    }).catch((err) => {
+                        Log.warn(err.message, `Failed to determine if episode has thumbnails`);
+                        Log.verbose(err.stack ? err.stack : '[Stack not available]');
                         --waitingFor;
                         episodes[index].hasThumbnails = false;
                         if (waitingFor == 0) {

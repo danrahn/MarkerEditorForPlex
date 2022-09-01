@@ -9,6 +9,7 @@
         "extendedMarkerStats" : true,
         "backupActions" : true,
         "previewThumbnails" : true,
+        "preciseThumbnails" : false,
         "pureMode" : false
     }
 }

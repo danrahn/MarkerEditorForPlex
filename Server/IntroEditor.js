@@ -53,7 +53,7 @@ async function run() {
         Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
     }
 
-    ThumbnailManager.Create(queryManager.database(), config.metadataPath());
+    await ThumbnailManager.Create(queryManager.database(), config.metadataPath());
     if (config.extendedMarkerStats()) {
         const markerCache = MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
         try {

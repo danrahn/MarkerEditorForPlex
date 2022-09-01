@@ -258,7 +258,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      */
     getTimeInput(isEnd) {
         let input = super.getTimeInput(isEnd);
-        const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime()) / 1000;
+        const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
         const src = `t/${this.markerRow.episodeId()}/${timestamp}`;
         let img = buildNode(
@@ -353,8 +353,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * Sets the src of a thumbnail image based on the current input.
      * @param {Element} editGroup The DOM element containing a start or end marker's time input and thumbnail. */
     #refreshImage(editGroup) {
-        const seconds = parseInt(timeToMs($$('.timeInput', editGroup).value) / 1000);
-        if (isNaN(seconds)) {
+        const timestamp = timeToMs($$('.timeInput', editGroup).value);
+        if (isNaN(timestamp)) {
             return; // Don't ask for a thumbnail if the input isn't valid.
         }
         let img = $$('.inputThumb', editGroup);
@@ -364,7 +364,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        const url = `t/${this.markerRow.episodeId()}/${seconds}`;
+        const url = `t/${this.markerRow.episodeId()}/${timestamp}`;
         img.classList.remove('hidden');
         if (!img.src.endsWith(url)) {
             img.src = url;

@@ -21,3 +21,6 @@ config.json
 
 # Ignore exe dist
 dist/*
+
+# Ignore ffmpeg-generated cached thumbnails
+cache/*

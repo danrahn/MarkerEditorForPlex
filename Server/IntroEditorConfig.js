@@ -78,6 +78,10 @@ class PlexFeatures extends ConfigBase {
      * @type {boolean} */
     previewThumbnails = true;
 
+    /** Setting for displaying precise ffmpeg-based preview thumbnails opposed to the pre-generated Plex BIF files.
+     * @type {boolean} */
+    preciseThumbnails = false;
+
     /** Setting to control whether we use the unused thumb_url column of the Plex database to store
      *  additional information about markers that are added/edited. */
     pureMode = false;
@@ -97,6 +101,7 @@ class PlexFeatures extends ConfigBase {
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.backupActions = this.#getOrDefault('backupActions', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
+        this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', true);
         this.pureMode = this.#getOrDefault('pureMode', false);
     }
 
@@ -263,6 +268,7 @@ class IntroEditorConfig extends ConfigBase {
     port() { return this.#port; }
     autoOpen() { return this.#features.autoOpen; }
     useThumbnails() { return this.#features.previewThumbnails; }
+    usePreciseThumbnails() { return this.#features.preciseThumbnails; }
     metadataPath() { return this.#dataPath; }
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
