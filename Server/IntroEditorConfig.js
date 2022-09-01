@@ -195,7 +195,7 @@ class IntroEditorConfig extends ConfigBase {
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', this.#getDefaultPlexDataPath());
+            this.#dataPath = this.#getOrDefault('dataPath', IntroEditorConfig.getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault('database', join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
             this.#host = this.#getOrDefault('host', 'localhost');
             this.#port = this.#getOrDefault('port', 3232);
@@ -225,7 +225,7 @@ class IntroEditorConfig extends ConfigBase {
      * Attempts to retrieve the default Plex data directory for the current platform,
      * returning the empty string if it was not able to.
      * @returns {string} */
-    #getDefaultPlexDataPath() {
+    static getDefaultPlexDataPath() {
         const platform = process.platform;
         switch (platform) {
             case 'win32':

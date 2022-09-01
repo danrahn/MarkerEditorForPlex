@@ -4,6 +4,7 @@ import { createInterface as createReadlineInterface } from 'readline';
 /** @typedef {!import('readline').Interface} Interface */
 
 import { Log } from '../Shared/ConsoleLog.js';
+import { IntroEditorConfig } from './IntroEditorConfig.js';
 
 /**
  * Checks whether config.json exists. If it doesn't, asks the user
@@ -55,10 +56,10 @@ async function FirstRunConfig(dataRoot) {
         config.host = '0.0.0.0';
         config.port = 3232;
     } else {
-        let dataPath = await askUser('Plex data directory path', 'auto', rl, existsSync, 'Path does not exist');
-        if (dataPath != 'auto') { config.dataPath = dataPath; }
-        let database = await askUser('Plex database path', 'auto', rl, existsSync, 'File does not exist');
-        if (database != 'auto') { config.database = database; }
+        const defaultPath = IntroEditorConfig.getDefaultPlexDataPath();
+        config.dataPath = await askUserPath('Plex data directory path', rl, defaultPath);
+        let defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
+        config.database = await askUserPath('Plex database path', rl, defaultDb);
         config.host = await askUser('Editor host', 'localhost', rl);
         config.port = await askUser('Editor port', '3232', rl, validPort, 'Invalid port number');
     }
@@ -74,6 +75,27 @@ async function FirstRunConfig(dataRoot) {
     Log.info('Finished first-run setup, writing config.json and continuing');
     writeFileSync(configPath, JSON.stringify(config, null, 4) + "\n");
     rl.close();
+}
+
+/**
+ * Asks the user to provide a path. If the default path provided exists, 
+ * @param {string} question
+ * @param {Interface} rl
+ * @param {string} defaultPath */
+async function askUserPath(question, rl, defaultPath) {
+    const defaultExists = defaultPath.length != 0 && existsSync(defaultPath);
+    while (true) {
+        let answer = await askUser(question, 'auto', rl, existsSync, 'Path does not exist');
+        if (answer != 'auto') {
+            return answer;
+        }
+
+        if (defaultExists) {
+            return defaultPath;
+        }
+
+        console.log('Sorry, default path could not be found, please enter the full path to your Plex data directory.');
+    }
 }
 
 /**
