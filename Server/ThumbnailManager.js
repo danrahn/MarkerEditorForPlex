@@ -1,4 +1,4 @@
-import { existsSync, readFile, readFileSync, statSync } from 'fs';
+import { existsSync, readFile, readFileSync, rmSync, statSync } from 'fs';
 import { join, join as joinPath } from 'path';
 import { execFileSync } from 'child_process';
 
@@ -41,7 +41,10 @@ class ThumbnailManager {
         return Instance;
     }
 
-    static Close() { Instance = null; }
+    /**
+     * Clears out the thumbnail manager instance
+     * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
+    static Close(fullShutdown) { Instance.close(fullShutdown); Instance = null; }
 
     /**
      * Verifies that we can find ffmpeg in our path */
@@ -54,15 +57,15 @@ class ThumbnailManager {
         }
     }
 
+    constructor(db) {
+        this.database = db;
+    }
+
     /**
      * Determine if an episode has thumbnails available.
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) { Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}`); }
-
-    constructor(db) {
-        this.database = db;
-    }
 
     /**
      * Retrieve a thumbnail for an episode at a specific timestamp.
@@ -75,6 +78,8 @@ class ThumbnailManager {
      * retrieval was successful, and `reject`ed if the thumbnail doesn't exist or we were
      * otherwise unable to retrieve it. */
     async getThumbnail(metadataId, timestamp) { Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`); }
+
+    close() {}
 }
 
 /**
@@ -378,6 +383,29 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         const execEnd = performance.now();
         Log.tmi(`Generated thumbnail ${metadataId}:${timestamp} in ${Math.round(execEnd - execStart)}ms`);
         return data;
+    }
+
+    /**
+     * On full shutdown, wipe out the cache folder.
+     * @param {boolean} fullShutdown Whether we're completely shutting down, or just suspended/restarting. */
+    close(fullShutdown) {
+        if (!fullShutdown) {
+            Log.verbose(`FfmpegThumbnailManager: Not a full shutdown, not clearing cache.`);
+            return;
+        }
+
+        const cacheRoot = join(Config.projectRoot(), 'cache');
+        if (!existsSync(cacheRoot)) {
+            // Nothing to clear
+            return;
+        }
+
+        try {
+            rmSync(cacheRoot, { recursive : true, force : true });
+            Log.verbose(`FfmpegThumbnailManager: Successfully removed cached thumbnails.`);
+        } catch (err) {
+            Log.warn(err.message, `FfmpegThumbnailManager: Failed to clear cached thumbnails.`);
+        }
     }
 }
 

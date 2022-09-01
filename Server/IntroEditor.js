@@ -88,7 +88,7 @@ function setupTerminateHandlers() {
         IsTest ? Log.error(stack) : Log.verbose(stack);
         Log.error('The server ran into an unexpected problem, exiting...');
         writeErrorToFile(err.message + '\n' + stack);
-        cleanupForShutdown();
+        cleanupForShutdown(true /*fullShutdown*/);
         process.exit(1);
     });
 
@@ -136,8 +136,13 @@ function writeErrorToFile(message) {
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
 function handleClose(signal, restart=false) {
     SetServerState(ServerState.ShuttingDown);
-    Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
-    cleanupForShutdown();
+    if (restart) {
+        Log.info(`${signal} detected, attempting shut down a reboot...`);
+    } else {
+        Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
+    }
+
+    cleanupForShutdown(!restart);
     const exitFn = (error, restart) => {
         if (restart) {
             Log.info('Restarting server...');
@@ -169,13 +174,18 @@ function handleClose(signal, restart=false) {
     }
 }
 
-/** Properly close out open resources in preparation for shutting down the process. */
-function cleanupForShutdown() {
+/**
+ * Properly close out open resources in preparation for shutting down the process.
+ * @param {boolean} fullShutdown Whether we're _really_ shutting down the process, or just suspending/restarting it. */
+function cleanupForShutdown(fullShutdown) {
     ServerCommands.clear();
     PlexQueryManager.Close();
     MarkerBackupManager.Close();
     MarkerCacheManager.Close();
-    ThumbnailManager.Close();
+    ThumbnailManager.Close(fullShutdown);
+
+    // Ensure this is always last, as some classes
+    // above may rely on values here.
     IntroEditorConfig.Close();
 
     // Either we failed to resume the server, or we got a shutdown request in the middle of
@@ -209,7 +219,7 @@ function userSuspend(res) {
     }
 
     SetServerState(ServerState.Suspended);
-    cleanupForShutdown();
+    cleanupForShutdown(false /*fullShutdown*/);
     Log.info('Server successfully suspended.');
     sendJsonSuccess(res);
 }
@@ -388,7 +398,7 @@ async function handlePost(req, res) {
     if (configIndex != -1) {
         if (process.argv.length <= configIndex - 1) {
             Log.critical('Invalid config override file detected, aborting...');
-            cleanupForShutdown();
+            cleanupForShutdown(true /*fullShutdown*/);
             process.exit(1);
         }
 
