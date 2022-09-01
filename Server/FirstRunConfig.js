@@ -5,6 +5,7 @@ import { createInterface as createReadlineInterface } from 'readline';
 
 import { Log } from '../Shared/ConsoleLog.js';
 import { IntroEditorConfig } from './IntroEditorConfig.js';
+import { ThumbnailManager } from './ThumbnailManager.js';
 
 /**
  * Checks whether config.json exists. If it doesn't, asks the user
@@ -70,6 +71,15 @@ async function FirstRunConfig(dataRoot) {
     config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
     config.features.backupActions = await askUserYesNo('Do you want to track/backup custom marker actions', true, rl);
     config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
+    if (config.features.previewThumbnails && ThumbnailManager.TestFfmpeg()) {
+        console.log();
+        console.log(`Preview thumbnails can use either Plex's generated thumbnails or generate them`);
+        console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);
+        console.log(`and use fewer resources, they are far less accurate, and are not available if`);
+        console.log(`they are disabled in your library.`)
+        config.features.preciseThumbnails = !await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
+    }
+
     config.features.pureMode = await askUserYesNo('Do you want to enable pureMode (see wiki)', false, rl);
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');

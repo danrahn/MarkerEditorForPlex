@@ -15,7 +15,6 @@ class PurgeCommands {
         PurgeCommands.#checkBackupManagerEnabled();
 
         const markers = await BackupManager.checkForPurges(metadataId);
-        Log.info(markers, `Found ${markers.length} missing markers:`);
         return markers;
     }
 

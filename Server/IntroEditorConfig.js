@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 import { Log } from '../Shared/ConsoleLog.js';
+import { ThumbnailManager } from './ThumbnailManager.js';
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.
@@ -101,8 +102,15 @@ class PlexFeatures extends ConfigBase {
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.backupActions = this.#getOrDefault('backupActions', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
-        this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', true);
+        this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', false);
         this.pureMode = this.#getOrDefault('pureMode', false);
+
+        if (this.previewThumbnails && this.preciseThumbnails) {
+            this.preciseThumbnails = ThumbnailManager.TestFfmpeg();
+            if (!this.preciseThumbnails) {
+                Log.warn(`Precise thumbnails enabled, but ffmpeg wasn't found in your path! Falling back to BIF`);
+            }
+        }
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`
@@ -209,9 +217,9 @@ class IntroEditorConfig extends ConfigBase {
         this.#verifyPathExists(this.#dbPath, 'database');
         this.#features = new PlexFeatures(this.#Base.json.features);
 
-        // We only need the data path if preview thumbnails are enabled, so don't
-        // fail if we're not using them.
-        if (this.#features.previewThumbnails) {
+        // We only need the data path if BIF-based preview thumbnails are enabled,
+        // so don't fail if we're not using them.
+        if (this.#features.previewThumbnails && !this.#features.preciseThumbnails) {
             this.#verifyPathExists(this.#dataPath, 'dataPath');
         }
     }

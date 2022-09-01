@@ -33,13 +33,8 @@ class ThumbnailManager {
         }
 
         if (Config.usePreciseThumbnails()) {
-            try {
-                execFileSync('ffmpeg', ['-version']).toString();
-                Instance = new FfmpegThumbnailManager(db);
-                return Instance;
-            } catch (err) {
-                Log.warn('Precise thumbnails enabled, but ffmpeg not found in path!');
-            }
+            Instance = new FfmpegThumbnailManager(db);
+            return Instance;
         }
 
         Instance = new BifThumbnailManager(db, metadataPath);
@@ -47,6 +42,17 @@ class ThumbnailManager {
     }
 
     static Close() { Instance = null; }
+
+    /**
+     * Verifies that we can find ffmpeg in our path */
+    static TestFfmpeg() {
+        try {
+            execFileSync('ffmpeg', ['-version']);
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
 
     /**
      * Determine if an episode has thumbnails available.
