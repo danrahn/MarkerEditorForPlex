@@ -510,7 +510,7 @@ class MarkerBackupManager {
         }
 
         await this.#populateEpisodeData(episodeMap);
-        pruned;
+        return pruned;
     }
 
     /**
