@@ -496,7 +496,7 @@ class CacheMap {
         this.#tick = 0;
         for (const cacheItem of Object.values(this.#cacheMap)) {
             for (const thumb of Object.keys(cacheItem.cachedThumbnails)) {
-                if ((thumb.cachedThumbnails[thumb].rank -= this.#maxTick) <= 0) {
+                if ((cacheItem.cachedThumbnails[thumb].rank -= this.#maxTick) <= 0) {
                     delete cacheItem.cachedThumbnails[thumb];
                 }
             }
