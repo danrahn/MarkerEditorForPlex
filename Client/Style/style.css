@@ -394,6 +394,29 @@ input:focus-visible {
   max-width: 400px
 }
 
+#updateBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 70px;
+  text-align: center;
+  line-height: 30px;
+  overflow: auto;
+}
+
+#updateBar * {
+  vertical-align: middle;
+}
+
+#updateString {
+  margin-right: 20px;
+}
+
+#updateRemindLabel {
+  margin-left: 30px;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

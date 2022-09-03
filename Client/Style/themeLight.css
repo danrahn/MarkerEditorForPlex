@@ -158,3 +158,17 @@ input[type=button]:hover {
     background-color: rgba(255, 240, 200, 0.8);
     color: #212121;
 }
+
+#updateBar {
+    background-color: #9D9;
+}
+
+#updateBar select,
+#updateBar .button {
+    background-color: #CFC;
+}
+
+#updateBar select:hover,
+#updateBar .button:hover {
+    background-color: #DFD;
+}

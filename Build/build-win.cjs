@@ -54,6 +54,7 @@ async function toExe() {
             'FILEVERSION' : version
         }, rc),
         resources: [
+            resolve(__dirname, '../package.json'),
             resolve(__dirname, '../index.html'),
             resolve(__dirname, '../SVG/*svg'),
             resolve(__dirname, '../Shared/**'),

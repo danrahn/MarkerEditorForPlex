@@ -7,6 +7,7 @@ import PlexClientState from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
 import ShowHelpOverlay from './HelpOverlay.js';
+import VersionManager from './VersionManager.js';
 
 window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
 
@@ -42,6 +43,7 @@ async function mainSetup() {
     const settings = SettingsManager.Get();
     settings.parseServerConfig(config);
     new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
+    VersionManager.CheckForUpdates(config.version);
 
     try {
         PlexUI.Get().init(await ServerCommand.getSections());

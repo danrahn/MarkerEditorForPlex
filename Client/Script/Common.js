@@ -153,7 +153,7 @@ const ServerCommand = {
 
     /**
      * Retrieve the configuration settings relevant to the client application.
-     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, backupActions: boolean }>} */
+     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, backupActions: boolean, version: string }>} */
     getConfig : async () => jsonRequest('get_config'),
 
     /**

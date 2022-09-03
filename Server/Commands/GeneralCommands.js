@@ -18,7 +18,8 @@ class GeneralCommands {
         return {
             useThumbnails : Config.useThumbnails(),
             extendedMarkerStats : Config.extendedMarkerStats(),
-            backupActions : Config.backupActions()
+            backupActions : Config.backupActions(),
+            version : Config.appVersion(),
         };
     }
 

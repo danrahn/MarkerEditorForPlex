@@ -176,6 +176,10 @@ class IntroEditorConfig extends ConfigBase {
      * @type {PlexFeatures} */
     #features;
 
+    /** Current app version, retrieved from package.json
+     * @type {string} */
+    #version;
+
     /** Creates a new IntroEditorConfig. */
     constructor(projectRoot, testData, dataRoot) {
         Log.info('Reading configuration...');
@@ -221,6 +225,18 @@ class IntroEditorConfig extends ConfigBase {
         // so don't fail if we're not using them.
         if (this.#features.previewThumbnails && !this.#features.preciseThumbnails) {
             this.#verifyPathExists(this.#dataPath, 'dataPath');
+        }
+
+        const packagePath = join(projectRoot, 'package.json');
+        if (!existsSync(packagePath)) {
+            Log.warn(`Unable to find package.json, can't check for new version.`);
+            this.#version = '0.0.0';
+        } else {
+            try {
+                this.#version = JSON.parse(readFileSync(packagePath).toString()).version;
+            } catch (err) {
+                Log.warn(`Unable to parse package.json for version, can't check for updates.`);
+            }
         }
     }
 
@@ -283,6 +299,7 @@ class IntroEditorConfig extends ConfigBase {
     backupActions() { return this.#features.backupActions; }
     pureMode() { return this.#features.pureMode; }
     projectRoot() { return this.#root; }
+    appVersion() { return this.#version; }
 }
 
 export { IntroEditorConfig, Instance as Config };
