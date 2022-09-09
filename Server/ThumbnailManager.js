@@ -271,7 +271,7 @@ class BifThumbnailManager extends ThumbnailManager {
 class FfmpegThumbnailManager extends ThumbnailManager {
     /** Plex database query that finds the files associated with a metadata id. */
     static #fileQuery = `
-    SELECT parts.file AS file FROM metadata_items metadata
+    SELECT parts.file AS file, media.duration as duration FROM metadata_items metadata
     INNER JOIN media_items media ON media.metadata_item_id=metadata.id
     INNER JOIN media_parts parts ON parts.media_item_id=media.id
     WHERE metadata.id=?
@@ -307,7 +307,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         for (const file of rows) {
             if (existsSync(file.file)) {
                 Log.verbose(file.file, `Found file for ${metadataId}`);
-                this.#cache.addEpisode(metadataId, true, file.file);
+                this.#cache.addEpisode(metadataId, true, file.file, file.duration);
                 return true;
             }
         }
@@ -338,8 +338,10 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             throw new ServerError(`No thumbnails for ${metadataId}`);
         }
 
+        const maxDuration = this.#cache.getEpisode(metadataId).duration;
+
         // Don't get _too_ accurate, round to the nearest tenth, which might help with caching too.
-        timestamp = Math.round(Math.floor(timestamp / 100) * 100);
+        timestamp = Math.round(Math.min(maxDuration, Math.floor(timestamp / 100) * 100));
         const cachedThumb = this.#cache.tryGet(metadataId, timestamp);
         if (cachedThumb) {
             Log.tmi(`Found cached thumbnail for ${metadataId}:${timestamp}`);
@@ -530,8 +532,8 @@ class FfmpegCacheMap extends CacheMap {
         super(maxCache);
     }
 
-    addEpisode(metadataId, hasThumbs, filePath='') {
-        this._addEpisode(metadataId, new FfmpegEpisodeCache(hasThumbs, filePath));
+    addEpisode(metadataId, hasThumbs, filePath='', duration=0) {
+        this._addEpisode(metadataId, new FfmpegEpisodeCache(hasThumbs, filePath, duration));
     }
 
     /**
@@ -583,10 +585,13 @@ class BifEpisodeCache extends EpisodeCache {
 class FfmpegEpisodeCache extends EpisodeCache {
     /** @type {string} */
     filePath;
+    /** @type {number} */
+    duration;
 
-    constructor(hasThumbs, filePath='') {
+    constructor(hasThumbs, filePath='', duration=0) {
         super(hasThumbs);
         this.filePath = filePath;
+        this.duration = duration;
     }
 }
 
