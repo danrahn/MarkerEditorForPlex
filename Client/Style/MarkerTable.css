@@ -107,6 +107,21 @@ table .buttonIconAndText {
   display: block;
 }
 
+@keyframes loadLoop {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.inputThumb.loading {
+  opacity: 0.5;
+  animation: loadLoop 2s infinite;
+}
+
+.inputThumb.loaded {
+  opacity: 1.0;
+}
+
 .visibleThumb {
   transition: height 0.25s; /* Set in JS so we can calculate the "real" height here */
 }

@@ -263,7 +263,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const src = `t/${this.markerRow.episodeId()}/${timestamp}`;
         let img = buildNode(
             'img',
-            { src : src, class : 'inputThumb', alt : 'Timestamp Thumbnail', width : '240px', style : 'height: 0' },
+            { src : src, class : 'inputThumb loading', alt : 'Timestamp Thumbnail', width : '240px', style : 'height: 0' },
             0,
             {
                 error : this.#onThumbnailPreviewLoadFailed,
@@ -367,6 +367,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const url = `t/${this.markerRow.episodeId()}/${timestamp}`;
         img.classList.remove('hidden');
         if (!img.src.endsWith(url)) {
+            img.classList.remove('loaded');
+            img.classList.add('loading');
             img.src = url;
         }
     }
@@ -375,10 +377,13 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #onThumbnailPreviewLoadFailed(img) {
         this.#thumbnailError = true;
         img.classList.add('hidden');
+        img.classList.remove('loading');
     }
 
     /** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state. */
     #onThumbnailPreviewLoad(img) {
+        img.classList.remove('loading');
+        img.classList.add('loaded');
         const realHeight = img.naturalHeight * (img.width / img.naturalWidth);
         img.setAttribute('realheight', realHeight);
         if (this.#thumbnailsCollapsed) {
