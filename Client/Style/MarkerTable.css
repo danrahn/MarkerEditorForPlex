@@ -107,15 +107,20 @@ table .buttonIconAndText {
   display: block;
 }
 
+@keyframes initialLoad {
+  0% { opacity: 1.0; }
+  100% { opacity: 0.5; }
+}
+
 @keyframes loadLoop {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% { opacity: 0.5; }
+  50% { opacity: 0.25; }
+  100% { opacity: 0.5; }
 }
 
 .inputThumb.loading {
-  opacity: 0.5;
-  animation: loadLoop 2s infinite;
+  opacity: 0.25;
+  animation: initialLoad 500ms, loadLoop 2s ease-in-out 500ms infinite;
 }
 
 .inputThumb.loaded {
