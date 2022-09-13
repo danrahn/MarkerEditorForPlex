@@ -90,6 +90,8 @@ class ButtonCreator {
                 }
             } else if (attribute == 'tooltip') {
                 Tooltip.setTooltip(button, value);
+            } else if (attribute == 'auxclick') {
+                button.addEventListener('auxclick', (e) => { clickHandler(e, button); })
             } else {
                 button.setAttribute(attribute, value);
             }

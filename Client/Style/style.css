@@ -395,11 +395,10 @@ input:focus-visible {
 }
 
 #updateBar {
-  position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 70px;
+  width: auto;
+  padding-bottom: 10px;
   text-align: center;
   line-height: 30px;
   overflow: auto;

@@ -1,7 +1,7 @@
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import ButtonCreator from './ButtonCreator.js';
-import { $, appendChildren, buildNode, plural } from './Common.js';
+import { $, $$, appendChildren, buildNode, plural } from './Common.js';
 import Animation from './inc/Animate.js';
 
 /** @typedef {{[version: string]: { ignoreType : number, ignoreDate : number}}} UpdateCheckSettings */
@@ -97,12 +97,13 @@ class VersionManager {
 
         this.#updateBar = appendChildren(buildNode('div', { id : 'updateBar', }),
             buildNode('span', { id : 'updateString' }, `New version (${newer[0].version.toString()}) available, ${plural(newer.length, 'version')} ahead of ${this.#currentVersion.toString()}`),
-            ButtonCreator.textButton('Go to Release', this.#updateCallback.bind(this)),
+            ButtonCreator.textButton('Go to Release', this.#updateCallback.bind(this), { auxclick : true }),
             buildNode('br'),
             buildNode('label', { for : 'updateRemind', id : 'updateRemindLabel' }, 'Or, remind me: '),
             select,
             ButtonCreator.textButton('Ignore for Now', this.#ignoreCallback.bind(this)));
-        document.body.appendChild(this.#updateBar);
+        const frame = $$('#plexFrame');
+        frame.insertBefore(this.#updateBar, frame.children[0]);
     }
 
     /**
@@ -165,7 +166,7 @@ class VersionManager {
      * Open the latest release URL when the user clicks 'go to release' */
     #updateCallback() {
         window.open(this.#latestVersion.html_url, '_blank', 'noreferrer');
-        document.body.removeChild(this.#updateBar);
+        Animation.queue({ opacity : 0 }, this.#updateBar, 500, true /*deleteAfterTransition*/);
     }
 
     /**
