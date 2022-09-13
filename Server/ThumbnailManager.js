@@ -1,4 +1,4 @@
-import { existsSync, readFile, readFileSync, rmSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readFile, readFileSync, rmSync, statSync } from 'fs';
 import { join, join as joinPath } from 'path';
 import { execFileSync } from 'child_process';
 
@@ -6,7 +6,6 @@ import { Log } from '../Shared/ConsoleLog.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
 import { Config } from './IntroEditorConfig.js';
-import { mkdirpSync } from 'fs-extra';
 
 
 /**
@@ -366,7 +365,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             return data;
         }
 
-        mkdirpSync(savePath);
+        mkdirSync(savePath, { recursive : true });
         let episodeCache = this.#cache.getEpisode(metadataId);
         const execStart = performance.now();
         execFileSync('ffmpeg', [
