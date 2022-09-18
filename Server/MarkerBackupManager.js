@@ -494,18 +494,25 @@ class MarkerBackupManager {
         }
 
         const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
+        /** @type {{[episodeId: number]: MarkerAction[]}} */
         let episodeMap = {};
         const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
-        let pruned = [];
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
             if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
+                // Note: while this is "cleaner", it's a bit gross since it doesn't work with
+                // primitives, only objects due to reference semantics.
                 (episodeMap[action.episode_id] ??= []).push(action);
-                pruned.push(action);
             }
         }
 
         await this.#populateEpisodeData(episodeMap);
+        /** @type {MarkerAction[]} */
+        const pruned = [];
+        for (const actions of Object.values(episodeMap)) {
+            pruned.concat(actions);
+        }
+
         return pruned;
     }
 
@@ -529,12 +536,22 @@ class MarkerBackupManager {
                 markerAction.episodeData = episodeData;
             }
         }
+
+        for (const eid of Object.keys(episodeMap)) {
+            // This should only happen when the episode doesn't exist anymore.
+            // TODO: Use GUID matching in backup db in addition to metadata id.
+            // But still scope it to the same library to prevent cross-library contamination.
+            if (!episodeMap[eid][0].episodeData) {
+                delete episodeMap[eid];
+            }
+        }
     }
 
     /**
      * Queries the backup database for markers from all sections of the server and checks
      * whether they exist in the Plex database.
-     * @returns {Promise<void>} */
+     * @returns {Promise<void>} 
+     * TODO: Handle deleted episodes properly. Need to add guid to backup manager*/
     async buildAllPurges() {
         let uuidString = '';
         let parameters = [];
