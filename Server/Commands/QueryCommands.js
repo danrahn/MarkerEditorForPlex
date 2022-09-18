@@ -154,10 +154,7 @@ class QueryCommands {
                     ++countCur;
                 }
             } else {
-                if (!buckets[countCur]) {
-                    buckets[countCur] = 0;
-                }
-
+                buckets[countCur] ??= 0;
                 ++buckets[countCur];
                 idCur = row.episode_id;
                 countCur = row.tag_id == PlexQueries.markerTagId() ? 1 : 0;

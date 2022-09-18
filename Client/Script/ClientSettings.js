@@ -237,10 +237,7 @@ class ClientSettings {
     constructor() {
         let json;
         try {
-            json = JSON.parse(localStorage.getItem(ClientSettings.#settingsKey));
-            if (!json) {
-                json = {};
-            }
+            json = JSON.parse(localStorage.getItem(ClientSettings.#settingsKey)) || {};
         } catch (e) {
             json = {};
         }

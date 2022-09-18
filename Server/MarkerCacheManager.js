@@ -56,10 +56,7 @@ class MarkerBreakdown {
      * @param {number} oldCount
      * @param {number} delta 1 if a marker was added, -1 if one was deleted. */
     delta(oldCount, delta) {
-        if (!this.#counts[oldCount + delta]) {
-            this.#counts[oldCount + delta] = 0;
-        }
-
+        this.#counts[oldCount + delta] ??= 0;
         --this.#counts[oldCount];
         ++this.#counts[oldCount + delta];
         if (this.#parent) {
@@ -365,26 +362,10 @@ class MarkerCacheManager {
      * @param {MarkerQueryResult} tag The row to (potentially) add to our cache. */
     #addMarkerData(tag) {
         const isMarker = tag.tag_id == this.#tagId;
-        if (!this.#markerHierarchy[tag.section_id]) {
-            this.#markerHierarchy[tag.section_id] = new MarkerSectionNode();
-        }
-
-        let thisSection = this.#markerHierarchy[tag.section_id];
-        if (!thisSection.shows[tag.show_id]) {
-            thisSection.shows[tag.show_id] = new MarkerShowNode(thisSection);
-        }
-
-        let show = thisSection.shows[tag.show_id];
-        if (!show.seasons[tag.season_id]) {
-            show.seasons[tag.season_id] = new MarkerSeasonNode(show);
-        }
-
-        let season = show.seasons[tag.season_id];
-        if (!season.episodes[tag.episode_id]) {
-            season.episodes[tag.episode_id] = new MarkerEpisodeNode(season);
-        }
-
-        let episode = season.episodes[tag.episode_id];
+        let thisSection = this.#markerHierarchy[tag.section_id] ??= new MarkerSectionNode();
+        let show = thisSection.shows[tag.show_id] ??= new MarkerShowNode(thisSection);
+        let season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
+        let episode = season.episodes[tag.episode_id] ??= new MarkerEpisodeNode(season);
         if (isMarker) {
             episode.markerBreakdown.add(episode.markers.length);
             episode.markers.push(tag.id);

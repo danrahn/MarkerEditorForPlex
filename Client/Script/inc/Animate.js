@@ -40,11 +40,6 @@ let Animation = new function()
             Log.warn("Element has no id!");
         }
 
-        if (!animationQueue[element.id])
-        {
-            animationQueue[element.id] = [];
-        }
-
         let animations = [];
         let seen = {};
         for (let [key, value] of Object.entries(func))
@@ -60,7 +55,7 @@ let Animation = new function()
             animations.push(new AnimationParams(getFunc(key), key, delay, value, ...args));
         }
 
-        animationQueue[element.id].push(animations);
+        (animationQueue[element.id] ??= []).push(animations);
         if (animationQueue[element.id].length !== 1)
         {
             // Can't fire immediately (PURE annotation will remove it from the minified JS)

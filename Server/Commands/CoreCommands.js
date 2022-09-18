@@ -237,10 +237,7 @@ class CoreCommands {
                 toDelete.push(marker);
             }
 
-            if (!markerCounts[marker.episode_id]) {
-                markerCounts[marker.episode_id] = 0;
-            }
-
+            markerCounts[marker.episode_id] ??= 0;
             ++markerCounts[marker.episode_id];
         }
 
@@ -319,7 +316,7 @@ class CoreCommands {
             const markerCounts = {};
             const oldMarkerTimings = {};
             for (const marker of currentMarkers.markers) {
-                if (!markerCounts[marker.episode_id]) { markerCounts[marker.episode_id] = 0; }
+                markerCounts[marker.episode_id] ??= 0;
                 ++markerCounts[marker.episode_id];
                 oldMarkerTimings[marker.id] = { start : marker.start, end : marker.end };
             }

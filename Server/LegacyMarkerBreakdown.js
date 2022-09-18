@@ -33,14 +33,11 @@ class LegacyMarkerBreakdown {
             cache[oldMarkerCount] = 1; // Bring it down to zero I guess.
         }
 
-        cache[oldMarkerCount] -= 1;
+        --cache[oldMarkerCount];
 
         const newMarkerCount = oldMarkerCount + delta;
-        if (!(newMarkerCount in cache)) {
-            cache[newMarkerCount] = 0;
-        }
-
-        cache[newMarkerCount] += 1;
+        cache[newMarkerCount] ??= 0;
+        ++cache[newMarkerCount];
     }
 }
 

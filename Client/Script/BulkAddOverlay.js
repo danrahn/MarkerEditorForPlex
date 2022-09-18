@@ -164,9 +164,8 @@ class BulkAddOverlay {
             for (const episodeInfo of episodes) {
                 if (episodeInfo.deletedMarkers) {
                     for (const deleted of episodeInfo.deletedMarkers) {
-                        if (!deletes[deleted.showId]) { deletes[deleted.showId] = {}; }
-                        if (!deletes[deleted.showId][deleted.seasonId]) { deletes[deleted.showId][deleted.seasonId] = []; }
-                        deletes[deleted.showId][deleted.seasonId].push(new MarkerData().setFromJson(deleted));
+                        const deleteShow = deletes[deleted.showId] ??= {};
+                        (deleteShow[deleted.seasonId] ??= []).push(new MarkerData().setFromJson(deleted));
                         ++deleteCount;
                     }
                 }
@@ -174,11 +173,8 @@ class BulkAddOverlay {
                 const marker = episodeInfo.changedMarker;
                 if (!marker) { continue; }
                 const mapToUse = episodeInfo.isAdd ? adds : edits;
-                const showId = marker.showId;
-                if (!mapToUse[showId]) { mapToUse[showId] = {}; }
-                const seasonId = marker.seasonId;
-                if (!mapToUse[showId][seasonId]) { mapToUse[showId][seasonId] = []; };
-                mapToUse[showId][seasonId].push(new MarkerData().setFromJson(marker));
+                mapToUse[marker.showId] ??= {};
+                (mapToUse[marker.showId][marker.seasonId] ??= []).push(new MarkerData().setFromJson(marker));
                 episodeInfo.isAdd ? ++addCount : ++editCount;
             }
 

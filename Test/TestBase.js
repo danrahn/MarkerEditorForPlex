@@ -117,7 +117,7 @@ class TestBase {
      * @param {{}} overrides Dictionary of custom configuration values to set, if any. */
     createConfig(overrides) {
         const td = (field, value, force=false) => { if (!overrides.hasOwnProperty(field) || force) { overrides[field] = value; } };
-        const tf = (feature, value) => { if (!overrides.features) { overrides.features = {}; } if (!overrides.features.hasOwnProperty(feature)) { overrides.features[feature] = value; }};
+        const tf = (feature, value) => { override.features ??= {}; if (!overrides.features.hasOwnProperty(feature)) { overrides.features[feature] = value; }};
 
         // Test defaults
         td('host', 'localhost', true);

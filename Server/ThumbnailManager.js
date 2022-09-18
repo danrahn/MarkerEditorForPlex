@@ -43,7 +43,7 @@ class ThumbnailManager {
     /**
      * Clears out the thumbnail manager instance
      * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
-    static Close(fullShutdown) { Instance.close(fullShutdown); Instance = null; }
+    static Close(fullShutdown) { Instance?.close(fullShutdown); Instance = null; }
 
     /**
      * Verifies that we can find ffmpeg in our path */

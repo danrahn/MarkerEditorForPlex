@@ -9,6 +9,7 @@
     "build-win": "node Build/build-win.cjs",
     "build-win-pack": "node Build/build-win.cjs --zip"
   },
+  "engines" : { "node" : ">=15.0" },
   "author": "Daniel Rahn",
   "license": "MIT",
   "dependencies": {

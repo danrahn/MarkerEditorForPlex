@@ -244,10 +244,7 @@ class PlexClientState {
                 delete breakdown[oldCount];
             }
 
-            if (!(newCount in breakdown)) {
-                breakdown[newCount] = 0;
-            }
-
+            breakdown[newCount] ??= 0;
             ++breakdown[newCount];
         }
     }

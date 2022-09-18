@@ -476,12 +476,8 @@ ORDER BY e.\`index\` ASC;`;
         /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
         let existingMarkers = {};
         for (const marker of markerList) {
-            if (!existingMarkers[marker.episode_id]) {
-                existingMarkers[marker.episode_id] = [];
-            }
-
             Log.tmi(marker, 'Adding existing marker');
-            existingMarkers[marker.episode_id].push(TrimmedMarker.fromRaw(marker));
+            (existingMarkers[marker.episode_id] ??= []).push(TrimmedMarker.fromRaw(marker));
         }
 
         let expectedInserts = 0;
@@ -492,9 +488,7 @@ ORDER BY e.\`index\` ASC;`;
             // Calculate new indexes
             for (const action of markerActions) {
                 ++potentialRestores;
-                if (!existingMarkers[episodeId]) {
-                    existingMarkers[episodeId] = [];
-                }
+                existingMarkers[episodeId] ??= [];
 
                 // Ignore identical markers, though we should probably have better
                 // messaging, or not show them to the user at all.
@@ -740,11 +734,7 @@ ORDER BY e.id ASC;`;
         /** @type {{[episodeId: number]: RawMarkerData[]}} */
         const episodeMap = {};
         for (const marker of markerInfo.markers) {
-            if (!episodeMap[marker.episode_id]) {
-                episodeMap[marker.episode_id] = [];
-            }
-
-            episodeMap[marker.episode_id].push(marker);
+            (episodeMap[marker.episode_id] ??= []).push(marker);
         }
 
         const transaction = new TransactionBuilder(this.#database);
@@ -896,11 +886,7 @@ ORDER BY e.id ASC;`;
                         const nextMarker = episodeMarkers[++i];
                         episodeMarker.end = Math.max(episodeMarker.end, nextMarker.end);
                         transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [nextMarker.id]);
-                        if (!episodeMarkerMap[episodeId].deletedMarkers) {
-                            episodeMarkerMap[episodeId].deletedMarkers = [];
-                        }
-
-                        episodeMarkerMap[episodeId].deletedMarkers.push(nextMarker);
+                        (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(nextMarker);
                     }
 
                     const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${episodeMarker.createdByUser ? " || '*'" : ''}`;

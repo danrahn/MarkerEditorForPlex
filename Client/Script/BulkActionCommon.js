@@ -445,10 +445,8 @@ class BulkActionCommon {
         /** @type {BulkMarkerResult} */
         const markerMap = {};
         for (const marker of markers) {
-            if (!markerMap[marker.showId]) { markerMap[marker.showId] = {}; }
-            const show = markerMap[marker.showId];
-            if (!show[marker.seasonId]) { show[marker.seasonId] = []; }
-            show[marker.seasonId].push(new MarkerData().setFromJson(marker));
+            const show = markerMap[marker.showId] ??= {};
+            (show[marker.seasonId] ??= []).push(new MarkerData().setFromJson(marker));
         }
 
         return markerMap;

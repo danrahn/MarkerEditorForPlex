@@ -500,11 +500,7 @@ class MarkerBackupManager {
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
             if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
-                if (!episodeMap[action.episode_id]) {
-                    episodeMap[action.episode_id] = [];
-                }
-
-                episodeMap[action.episode_id].push(action);
+                (episodeMap[action.episode_id] ??= []).push(action);
                 pruned.push(action);
             }
         }
@@ -573,11 +569,8 @@ ORDER BY id DESC;`
             }
         }
 
-        if (!this.#purgeCache) {
-            // No purged markers found, but we should initialize an empty
-            // cache to indicate that.
-            this.#purgeCache = {};
-        }
+        // If no purged markers were found, initialize an empty cache to indicate that.
+        this.#purgeCache ??= {};
 
         const purgeCount = this.purgeCount();
         if (purgeCount > 0) {
@@ -591,29 +584,14 @@ ORDER BY id DESC;`
      * Add the given marker action to the purge map.
      * @param {MarkerAction} action */
     #addToPurgeMap(action) {
-        if (!this.#purgeCache) {
-            this.#purgeCache = {};
-        }
+        this.#purgeCache ??= {};
 
         // Each instance of this application is tied to a single server's database,
         // so it's okay to use the section_id instead of the globally unique section_uuid.
-        if (!this.#purgeCache[action.section_id]) {
-            this.#purgeCache[action.section_id] = {};
-        }
-
-        let section = this.#purgeCache[action.section_id];
-        if (!section[action.show_id]) {
-            section[action.show_id] = {};
-        }
-        let show = section[action.show_id];
-        if (!show[action.season_id]) {
-            show[action.season_id] = {};
-        }
-        let season = show[action.season_id];
-        if (!season[action.episode_id]) {
-            season[action.episode_id] = {};
-        }
-        season[action.episode_id][action.marker_id] = action;
+        let section = this.#purgeCache[action.section_id] ??= {};
+        let show = section[action.show_id] ??= {};
+        let season = show[action.season_id] ??= {};
+        (season[action.episode_id] ??= {})[action.marker_id] = action;
     }
 
     /**
@@ -679,11 +657,7 @@ ORDER BY id DESC;`
                 for (const episode of Object.values(season)) {
                     for (const markerAction of Object.values(episode)) {
                         if (!markerAction.episodeData) {
-                            if (!needsEpisodeData[markerAction.episode_id]) {
-                                needsEpisodeData[markerAction.episode_id] = [];
-                            }
-
-                            needsEpisodeData[markerAction.episode_id].push(markerAction);
+                            (needsEpisodeData[markerAction.episode_id] ??= []).push(markerAction);
                         }
                     }
                 }
@@ -776,11 +750,7 @@ ORDER BY id DESC;`
             }
 
             foundMarkers[markerAction.marker_id] = true;
-            if (!toRestore[markerAction.episode_id]) {
-                toRestore[markerAction.episode_id] = [];
-            }
-
-            toRestore[markerAction.episode_id].push(markerAction);
+            (toRestore[markerAction.episode_id] ??= []).push(markerAction);
         }
 
         const markerData = await PlexQueries.bulkRestore(toRestore);
