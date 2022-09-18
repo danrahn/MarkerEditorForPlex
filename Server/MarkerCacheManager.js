@@ -169,6 +169,10 @@ class MarkerCacheManager {
      * @type {MarkerSectionMap} */
     #markerHierarchy = {};
 
+    /** Ids of all episodes in the database.
+     * @type {Set<number>} */
+    #allEpisodes = new Set();
+
     /** The tag_id in the Plex database that corresponds to intro markers. */
     #tagId;
 
@@ -304,6 +308,15 @@ class MarkerCacheManager {
     }
 
     /**
+     * Return whether the given episode id exists in the database.
+     * Used by backup manager to check whether a purged marker is associated with an episode
+     * that actually exists.
+     * @param {number} episodeId */
+    episodeExists(episodeId) {
+        return this.#allEpisodes.has(episodeId);
+    }
+
+    /**
      * Attempts to add additional markers to a show/series if none were previously found.
      * This can happen if the user is (inadvisably) running PMS and adding shows/episodes
      * after the initial startup of this server.
@@ -376,6 +389,10 @@ class MarkerCacheManager {
 
             this.#allMarkers[tag.id] = tag;
         }
+
+        // Core query includes episodes without markers, so this should
+        // cover all episodes, not just those with markers.
+        this.#allEpisodes.add(tag.episode_id);
     }
 
     /**

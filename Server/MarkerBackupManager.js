@@ -581,7 +581,9 @@ ORDER BY id DESC;`
                 continue; // Last action was a user delete, ignore it.
             }
 
-            if (!MarkerCache.markerExists(action.marker_id)) {
+            // For now, skip episodes that are deleted. In the future there should be a GUID backup that
+            // can be used to try and match a deleted episode with its new metadata id if the agent is the same.
+            if (MarkerCache.episodeExists(action.episode_id) && !MarkerCache.markerExists(action.marker_id)) {
                 this.#addToPurgeMap(action);
             }
         }
