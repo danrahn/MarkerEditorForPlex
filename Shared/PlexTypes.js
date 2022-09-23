@@ -374,6 +374,11 @@ class MarkerData extends PlexData {
     sectionId;
 
     /**
+     * The guid of the episode this marker is attached to.
+     * @type {string} */
+    episodeGuid;
+
+    /**
      * Creates a new MarkerData from the given marker, if provided.
      * @param {Object<string, any>} [marker] */
     constructor(marker) {
@@ -412,6 +417,7 @@ class MarkerData extends PlexData {
         this.seasonId = marker.season_id;
         this.showId = marker.show_id;
         this.sectionId = marker.section_id;
+        this.episodeGuid = marker.episode_guid;
     }
 }
 

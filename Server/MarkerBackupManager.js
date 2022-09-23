@@ -83,6 +83,24 @@ While the section id isn't a wholly unique identifier if multiple servers are us
 same database, it's still convenient to have in the context of a single server's actions.
 */
 
+/*
+Backup table V3 additions:
+
+| COLUMN       | TYPE         | DESCRIPTION                                       |
++--------------+--------------+---------------------------------------------------+
+| episode_guid | VARCHAR(255) | The library section id this marker is attached to |
++--------------+--------------+---------------------------------------------------+
+
+In the following scenario, we can lose track of marker adds/edits:
+  1. An episode is added.
+  2. A marker for the episode is added/edited.
+  3. The episode is deleted.
+  4. The episode is added again.
+
+In this case, the metadata id is not enough.
+*/
+
+
 /**
  * The accepted operation types
  * @enum */
@@ -116,7 +134,11 @@ CREATE TABLE IF NOT EXISTS actions (
     extra_data   VARCHAR(255) NOT NULL,
     section_uuid VARCHAR(255) NOT NULL,
     restores_id  INTEGER,
-    restored_id  INTEGER
+    restored_id  INTEGER,` +
+    /* V2 */`
+    section_id   INTEGER      NOT NULL DEFAULT -1,` +
+    /* V3 */`
+    episode_guid VARCHAR(255) DEFAULT NULL
 );
 `;
 
@@ -126,7 +148,7 @@ CREATE TABLE IF NOT EXISTS actions (
  *            show_id: number, section_id: number, start: number, end: number, old_start: number?,
  *            old_end: number?, modified_at: string?, created_at: string, recorded_at: string,
  *            extra_data: string, section_uuid: string, restores_id: number?, restored_id: number?,
- *            episodeData: EpisodeData? }} MarkerAction
+ *            episode_guid: string?, episodeData: EpisodeData? }} MarkerAction
  */
 
 /**
@@ -134,16 +156,17 @@ CREATE TABLE IF NOT EXISTS actions (
  * @typedef {{ [sectionId: number] : PurgeSection }} PurgeMap
  */
 
+/** The current table schema version. */
+const CurrentSchemaVersion = 3;
+
 /** Single-row table that indicates the current version of the actions table. */
 const CheckVersionTable = `
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER
 );
-INSERT INTO schema_version (version) SELECT 0 WHERE NOT EXISTS (SELECT * FROM schema_version);
+INSERT INTO schema_version (version) SELECT ${CurrentSchemaVersion} WHERE NOT EXISTS (SELECT * FROM schema_version);
 `;
 
-/** The current table schema version. */
-const CurrentSchemaVersion = 2;
 
 /** "Create index if not exists"
  * @type {(indexName: string, columnName: string) => string} */
@@ -157,14 +180,16 @@ ${ciine('seasonid', 'season_id')};
 ${ciine('showid', 'show_id')};
 ${ciine('mid', 'marker_id')};
 ${ciine('resid', 'restored_id')};
+${ciine('sectionid', 'section_id')};
 `;
 
 // Queries to execute when upgrading from SchemaUpgrades[version] to SchemaUpgrades[version + 1]
 const SchemaUpgrades = [
-    // 0 -> 1: New database. Create the V1 table and its indexes. (and drop the existing actions table as a precaution)
+    // New database. Create the full table and its indexes. (and drop the existing actions table as a precaution)
+    // Set version to current version, as a new database starts with the latest schema version.
     `DROP TABLE IF EXISTS actions;
     ${ActionsTable} ${CheckVersionTable} ${CreateIndexes}
-    UPDATE schema_version SET version=1`,
+    UPDATE schema_version SET version=${CurrentSchemaVersion};`,
 
     // 1 -> 2: Add the section_id column and create an index for it
     // We don't want it to be null, but don't know the right value right now, so default to -1,
@@ -172,6 +197,10 @@ const SchemaUpgrades = [
     `ALTER TABLE actions ADD COLUMN section_id INTEGER NOT NULL DEFAULT -1;
     ${ciine('sectionid', 'section_id')};
     UPDATE schema_version SET version=2;`,
+
+    // 2 -> 3: Add episode_guid column
+    `ALTER TABLE actions ADD COLUMN episode_guid VARCHAR(255) DEFAULT NULL;
+    UPDATE schema_version SET version=3;`,
 ];
 
 /**
@@ -205,7 +234,8 @@ class MarkerBackupManager {
     /** @type {(async (callback: Function) => void)[]} */
     #schemaUpgradeCallbacks = [
         async () => { },
-        this.#updateSectionIdAfterUpgrade.bind(this)
+        this.#updateSectionIdAfterUpgrade.bind(this),
+        async () => { }, // addEpisodeGuidAfterUpgrade, but we do it outside the main update process
     ];
 
     /**
@@ -240,8 +270,8 @@ class MarkerBackupManager {
         }
 
         const fullPath = joinPath(dbPath, 'markerActions.db');
-        if (!existsSync(fullPath)) {
-            // Not strictly necessary, but nice for logging.
+        const dbExists = existsSync(fullPath);
+        if (!dbExists) {
             Log.info(`MarkerBackupManager: No backup marker database found, creating it (${fullPath}).`);
         } else {
             Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
@@ -251,6 +281,10 @@ class MarkerBackupManager {
             const db = await DatabaseWrapper.CreateDatabase(fullPath, true /*allowCreate*/);
             Log.tmi('MarkerBackupManager: Opened database, checking schema');
             await db.exec(CheckVersionTable);
+            if (!dbExists) {
+                await db.exec(SchemaUpgrades[0]);
+            }
+
             const row = await db.get('SELECT version FROM schema_version;');
             const version = row ? row.version : 0;
             const manager = new MarkerBackupManager(uuids, db);
@@ -262,6 +296,10 @@ class MarkerBackupManager {
 
                 await manager.upgradeSchema(version);
             }
+
+            // 2 -> 3 Add guids if necessary
+            // TODO: Do something similar for 1 -> 2?
+            await manager.postUpgrade();
 
             Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
             Instance = manager;
@@ -313,8 +351,7 @@ class MarkerBackupManager {
     /**
      * Updates the backup database to set the correct section_id, which will be -1 if
      * the user performed any actions with the V1 database schema.
-     * This should be a one-time operation (per server associated with this application).
-     * @param {() => void} callback Callback to invoke after updating the database's section ids. */
+     * This should be a one-time operation (per server associated with this application). */
     async #updateSectionIdAfterUpgrade() {
         Log.verbose('MarkerBackupManager: Setting section_id after upgrading schema.');
 
@@ -344,6 +381,54 @@ class MarkerBackupManager {
     }
 
     /**
+     * Check for one-time actions required after a schema upgrade.
+     * Since the backup database supports multiple servers, we may need to run updates
+     * outside of the immediate schema upgrade. */
+    async postUpgrade() {
+        await this.#addEpisodeGuidAfterUpgrade();
+    }
+
+    /**
+     * Check for relevant marker actions that don't have an episode guid set.
+     * If relevant actions are found that we can't find a guid for, that means the episode is deleted
+     * and can no longer be restored, so will be marked as ignored in the database. */
+    async #addEpisodeGuidAfterUpgrade() {
+        const allActionsQuery = this.#allActionsQuery(true);
+        /** @type {MarkerAction[]} */
+        const allActions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+        if (!allActions || allActions.length == 0) {
+            Log.verbose('MarkerBackupManager: No active actions missing episode guid.');
+            return;
+        }
+
+        /** @type {{ [sectionId: number]: MarkerAction[] }} */
+        const bySection = {};
+        for (const action of allActions) {
+            (bySection[action.section_id] ??= []).push(action);
+        }
+
+        Log.info('MarkerBackupManager: Found marker actions without an episode guid. Attempting to match them now.');
+        const transaction = new TransactionBuilder(this.#actions);
+        for (const [sectionId, actions] of Object.entries(bySection)) {
+            const episodes = await PlexQueries.episodeGuidsForSection(sectionId);
+            for (const action of actions) {
+                const guid = episodes[action.episode_id];
+                if (!guid) {
+                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.episode_id}, marking it as ignored as it cannot be restored.`);
+                    transaction.addStatement('UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?', [action.marker_id, this.#uuids[sectionId]]);
+                    continue;
+                }
+
+                const parameters = [guid, action.marker_id, action.marker_id, this.#uuids[sectionId]];
+                transaction.addStatement('UPDATE actions SET episode_guid=? WHERE (marker_id=? OR restored_id=?) AND section_uuid=?', parameters);
+            }
+        }
+
+        Log.info(`MarkerBackupManager: Running ${transaction.statementCount()} queries to update guids.`);
+        await transaction.exec();
+    }
+
+    /**
      * Records a marker that was added to the Plex database.
      * @param {MarkerData[]} markers */
     async recordAdds(markers) {
@@ -357,9 +442,9 @@ class MarkerBackupManager {
             // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5", ?)`;
-            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, this.#uuids[marker.sectionId]];
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5", ?, ?)`;
+            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, this.#uuids[marker.sectionId], marker.episodeGuid];
     
             transaction.addStatement(query, parameters);
         }
@@ -397,9 +482,9 @@ class MarkerBackupManager {
             const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
-            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate, this.#uuids[marker.sectionId]];
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?, ?)`;
+            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate, this.#uuids[marker.sectionId], marker.episodeGuid];
             transaction.addStatement(query, parameters);
         }
 
@@ -417,7 +502,7 @@ class MarkerBackupManager {
 
     /**
      * Records a marker that was deleted from the Plex database.
-     * @param {MarkerData[]} marker */
+     * @param {MarkerData[]} markers */
     async recordDeletes(markers) {
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
@@ -429,9 +514,9 @@ class MarkerBackupManager {
             const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?)`;
-            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId]];
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?, ?)`;
+            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId], marker.episodeGuid];
             transaction.addStatement(query, parameters);
         }
 
@@ -457,12 +542,12 @@ class MarkerBackupManager {
         for (const restore of restores) {
             const query = `
                 INSERT INTO actions
-                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id) VALUES
+                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid) VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pv%3Aversion=5", ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
-            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], restore.oldMarkerId];
+            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
@@ -548,11 +633,9 @@ class MarkerBackupManager {
     }
 
     /**
-     * Queries the backup database for markers from all sections of the server and checks
-     * whether they exist in the Plex database.
-     * @returns {Promise<void>} 
-     * TODO: Handle deleted episodes properly. Need to add guid to backup manager*/
-    async buildAllPurges() {
+     * Return a query that will grab the latest action for each marker associated with the current server.
+     * @param {boolean} guidCheck `true` if we're checking for episode guids, in which case we don't care about ignored actions. */
+    #allActionsQuery(guidCheck=false) {
         let uuidString = '';
         let parameters = [];
         for (const uuid of Object.values(this.#uuids)) {
@@ -564,28 +647,66 @@ class MarkerBackupManager {
 
         const query = `
 SELECT *, MAX(id) FROM actions
-WHERE (${uuidString}) AND restored_id IS NULL
+WHERE (${uuidString}) AND restored_id IS NULL ${guidCheck ? 'AND episode_guid IS NULL' : ''}
 GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`
 
-        /** @type {MarkerAction[]} */
-        const actions = await this.#actions.all(query, parameters);
+        return {
+            query : query,
+            parameters : parameters
+        }
+    }
 
-        // If we need to update ids, hold off for now and rerun buildAllPurges once complete.
+    /**
+     * Queries the backup database for markers from all sections of the server and checks
+     * whether they exist in the Plex database.
+     * @returns {Promise<void>} */
+    async buildAllPurges() {
+        const allActionsQuery = this.#allActionsQuery();
+
+        /** @type {MarkerAction[]} */
+        const actions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+
+        // If we need to update ids, hold off for now and rerun buildAllPurges once complete (schema 1 to 2).
         if (await this.#verifySectionIds(actions)) {
             return this.buildAllPurges();
         }
 
+        let disconnected = {};
         for (const action of actions) {
             if (action.op == MarkerOp.Delete) {
                 continue; // Last action was a user delete, ignore it.
             }
 
-            // For now, skip episodes that are deleted. In the future there should be a GUID backup that
-            // can be used to try and match a deleted episode with its new metadata id if the agent is the same.
+            // TODO: UI similar to bulk add - show what conflicts with existing markers.
+            //       Conflict resolution similar to bulk add, with new 'replace' option.
+            if (!MarkerCache.episodeExists(action.episode_id)) {
+                if (!action.episode_guid) {
+                    // Episode doesn't exist and we don't have a guid to associate in the future, mark as ignored
+                    Log.warn(`Episode for marker id ${action.id} not found, marking as ignored since it cannot be recovered.`);
+                    (disconnected[action.section_id] ??= []).push(action.marker_id);
+                    continue;
+                }
+
+                const fromGuid = await PlexQueries.getEpisodeFromGuid(action.episode_guid);
+                if (!fromGuid) {
+                    Log.verbose(`No episode found for marker id ${action.id}, but keeping around in case the episode guid is added in the future.`);
+                    continue;
+                }
+
+                // Query should guarantee that we only parse a single marker once, so we can call this here
+                // without worrying about running this multiple times for the same marker when parsing all actions.
+                await this.#updateMarkerMetadataIds(action, fromGuid.id, fromGuid.season_id, fromGuid.show_id);
+            }
+
             if (MarkerCache.episodeExists(action.episode_id) && !MarkerCache.markerExists(action.marker_id)) {
                 this.#addToPurgeMap(action);
             }
+        }
+
+        // Ignore disconnected markers all at once
+        for (const [sectionId, markerIds] of Object.entries(disconnected)) {
+            this.ignorePurgedMarkers(markerIds, sectionId);
         }
 
         // If no purged markers were found, initialize an empty cache to indicate that.
@@ -597,6 +718,17 @@ ORDER BY id DESC;`
         } else {
             Log.info(`Looked for purged markers and didn't find any`);
         }
+    }
+
+    /**
+     * Updates the metadata ids associated with a given marker (e.g. after an episode is deleted and re-added).
+     * @param {MarkerAction} action
+     * @param {number} episodeId
+     * @param {number} seasonId
+     * @param {number} showId */
+    async #updateMarkerMetadataIds(action, episodeId, seasonId, showId) {
+        const query = `UPDATE actions SET episode_id=?, season_id=?, show_id=? WHERE marker_id=?`;
+        await this.#actions.run(query, [episodeId, seasonId, showId, action.marker_id]);
     }
 
     /**
@@ -819,7 +951,7 @@ ORDER BY id DESC;`
      * Ignores purged markers to exclude them from purge queries.
      * @param {number[]} oldMarkerIds The ids of the old markers we're trying to ignore.
      * @param {number} sectionId The id of the section the old markers belonged to. */
-    async ignorePurgedMarkers(oldMarkerIds, sectionId,) {
+    async ignorePurgedMarkers(oldMarkerIds, sectionId) {
         if (!(sectionId in this.#uuids)) {
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }

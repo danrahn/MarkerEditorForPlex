@@ -1,6 +1,6 @@
 /**
  * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string,
- *             episode_id : number, season_id : number, show_id : number, section_id : number }} RawMarkerData
+ *             episode_id : number, season_id : number, show_id : number, section_id : number, episode_guid : string }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
@@ -91,7 +91,8 @@ class PlexQueryManager {
     episodes.id AS episode_id,
     seasons.id AS season_id,
     seasons.parent_id AS show_id,
-    seasons.library_section_id AS section_id
+    seasons.library_section_id AS section_id,
+    episodes.guid AS episode_guid
 FROM taggings
     INNER JOIN metadata_items episodes ON taggings.metadata_item_id = episodes.id
     INNER JOIN metadata_items seasons ON episodes.parent_id = seasons.id
@@ -304,6 +305,41 @@ ORDER BY e.\`index\` ASC;`;
     ORDER BY e.\`index\` ASC;`;
 
         return this.#database.all(query, parameters);
+    }
+
+    /**
+     * Retrieve episode info for an episode with the given guid, if any.
+     * @param {string} guid
+     * @returns {Promise<{ id: number, season_id: number, show_id: number }>} */
+    async getEpisodeFromGuid(guid) {
+        const query = `
+    SELECT
+        e.id AS id,
+        p.id AS season_id,
+        p.parent_id AS show_id
+    FROM metadata_items e
+        INNER JOIN metadata_items p on e.parent_id=p.id
+    WHERE e.guid=?;`;
+        try {
+            return this.#database.get(query, [guid]);
+        } catch (_) {
+            return undefined;
+        }
+    }
+
+    /**
+     * Retrieve guids for all episodes in a given section
+     * @param {number} sectionId
+     * @returns {Promise<{ [metadataId: number]: string }>} */
+    async episodeGuidsForSection(sectionId) {
+        const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=4;`;
+        const episodes = await this.#database.all(query, [sectionId]);
+        const dict = {};
+        for (const episode of episodes) {
+            dict[episode.id] = episode.guid;
+        }
+
+        return dict;
     }
 
     /**
