@@ -198,6 +198,10 @@ class PlexUI {
             SettingsManager.Get().setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
         }
+
+        if (this.#searchBox.value.length > 0) {
+            this.#search(); // Restart any existing search in the new library
+        }
     }
 
     /**
