@@ -48,7 +48,7 @@ class BulkDeleteOverlay {
     /**
      * Attempt to delete all markers associated with this overlay's metadata id, minus any unchecked items. */
     async #deleteAll() {
-        const ignored = this.#table.getIgnored();
+        const ignored = this.#table?.getIgnored();
         try {
             const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, ignored);
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);

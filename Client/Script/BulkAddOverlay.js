@@ -145,7 +145,7 @@ class BulkAddOverlay {
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#table.getIgnored());
+            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#table?.getIgnored());
             if (!result.applied) {
                 BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
                 return;
@@ -214,9 +214,7 @@ class BulkAddOverlay {
      * Displays a table of all episodes in the group, with color coded columns
      * to let the user know when a marker add will fail/be merged with existing markers. */
     #showCustomizeTable() {
-        if (this.#table) {
-            this.#table.remove();
-        }
+        this.#table?.remove();
         this.#table = new BulkActionTable();
 
         this.#table.buildTableHead('Episode', 'Title', TableElements.shortTimeColumn('Start'), TableElements.shortTimeColumn('End'));
