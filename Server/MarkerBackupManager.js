@@ -543,7 +543,7 @@ class MarkerBackupManager {
             const query = `
                 INSERT INTO actions
                 (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid) VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pv%3Aversion=5", ?, ?);\n`;
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pv%3Aversion=5", ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
