@@ -16,7 +16,7 @@ If running Windows, download the latest [release](https://github.com/danrahn/Int
 In Docker:
 
 ```bash
-docker run -p 3233:3232 \
+docker run -p 3232:3232 \
            -v /path/to/config:/Data \
            -v /path/to/PlexData:/PlexDataDirectory \
            -it danrahn/intro-editor-for-plex:latest
