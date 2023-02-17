@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from "./Common.js";
-import { MarkerData } from "../../Shared/PlexTypes.js";
+import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
 
 import Tooltip from "./inc/Tooltip.js";
 
@@ -158,7 +158,7 @@ class MarkerEdit {
         }
 
         try {
-            const rawMarkerData = await ServerCommand.add(metadataId, startTime, endTime);
+            const rawMarkerData = await ServerCommand.add(MarkerType.Intro, metadataId, startTime, endTime);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
         } catch (err) {

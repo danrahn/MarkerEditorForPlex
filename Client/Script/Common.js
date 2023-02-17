@@ -42,11 +42,13 @@ class FetchError extends Error {
 const ServerCommand = {
     /**
      * Add a marker to the Plex database
+     * @param {string} markerType
      * @param {number} metadataId
      * @param {number} start
      * @param {number} end
+     * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    add : async (metadataId, start, end) => jsonRequest('add', { metadataId: metadataId, start : start, end : end }),
+    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId: metadataId, start : start, end : end, type : markerType, final : final }),
 
     /**
      * Edit an existing marker with the given id.
@@ -100,13 +102,15 @@ const ServerCommand = {
 
     /**
      * Bulk adds a marker to the given metadata id.
+     * @param {string} markerType The type of marker (intro/credits)
      * @param {number} id Show/Season metadata id.
      * @param {number} start Start time of the marker, in milliseconds.
      * @param {number} end End time of the marker, in milliseconds.
      * @param {number} resolveType The BulkMarkerResolveType.
+     * @param {number} [final=0] Whether this is the last marker of the episode (credits only)
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : async (id, start, end, resolveType, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, resolveType : resolveType, ignored : ignored.join(',')}),
+    bulkAdd : async (markerType, id, start, end, resolveType, final=0, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final, resolveType : resolveType, ignored : ignored.join(',')}),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.

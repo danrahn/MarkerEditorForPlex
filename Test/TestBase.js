@@ -13,7 +13,7 @@ import { run as mainRun } from "../Server/IntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ServerState, GetServerState } from '../Server/ServerState.js';
-import { ExtraData } from '../Server/MarkerBackupManager.js';
+import { ExtraData } from '../Server/PlexQueryManager.js';
 /** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 /**
@@ -436,7 +436,9 @@ class TestBase {
         return this.send('add', {
             metadataId : episodeId,
             start : startMs,
-            end : endMs
+            end : endMs,
+            type : 'intro', // TODO: credits
+            final : 0, // TODO: credits
         }, raw);
     }
 

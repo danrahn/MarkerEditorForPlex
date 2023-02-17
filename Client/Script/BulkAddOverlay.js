@@ -1,4 +1,4 @@
-import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -145,7 +145,7 @@ class BulkAddOverlay {
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(this.#mediaItem.metadataId, startTime, endTime, resolveType, this.#table?.getIgnored());
+            const result = await ServerCommand.bulkAdd(MarkerType.Intro, this.#mediaItem.metadataId, startTime, endTime, resolveType, false /*final*/, this.#table?.getIgnored());
             if (!result.applied) {
                 BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
                 return;

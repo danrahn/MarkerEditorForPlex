@@ -174,9 +174,9 @@ class BulkDeleteTest extends TestBase {
         const fakeMarker1 = { id : episode.Marker1.Id };
         await TestHelpers.validateMarker(fakeMarker1, null, null, null, null, null, null, null, null, this.testDb, true /*isDeleted*/);
         const fakeMarker2 = { id : episode.Marker2.Id, index : 0 };
-        await TestHelpers.validateMarker(fakeMarker2, null, null, null, null, null, null, null, 0, this.testDb, false /*isDeleted*/);
+        await TestHelpers.validateMarker(fakeMarker2, null, null, null, null, null, null, null, null, this.testDb, false /*isDeleted*/);
         const fakeMarker3 = { id : episode.Marker3.Id, index : 0 };
-        await TestHelpers.validateMarker(fakeMarker3, null, null, null, null, null, null, null, 0, this.testDb, true /*isDeleted*/);
+        await TestHelpers.validateMarker(fakeMarker3, null, null, null, null, null, null, null, null, this.testDb, true /*isDeleted*/);
     }
 
     async bulkDeleteSeasonWithIgnoreTest() {

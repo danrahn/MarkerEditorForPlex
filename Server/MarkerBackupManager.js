@@ -9,7 +9,7 @@ import { EpisodeData, MarkerData, MarkerType } from "../Shared/PlexTypes.js";
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
 import { MarkerCache } from "./MarkerCacheManager.js";
-import { PlexQueries } from "./PlexQueryManager.js";
+import { ExtraData, PlexQueries } from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
 import TransactionBuilder from "./TransactionBuilder.js";
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
@@ -132,18 +132,6 @@ PMS 1.31.0.6654 introduced credits detection, and along with it a new marker typ
     /** Restoring a previous marker that exists in the table. */
     Restore : 4
 };
-
-/**
- * extra_data string for different marker types
- * @enum */
-const ExtraData = {
-    /** @readonly Intro marker */
-    Intro        : 'pv%3Aversion=5',
-    /** @readonly Non-final credit marker */
-    Credits      : 'pv%3Aversion=4',
-    /** @readonly Final credit marker (goes to the end of the media item) */
-    CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
-}
 
 /** The main table. See above for details. */
 const ActionsTable = `
@@ -470,21 +458,6 @@ class MarkerBackupManager {
     }
 
     /**
-     * @param {MarkerData} marker */
-    #extraDataFromMarkerType(marker) {
-        if (marker.markerType == MarkerType.Intro) {
-            return ExtraData.Intro;
-        }
-
-        if (!marker.markerType == MarkerType.Credits) {
-            Log.warn(marker.markerType, 'MarkerBackupManager: Unknown marker type');
-            return ExtraData.Intro;
-        }
-
-        return marker.isFinal ? ExtraData.CreditsFinal : ExtraData.Credits;
-    }
-
-    /**
      * Records a marker that was added to the Plex database.
      * @param {MarkerData[]} markers */
     async recordAdds(markers) {
@@ -501,7 +474,7 @@ class MarkerBackupManager {
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
-                                this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
     
             transaction.addStatement(query, parameters);
         }
@@ -542,7 +515,7 @@ class MarkerBackupManager {
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
-                this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
             transaction.addStatement(query, parameters);
         }
 
@@ -575,7 +548,7 @@ class MarkerBackupManager {
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
-                marker.createDate, this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
             transaction.addStatement(query, parameters);
         }
 
@@ -607,7 +580,7 @@ class MarkerBackupManager {
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
             const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate,
-                this.#extraDataFromMarkerType(m), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal];
+                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';

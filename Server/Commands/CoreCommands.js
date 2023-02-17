@@ -1,5 +1,5 @@
 import { Log } from '../../Shared/ConsoleLog.js';
-import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
@@ -19,14 +19,26 @@ import ServerError from '../ServerError.js';
 class CoreCommands {
     /**
      * Adds the given marker to the database, rearranging indexes as necessary.
+     * @param {string} markerType The type of marker
      * @param {number} metadataId The metadata id of the episode to add a marker to.
      * @param {number} startMs The start time of the marker, in milliseconds.
      * @param {number} endMs The end time of the marker, in milliseconds.
+     * @param {number} final Whether this marker is the final marker (credits only).
      * @throws {ServerError} */
-    static async addMarker(metadataId, startMs, endMs) {
+    static async addMarker(markerType, metadataId, startMs, endMs, final) {
         CoreCommands.#checkMarkerBounds(startMs, endMs);
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            throw new ServerError(`Marker type "${markerType}" is not valid.`, 400);
+        }
 
-        const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs);
+        if (markerType !== MarkerType.Credits && final) {
+            // TODO: If a marker is final, and one is added after it, final should be removed.
+            // That really shouldn't be possible though, since 'final' implies it goes to the end of the episode.
+            Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
+            final = false;
+        }
+
+        const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs, markerType, final);
         const allMarkers = addResult.allMarkers;
         const newMarker = addResult.newMarker;
         const markerData = new MarkerData(newMarker);
@@ -287,19 +299,32 @@ class CoreCommands {
 
     /**
      * Bulk add markers to a given show or season.
+     * @param {string} markerType
      * @param {number} metadataId
      * @param {number} start
      * @param {number} end
      * @param {number} resolveType The `BulkMarkerResolveType`
+     * @param {number} final
      * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
      * @returns {Promise<BulkAddResult>>} */
-    static async bulkAdd(metadataId, start, end, resolveType, ignored=[]) {
+    static async bulkAdd(markerType, metadataId, start, end, final, resolveType, ignored=[]) {
         if (resolveType != BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
             throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`);
         }
 
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
+        }
+
+        if (markerType !== MarkerType.Credits && final) {
+            // TODO: If a marker is final, and one is added after it, final should be removed.
+            // That really shouldn't be possible though, since 'final' implies it goes to the end of the episode.
+            Log.warn(`Got a request for a 'final' marker bulk add that isn't a credit marker!`);
+            final = false;
+        }
+
         const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
-        const addResult = await PlexQueries.bulkAdd(currentMarkers, metadataId, start, end, resolveType, ignored);
+        const addResult = await PlexQueries.bulkAdd(currentMarkers, metadataId, start, end, markerType, final, resolveType, ignored);
         if (addResult.applied) {
             const episodes = Object.values(addResult.episodeMap);
             /** @type {MarkerData[]} */

@@ -303,8 +303,8 @@ class BulkAddTest extends TestBase {
     async #verifyBulkAdd(metadataId, start, end, resolveType, ignored, expectApply, expectConflict, markersToCheck, expectedDeletes={}) {
         let totalMarkerCount = 0;
         const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
-        /** @type {SerializedBulkAddResult} */
-        const result = await this.send('bulk_add', { id : metadataId, start : start, end : end, resolveType : resolveType, ignored : ignored.join(',') });
+        /** @type {SerializedBulkAddResult} // TODO: credits */
+        const result = await this.send('bulk_add', { id : metadataId, start : start, end : end, type : 'intro', final : 0, resolveType : resolveType, ignored : ignored.join(',') });
         Log.info(result);
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
         TestHelpers.verify(result.applied === true || result.applied === false, `Expected result.applied to be true or false, found ${result.applied}`);

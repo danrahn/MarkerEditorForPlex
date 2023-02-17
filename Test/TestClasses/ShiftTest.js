@@ -162,7 +162,7 @@ class ShiftTest extends TestBase {
         const shift = 345000;
         const result = await this.#verifyJoinedShift(episode.Id, shift, 1, [episode.Marker2.Id, episode.Marker3.Id]);
         const newMarker = result.allMarkers[0];
-        await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 2, episode.Marker1.Final, this.testDb);
+        await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, episode.Marker1.Final, this.testDb);
 
         // Fake marker data to verify that the second marker wasn't changed
         const marker2 = episode.Marker2;
