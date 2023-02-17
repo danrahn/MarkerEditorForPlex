@@ -41,7 +41,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : 6, start : 0, end : 10000, index : 0},
+            [   { id : 7, start : 0, end : 10000, index : 0},
                 { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 1 }
             ],
             {}
@@ -53,11 +53,12 @@ class BulkAddTest extends TestBase {
     async easyBulkAddSeasonTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         let expectedMarkers = [
-            { id : 6, start : 0, end : 10000, index : 0 },
             { id : 7, start : 0, end : 10000, index : 0 },
+            { id : 8, start : 0, end : 10000, index : 0 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 1),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 1),
-            this.#testMarkerFromTestData(season.Episode2.Marker2, 2)
+            this.#testMarkerFromTestData(season.Episode2.Marker2, 2),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 3),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -79,12 +80,13 @@ class BulkAddTest extends TestBase {
         const newStart = 50000;
         const newEnd = 70000;
         let expectedMarkers = [
-            { id : 6, start : newStart, end : newEnd, index : 1 },
             { id : 7, start : newStart, end : newEnd, index : 1 },
             { id : 8, start : newStart, end : newEnd, index : 1 },
+            { id : 9, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(show.Season1.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(show.Season1.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(show.Season1.Episode2.Marker2, 2),
+            this.#testMarkerFromTestData(show.Season1.Episode2.Marker3, 3),
             this.#testMarkerFromTestData(show.Season2.Episode1.Marker1, 0),
         ];
         return this.#verifyBulkAdd(
@@ -108,7 +110,8 @@ class BulkAddTest extends TestBase {
         let expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
-            this.#testMarkerFromTestData(season.Episode2.Marker2, 1)
+            this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 2),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -131,10 +134,11 @@ class BulkAddTest extends TestBase {
         const newStart = 300000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 6, start : newStart, end : newEnd, index : 1 },
+            { id : 7, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
-            this.#testMarkerFromTestData(season.Episode2.Marker2, 1)
+            this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 2),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -157,10 +161,11 @@ class BulkAddTest extends TestBase {
         const newStart = 330000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 6, start : newStart, end : newEnd, index : 1 },
+            { id : 7, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
-            this.#testMarkerFromTestData(season.Episode2.Marker2, 1, 300000, newEnd)
+            this.#testMarkerFromTestData(season.Episode2.Marker2, 1, 300000, newEnd),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 2),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -185,6 +190,7 @@ class BulkAddTest extends TestBase {
         let expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0, 15000, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0, 15000, newEnd),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 1),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -209,6 +215,7 @@ class BulkAddTest extends TestBase {
         let expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0, newStart, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0, newStart, newEnd),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 1),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -232,10 +239,11 @@ class BulkAddTest extends TestBase {
         const newStart = 330000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 6, start : newStart, end : newEnd, index : 1 },
+            { id : 7, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 2),
         ];
         return this.#verifyBulkAdd(
             season.Id,
@@ -263,7 +271,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : 6, start : 50000, end : 600000, index : 1},
+            [   { id : 7, start : 50000, end : 600000, index : 1},
                 this.#testMarkerFromTestData(episode.Marker1, 0)
             ],
             {}
@@ -323,7 +331,7 @@ class BulkAddTest extends TestBase {
         TestHelpers.verify(totalMarkerCount == expectedMarkerCount, `Expected to find ${expectedMarkerCount} markers after bulk action, found ${totalMarkerCount}`);
 
         for (const marker of markersToCheck) {
-            await TestHelpers.validateMarker(marker, null, null, null, marker.start, marker.end, marker.index, this.testDb, marker.deleted);
+            await TestHelpers.validateMarker(marker, null, null, null, null, marker.start, marker.end, marker.index, null, this.testDb, marker.deleted);
         }
     }
 }

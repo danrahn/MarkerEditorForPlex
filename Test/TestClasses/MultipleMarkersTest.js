@@ -28,12 +28,14 @@ class MultipleMarkers extends TestBase {
 
         await TestHelpers.validateMarker(
             marker,
+            'intro',
             eid,
             show.Season1.Id,
             show.Id,
             50000 /*start*/,
             60000 /*end*/,
             1 /*index*/,
+            false /*final*/,
             this.testDb
         );
 
@@ -65,12 +67,14 @@ class MultipleMarkers extends TestBase {
 
         await TestHelpers.validateMarker(
             marker,
+            'intro',
             eid,
             show.Season1.Id,
             show.Id,
             0 /*start*/,
             10000 /*end*/,
             0 /*index*/,
+            false /*final*/,
             this.testDb
         );
 
@@ -120,12 +124,12 @@ class MultipleMarkers extends TestBase {
      * Ensure that marker indexes are resolved correctly after one is deleted. */
     async testReindexAfterDelete() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : episode.Marker2.Index }, null, null, null, null, null, 1, this.testDb);
+        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : episode.Marker2.Index }, null, null, null, null, null, null, 1, null, this.testDb);
         let response = await this.send('delete', { id : episode.Marker1.Id });
         TestHelpers.verify(response && response.id == episode.Marker1.Id, `Expected marker delete to return the marker we deleted.`);
 
         // Verify the index of the second marker is now 0
-        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : 0 }, null, null, null, null, null, 0, this.testDb);
+        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : 0 }, null, null, null, null, null, null, 0, null, this.testDb);
     }
 
     /**

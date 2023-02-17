@@ -346,12 +346,15 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Does some post-processing on the given marker data to extract relevant fields.
-     * @param {RawMarkerData[]} markerData */
+     * @param {RawMarkerData[]|RawMarkerData} markerData */
     async #postProcessExtendedMarkerFields(markerData) {
-        for (const marker of markerData) {
+        let markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
+        for (const marker of markerArray) {
             marker.final = marker.extra_data.indexOf('final=1') != -1;
             delete marker.extra_data;
         }
+
+        return markerData;
     }
 
     /**
@@ -449,9 +452,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} markerId
      * @returns {Promise<RawMarkerData>} */
     async getSingleMarker(markerId) {
-        return this.#postProcessExtendedMarkerFields([await this.#database.get(
+        return this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
-            [markerId, this.#markerTagId])]);
+            [markerId, this.#markerTagId]));
     }
 
     /**
@@ -686,9 +689,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} index The index of the marker in the marker table.
      * @returns {Promise<RawMarkerData>} */
     async getNewMarker(metadataId, startMs, endMs) {
-        return this.#postProcessExtendedMarkerFields([await this.#database.get(
+        return this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
-            [metadataId, this.#markerTagId, startMs, endMs])]);
+            [metadataId, this.#markerTagId, startMs, endMs]));
     }
 
     /**

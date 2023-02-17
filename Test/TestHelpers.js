@@ -10,24 +10,28 @@ class TestHelpers {
      * Validate an added/edited/deleted marker to ensure it matches both what is expected,
      * and what is actually in the database. If an expected value is null, then it is not validated.
      * @param {SerializedMarkerData} markerData The marker to validate. May also be a Failure response ({ Error : string })
+     * @param {string?} expectedType
      * @param {number?} expectedEpisodeId
      * @param {number?} expectedSeasonId
      * @param {number?} expectedShowId
      * @param {number?} expectedStart
      * @param {number?} expectedEnd
      * @param {number?} expectedIndex
+     * @param {boolean?} expectedFinal
      * @param {DatabaseWrapper?} database The test database
      * @param {boolean} isDeleted Whether markerData is a deleted marker (i.e. we should verify it doesn't exist in the database)
      * @throws if the marker is not valid.
      */
     static async validateMarker(
             markerData,
+            expectedType=null,
             expectedEpisodeId=null,
             expectedSeasonId=null,
             expectedShowId=null,
             expectedStart=null,
             expectedEnd=null,
             expectedIndex=null,
+            expectedFinal=null,
             database=null,
             isDeleted=false) {
         if (!markerData) {
@@ -48,12 +52,15 @@ class TestHelpers {
             }
         }
 
+        checkField(markerData.markerType, expectedType, 'Marker type');
         checkField(markerData.episodeId, expectedEpisodeId, 'Episode id');
         checkField(markerData.seasonId, expectedSeasonId, 'Season id');
         checkField(markerData.showId, expectedShowId, 'Show id');
         checkField(markerData.start, expectedStart, 'Marker start');
         checkField(markerData.end, expectedEnd, 'Marker end');
         checkField(markerData.index, expectedIndex, 'Marker index');
+        checkField(markerData.isFinal, expectedFinal, 'Final credits');
+
 
         // Verified returned fields, make sure it's in the db as well
         TestHelpers.verify(allIssues.length == 0, allIssues);
@@ -75,6 +82,8 @@ class TestHelpers {
         checkField(row.time_offset, expectedStart, 'DB marker start');
         checkField(row.end_time_offset, expectedEnd, 'DB marker end');
         checkField(row.index, expectedIndex, 'DB marker index');
+        checkField(row.text, expectedType, 'DB marker type');
+        checkField(row.extra_data.indexOf('final=1') !== -1, expectedFinal, 'Final credits');
         TestHelpers.verify(allIssues.length == 0, allIssues);
     }
 

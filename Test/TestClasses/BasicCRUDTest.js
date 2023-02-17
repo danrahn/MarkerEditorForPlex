@@ -32,12 +32,14 @@ class BasicCRUD extends TestBase {
 
         return TestHelpers.validateMarker(
             marker,
+            'intro' /*expectedType*/,
             show.Season1.Episode1.Id,
             show.Season1.Id,
             show.Id,
             0 /*expectedStart*/,
             1000 /*expectedEnd*/,
             0 /*expectedIndex*/,
+            false /*expectedFinal*/,
             this.testDb);
     }
 
@@ -105,12 +107,14 @@ class BasicCRUD extends TestBase {
 
         // Edit returns modified data
         return TestHelpers.validateMarker(marker,
+            'intro' /*expectedType*/,
             show.Season1.Episode2.Id,
             show.Season1.Id,
             show.Id,
             14000 /*expectedStart*/,
             46000 /*expectedEnd*/,
             0 /*expectedIndex*/,
+            false /*expectedFinal*/,
             this.testDb);
     }
 
@@ -146,12 +150,14 @@ class BasicCRUD extends TestBase {
         });
 
         return TestHelpers.validateMarker(marker,
+            'intro' /*expectedType*/,
             show.Season1.Episode2.Id,
             show.Season1.Id,
             show.Id,
             15000 /*expectedStart*/,
             45000 /*expectedEnd*/,
             0 /*expectedIndex*/,
+            false /*expectedFinal*/,
             this.testDb,
             true /*isDeleted*/);
     }

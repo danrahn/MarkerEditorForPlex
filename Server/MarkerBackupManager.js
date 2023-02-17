@@ -539,7 +539,7 @@ class MarkerBackupManager {
             const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
                 this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
@@ -572,7 +572,7 @@ class MarkerBackupManager {
             const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
                 marker.createDate, this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
@@ -601,7 +601,7 @@ class MarkerBackupManager {
         for (const restore of restores) {
             const query = `
                 INSERT INTO actions
-                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid) VALUES
+                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid, marker_type, final) VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);

@@ -13,6 +13,7 @@ import { run as mainRun } from "../Server/IntroEditor.js";
 import { TestLog } from './TestRunner.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ServerState, GetServerState } from '../Server/ServerState.js';
+import { ExtraData } from '../Server/MarkerBackupManager.js';
 /** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 /**
@@ -100,11 +101,11 @@ class TestBase {
             throw err;
         }
 
-        await this.connectToBackupDatabase();
         await this.setupPlexDbTestTables();
 
         this.setupConfig();
         await this.startService();
+        await this.connectToBackupDatabase(); // Wait until after the service starts, as it will populate the empty backup database if necessary.
         if (methodFn) {
             return this.runSingle(methodFn);
         }
@@ -117,7 +118,7 @@ class TestBase {
      * @param {{}} overrides Dictionary of custom configuration values to set, if any. */
     createConfig(overrides) {
         const td = (field, value, force=false) => { if (!overrides.hasOwnProperty(field) || force) { overrides[field] = value; } };
-        const tf = (feature, value) => { override.features ??= {}; if (!overrides.features.hasOwnProperty(feature)) { overrides.features[feature] = value; }};
+        const tf = (feature, value) => { overrides.features ??= {}; if (!overrides.features.hasOwnProperty(feature)) { overrides.features[feature] = value; }};
 
         // Test defaults
         td('host', 'localhost', true);
@@ -283,7 +284,7 @@ class TestBase {
             Season1 : { Id : 2,
                 Episode1 : { Id : 3, },
                 Episode2 : { Id : 4, 
-                    Marker1 : { Id : 1, Start : 15000, End : 45000, Index : 0 }, },
+                    Marker1 : { Id : 1, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false }, },
                 Episode3 : { Id : 5, }, },
             Season2 : { Id : 6,
                 Episode1 : { Id : 7, }, }
@@ -295,14 +296,15 @@ class TestBase {
         Show3 : { Id : 11,
             Season1 : { Id : 12,
                 Episode1 : { Id : 13,
-                    Marker1 : { Id : 2, Start : 15000, End : 45000, Index : 0 }, },
+                    Marker1 : { Id : 2, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false }, },
                 Episode2 : { Id : 14,
-                    Marker1: { Id : 3, Start : 15000, End : 45000, Index : 0 },
-                    Marker2: { Id : 4, Start : 300000, End : 345000, Index : 1 }, },
+                    Marker1: { Id : 3, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
+                    Marker2: { Id : 4, Start : 300000, End : 345000, Index : 1, Type : 'credits', Final : false },
+                    Marker3: { Id : 5, Start : 360000, End : 370000, Index : 2, Type : 'credits', Final : true }, },
             },
             Season2 : { Id : 15,
                 Episode1 : { Id : 16,
-                    Marker1: { Id : 5, Start : 13000, End : 47000, Index : 0 }, },
+                    Marker1: { Id : 6, Start : 13000, End : 47000, Index : 0, Type : 'intro', Final : false }, },
             },
         },
     }
@@ -332,25 +334,25 @@ class TestBase {
         // Index - show=1, everything else = season/episode index
         // inserting id isn't necessary, just helpful for tracking
         const metadataInsert = `
-        INSERT INTO metadata_items (id, library_section_id, metadata_type, parent_id, title,     \`index\`)
-        VALUES                     (1,  1,                  2,             NULL,      "Show1",    1),
-                                   (2,  1,                  3,             1,         "Season1",  1),
-                                   (3,  1,                  4,             2,         "Episode1", 1),
-                                   (4,  1,                  4,             2,         "Episode2", 2),
-                                   (5,  1,                  4,             2,         "Episode3", 3),
-                                   (6,  1,                  3,             1,         "Season2",  2),
-                                   (7,  1,                  4,             6,         "Episode1", 1),
-                                   (8,  1,                  2,             NULL,      "Show2",    1),
-                                   (9,  1,                  3,             8,         "Season1",  1),
-                                   (10, 1,                  4,             9,         "Episode1", 1),
-                                   (11, 1,                  2,             NULL,      "Show3",    1),
-                                   (12, 1,                  3,             11,        "Season1",  1),
-                                   (13, 1,                  4,             12,        "Episode1", 1),
-                                   (14, 1,                  4,             12,        "Episode2", 2),
-                                   (15, 1,                  3,             11,        "Season2",  2),
-                                   (16, 1,                  4,             15,        "Episode1", 1),
+        INSERT INTO metadata_items (id, library_section_id, metadata_type, parent_id, title,     \`index\`, guid)
+        VALUES                     (1,  1,                  2,             NULL,      "Show1",    1,        "0"),
+                                   (2,  1,                  3,             1,         "Season1",  1,        "1"),
+                                   (3,  1,                  4,             2,         "Episode1", 1,        "2"),
+                                   (4,  1,                  4,             2,         "Episode2", 2,        "3"),
+                                   (5,  1,                  4,             2,         "Episode3", 3,        "4"),
+                                   (6,  1,                  3,             1,         "Season2",  2,        "5"),
+                                   (7,  1,                  4,             6,         "Episode1", 1,        "6"),
+                                   (8,  1,                  2,             NULL,      "Show2",    1,        "7"),
+                                   (9,  1,                  3,             8,         "Season1",  1,        "8"),
+                                   (10, 1,                  4,             9,         "Episode1", 1,        "9"),
+                                   (11, 1,                  2,             NULL,      "Show3",    1,        "a"),
+                                   (12, 1,                  3,             11,        "Season1",  1,        "b"),
+                                   (13, 1,                  4,             12,        "Episode1", 1,        "c"),
+                                   (14, 1,                  4,             12,        "Episode2", 2,        "d"),
+                                   (15, 1,                  3,             11,        "Season2",  2,        "e"),
+                                   (16, 1,                  4,             15,        "Episode1", 1,        "f"),
 
-                                   (100,2,                  1,             NULL,      "Movie1",   1);`;
+                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00");`;
 
         // Need existing media, but only the metadata_item_id and duration field (for now)
         // Make them all 10 minutes (10*60*1000=6000000)
@@ -382,23 +384,24 @@ class TestBase {
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
     defaultMarkers() {
-        const dbMarkerInsert = (metadataId, index, start, end) => `
+        const dbMarkerInsert = (metadataId, index, start, end, markerType, isFinal) => `
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
-                (${metadataId}, 1, ${index}, "intro", ${start}, ${end}, CURRENT_TIMESTAMP, "pv%3Aversion=5");\n`;
+                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, CURRENT_TIMESTAMP, "${markerType == 'intro' ? ExtraData.Intro : isFinal ? ExtraData.CreditsFinal : ExtraData.Credits}");\n`;
 
 
         let insertString = '';
         let episode = TestBase.DefaultMetadata.Show1.Season1.Episode2;
-        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End, episode.Marker1.Type, episode.Marker1.Final);
         episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
-        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End, episode.Marker1.Type, episode.Marker1.Final);
         episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
-        insertString += dbMarkerInsert(episode.Id, episode.Marker2.Index, episode.Marker2.Start, episode.Marker2.End);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End, episode.Marker1.Type, episode.Marker1.Final);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker2.Index, episode.Marker2.Start, episode.Marker2.End, episode.Marker2.Type, episode.Marker2.Final);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker3.Index, episode.Marker3.Start, episode.Marker3.End, episode.Marker3.Type, episode.Marker3.Final);
         episode = TestBase.DefaultMetadata.Show3.Season2.Episode1;
-        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End);
+        insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End, episode.Marker1.Type, episode.Marker1.Final);
         return insertString;
     }
 
