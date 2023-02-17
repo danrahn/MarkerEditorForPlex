@@ -100,6 +100,24 @@ In the following scenario, we can lose track of marker adds/edits:
 In this case, the metadata id is not enough.
 */
 
+/*
+Backup table V4 additions:
+
+| COLUMN      | TYPE         | DESCRIPTION                                    |
++-------------+--------------+------------------------------------------------+
+| marker_type | VARCHAR(255) | The type of marker (e.g. 'intro' or 'credits') |
++-------------+--------------+------------------------------------------------+
+| final       | INT          | 1/0. Whether this is the final marker.         |
+|             |              | Only applicable if marker_type='credits'.      |
++-------------+--------------+------------------------------------------------+
+
+Indexes:
+* marker_type
+
+PMS 1.31.0.6654 introduced credits detection, and along with it a new marker type,
+'credits'. Add the two fields above to capture this new information.
+*/
+
 
 /**
  * The accepted operation types
@@ -138,17 +156,20 @@ CREATE TABLE IF NOT EXISTS actions (
     /* V2 */`
     section_id   INTEGER      NOT NULL DEFAULT -1,` +
     /* V3 */`
-    episode_guid VARCHAR(255) DEFAULT NULL
+    episode_guid VARCHAR(255) DEFAULT NULL,` +
+    /* V4 */`
+    marker_type  VARCHAR(255) DEFAULT 'intro',
+    final        INTEGER      DEFAULT 0
 );
 `;
 
 /**
  * A full row in the Actions table
- * @typedef {{id: number, op: MarkerOp, marker_id: number, episode_id: number, season_id: number,
- *            show_id: number, section_id: number, start: number, end: number, old_start: number?,
- *            old_end: number?, modified_at: string?, created_at: string, recorded_at: string,
- *            extra_data: string, section_uuid: string, restores_id: number?, restored_id: number?,
- *            episode_guid: string?, episodeData: EpisodeData? }} MarkerAction
+ * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, episode_id: number,
+ *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
+ *            old_end: number?, modified_at: string?, created_at: string, recorded_at: string, extra_data: string,
+ *            section_uuid: string, restores_id: number?, restored_id: number?, episode_guid: string?,
+ *            episodeData: EpisodeData? }} MarkerAction
  */
 
 /**
@@ -157,7 +178,7 @@ CREATE TABLE IF NOT EXISTS actions (
  */
 
 /** The current table schema version. */
-const CurrentSchemaVersion = 3;
+const CurrentSchemaVersion = 4;
 
 /** Single-row table that indicates the current version of the actions table. */
 const CheckVersionTable = `
@@ -181,6 +202,7 @@ ${ciine('showid', 'show_id')};
 ${ciine('mid', 'marker_id')};
 ${ciine('resid', 'restored_id')};
 ${ciine('sectionid', 'section_id')};
+${ciine('markertype', 'marker_type')};
 `;
 
 // Queries to execute when upgrading from SchemaUpgrades[version] to SchemaUpgrades[version + 1]
@@ -201,6 +223,12 @@ const SchemaUpgrades = [
     // 2 -> 3: Add episode_guid column
     `ALTER TABLE actions ADD COLUMN episode_guid VARCHAR(255) DEFAULT NULL;
     UPDATE schema_version SET version=3;`,
+
+    // 3 -> 4: Add marker_type and final
+    `ALTER TABLE actions ADD COLUMN marker_type VARCHAR(255) DEFAULT 'intro';
+     ALTER TABLE actions ADD COLUMN final       INTEGER      DEFAULT 0;
+     ${ciine('markertype', 'marker_type')};
+     UPDATE schema_version SET version=4;`,
 ];
 
 /**
@@ -236,6 +264,7 @@ class MarkerBackupManager {
         async () => { },
         this.#updateSectionIdAfterUpgrade.bind(this),
         async () => { }, // addEpisodeGuidAfterUpgrade, but we do it outside the main update process
+        async () => { }, // New columns have default values, and since previous versions don't allow credits, they are guaranteed to be correct when upgrading.
     ];
 
     /**
@@ -680,6 +709,7 @@ ORDER BY id DESC;`
 
             // TODO: UI similar to bulk add - show what conflicts with existing markers.
             //       Conflict resolution similar to bulk add, with new 'replace' option.
+            //       Integrate into bulk action base table for multiselect, etc
             if (!MarkerCache.episodeExists(action.episode_id)) {
                 if (!action.episode_guid) {
                     // Episode doesn't exist and we don't have a guid to associate in the future, mark as ignored
