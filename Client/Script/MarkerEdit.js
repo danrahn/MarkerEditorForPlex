@@ -67,7 +67,8 @@ class MarkerEdit {
                 maxlength : 12,
                 class : 'timeInput',
                 placeholder : 'ms or mm:ss[.000]',
-                value : initialValue
+                value : initialValue,
+                autocomplete : 'off',
             },
             0,
             events,
