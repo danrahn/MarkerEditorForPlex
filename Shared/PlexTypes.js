@@ -10,7 +10,7 @@
  * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  * @typedef {{start: number, end: number, index: number, id: number, episodeId: number,
- *            seasonId: number, showId: number, sectionId: number}} SerializedMarkerData
+ *            seasonId: number, showId: number, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
  *            sortTitle: string, originalTitle: string, seasonCount: number, episodeCount: number }} SerializedShowData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
@@ -315,6 +315,16 @@ class EpisodeData extends PlexData {
 }
 
 /**
+ * Possible marker types
+ * @enum */
+const MarkerType = {
+    /** @readonly */
+    Intro   : 'intro',
+    /** @readonly */
+    Credits : 'credits',
+}
+
+/**
  * Information about a single marker for an episode of a TV show in the Plex database.
  */
 class MarkerData extends PlexData {
@@ -379,6 +389,17 @@ class MarkerData extends PlexData {
     episodeGuid;
 
     /**
+     * The type of marker this represents.
+     * @type {[keyof MarkerType]} */
+    markerType;
+
+    /**
+     * Whether this marker extends to the end of the movie/episode
+     * Only applies if type == MarkerType.Credits
+     * @type {boolean} */
+    isFinal;
+
+    /**
      * Creates a new MarkerData from the given marker, if provided.
      * @param {Object<string, any>} [marker] */
     constructor(marker) {
@@ -418,6 +439,8 @@ class MarkerData extends PlexData {
         this.showId = marker.show_id;
         this.sectionId = marker.section_id;
         this.episodeGuid = marker.episode_guid;
+        this.markerType = marker.marker_type;
+        this.isFinal = this.type == MarkerType.Credits && marker.final;
     }
 }
 
@@ -434,4 +457,4 @@ const BulkMarkerResolveType = {
     Ignore : 3,
 };
 
-export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData }
+export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData, MarkerType }

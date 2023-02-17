@@ -402,7 +402,9 @@ class PurgeNonActionInfo {
             episode_id : this.#markerAction.episode_id,
             season_id : this.#markerAction.season_id,
             show_id : this.#markerAction.show_id,
-            section_id : PlexClientState.GetState().activeSection()
+            section_id : PlexClientState.GetState().activeSection(),
+            marker_type : this.#markerAction.marker_type,
+            final : this.#markerAction.final,
         };
 
         return new MarkerData(rawMarkerData);

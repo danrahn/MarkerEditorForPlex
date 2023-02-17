@@ -4,7 +4,7 @@ import { join as joinPath } from "path";
 
 // Client/Server shared dependencies
 import { Log } from "../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MarkerType } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
@@ -51,7 +51,7 @@ Backup table V1:
 +--------------|--------------+-----------------------------------------------------------------------------------+
 | recorded_at  | DATETIME     | The date the marker was added to this backup table.                               |
 +--------------|--------------+-----------------------------------------------------------------------------------+
-| extra_data   | VARCHAR(255) | The extra data field from the Plex database (currently "pv%3Aversion=5")          |
+| extra_data   | VARCHAR(255) | The extra data field from the Plex database (see ExtraData)                       |
 +--------------|--------------+-----------------------------------------------------------------------------------+
 | section_uuid | VARCHAR(255) | The unique identifier for the library section this marker belongs to, aiming to   |
 |              |              | avoid confusion if the same backup database is used for multiple Plex databases.  |
@@ -132,6 +132,18 @@ PMS 1.31.0.6654 introduced credits detection, and along with it a new marker typ
     /** Restoring a previous marker that exists in the table. */
     Restore : 4
 };
+
+/**
+ * extra_data string for different marker types
+ * @enum */
+const ExtraData = {
+    /** @readonly Intro marker */
+    Intro        : 'pv%3Aversion=5',
+    /** @readonly Non-final credit marker */
+    Credits      : 'pv%3Aversion=4',
+    /** @readonly Final credit marker (goes to the end of the media item) */
+    CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
+}
 
 /** The main table. See above for details. */
 const ActionsTable = `
@@ -458,6 +470,21 @@ class MarkerBackupManager {
     }
 
     /**
+     * @param {MarkerData} marker */
+    #extraDataFromMarkerType(marker) {
+        if (marker.markerType == MarkerType.Intro) {
+            return ExtraData.Intro;
+        }
+
+        if (!marker.markerType == MarkerType.Credits) {
+            Log.warn(marker.markerType, 'MarkerBackupManager: Unknown marker type');
+            return ExtraData.Intro;
+        }
+
+        return marker.isFinal ? ExtraData.CreditsFinal : ExtraData.Credits;
+    }
+
+    /**
      * Records a marker that was added to the Plex database.
      * @param {MarkerData[]} markers */
     async recordAdds(markers) {
@@ -471,9 +498,10 @@ class MarkerBackupManager {
             // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, "pv%3Aversion=5", ?, ?)`;
-            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, this.#uuids[marker.sectionId], marker.episodeGuid];
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`;
+            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
+                                this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
     
             transaction.addStatement(query, parameters);
         }
@@ -512,8 +540,9 @@ class MarkerBackupManager {
             const query = `
     INSERT INTO actions
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?, ?)`;
-            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate, this.#uuids[marker.sectionId], marker.episodeGuid];
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
+            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
+                this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
             transaction.addStatement(query, parameters);
         }
 
@@ -544,8 +573,9 @@ class MarkerBackupManager {
             const query = `
     INSERT INTO actions
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, "pv%3Aversion=5", ?, ?)`;
-            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, marker.createDate, this.#uuids[marker.sectionId], marker.episodeGuid];
+    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
+            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
+                marker.createDate, this.#extraDataFromMarkerType(marker), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
             transaction.addStatement(query, parameters);
         }
 
@@ -572,11 +602,12 @@ class MarkerBackupManager {
             const query = `
                 INSERT INTO actions
                 (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid) VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pv%3Aversion=5", ?, ?, ?);\n`;
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
             const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
-            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate, this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid];
+            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate,
+                this.#extraDataFromMarkerType(m), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
@@ -1024,4 +1055,4 @@ ORDER BY id DESC;`
     }
 }
 
-export { MarkerBackupManager, Instance as BackupManager };
+export { MarkerBackupManager, Instance as BackupManager, ExtraData };

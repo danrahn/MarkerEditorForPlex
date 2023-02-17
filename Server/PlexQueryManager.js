@@ -1,6 +1,6 @@
 /**
- * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string,
- *             episode_id : number, season_id : number, show_id : number, section_id : number, episode_guid : string }} RawMarkerData
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string, episode_id : number,
+ *             season_id : number, show_id : number, section_id : number, episode_guid : string, marker_type : string, final : number }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
@@ -84,10 +84,12 @@ class PlexQueryManager {
     #extendedMarkerFields = `
     taggings.id,
     taggings.\`index\`,
+    taggings.text AS marker_type,
     taggings.time_offset AS start,
     taggings.end_time_offset AS end,
     taggings.thumb_url AS modified_date,
     taggings.created_at,
+    taggings.extra_data,
     episodes.id AS episode_id,
     seasons.id AS season_id,
     seasons.parent_id AS show_id,
@@ -343,6 +345,16 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Does some post-processing on the given marker data to extract relevant fields.
+     * @param {RawMarkerData[]} markerData */
+    async #postProcessExtendedMarkerFields(markerData) {
+        for (const marker of markerData) {
+            marker.final = marker.extra_data.indexOf('final=1') != -1;
+            delete marker.extra_data;
+        }
+    }
+
+    /**
      * Retrieve all markers for the given episodes.
      * @param {number[]} episodeIds
      * @returns {Promise<RawMarkerData[]>}*/
@@ -361,7 +373,7 @@ ORDER BY e.\`index\` ASC;`;
         // Strip trailing ' OR '
         query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
 
-        return this.#database.all(query, [this.#markerTagId]);
+        return this.#postProcessExtendedMarkerFields(await this.#database.all(query, [this.#markerTagId]));
     }
 
     /**
@@ -423,11 +435,11 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} whereClause The field to match against `metadataId`.
      * @returns {Promise<RawMarkerData[]>} */
     async #getMarkersForMetadataItem(metadataId, whereClause) {
-        return this.#database.all(
+        return this.#postProcessExtendedMarkerFields(await this.#database.all(
             `SELECT ${this.#extendedMarkerFields}
             WHERE ${whereClause}=? AND taggings.tag_id=?
             ORDER BY taggings.\`index\` ASC;`,
-            [metadataId, this.#markerTagId]);
+            [metadataId, this.#markerTagId]));
     }
 
     /**
@@ -437,9 +449,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} markerId
      * @returns {Promise<RawMarkerData>} */
     async getSingleMarker(markerId) {
-        return this.#database.get(
+        return this.#postProcessExtendedMarkerFields([await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
-            [markerId, this.#markerTagId]);
+            [markerId, this.#markerTagId])]);
     }
 
     /**
@@ -603,7 +615,7 @@ ORDER BY e.\`index\` ASC;`;
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
 
-        return { newMarkers : newMarkers, identicalMarkers : identicalMarkers };
+        return { newMarkers : this.#postProcessExtendedMarkerFields(newMarkers), identicalMarkers : identicalMarkers };
     }
 
     /**
@@ -674,9 +686,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} index The index of the marker in the marker table.
      * @returns {Promise<RawMarkerData>} */
     async getNewMarker(metadataId, startMs, endMs) {
-        return this.#database.get(
+        return this.#postProcessExtendedMarkerFields([await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
-            [metadataId, this.#markerTagId, startMs, endMs]);
+            [metadataId, this.#markerTagId, startMs, endMs])]);
     }
 
     /**

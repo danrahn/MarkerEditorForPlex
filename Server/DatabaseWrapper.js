@@ -111,6 +111,8 @@ class DatabaseWrapper {
                 newQuery += `"${parameter.replaceAll('"', '""')}"`;
             } else if (typeof parameter === 'number') {
                 newQuery += parameter.toString();
+            } else if (typeof parameter === 'boolean') {
+                newQuery += parameter ? '1' : '0';
             } else {
                 throw new ServerError(`Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`, 500);
             }
