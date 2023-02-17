@@ -4,7 +4,7 @@ import { join as joinPath } from "path";
 
 // Client/Server shared dependencies
 import { Log } from "../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData, MarkerType } from "../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
@@ -103,13 +103,20 @@ In this case, the metadata id is not enough.
 /*
 Backup table V4 additions:
 
-| COLUMN      | TYPE         | DESCRIPTION                                    |
-+-------------+--------------+------------------------------------------------+
-| marker_type | VARCHAR(255) | The type of marker (e.g. 'intro' or 'credits') |
-+-------------+--------------+------------------------------------------------+
-| final       | INT          | 1/0. Whether this is the final marker.         |
-|             |              | Only applicable if marker_type='credits'.      |
-+-------------+--------------+------------------------------------------------+
+| COLUMN       | TYPE         | DESCRIPTION                                                                     |
++--------------+--------------+---------------------------------------------------------------------------------+
+| modified_at  | INTEGER      | Was DATETIME, but Plex this to an epoch time in late 2022, so mirror that       |
++--------------+--------------+---------------------------------------------------------------------------------+
+| created_at   | INTEGER      | Was DATETIME, but Plex this to an epoch time in late 2022, so mirror that       |
++--------------+--------------+---------------------------------------------------------------------------------+
+| recorded_at  | INTEGER      | Was DATETIME, but Plex this to an epoch time in late 2022, so mirror that       |
++--------------|--------------|---------------------------------------------------------------------------------+
+| marker_type  | VARCHAR(255) | The type of marker (e.g. 'intro' or 'credits')                                  |
++--------------+--------------+---------------------------------------------------------------------------------+
+| final        | INTEGER      | 1/0. Whether this is the final marker. Only applicable if marker_type='credits' |
++--------------+--------------+---------------------------------------------------------------------------------+
+| user_created | INTEGER      | 1/0. Whether this marker was created by the user.                               |
++--------------+--------------+---------------------------------------------------------------------------------+
 
 Indexes:
 * marker_type
@@ -146,9 +153,9 @@ CREATE TABLE IF NOT EXISTS actions (
     end          INTEGER      NOT NULL,
     old_start    INTEGER,
     old_end      INTEGER,
-    modified_at  VARCHAR(255) DEFAULT NULL,
-    created_at   DATETIME     NOT NULL,
-    recorded_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    modified_at  INTEGER      DEFAULT NULL,` + /* V4 -> VARCHAR to INTEGER */`
+    created_at   INTEGER      NOT NULL,` /* V4 -> DATETIME to INTEGER */+ `
+    recorded_at  INTEGER      DEFAULT (strftime('%s','now')),` /* V4 -> DATETIME to INTEGER */ + `
     extra_data   VARCHAR(255) NOT NULL,
     section_uuid VARCHAR(255) NOT NULL,
     restores_id  INTEGER,
@@ -159,7 +166,8 @@ CREATE TABLE IF NOT EXISTS actions (
     episode_guid VARCHAR(255) DEFAULT NULL,` +
     /* V4 */`
     marker_type  VARCHAR(255) DEFAULT 'intro',
-    final        INTEGER      DEFAULT 0
+    final        INTEGER      DEFAULT 0,
+    user_created INTEGER      DEFAULT 0
 );
 `;
 
@@ -167,8 +175,8 @@ CREATE TABLE IF NOT EXISTS actions (
  * A full row in the Actions table
  * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, episode_id: number,
  *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
- *            old_end: number?, modified_at: string?, created_at: string, recorded_at: string, extra_data: string,
- *            section_uuid: string, restores_id: number?, restored_id: number?, episode_guid: string?,
+ *            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
+ *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, episode_guid: string?,
  *            episodeData: EpisodeData? }} MarkerAction
  */
 
@@ -224,10 +232,21 @@ const SchemaUpgrades = [
     `ALTER TABLE actions ADD COLUMN episode_guid VARCHAR(255) DEFAULT NULL;
     UPDATE schema_version SET version=3;`,
 
-    // 3 -> 4: Add marker_type and final
-    `ALTER TABLE actions ADD COLUMN marker_type VARCHAR(255) DEFAULT 'intro';
-     ALTER TABLE actions ADD COLUMN final       INTEGER      DEFAULT 0;
+    // 3 -> 4:
+    // * Add marker_type, final for Credits support
+    // * Add user_created to avoid timestamp hacks (and properly transfer status)
+    // * Move to epoch timestamps.
+    `ALTER TABLE actions ADD COLUMN marker_type  VARCHAR(255) DEFAULT 'intro';
+     ALTER TABLE actions ADD COLUMN final        INTEGER      DEFAULT 0;
+     ALTER TABLE actions ADD COLUMN user_created INTEGER      DEFAULT 0;
+	 UPDATE actions SET user_created=1 WHERE substr(modified_at, length(modified_at))='*';
      ${ciine('markertype', 'marker_type')};
+     PRAGMA writable_schema = TRUE;
+     UPDATE sqlite_schema SET sql = replace(replace(replace(sql, 'modified_at  VARCHAR(255)', 'modified_at  INTEGER'), 'DATETIME', 'INTEGER'), 'CURRENT_TIMESTAMP', "(strftime('%s', 'now'))") WHERE name='actions' AND type='table';
+     PRAGMA writable_schema = RESET;
+     UPDATE actions SET modified_at = iif(typeof(modified_at) in ('datetime', 'text'), CAST(strftime('%s', modified_at) as INTEGER), modified_at);
+     UPDATE actions SET created_at  = iif(typeof(created_at)  in ('datetime', 'text'), CAST(strftime('%s', created_at)  as INTEGER), created_at );
+     UPDATE actions SET recorded_at = iif(typeof(recorded_at) in ('datetime', 'text'), CAST(strftime('%s', recorded_at) as INTEGER), recorded_at);
      UPDATE schema_version SET version=4;`,
 ];
 
@@ -471,10 +490,10 @@ class MarkerBackupManager {
             // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP || "*", CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`;
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), (strftime('%s','now')), ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
-                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, 1 /*userCreated*/];
     
             transaction.addStatement(query, parameters);
         }
@@ -509,13 +528,12 @@ class MarkerBackupManager {
                 continue;
             }
 
-            const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
-                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
         }
 
@@ -542,13 +560,12 @@ class MarkerBackupManager {
                 continue;
             }
 
-            const modified = 'CURRENT_TIMESTAMP' + (marker.createdByUser ? ' || "*"' : '');
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ${modified}, ?, ?, ?, ?, ?, ?)`;
+    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
-                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal];
+                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
         }
 
@@ -574,13 +591,12 @@ class MarkerBackupManager {
         for (const restore of restores) {
             const query = `
                 INSERT INTO actions
-                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid, marker_type, final) VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
+                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid, marker_type, final, user_created) VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
-            const modifiedDate = m.modifiedDate + (m.createdByUser ? '*' : '');
-            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, modifiedDate, m.createDate,
-                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal];
+            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, m.modifiedDate, m.createDate,
+                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal, m.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';

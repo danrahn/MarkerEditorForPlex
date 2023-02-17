@@ -1,6 +1,6 @@
 /**
- * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string, episode_id : number,
- *             season_id : number, show_id : number, section_id : number, episode_guid : string, marker_type : string, final : number }} RawMarkerData
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number, episode_id : number,
+ *             season_id : number, show_id : number, section_id : number, episode_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
@@ -149,7 +149,7 @@ FROM taggings
                 Log.error(`PlexQueryManager: tags table exists, but didn't find intro tag. Plex SQLite is required to modify this table, so we cannot continue.`);
                 Log.error(`                  Either ensure at least one episode has an intro marker, or manually run the following using Plex SQLite:`);
                 Log.error();
-                Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`);
+                Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, (strftime('%s','now')), (strftime('%s','now')));`);
                 Log.error();
                 Log.error(`See https://support.plex.tv/articles/repair-a-corrupted-database/ for more information on Plex SQLite and the database location.`);
                 throw new ServerError(`Plex database must contain at least one intro marker.`, 500);
@@ -370,6 +370,8 @@ ORDER BY e.\`index\` ASC;`;
         let markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
         for (const marker of markerArray) {
             marker.final = marker.extra_data.indexOf('final=1') != -1;
+            marker.user_created = marker.modified_date < 0;
+            marker.modified_date = Math.abs(marker.modified_date);
             delete marker.extra_data;
         }
 
@@ -501,12 +503,12 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError(`Attempting to make a new marker final, but it won't be the last marker of the episode.`, 400);
         }
 
-        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                '(?, ?, ?, ?, ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, ?);';
+                `(?, ?, ?, ?, ?, ?,  ${thumbUrl}, (strftime('%s','now')), ?);`;
         const parameters = [metadataId, this.#markerTagId, newIndex, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final)];
         await this.#database.run(addQuery, parameters);
 
@@ -527,12 +529,12 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} markerType The type of marker (intro/credits)
      * @param {number} final Whether this is the last credits marker that goes to the end of the episode */
     #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final) {
-        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                '(?, ?, ?, ?, ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, ?);';
+                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, (strftime('%s','now')), ?);`;
         const parameters = [episodeId, this.#markerTagId, newIndex, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final)];
         transaction.addStatement(addQuery, parameters);
     }
@@ -679,7 +681,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
      * @returns {Promise<void>} */
     async editMarker(markerId, index, startMs, endMs, userCreated) {
-        const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         return this.#database.run(
@@ -766,7 +768,7 @@ ORDER BY e.id ASC;`;
             for (const marker of episodeMarkers) {
                 ++expectedShifts;
                 const userCreated = marker.modified_date && marker.modified_date.endsWith('*');
-                const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+                const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
                 let maxDuration = limits[marker.episode_id];
                 if (!maxDuration) {
                     throw new ServerError(`Unable to find max episode duration, the episode id ${marker.episode_id} doesn't appear to be valid.`);
@@ -969,7 +971,7 @@ ORDER BY e.id ASC;`;
                         (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(nextMarker);
                     }
 
-                    const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${episodeMarker.createdByUser ? " || '*'" : ''}`;
+                    const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${episodeMarker.createdByUser ? ' * -1' : ''}`;
                     transaction.addStatement(
                         `UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=${thumbUrl} WHERE id=?;`,
                         [episodeMarker.start, episodeMarker.end, episodeMarker.id]);

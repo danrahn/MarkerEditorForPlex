@@ -161,9 +161,7 @@ class MarkerTable {
                 marker.start = partialMarker.start;
                 marker.end = partialMarker.end;
 
-                // This won't match the YYYY-MM-DD hh:mm:ssZ returned by the database, but
-                // we just need a valid UTC string for client-side parsing.
-                marker.modifiedDate = new Date().toUTCString();
+                marker.modifiedDate = Date.now() / 1000; // DB stores seconds, JS does ms.
                 break;
             }
         }

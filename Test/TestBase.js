@@ -388,7 +388,7 @@ class TestBase {
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
-                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, CURRENT_TIMESTAMP, "${markerType == 'intro' ? ExtraData.Intro : isFinal ? ExtraData.CreditsFinal : ExtraData.Credits}");\n`;
+                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, (strftime('%s','now')), "${markerType == 'intro' ? ExtraData.Intro : isFinal ? ExtraData.CreditsFinal : ExtraData.Credits}");\n`;
 
 
         let insertString = '';
