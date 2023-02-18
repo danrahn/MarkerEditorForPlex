@@ -283,7 +283,8 @@ class MarkerBackupManager {
         async () => { },
         this.#updateSectionIdAfterUpgrade.bind(this),
         async () => { }, // addEpisodeGuidAfterUpgrade, but we do it outside the main update process
-        async () => { }, // New columns have default values, and since previous versions don't allow credits, they are guaranteed to be correct when upgrading.
+        // New columns have default values that are guaranteed to be correct, but we need to update our hacked thumb_urls in the main database.
+        this.#checkBadThumbUrls.bind(this),
     ];
 
     /**
@@ -409,6 +410,27 @@ class MarkerBackupManager {
         }
 
         await transaction.exec();
+    }
+
+    /**
+     * V4 schema upgrade callback, updating our hacked thumb_url entries in the Plex database
+     * to be epoch timestamps like everything else, also preserving the 'userCreated' flag. */
+    async #checkBadThumbUrls() {
+        // The Plex DB manager shouldn't have to know about this, so interact
+        // directly with the underlying database.
+        const db = PlexQueries.database();
+
+        // First, note which markers are user-created, as we need to switch from the '*' postfix to the negative number notation
+        const modifiedMarkersQuery = `SELECT id, thumb_url FROM taggings WHERE length(thumb_url) > 0 AND tag_id=${PlexQueries.markerTagId()};`;
+        const modifiedMarkers = await db.all(modifiedMarkersQuery);
+        const txn = new TransactionBuilder(db);
+        for (const marker of modifiedMarkers) {
+            const userCreated = marker.thumb_url.endsWith('*');
+            const date = (new Date(userCreated ? marker.thumb_url.substring(0, marker.thumb_url.length - 1) : marker.thumb_url).getTime() / 1000) * (userCreated ? -1 : 1);
+            txn.addStatement(`UPDATE taggings SET thumb_url=? WHERE id=?`, [date, marker.id]);
+        }
+
+        await txn.exec();
     }
 
     /**
