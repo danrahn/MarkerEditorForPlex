@@ -1,8 +1,8 @@
 {
   "name": "intro-editor-for-plex",
   "type": "module",
-  "version": "1.2.5",
-  "description": "Add, edit, and delete Plex intro markers",
+  "version": "2.0.0-alpha",
+  "description": "Add, edit, and delete Plex markers",
   "main": "app.js",
   "scripts": {
     "test": "node Test/Test.js --test",
