@@ -46,18 +46,20 @@ const ServerCommand = {
      * @param {number} metadataId
      * @param {number} start
      * @param {number} end
-     * @param {number} [final=0]
+     * @param {boolean} [final=false]
      * @returns {Promise<SerializedMarkerData>} */
-    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId: metadataId, start : start, end : end, type : markerType, final : final }),
+    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId: metadataId, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
 
     /**
      * Edit an existing marker with the given id.
+     * @param {string} markerType
      * @param {number} id 
      * @param {number} start
      * @param {number} end 
      * @param {boolean} userCreated true if user created, false if Plex generated
+     * @param {boolean} [final=false]
      * @returns {Promise<SerializedMarkerData>} */
-    edit : async (id, start, end, userCreated) => jsonRequest('edit', { id : id, start : start, end : end, userCreated : userCreated ? 1 : 0 }),
+    edit : async (markerType, id, start, end, userCreated, final=0) => jsonRequest('edit', { id : id, start : start, end : end, userCreated : userCreated ? 1 : 0, type : markerType, final : final ? 1 : 0 }),
 
     /**
      * Delete the marker with the given id.

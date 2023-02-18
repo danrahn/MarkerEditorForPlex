@@ -38,13 +38,13 @@ class MarkerTable {
      * @param {EpisodeResultRow} parentRow The episode UI that this table is attached to. */
     constructor(markers, parentRow) {
         this.#parentRow = parentRow;
-        this.#markers = markers;
+        this.#markers = markers.sort((a, b) => a.start - b.start);
         let container = buildNode('div', { class : 'tableHolder' });
         let table = buildNode('table', { class : 'hidden markerTable' });
         table.appendChild(
             appendChildren(buildNode('thead'),
                 TableElements.rawTableRow(
-                    TableElements.centeredColumn('Index'),
+                    TableElements.centeredColumn('Type'),
                     TableElements.timeColumn('Start Time'),
                     TableElements.timeColumn('End Time'),
                     TableElements.dateColumn('Date Added'),
@@ -117,9 +117,9 @@ class MarkerTable {
 
     /**
       * Add a new marker to this table.
-      * @param {MarkerData} markerData The marker to add.
+      * @param {MarkerData} newMarker The marker to add.
       * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
-    addMarker(markerData, oldRow) {
+    addMarker(newMarker, oldRow) {
         //  oldRow will be null if a marker was added via purge restoration
         if (oldRow) {
             this.removeTemporaryMarkerRow(oldRow);
@@ -132,44 +132,52 @@ class MarkerTable {
             tableBody.removeChild(tableBody.firstChild);
         }
 
-        for (let i = markerData.index; i < this.#markers.length; ++i) {
-            let markerCurrent = this.#markers[i];
-            ++markerCurrent.index;
-            tableBody.children[i].firstChild.innerText = markerCurrent.index.toString() // Should be done by MarkerRow?
+        let newIndex = 0;
+        for (const marker of this.#markers) {
+            if (marker.start > newMarker.start) {
+                break;
+            }
+
+            ++newIndex;
         }
 
-        const newRow = new ExistingMarkerRow(markerData);
-        this.#rows.splice(markerData.index, 0, newRow);
-        this.#markers.splice(markerData.index, 0, markerData);
-        tableBody.insertBefore(newRow.row(), tableBody.children[newRow.rowIndex()]);
+        const newRow = new ExistingMarkerRow(newMarker);
+        this.#rows.splice(newIndex, 0, newRow);
+        this.#markers.splice(newIndex, 0, newMarker);
+        tableBody.insertBefore(newRow.row(), tableBody.children[newIndex]);
         this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
     }
 
     /**
       * Edits the given marker for this table.
-      * @param {MarkerData} partialMarker The marker that has been edited.
+      * @param {MarkerData} editedMarker The marker that has been edited.
       * Not a "real" marker, but a partial representation of one that has
       * all the fields required to successfully edit the real marker it represents. */
-    editMarker(partialMarker, forceReset=false) {
-        const newIndex = partialMarker.index;
-        let oldIndex = -1;
-        // First loop - find the one we edited, modify its fields, and store its old index.
-        for (let marker of this.#markers) {
-            if (marker.id == partialMarker.id) {
-                oldIndex = marker.index;
-                marker.index = newIndex;
-                marker.start = partialMarker.start;
-                marker.end = partialMarker.end;
+    editMarker(editedMarker, forceReset=false) {
+        const oldIndex = this.#markers.findIndex(x => x.id == editedMarker.id);
+        const updatedItem = this.#markers.splice(oldIndex, 1)[0];
+        updatedItem.start = editedMarker.start;
+        updatedItem.end = editedMarker.end;
+        updatedItem.modifiedDate = editedMarker.modifiedDate;
+        updatedItem.markerType = editedMarker.markerType;
+        updatedItem.isFinal = editedMarker.isFinal;
 
-                marker.modifiedDate = Date.now() / 1000; // DB stores seconds, JS does ms.
+        let newIndex = 0;
+
+        for (const marker of this.#markers) {
+            if (marker.start > editedMarker.start) {
                 break;
             }
+
+            ++newIndex;
         }
 
         if (newIndex == oldIndex) {
             if (forceReset) {
                 this.#rows[oldIndex].reset(); // Still want to reset timings even if the index is the same.
             }
+
+            this.#markers.splice(newIndex, 0, updatedItem);
             return; // Same position, no rearranging needed.
         }
 
@@ -177,36 +185,12 @@ class MarkerTable {
         tableBody.removeChild(this.#rows[oldIndex].row());
         tableBody.insertBefore(this.#rows[oldIndex].row(), tableBody.children[newIndex]);
 
-        const lo = newIndex > oldIndex ? oldIndex : newIndex;
-        const hi = newIndex > oldIndex ? newIndex : oldIndex;
-        const between = x => x >= lo && x <= hi;
-
-        // Second loop - Go through all markers and update their index as necessary.
-        this.#markers.forEach((marker, index) => {
-            // Update table index
-            const row = tableBody.children[index];
-            row.children[0].innerText = index.toString();
-
-            // Update marker index.
-            if (marker.id == partialMarker.id) {
-                return; // We already handled this.
-            }
-
-            if (between(marker.index)) {
-                if (newIndex > marker.index) {
-                    --marker.index;
-                } else {
-                    ++marker.index;
-                }
-            }
-        });
-
         if (forceReset) {
             this.#rows[oldIndex].reset();
         }
 
         this.#rows.splice(newIndex, 0, this.#rows.splice(oldIndex, 1)[0]);
-        this.#markers.splice(newIndex, 0, this.#markers.splice(oldIndex, 1)[0]);
+        this.#markers.splice(newIndex, 0, updatedItem);
     }
 
     /**
@@ -215,13 +199,10 @@ class MarkerTable {
      * marker that's in {@linkcode this.markers}, but a standalone copy.
      * @param {HTMLElement} [row=null] The HTML row for the deleted marker. */
     deleteMarker(deletedMarker, row=null) {
+        const oldIndex = this.#markers.findIndex(x => x.id == deletedMarker.id);
         let tableBody = this.#tbody();
         if (this.#markers.length == 1) {
             tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
-        } else {
-            for (let index = deletedMarker.index + 1; index < this.#markers.length; ++index) {
-                tableBody.children[index].firstChild.innerText = (index - 1).toString();
-            }
         }
 
         if (!row) {
@@ -239,12 +220,8 @@ class MarkerTable {
         }
 
         tableBody.removeChild(row);
-        this.#markers.splice(deletedMarker.index, 1);
-        this.#rows.splice(deletedMarker.index, 1);
-        this.#markers.forEach((marker, index) => {
-            marker.index = index;
-        });
-
+        this.#markers.splice(oldIndex, 1);
+        this.#rows.splice(oldIndex, 1);
         this.#parentRow.updateMarkerBreakdown(-1 /*delta*/);
     }
 

@@ -366,10 +366,10 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Does some post-processing on the given marker data to extract relevant fields.
      * @param {RawMarkerData[]|RawMarkerData} markerData */
-    async #postProcessExtendedMarkerFields(markerData) {
+    #postProcessExtendedMarkerFields(markerData) {
         let markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
         for (const marker of markerArray) {
-            marker.final = marker.extra_data.indexOf('final=1') != -1;
+            marker.final = marker.extra_data?.indexOf('final=1') != -1; // extra_data should never be null, but better safe than sorry
             marker.user_created = marker.modified_date < 0;
             marker.modified_date = Math.abs(marker.modified_date);
             delete marker.extra_data;
@@ -395,7 +395,7 @@ ORDER BY e.\`index\` ASC;`;
         });
 
         // Strip trailing ' OR '
-        query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
+        query = query.substring(0, query.length - 4) + ') ORDER BY taggings.time_offset ASC;';
 
         return this.#postProcessExtendedMarkerFields(await this.#database.all(query, [this.#markerTagId]));
     }
@@ -462,7 +462,7 @@ ORDER BY e.\`index\` ASC;`;
         return this.#postProcessExtendedMarkerFields(await this.#database.all(
             `SELECT ${this.#extendedMarkerFields}
             WHERE ${whereClause}=? AND taggings.tag_id=?
-            ORDER BY taggings.\`index\` ASC;`,
+            ORDER BY taggings.time_offset ASC;`,
             [metadataId, this.#markerTagId]));
     }
 
@@ -499,7 +499,7 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
         }
 
-        if (final && newIndex != allMarkers.length) {
+        if (final && newIndex != allMarkers.length - 1) {
             throw new ServerError(`Attempting to make a new marker final, but it won't be the last marker of the episode.`, 400);
         }
 
@@ -583,6 +583,7 @@ ORDER BY e.\`index\` ASC;`;
             }
 
             // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
+            // TODO: indexRemove: just +1 to existing length
             existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
                 marker.newIndex = index;
             });
@@ -655,6 +656,10 @@ ORDER BY e.\`index\` ASC;`;
      * new marker to be inserted. New indexes are stored in the marker's `newIndex` field,
      * and the index for the new marker is returned directly. If overlapping markers are
      * not allowed, -1 is returned if overlap is detected.
+     *
+     * TODO: indexRemove: With the introduction of credits, it's apparent that the index
+     * itself doesn't matter, it just needs to be 0 to N, making this step unnecessary.
+     * Is it worth ripping out?
      * @param {[]} markers
      * @param {number} newStart The start time of the new marker, in milliseconds.
      * @param {number} newEnd The end time of the new marker, in milliseconds.*/
@@ -679,14 +684,16 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startMs The new start time, in milliseconds.
      * @param {number} endMs The new end time, in milliseconds.
      * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
+     * @param {string} markerType The type of marker (intro/credits)
+     * @param {number} final Whether this Credits marker goes to the end of the media item.
      * @returns {Promise<void>} */
-    async editMarker(markerId, index, startMs, endMs, userCreated) {
+    async editMarker(markerId, index, startMs, endMs, userCreated, markerType, final) {
         const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         return this.#database.run(
-            'UPDATE taggings SET `index`=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ' WHERE id=?;',
-            [index, startMs.toString(), endMs, markerId]);
+            'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ', extra_data=? WHERE id=?;',
+            [index, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final), markerId]);
     }
 
     /**
@@ -767,7 +774,7 @@ ORDER BY e.id ASC;`;
         for (const episodeMarkers of Object.values(markers)) {
             for (const marker of episodeMarkers) {
                 ++expectedShifts;
-                const userCreated = marker.modified_date && marker.modified_date.endsWith('*');
+                const userCreated = marker.modified_date < 0;
                 const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
                 let maxDuration = limits[marker.episode_id];
                 if (!maxDuration) {
@@ -808,6 +815,8 @@ ORDER BY e.id ASC;`;
 
     /**
      * Ensure the indexes for the markers under the given show/season/episode metadataId are in order.
+     * TODO: removeIndex: find callers, do we ever actually need a full reindex? Delete is the only scenario,
+     *       and in that case we can get away with "index -= N"
      * @param {number} metadataId */
     async reindex(metadataId) {
         const markerInfo = await this.getMarkersAuto(metadataId);

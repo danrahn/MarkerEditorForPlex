@@ -21,6 +21,7 @@ class TestHelpers {
      * @param {DatabaseWrapper?} database The test database
      * @param {boolean} isDeleted Whether markerData is a deleted marker (i.e. we should verify it doesn't exist in the database)
      * @throws if the marker is not valid.
+     * TODO: indexRemove: replace index with order for all callers.
      */
     static async validateMarker(
             markerData,
@@ -58,7 +59,7 @@ class TestHelpers {
         checkField(markerData.showId, expectedShowId, 'Show id');
         checkField(markerData.start, expectedStart, 'Marker start');
         checkField(markerData.end, expectedEnd, 'Marker end');
-        checkField(markerData.index, expectedIndex, 'Marker index');
+        checkField(markerData.index, expectedIndex, 'Marker index'); // TODO: indexRemove: order
         checkField(markerData.isFinal, expectedFinal, 'Final credits');
 
 
@@ -81,7 +82,7 @@ class TestHelpers {
         checkField(row.metadata_item_id, expectedEpisodeId, 'DB episode id');
         checkField(row.time_offset, expectedStart, 'DB marker start');
         checkField(row.end_time_offset, expectedEnd, 'DB marker end');
-        checkField(row.index, expectedIndex, 'DB marker index');
+        checkField(row.index, expectedIndex, 'DB marker index'); // TODO: indexRemove: order
         checkField(row.text, expectedType, 'DB marker type');
         checkField(row.extra_data.indexOf('final=1') !== -1, expectedFinal, 'Final credits');
         TestHelpers.verify(allIssues.length == 0, allIssues);

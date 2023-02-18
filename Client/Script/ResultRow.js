@@ -514,7 +514,7 @@ class SeasonResultRow extends ResultRow {
     notifyBulkAction(changedMarkers, bulkActionType) {
         // Sort by index high to low to to avoid the marker table from
         // getting indexes out of sync.
-        changedMarkers.sort((a, b) => b.index - a.index);
+        changedMarkers.sort((a, b) => b.start - a.start);
         for (const marker of changedMarkers) {
             const episode = this.#episodes[marker.episodeId];
             if (!episode) {

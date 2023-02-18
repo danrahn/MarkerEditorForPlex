@@ -13,7 +13,7 @@ class ServerCommands {
     * @type {{[endpoint: string]: (params : QueryParser) => Promise<any>}} */
     static #commandMap = {
         add           : async (params) => await CoreCommands.addMarker(params.raw('type'), ...params.ints('metadataId', 'start', 'end', 'final')),
-        edit          : async (params) => await CoreCommands.editMarker(...params.ints('id', 'start', 'end', 'userCreated')),
+        edit          : async (params) => await CoreCommands.editMarker(params.raw('type'), ...params.ints('id', 'start', 'end', 'userCreated', 'final')),
         delete        : async (params) => await CoreCommands.deleteMarker(params.i('id')),
         check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, 0, ShiftApplyType.DontApply, []),
         shift         : async (params) => await CoreCommands.shiftMarkers(

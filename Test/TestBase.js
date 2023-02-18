@@ -278,7 +278,8 @@ class TestBase {
     }
 
     /**
-     * Map of default metadata items to their metadata/marker ids. */
+     * Map of default metadata items to their metadata/marker ids.
+     * TODO: indexRemove: Replace Index with Order? Still want to test reordering, but via our calculated values. */
     static DefaultMetadata = {
         Show1 : { Id : 1,
             Season1 : { Id : 2,
