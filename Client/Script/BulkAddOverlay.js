@@ -85,6 +85,13 @@ class BulkAddOverlay {
                     0,
                     { keyup : this.#onBulkAddInputChange.bind(this) }
                 )),
+            appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
+                buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
+                appendChildren(
+                    buildNode('select', { id : 'markerTypeSelect' }),
+                    buildNode('option', { value : 'intro', selected : 'selected' }, 'Intro'),
+                    buildNode('option', { value : 'credits' }, 'Credits'))
+            ),
             appendChildren(buildNode('div', { id : 'bulkAddApplyType' }),
                 buildNode('label', { for : 'applyTypeSelect' }, 'Apply Action: '),
                 appendChildren(
@@ -140,12 +147,13 @@ class BulkAddOverlay {
         const startTime = this.startTime();
         const endTime = this.endTime();
         const resolveType = this.resolveType();
+        const markerType = this.markerType();
         if (isNaN(startTime) || isNaN(endTime)) {
             return BulkActionCommon.flashButton('bulkAddApply', 'red');
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(MarkerType.Intro, this.#mediaItem.metadataId, startTime, endTime, resolveType, false /*final*/, this.#table?.getIgnored());
+            const result = await ServerCommand.bulkAdd(markerType, this.#mediaItem.metadataId, startTime, endTime, resolveType, false /*final*/, this.#table?.getIgnored());
             if (!result.applied) {
                 BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
                 return;
@@ -238,6 +246,7 @@ class BulkAddOverlay {
     startTime() { return this.#cachedStart; }
     endTime() { return this.#cachedEnd; }
     resolveType() { return this.#cachedApplyType; }
+    markerType() { return $('#markerTypeSelect').value; } // TODO: store main container and scope to that.
 
     /** Update all items in the customization table, if present. */
     #updateTableStats() {
@@ -349,17 +358,27 @@ class BulkAddRow extends BulkActionRow {
                 tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
 
                 this.#startTd.classList.add(warnClass);
-            } else if (end > this.#episodeInfo.duration) {
-                isWarn = true;
-                if (!this.#endTd.classList.contains('bulkActionOff')) {
-                    semiWarn = true;
-                    this.#endTd.classList.add('bulkActionSemi');
-                }
-
-                tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
-                end = this.#episodeInfo.duration;
-                start = Math.min(start, end);
             }
+        }
+        
+        if (end > this.#episodeInfo.duration) {
+            isWarn = true;
+            if (!this.#endTd.classList.contains('bulkActionOff')) {
+                semiWarn = true;
+                this.#endTd.classList.add('bulkActionSemi');
+            }
+
+            tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
+            end = this.#episodeInfo.duration;
+            start = Math.min(start, end);
+        }
+
+        if (start >= this.#episodeInfo.duration) {
+            isWarn = true;
+            // setSingle instead of setBoth to ensure it overwrites anything set above.
+            this.#setSingleClass(this.#startTd, 'bulkActionOff');
+            this.#setSingleClass(this.#endTd, 'bulkActionOff');
+            tooltip = `<br>Marker is beyond the end of the episode.`;
         }
 
         if (tooltip.length != 0) {

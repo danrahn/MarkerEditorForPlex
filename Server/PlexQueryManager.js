@@ -942,9 +942,10 @@ ORDER BY e.id ASC;`;
         for (const episodeId of episodeIds) {
             if (ignoredEpisodes.has(episodeId)) { continue; }
             const episodeEnd = Math.min(episodeMarkerMap[episodeId].episodeData.duration, baseEnd);
+            const finalActual = markerType === MarkerType.Credits && (final || baseEnd >= episodeEnd);
             const episodeMarkers = episodeMarkerMap[episodeId].existingMarkers;
             if (!episodeMarkers || episodeMarkers.length == 0) {
-                this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, baseStart, episodeEnd, markerType, final);
+                this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, baseStart, episodeEnd, markerType, finalActual);
                 plainAdd.add(episodeId);
                 episodeMarkerMap[episodeId].isAdd = true;
                 continue;
@@ -956,7 +957,7 @@ ORDER BY e.id ASC;`;
                 if (episodeMarker.end < baseStart) {
                     if (i == episodeMarkers.length - 1) {
                         // We're adding beyond the last marker
-                        this.#addMarkerStatement(transaction, episodeId, episodeMarkers.length, baseStart, episodeEnd, markerType, final);
+                        this.#addMarkerStatement(transaction, episodeId, episodeMarkers.length, baseStart, episodeEnd, markerType, finalActual);
                         plainAdd.add(episodeId);
                         episodeMarkerMap[episodeId].isAdd = true;
                     }
@@ -989,7 +990,7 @@ ORDER BY e.id ASC;`;
                     break;
                 }
 
-                this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd, markerType, final);
+                this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd, markerType, finalActual);
                 episodeMarkerMap[episodeId].isAdd = true;
                 plainAdd.add(episodeId);
                 break;
