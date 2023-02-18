@@ -100,7 +100,7 @@ const ServerCommand = {
      * Retrieve episode and marker information relevant to a bulk_add operation.
      * @param {number} id Show/Season metadata id.
      * @returns {Promise<SerializedBulkAddResult>} */
-    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : ''}),
+    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro', final : 0 }),
 
     /**
      * Bulk adds a marker to the given metadata id.
@@ -109,10 +109,10 @@ const ServerCommand = {
      * @param {number} start Start time of the marker, in milliseconds.
      * @param {number} end End time of the marker, in milliseconds.
      * @param {number} resolveType The BulkMarkerResolveType.
-     * @param {number} [final=0] Whether this is the last marker of the episode (credits only)
+     * @param {boolean} [final=false] Whether this is the last marker of the episode (credits only)
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : async (markerType, id, start, end, resolveType, final=0, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final, resolveType : resolveType, ignored : ignored.join(',')}),
+    bulkAdd : async (markerType, id, start, end, resolveType, final=false, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0, resolveType : resolveType, ignored : ignored.join(',')}),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.

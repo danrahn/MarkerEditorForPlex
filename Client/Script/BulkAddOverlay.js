@@ -315,17 +315,22 @@ class BulkAddRow extends BulkActionRow {
         }
 
         for (const existingMarker of this.#existingMarkers) {
+            // [Existing...{New++]---} or [Existing...{New++}...]
             if (start >= existingMarker.start && start <= existingMarker.end) {
                 isWarn = true;
                 semiWarn = false;
                 this.#startTd.classList.add(warnClass);
+                if (end < existingMarker.end) {
+                    this.#setSingleClass(this.#endTd, warnClass);
+                }
+
                 tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                
                 if (resolveType == BulkMarkerResolveType.Merge) {
                     start = existingMarker.start;
                     end = Math.max(end, existingMarker.end);
-                } else {
-                    this.#setSingleClass(this.#endTd, warnClass);
                 }
+            // {New---[Existing++}...] or [Existing...{New+++}...]
             } else if (end >= existingMarker.start && end <= existingMarker.end) {
                 isWarn = true;
                 semiWarn = false;
@@ -334,6 +339,14 @@ class BulkAddRow extends BulkActionRow {
                 if (resolveType == BulkMarkerResolveType.Merge) {
                     start = Math.min(start, existingMarker.start);
                 }
+
+                this.#startTd.classList.add(warnClass);
+            // {New---[Existing+++]---}
+            } else if (start <= existingMarker.start && end >= existingMarker.end) {
+                isWarn = true;
+                semiWarn = false;
+                this.#setClassBoth(warnClass);
+                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
 
                 this.#startTd.classList.add(warnClass);
             } else if (end > this.#episodeInfo.duration) {
