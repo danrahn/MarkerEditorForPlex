@@ -10,7 +10,7 @@
  * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  * @typedef {{start: number, end: number, index: number, id: number, episodeId: number,
- *            seasonId: number, showId: number, sectionId: number}} SerializedMarkerData
+ *            seasonId: number, showId: number, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
  *            sortTitle: string, originalTitle: string, seasonCount: number, episodeCount: number }} SerializedShowData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
@@ -315,6 +315,16 @@ class EpisodeData extends PlexData {
 }
 
 /**
+ * Possible marker types
+ * @enum */
+const MarkerType = {
+    /** @readonly */
+    Intro   : 'intro',
+    /** @readonly */
+    Credits : 'credits',
+}
+
+/**
  * Information about a single marker for an episode of a TV show in the Plex database.
  */
 class MarkerData extends PlexData {
@@ -334,8 +344,8 @@ class MarkerData extends PlexData {
     index;
 
     /**
-     * The date the marker was modified by the user.
-     * @type {string} */
+     * The date the marker was modified by the user (epoch).
+     * @type {number} */
     modifiedDate;
 
     /**
@@ -344,8 +354,8 @@ class MarkerData extends PlexData {
     createdByUser;
 
     /**
-     * The date the marker was created.
-     * @type {string} */
+     * The date the marker was created (epoch).
+     * @type {number} */
     createDate;
 
     /**
@@ -379,6 +389,17 @@ class MarkerData extends PlexData {
     episodeGuid;
 
     /**
+     * The type of marker this represents.
+     * @type {[keyof MarkerType]} */
+    markerType;
+
+    /**
+     * Whether this marker extends to the end of the movie/episode
+     * Only applies if type == MarkerType.Credits
+     * @type {boolean} */
+    isFinal;
+
+    /**
      * Creates a new MarkerData from the given marker, if provided.
      * @param {Object<string, any>} [marker] */
     constructor(marker) {
@@ -392,25 +413,17 @@ class MarkerData extends PlexData {
         this.index = marker.index;
 
         if (marker.modified_date) {
-            let modified = marker.modified_date;
-            // Check to see if it has a 'user created' flag.
+            this.modifiedDate = marker.modified_date;
+
             // For legacy purposes, also check whether the create date equals the modified date,
             // as previous versions of this application didn't include the 'manually created' marker.
-            this.createdByUser = modified[modified.length - 1] == '*' || modified == marker.created_at;
-
-            // Modified date is stored as a UTC timestamp, but JS date functions don't know without the 'Z'.
-            this.modifiedDate = modified.substring(0, modified.length - 1);
-            if (!this.modifiedDate.endsWith('Z')) {
-                this.modifiedDate += 'Z';
-            }
+            this.createdByUser = marker.user_created || this.modifiedDate == marker.created_at;
         } else {
             this.createdByUser = false;
             this.modifiedDate = '';
         }
 
-        // Plex stores timestamps in local time for some reason, so only "convert" to UTC time
-        // if the marker was created by the user.
-        this.createDate = marker.created_at + ((this.createdByUser && !marker.created_at.endsWith('Z')) ? 'Z' : '');
+        this.createDate = marker.created_at;
 
         this.id = marker.id;
         this.episodeId = marker.episode_id;
@@ -418,6 +431,8 @@ class MarkerData extends PlexData {
         this.showId = marker.show_id;
         this.sectionId = marker.section_id;
         this.episodeGuid = marker.episode_guid;
+        this.markerType = marker.marker_type;
+        this.isFinal = this.type == MarkerType.Credits && marker.final;
     }
 }
 
@@ -434,4 +449,4 @@ const BulkMarkerResolveType = {
     Ignore : 3,
 };
 
-export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData }
+export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData, MarkerType }

@@ -1,6 +1,6 @@
 
 import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from "./Common.js";
-import { MarkerData } from "../../Shared/PlexTypes.js";
+import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
 
 import Overlay from "./inc/Overlay.js";
 
@@ -63,11 +63,11 @@ class MarkerRow {
     /** Returns the marker id for this marker, if it's an edit of an existing marker. */
     markerId() { return -1; }
 
+    /** Returns the type of this marker. */
+    markerType() { return 'intro'; }
+
     /** Return whether this marker was originally created by Plex automatically, or by the user. */
     createdByUser() { return true; }
-
-    /** Return the index of this marker in the marker table, or -1 if {@linkcode forAdd} is true. */
-    rowIndex() { return -1; }
 
     /** Resets this marker row after an edit is completed (on success or failure). */
     reset() {}
@@ -88,8 +88,8 @@ class ExistingMarkerRow extends MarkerRow {
     startTime() { return this.#markerData.start; }
     endTime() { return this.#markerData.end; }
     markerId() { return this.#markerData.id; }
+    markerType() { return this.#markerData.markerType; }
     createdByUser() { return this.#markerData.createdByUser; }
-    rowIndex() { return this.#markerData.index; }
     reset() {
         const children = this.#tableData(!!$$('.markerOptionsHolder', this.html));
         for (let i = 0; i < children.length; ++i) {
@@ -129,7 +129,7 @@ class ExistingMarkerRow extends MarkerRow {
     #tableData(includeOptions) {
 
         let data = [
-            this.#markerData.index.toString(),
+            Object.keys(MarkerType).find(k => MarkerType[k] == this.#markerData.markerType),
             TableElements.timeData(this.#markerData.start),
             TableElements.timeData(this.#markerData.end),
             TableElements.friendlyDate(this.#markerData)

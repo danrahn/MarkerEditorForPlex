@@ -391,7 +391,7 @@ class BulkActionCommon {
             const bEd = episodeData[b.episodeId];
             if (aEd.seasonIndex != bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
             if (aEd.index != bEd.index) { return aEd.index - bEd.index; }
-            return a.index - b.index;
+            return a.start - b.start;
         });
     }
 

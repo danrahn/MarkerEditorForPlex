@@ -1,6 +1,6 @@
 /**
- * @typedef {{ id : number, index : number, start : number, end : number, modified_date : string, created_at : string,
- *             episode_id : number, season_id : number, show_id : number, section_id : number, episode_guid : string }} RawMarkerData
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number, episode_id : number,
+ *             season_id : number, show_id : number, section_id : number, episode_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
@@ -16,11 +16,28 @@
 /** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
 
 import { Log } from '../Shared/ConsoleLog.js';
-import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../Shared/PlexTypes.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
+
+/**
+ * extra_data string for different marker types
+ * @enum */
+const ExtraData = {
+    /** @readonly Intro marker */
+    Intro        : 'pv%3Aversion=5',
+    /** @readonly Non-final credit marker */
+    Credits      : 'pv%3Aversion=4',
+    /** @readonly Final credit marker (goes to the end of the media item) */
+    CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
+    /**
+     * Convert marker type string and final flag to ExtraData type
+     * @param {string} markerType Value from MarkerType
+     * @param {boolean} final */
+    get : (markerType, final) => markerType == MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
+}
 
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
@@ -32,12 +49,14 @@ class TrimmedMarker {
     /** @type {number} */ end;
     /** @type {number} */ index;
     /** @type {number} */ newIndex;
+    /** @type {string} */ marker_type;
+    /** @type {number} */ final;
     /** @type {boolean} */ #isRaw = false;
     /** @type {RawMarkerData} */ #raw;
     getRaw() { if (!this.#isRaw) { throw new ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
 
-    constructor(id, eid, start, end, index) {
-        this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1;
+    constructor(id, eid, start, end, index, markerType, final) {
+        this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1; this.marker_type = markerType, this.final = final;
     }
 
     /** Return whether this is an existing marker */
@@ -45,7 +64,7 @@ class TrimmedMarker {
 
     /** @param {RawMarkerData} marker */
     static fromRaw(marker) {
-        let trimmed = new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index);
+        let trimmed = new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index, marker.marker_type, marker.final);
         trimmed.#raw = marker;
         trimmed.#isRaw = true;
         return trimmed;
@@ -53,7 +72,7 @@ class TrimmedMarker {
 
     /** @param {MarkerAction} action */
     static fromBackup(action) {
-        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1);
+        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1, action.marker_type, action.final);
     }
 }
 
@@ -84,10 +103,12 @@ class PlexQueryManager {
     #extendedMarkerFields = `
     taggings.id,
     taggings.\`index\`,
+    taggings.text AS marker_type,
     taggings.time_offset AS start,
     taggings.end_time_offset AS end,
     taggings.thumb_url AS modified_date,
     taggings.created_at,
+    taggings.extra_data,
     episodes.id AS episode_id,
     seasons.id AS season_id,
     seasons.parent_id AS show_id,
@@ -128,7 +149,7 @@ FROM taggings
                 Log.error(`PlexQueryManager: tags table exists, but didn't find intro tag. Plex SQLite is required to modify this table, so we cannot continue.`);
                 Log.error(`                  Either ensure at least one episode has an intro marker, or manually run the following using Plex SQLite:`);
                 Log.error();
-                Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`);
+                Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, (strftime('%s','now')), (strftime('%s','now')));`);
                 Log.error();
                 Log.error(`See https://support.plex.tv/articles/repair-a-corrupted-database/ for more information on Plex SQLite and the database location.`);
                 throw new ServerError(`Plex database must contain at least one intro marker.`, 500);
@@ -343,6 +364,21 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Does some post-processing on the given marker data to extract relevant fields.
+     * @param {RawMarkerData[]|RawMarkerData} markerData */
+    #postProcessExtendedMarkerFields(markerData) {
+        let markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
+        for (const marker of markerArray) {
+            marker.final = marker.extra_data?.indexOf('final=1') != -1; // extra_data should never be null, but better safe than sorry
+            marker.user_created = marker.modified_date < 0;
+            marker.modified_date = Math.abs(marker.modified_date);
+            delete marker.extra_data;
+        }
+
+        return markerData;
+    }
+
+    /**
      * Retrieve all markers for the given episodes.
      * @param {number[]} episodeIds
      * @returns {Promise<RawMarkerData[]>}*/
@@ -359,9 +395,9 @@ ORDER BY e.\`index\` ASC;`;
         });
 
         // Strip trailing ' OR '
-        query = query.substring(0, query.length - 4) + ') ORDER BY taggings.`index` ASC;';
+        query = query.substring(0, query.length - 4) + ') ORDER BY taggings.time_offset ASC;';
 
-        return this.#database.all(query, [this.#markerTagId]);
+        return this.#postProcessExtendedMarkerFields(await this.#database.all(query, [this.#markerTagId]));
     }
 
     /**
@@ -423,11 +459,11 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} whereClause The field to match against `metadataId`.
      * @returns {Promise<RawMarkerData[]>} */
     async #getMarkersForMetadataItem(metadataId, whereClause) {
-        return this.#database.all(
+        return this.#postProcessExtendedMarkerFields(await this.#database.all(
             `SELECT ${this.#extendedMarkerFields}
             WHERE ${whereClause}=? AND taggings.tag_id=?
-            ORDER BY taggings.\`index\` ASC;`,
-            [metadataId, this.#markerTagId]);
+            ORDER BY taggings.time_offset ASC;`,
+            [metadataId, this.#markerTagId]));
     }
 
     /**
@@ -437,9 +473,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} markerId
      * @returns {Promise<RawMarkerData>} */
     async getSingleMarker(markerId) {
-        return this.#database.get(
+        return this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
-            [markerId, this.#markerTagId]);
+            [markerId, this.#markerTagId]));
     }
 
     /**
@@ -447,8 +483,10 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId The metadata id of the episode to add the marker to.
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
+     * @param {string} markerType The type of marker
+     * @param {number} final Whether this marker should be marked final. Only applies to Credits
      * @returns {Promise<{ allMarkers: RawMarkerData[], newMarker: RawMarkerData}>} */
-    async addMarker(metadataId, startMs, endMs) {
+    async addMarker(metadataId, startMs, endMs, markerType, final) {
         // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
         const typeInfo = await this.#mediaTypeFromId(metadataId);
         if (typeInfo.metadata_type != 4) {
@@ -461,13 +499,17 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
         }
 
-        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+        if (final && newIndex != allMarkers.length - 1) {
+            throw new ServerError(`Attempting to make a new marker final, but it won't be the last marker of the episode.`, 400);
+        }
+
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
-        const parameters = [metadataId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+                `(?, ?, ?, ?, ?, ?,  ${thumbUrl}, (strftime('%s','now')), ?);`;
+        const parameters = [metadataId, this.#markerTagId, newIndex, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final)];
         await this.#database.run(addQuery, parameters);
 
         // Insert succeeded, update indexes of other markers if necessary
@@ -483,15 +525,17 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} episodeId The episode to add the marker to.
      * @param {number} newIndex New marker's index in the list of existing markers.
      * @param {number} startMs Start time of the new marker, in milliseconds.
-     * @param {number} endMs End time of the new marker, in milliseconds. */
-    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs) {
-        const thumbUrl = this.#pureMode ? '""' : 'CURRENT_TIMESTAMP || "*"';
+     * @param {number} endMs End time of the new marker, in milliseconds.
+     * @param {string} markerType The type of marker (intro/credits)
+     * @param {number} final Whether this is the last credits marker that goes to the end of the episode */
+    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final) {
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                '(?, ?, ?, "intro", ?, ?, ' + thumbUrl + ', CURRENT_TIMESTAMP, "pv%3Aversion=5");';
-        const parameters = [episodeId, this.#markerTagId, newIndex, startMs.toString(), endMs];
+                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, (strftime('%s','now')), ?);`;
+        const parameters = [episodeId, this.#markerTagId, newIndex, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final)];
         transaction.addStatement(addQuery, parameters);
     }
 
@@ -539,6 +583,7 @@ ORDER BY e.\`index\` ASC;`;
             }
 
             // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
+            // TODO: indexRemove: just +1 to existing length
             existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
                 marker.newIndex = index;
             });
@@ -549,7 +594,7 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 ++expectedInserts;
-                this.#addMarkerStatement(transaction, episodeId, marker.newIndex, marker.start, marker.end);
+                this.#addMarkerStatement(transaction, episodeId, marker.newIndex, marker.start, marker.end, marker.marker_type, marker.final);
             }
 
             // updateMarkerIndex, without actually executing it.
@@ -603,7 +648,7 @@ ORDER BY e.\`index\` ASC;`;
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
 
-        return { newMarkers : newMarkers, identicalMarkers : identicalMarkers };
+        return { newMarkers : this.#postProcessExtendedMarkerFields(newMarkers), identicalMarkers : identicalMarkers };
     }
 
     /**
@@ -611,6 +656,10 @@ ORDER BY e.\`index\` ASC;`;
      * new marker to be inserted. New indexes are stored in the marker's `newIndex` field,
      * and the index for the new marker is returned directly. If overlapping markers are
      * not allowed, -1 is returned if overlap is detected.
+     *
+     * TODO: indexRemove: With the introduction of credits, it's apparent that the index
+     * itself doesn't matter, it just needs to be 0 to N, making this step unnecessary.
+     * Is it worth ripping out?
      * @param {[]} markers
      * @param {number} newStart The start time of the new marker, in milliseconds.
      * @param {number} newEnd The end time of the new marker, in milliseconds.*/
@@ -635,14 +684,16 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startMs The new start time, in milliseconds.
      * @param {number} endMs The new end time, in milliseconds.
      * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
+     * @param {string} markerType The type of marker (intro/credits)
+     * @param {number} final Whether this Credits marker goes to the end of the media item.
      * @returns {Promise<void>} */
-    async editMarker(markerId, index, startMs, endMs, userCreated) {
-        const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+    async editMarker(markerId, index, startMs, endMs, userCreated, markerType, final) {
+        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         return this.#database.run(
-            'UPDATE taggings SET `index`=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ' WHERE id=?;',
-            [index, startMs.toString(), endMs, markerId]);
+            'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ', extra_data=? WHERE id=?;',
+            [index, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final), markerId]);
     }
 
     /**
@@ -674,9 +725,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} index The index of the marker in the marker table.
      * @returns {Promise<RawMarkerData>} */
     async getNewMarker(metadataId, startMs, endMs) {
-        return this.#database.get(
+        return this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
-            [metadataId, this.#markerTagId, startMs, endMs]);
+            [metadataId, this.#markerTagId, startMs, endMs]));
     }
 
     /**
@@ -723,8 +774,8 @@ ORDER BY e.id ASC;`;
         for (const episodeMarkers of Object.values(markers)) {
             for (const marker of episodeMarkers) {
                 ++expectedShifts;
-                const userCreated = marker.modified_date && marker.modified_date.endsWith('*');
-                const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${userCreated ? " || '*'" : ''}`;
+                const userCreated = marker.modified_date < 0;
+                const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
                 let maxDuration = limits[marker.episode_id];
                 if (!maxDuration) {
                     throw new ServerError(`Unable to find max episode duration, the episode id ${marker.episode_id} doesn't appear to be valid.`);
@@ -764,6 +815,8 @@ ORDER BY e.id ASC;`;
 
     /**
      * Ensure the indexes for the markers under the given show/season/episode metadataId are in order.
+     * TODO: removeIndex: find callers, do we ever actually need a full reindex? Delete is the only scenario,
+     *       and in that case we can get away with "index -= N"
      * @param {number} metadataId */
     async reindex(metadataId) {
         const markerInfo = await this.getMarkersAuto(metadataId);
@@ -812,10 +865,12 @@ ORDER BY e.id ASC;`;
      * @param {number} metadataId
      * @param {number} baseStart Marker start, in milliseconds
      * @param {number} baseEnd Marker end, in milliseconds
+     * @param {string} markerType Type of marker (intro/credits)
+     * @param {number} final 1 if it's the marker goes to the end of the episode, 0 if it isn't.
      * @param {number} resolveType The `BulkMarkerResolveType`
      * @param {number[]} ignored List of episode ids to skip.
      * @returns {Promise<BulkAddResult>} */
-    async bulkAdd(markerData, metadataId, baseStart, baseEnd, resolveType, ignored=[]) {
+    async bulkAdd(markerData, metadataId, baseStart, baseEnd, markerType, final, resolveType, ignored=[]) {
         // This is all very inefficient. It's probably fine even in extreme scenarios since DB queries will take
         // up the majority of the time, but there are most definitely more efficient ways to do this.
         const existingMarkers = markerData.markers;
@@ -887,9 +942,10 @@ ORDER BY e.id ASC;`;
         for (const episodeId of episodeIds) {
             if (ignoredEpisodes.has(episodeId)) { continue; }
             const episodeEnd = Math.min(episodeMarkerMap[episodeId].episodeData.duration, baseEnd);
+            const finalActual = markerType === MarkerType.Credits && (final || baseEnd >= episodeEnd);
             const episodeMarkers = episodeMarkerMap[episodeId].existingMarkers;
             if (!episodeMarkers || episodeMarkers.length == 0) {
-                this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, baseStart, episodeEnd);
+                this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, baseStart, episodeEnd, markerType, finalActual);
                 plainAdd.add(episodeId);
                 episodeMarkerMap[episodeId].isAdd = true;
                 continue;
@@ -901,7 +957,7 @@ ORDER BY e.id ASC;`;
                 if (episodeMarker.end < baseStart) {
                     if (i == episodeMarkers.length - 1) {
                         // We're adding beyond the last marker
-                        this.#addMarkerStatement(transaction, episodeId, episodeMarkers.length, baseStart, episodeEnd);
+                        this.#addMarkerStatement(transaction, episodeId, episodeMarkers.length, baseStart, episodeEnd, markerType, finalActual);
                         plainAdd.add(episodeId);
                         episodeMarkerMap[episodeId].isAdd = true;
                     }
@@ -925,7 +981,7 @@ ORDER BY e.id ASC;`;
                         (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(nextMarker);
                     }
 
-                    const thumbUrl = this.#pureMode ? '""' : `CURRENT_TIMESTAMP${episodeMarker.createdByUser ? " || '*'" : ''}`;
+                    const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${episodeMarker.createdByUser ? ' * -1' : ''}`;
                     transaction.addStatement(
                         `UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=${thumbUrl} WHERE id=?;`,
                         [episodeMarker.start, episodeMarker.end, episodeMarker.id]);
@@ -934,7 +990,7 @@ ORDER BY e.id ASC;`;
                     break;
                 }
 
-                this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd);
+                this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd, markerType, finalActual);
                 episodeMarkerMap[episodeId].isAdd = true;
                 plainAdd.add(episodeId);
                 break;
@@ -968,4 +1024,4 @@ ORDER BY e.id ASC;`;
     }
 }
 
-export { PlexQueryManager, Instance as PlexQueries };
+export { PlexQueryManager, Instance as PlexQueries, ExtraData };

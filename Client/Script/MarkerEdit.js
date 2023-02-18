@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from "./Common.js";
-import { MarkerData } from "../../Shared/PlexTypes.js";
+import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
 
 import Tooltip from "./inc/Tooltip.js";
 
@@ -38,6 +38,7 @@ class MarkerEdit {
         }
 
         this.editing = true;
+        this.#setMarkerType();
         this.#buildTimeEdit();
         this.#buildConfirmCancel();
         return true;
@@ -67,7 +68,8 @@ class MarkerEdit {
                 maxlength : 12,
                 class : 'timeInput',
                 placeholder : 'ms or mm:ss[.000]',
-                value : initialValue
+                value : initialValue,
+                autocomplete : 'off',
             },
             0,
             events,
@@ -103,6 +105,24 @@ class MarkerEdit {
         }
 
         return input;
+    }
+
+    /**
+     * Set the first column to be the type of marker (e.g. 'Intro' or 'Credits') */
+    #setMarkerType() {
+        const span = this.markerRow.row().children[0];
+        clearEle(span);
+        const select = buildNode('select', { class : 'inlineMarkerType' });
+        for (const [title, value] of Object.entries(MarkerType)) {
+            const option = buildNode('option', { value : value }, title);
+            if (value == this.markerRow.markerType()) {
+                option.selected = true;
+            }
+
+            select.appendChild(option);
+        }
+
+        span.appendChild(select);
     }
 
     /**
@@ -147,17 +167,19 @@ class MarkerEdit {
      * Attempts to add a marker to the database, first validating that the marker is valid.
      * On success, make the temporary row permanent and rearrange the markers based on their start time. */
     async onMarkerAddConfirm() {
+        const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
         const endTime = timeToMs(inputs[1].value);
         const metadataId = this.markerRow.episodeId();
         const episode = PlexClientState.GetState().getEpisode(metadataId);
+        const final = endTime == episode.duration && markerType == MarkerType.Credits;
         if (!episode.checkValues(this.markerRow.markerId(), startTime, endTime)) {
             return;
         }
 
         try {
-            const rawMarkerData = await ServerCommand.add(metadataId, startTime, endTime);
+            const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
         } catch (err) {
@@ -172,6 +194,7 @@ class MarkerEdit {
 
     /** Commits a marker edit, assuming it passes marker validation. */
     async onMarkerEditConfirm() {
+        const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
         const endTime = timeToMs(inputs[1].value);
@@ -179,12 +202,13 @@ class MarkerEdit {
         const episode = PlexClientState.GetState().getEpisode(metadataId);
         const userCreated = this.markerRow.createdByUser();
         const markerId = this.markerRow.markerId();
+        const final = endTime == episode.duration && markerType == MarkerType.Credits;
         if (!episode.checkValues(markerId, startTime, endTime)) {
             return;
         }
 
         try {
-            const rawMarkerData = await ServerCommand.edit(markerId, startTime, endTime, userCreated);
+            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, userCreated, final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
             PlexClientState.GetState().getEpisode(editedMarker.episodeId).editMarker(editedMarker);
             this.resetAfterEdit();
@@ -228,6 +252,9 @@ class MarkerEdit {
 
         e.preventDefault();
         input.value = msToHms(PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).duration);
+
+        // Assume credits if they enter the end of the episode.
+        $$('.inlineMarkerType', this.markerRow.row()).value = 'credits';
     }
 }
 

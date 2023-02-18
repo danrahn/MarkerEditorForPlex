@@ -91,7 +91,7 @@ class TableElements {
      * Return a span that contains a "friendly" date (x [time span] ago), with a tooltip of the exact date.
      * @param {MarkerData} marker The marker being displayed. */
     static friendlyDate(marker) {
-        const createDate = DateUtil.getDisplayDate(marker.createDate);
+        const createDate = DateUtil.getDisplayDate(marker.createDate * 1000); // Seconds to ms
         let node = buildNode('span', { class : marker.modifiedDate ? 'userModifiedMarker' : '' }, createDate);
         Tooltip.setTooltip(node, TableElements.#dateTooltip(marker));
         return node;
@@ -117,7 +117,7 @@ class TableElements {
      * Creates a tooltip for a friendly date, which includes the create date and the last edited date (if any).
      * @param {MarkerData} marker */
     static #dateTooltip(marker) {
-        const fullCreateDate = DateUtil.getFullDate(marker.createDate);
+        const fullCreateDate = DateUtil.getFullDate(marker.createDate * 1000); // s to ms
         if (!marker.modifiedDate) {
             return `Automatically created on ${fullCreateDate}`;
         }
@@ -127,7 +127,7 @@ class TableElements {
         }
 
         const who = marker.createdByUser ? 'Manually' : 'Automatically';
-        return `${who} added on ${fullCreateDate}<br>Modified by user on ${DateUtil.getFullDate(marker.modifiedDate)}`;
+        return `${who} added on ${fullCreateDate}<br>Modified by user on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`;
     }
 }
 

@@ -1,5 +1,5 @@
 import { Log } from '../../Shared/ConsoleLog.js';
-import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
@@ -19,14 +19,23 @@ import ServerError from '../ServerError.js';
 class CoreCommands {
     /**
      * Adds the given marker to the database, rearranging indexes as necessary.
+     * @param {string} markerType The type of marker
      * @param {number} metadataId The metadata id of the episode to add a marker to.
      * @param {number} startMs The start time of the marker, in milliseconds.
      * @param {number} endMs The end time of the marker, in milliseconds.
+     * @param {number} final Whether this marker is the final marker (credits only).
      * @throws {ServerError} */
-    static async addMarker(metadataId, startMs, endMs) {
-        CoreCommands.#checkMarkerBounds(startMs, endMs);
+    static async addMarker(markerType, metadataId, startMs, endMs, final) {
+        CoreCommands.#checkMarkerBounds(startMs, endMs, markerType);
 
-        const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs);
+        if (markerType !== MarkerType.Credits && final) {
+            // TODO: If a marker is final, and one is added after it, final should be removed.
+            // That really shouldn't be possible though, since 'final' implies it goes to the end of the episode.
+            Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
+            final = 0;
+        }
+
+        const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs, markerType, final);
         const allMarkers = addResult.allMarkers;
         const newMarker = addResult.newMarker;
         const markerData = new MarkerData(newMarker);
@@ -38,26 +47,32 @@ class CoreCommands {
 
     /**
      * Edit an existing marker, and update index order as needed.
+     * @param {string} markerType The type of marker.
      * @param {number} markerId The id of the marker to edit.
      * @param {number} startMs The start time of the marker, in milliseconds.
      * @param {number} endMs The end time of the marker, in milliseconds.
+     * @param {number} userCreated Whether the original marker was user created.
+     * @param {number} final Whether this Credits marker goes until the end of the episode
      * @throws {ServerError} */
-     static async editMarker(markerId, startMs, endMs, userCreated) {
-        CoreCommands.#checkMarkerBounds(startMs, endMs);
+     static async editMarker(markerType, markerId, startMs, endMs, userCreated, final) {
+        CoreCommands.#checkMarkerBounds(startMs, endMs, markerType);
+        if (markerType !== MarkerType.Credits && final) {
+            Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
+            final = 0;
+        }
 
         const currentMarker = await PlexQueries.getSingleMarker(markerId);
         if (!currentMarker) {
             throw new ServerError('Intro marker not found', 400);
         }
 
-        const oldIndex = currentMarker.index;
-
         // Get all markers to adjust indexes if necessary
         const allMarkers = await PlexQueries.getEpisodeMarkers(currentMarker.episode_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
-        allMarkers[oldIndex].start = startMs;
-        allMarkers[oldIndex].end = endMs;
+        const currentMarkerInAllMarkers = allMarkers.find(m => m.id == markerId);
+        currentMarkerInAllMarkers.start = startMs;
+        currentMarkerInAllMarkers.end = endMs;
         allMarkers.sort((a, b) => a.start - b.start);
         let newIndex = 0;
 
@@ -75,14 +90,14 @@ class CoreCommands {
         }
 
         // Make the edit, then adjust indexes
-        await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated);
+        // TODO: removeIndex: newIndex parameter shouldn't be necessary
+        await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated, markerType, final);
         await PlexQueries.reindex(currentMarker.episode_id);
 
-        const newMarker = new MarkerData(currentMarker);
-        const oldStart = newMarker.start;
-        const oldEnd = newMarker.end;
-        newMarker.start = startMs;
-        newMarker.end = endMs;
+        const newMarkerRaw = await PlexQueries.getSingleMarker(markerId);
+        const newMarker = new MarkerData(newMarkerRaw);
+        const oldStart = currentMarker.start;
+        const oldEnd = currentMarker.end;
         await BackupManager?.recordEdits([newMarker], { [newMarker.id]: { start : oldStart, end : oldEnd } });
         return newMarker;
     }
@@ -100,7 +115,7 @@ class CoreCommands {
         let deleteIndex = 0;
         for (const marker of allMarkers) {
             if (marker.id == markerId) {
-                deleteIndex = marker.index;
+                deleteIndex = marker.index; // TODO: indexRemove: ok
             }
         }
 
@@ -193,7 +208,7 @@ class CoreCommands {
         markers.markers.forEach(m => oldMarkerMap[m.id] = m);
         for (const marker of shifted) {
             if (reindexMap[marker.id]) {
-                marker.index = reindexMap[marker.id].index;
+                marker.index = reindexMap[marker.id].index; // TODO: indexRemove: remove
             }
 
             const nonRaw = new MarkerData(marker);
@@ -287,19 +302,32 @@ class CoreCommands {
 
     /**
      * Bulk add markers to a given show or season.
+     * @param {string} markerType
      * @param {number} metadataId
      * @param {number} start
      * @param {number} end
      * @param {number} resolveType The `BulkMarkerResolveType`
+     * @param {number} final
      * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
      * @returns {Promise<BulkAddResult>>} */
-    static async bulkAdd(metadataId, start, end, resolveType, ignored=[]) {
+    static async bulkAdd(markerType, metadataId, start, end, final, resolveType, ignored=[]) {
         if (resolveType != BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
             throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`);
         }
 
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
+        }
+
+        if (markerType !== MarkerType.Credits && final) {
+            // TODO: If a marker is final, and one is added after it, final should be removed.
+            // That really shouldn't be possible though, since 'final' implies it goes to the end of the episode.
+            Log.warn(`Got a request for a 'final' marker bulk add that isn't a credit marker!`);
+            final = 0;
+        }
+
         const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
-        const addResult = await PlexQueries.bulkAdd(currentMarkers, metadataId, start, end, resolveType, ignored);
+        const addResult = await PlexQueries.bulkAdd(currentMarkers, metadataId, start, end, markerType, final, resolveType, ignored);
         if (addResult.applied) {
             const episodes = Object.values(addResult.episodeMap);
             /** @type {MarkerData[]} */
@@ -374,17 +402,22 @@ class CoreCommands {
 
     /**
      * Checks whether the given startMs-endMs bounds are valid, throwing
-     * a ServerError on failure.
+     * a ServerError on failure. Also check for a valid marker type.
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
      * @throws {ServerError} */
-    static #checkMarkerBounds(startMs, endMs) {
+    static #checkMarkerBounds(startMs, endMs, markerType) {
         if (startMs >= endMs) {
             throw new ServerError(`Start time (${startMs}) must be less than end time (${endMs}).`, 400);
         }
 
         if (startMs < 0) {
             throw new ServerError(`Start time (${startMs}) cannot be negative.`, 400);
+        }
+
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            throw new ServerError(`Marker type "${markerType}" is not valid.`, 400);
         }
     }
 }
