@@ -193,7 +193,21 @@ class PlexUI {
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
         const section = parseInt(this.#dropdown.value);
-        await PlexClientState.GetState().setSection(section, parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute('libtype')));
+        const libType = parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute('libtype'));
+        switch (libType) {
+            case SectionType.Movie:
+                this.#searchBox.placeholder = 'Search for a Movie...';
+                break;
+            case SectionType.TV:
+                this.#searchBox.placeholder = 'Search for a Show...';
+                break;
+            default:
+                Log.warn(`Unexpected library type ${libType}`);
+                this.#searchBox.placeholder = 'Search for an item...';
+                break;
+        }
+
+        await PlexClientState.GetState().setSection(section, libType);
         this.clearAllSections();
         if (!isNaN(section) && section != -1) {
             SettingsManager.Get().setLastSection(section);
