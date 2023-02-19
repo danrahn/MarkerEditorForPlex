@@ -846,9 +846,7 @@ class MovieResultRow extends ResultRow {
 
     /** Launches the purge table overlay. */
     #onMoviePurgeClick() {
-        Log.warn('MovieResultRow.#onMoviePurgeClick - NYI');
-        return;
-        // PurgedMarkerManager.GetManager().showSingleEpisode(this.episode().metadataId);
+        PurgedMarkerManager.GetManager().showSingleMovie(this.movie().metadataId);
     }
 
     /**

@@ -1020,7 +1020,7 @@ class PurgedMarkerManager {
         let episodeMarkers = this.#purgeCache.get(episodeId);
         if (!episodeMarkers) {
             // Ignore invalid requests
-            Log.warn(`PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers (${episodeId}). How did that happen?`);
+            Log.warn(`PurgedMarkerManager: Called showSingleEpisode with an episode that has no cached purged markers (${episodeId}). How did that happen?`);
             return;
         }
         // Reach into the internals of PurgedGroup to create a minified cache
@@ -1033,16 +1033,33 @@ class PurgedMarkerManager {
     }
 
     /**
-     * Core routine that invokes the right overlay.
-     * @param {PurgedShow} purgedShow The purged markers to display.
-     * @param {DisplayType} displayType The group of purged markers being displayed. */
-    #showSingle(purgedShow, displayType) {
-        if (purgedShow.count == 0) {
+     * Show purged markers for a single movie, initiated through its entry in the search results table.
+     *
+     * Identical to showSingleShow, but it's clearer than bundling them together.
+     * @param {number} movieId */
+    showSingleMovie(movieId) {
+        let movieMarkers = this.#purgeCache.get(movieId);
+        if (!movieMarkers) {
+            // Ignore invalid requests
+            Log.warn(`PurgedMarkerManager: Called showSingleMovie with a movie that has no cached purged markers (${movieId}). How did that happen?`);
             return;
         }
 
-        const html = appendChildren(buildNode('div', { id : 'purgeContainer' }),
-            new PurgeTable(purgedShow, Overlay.dismiss, displayType).html());
+        this.#showSingle(movieMarkers, DisplayType.All);
+    }
+
+    /**
+     * Core routine that invokes the right overlay.
+     * @param {PurgedShow} purgedItem The purged markers to display.
+     * @param {DisplayType} displayType The group of purged markers being displayed. */
+    #showSingle(purgedItem, displayType) {
+        if (purgedItem.count == 0) {
+            return;
+        }
+
+        const args = [purgedItem, Overlay.dismiss, displayType];
+        const table = purgedItem instanceof PurgedMovie ? new MoviePurgeTable(...args) : new TVPurgeTable(...args);
+        const html = appendChildren(buildNode('div', { id : 'purgeContainer' }), table.html());
         Overlay.build({ dismissible : true, closeButton : true }, html);
     }
 
