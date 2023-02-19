@@ -4,6 +4,7 @@ import Overlay from './inc/Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMovieData} SerializedMovieData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedShowData} SerializedShowData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedSeasonData} SerializedSeasonData */
@@ -117,18 +118,18 @@ const ServerCommand = {
     /**
      * Retrieve markers for all episodes ids in `keys`.
      * @param {number[]} keys The list of episode ids to grab the markers of.
-     * @returns {Promise<SerializedMarkerData[]>} */
+     * @returns {Promise<{[metadataId: number]: SerializedMarkerData[]}>} */
     query : async (keys) => jsonRequest('query', { keys : keys.join(',') }),
 
     /**
-     * Retrieve all TV library sections in the database.
-     * @returns {Promise<{id: number, name: string}[]} */
+     * Retrieve all Movie/TV library sections in the database.
+     * @returns {Promise<{id: number, type : number, name: string}[]} */
     getSections : async () => jsonRequest('get_sections'),
 
     /**
      * Retrieve all shows in the given section.
      * @param {number} id
-     * @returns {Promise<SerializedShowData[]>} */
+     * @returns {Promise<SerializedShowData[]|SerializedMovieData[]>} */
     getSection : async (id) => jsonRequest('get_section', { id : id }),
 
     /**
@@ -142,6 +143,13 @@ const ServerCommand = {
      * @param {number} id
      * @returns {Promise<SerializedEpisodeData>} */
     getEpisodes : async (id) => jsonRequest('get_episodes', { id : id }),
+
+    /**
+     * Return whether the given metadata item has thumbnails associated with it.
+     * Only valid for episode/movie metadata ids.
+     * @param {number} id
+     * @returns {Promise<{hasThumbnails: boolean}>} */
+    checkForThumbnails : async (id) => jsonRequest('check_thumbs', { id : id }),
 
     /**
      * Retrieve marker breakdown stats for the given section.

@@ -1,19 +1,22 @@
 /**
- * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number, episode_id : number,
- *             season_id : number, show_id : number, section_id : number, episode_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number, parent_id : number,
+ *             season_id : number, show_id : number, section_id : number, parent_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
+ * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, duration: number, marker_count: number }} RawMovieData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
  * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
  * @typedef {(err: Error?, row: RawMarkerData) => void} SingleMarkerQuery
  * @typedef {(err: Error?) => void} NoResultQuery
  * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
+ * @typedef {{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo }} MarkersWithTypeInfo
  */
 
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResultEntry} BulkAddResultEntry */
-/** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
+/** @typedef {!import('../Shared/PlexTypes.js').LibrarySection} LibrarySection */
+/** @typedef {!import('../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 
 import { Log } from '../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../Shared/PlexTypes.js';
@@ -39,12 +42,28 @@ const ExtraData = {
     get : (markerType, final) => markerType == MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
 }
 
+/**
+ * Types of media items
+ * @enum */
+const MetadataType = {
+    /** @readonly */ Invalid : 0,
+    /** @readonly */ Movie   : 1,
+    /** @readonly */ Show    : 2,
+    /** @readonly */ Season  : 3,
+    /** @readonly */ Episode : 4,
+    /** @readonly */ Artist  : 8,
+    /** @readonly */ Album   : 9,
+    /** @readonly */ Track   : 10,
+};
+
+const MetadataBaseTypes = [MetadataType.Movie, MetadataType.Episode];
+
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
 class TrimmedMarker {
     static #newMarkerId = -1;
     /** @type {number} */ id;
-    /** @type {number} */ episode_id;
+    /** @type {number} */ parent_id;
     /** @type {number} */ start;
     /** @type {number} */ end;
     /** @type {number} */ index;
@@ -55,8 +74,8 @@ class TrimmedMarker {
     /** @type {RawMarkerData} */ #raw;
     getRaw() { if (!this.#isRaw) { throw new ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
 
-    constructor(id, eid, start, end, index, markerType, final) {
-        this.id = id, this.episode_id = eid, this.start = start, this.end = end, this.index = index, this.newIndex = -1; this.marker_type = markerType, this.final = final;
+    constructor(id, pid, start, end, index, markerType, final) {
+        this.id = id, this.parent_id = pid, this.start = start, this.end = end, this.index = index, this.newIndex = -1; this.marker_type = markerType, this.final = final;
     }
 
     /** Return whether this is an existing marker */
@@ -64,7 +83,7 @@ class TrimmedMarker {
 
     /** @param {RawMarkerData} marker */
     static fromRaw(marker) {
-        let trimmed = new TrimmedMarker(marker.id, marker.episode_id, marker.start, marker.end, marker.index, marker.marker_type, marker.final);
+        let trimmed = new TrimmedMarker(marker.id, marker.parent_id, marker.start, marker.end, marker.index, marker.marker_type, marker.final);
         trimmed.#raw = marker;
         trimmed.#isRaw = true;
         return trimmed;
@@ -72,7 +91,7 @@ class TrimmedMarker {
 
     /** @param {MarkerAction} action */
     static fromBackup(action) {
-        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1, action.marker_type, action.final);
+        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.parent_id, action.start, action.end, -1, action.marker_type, action.final);
     }
 }
 
@@ -100,7 +119,7 @@ class PlexQueryManager {
     #pureMode = false;
 
     /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
-    #extendedMarkerFields = `
+    #extendedEpisodeMarkerFields = `
     taggings.id,
     taggings.\`index\`,
     taggings.text AS marker_type,
@@ -109,14 +128,33 @@ class PlexQueryManager {
     taggings.thumb_url AS modified_date,
     taggings.created_at,
     taggings.extra_data,
-    episodes.id AS episode_id,
+    episodes.id AS parent_id,
     seasons.id AS season_id,
     seasons.parent_id AS show_id,
     seasons.library_section_id AS section_id,
-    episodes.guid AS episode_guid
+    episodes.guid AS parent_guid
 FROM taggings
     INNER JOIN metadata_items episodes ON taggings.metadata_item_id = episodes.id
     INNER JOIN metadata_items seasons ON episodes.parent_id = seasons.id
+`;
+
+    /** The default fields to return for an individual movie marker. */
+    #extendedMovieMarkerFields = `
+    taggings.id,
+    taggings.\`index\`,
+    taggings.text AS marker_type,
+    taggings.time_offset AS start,
+    taggings.end_time_offset AS end,
+    taggings.thumb_url AS modified_date,
+    taggings.created_at,
+    taggings.extra_data,
+    movies.id AS parent_id,
+    -1 AS season_id,
+    -1 AS show_id,
+    movies.guid AS parent_guid,
+    movies.library_section_id AS section_id
+FROM taggings
+    INNER JOIN metadata_items movies ON taggings.metadata_item_id = movies.id
 `;
 
     /**
@@ -196,18 +234,49 @@ FROM taggings
     markerTagId() { return this.#markerTagId; }
     database() { return this.#database; }
 
-    /** Retrieve all TV show libraries in the database.
+    /** Retrieve all movie and TV show libraries in the database.
      *
      * Fields returned: `id`, `name`.
-     * @returns {Promise<{id: number, name: string}[]>} */
-    async getShowLibraries() {
-        return this.#database.all('SELECT id, name FROM library_sections WHERE section_type=2');
+     * @returns {Promise<LibrarySection[]>} */
+    async getLibraries() {
+        return this.#database.all('SELECT id, section_type AS type, name FROM library_sections WHERE section_type=1 OR section_type=2');
+    }
+
+    /**
+     * Retrieve all movies in the given library section.
+     * @param {number} sectionId
+     * @returns {Promise<RawMovieData[]>} */
+    async getMovies(sectionId) {
+        const movieQuery = `
+SELECT movies.id AS id,
+        movies.title AS title,
+        movies.title_sort AS title_sort,
+        movies.original_title AS original_title,
+        movies.year AS year,
+        MAX(files.duration) AS duration
+  FROM metadata_items movies
+  INNER JOIN media_items files ON movies.id=files.metadata_item_id
+  WHERE movies.metadata_type=1 AND movies.library_section_id=?
+  GROUP BY movies.id;
+        `;
+        return this.#database.all(movieQuery, [sectionId]);
+    }
+
+    /**
+     * Retrieve a single movie
+     * @param {number} metadataId
+     * @returns {Promise<{ id: number, title: string, title_sort: string, original_title: string, year: string }>} */
+    async getMovie(metadataId) {
+        const query = `
+SELECT id, title, title_sort, original_title, year FROM metadata_items WHERE metadata_type=1 AND id=?`;
+        return this.#database.get(query, [metadataId]);
     }
 
     /**
      * Retrieve all shows in the given library section.
      *
      * Fields returned: `id`, `title`, `title_sort`, `original_title`, `season_count`, `episode_count`.
+     * Requires the caller to validate that the given section id is a TV show library.
      * @param {number} sectionId
      * @returns {Promise<{id:number,title:string,title_sort:string,original_title:string,season_count:number,episode_count:number}[]>} */
     async getShows(sectionId) {
@@ -249,9 +318,9 @@ SELECT
     COUNT(episodes.id) AS episode_count
 FROM metadata_items seasons
     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id
-WHERE seasons.parent_id=?
+WHERE seasons.parent_id=? AND seasons.metadata_type=3
 GROUP BY seasons.id
- ORDER BY seasons.\`index\` ASC;`;
+ORDER BY seasons.\`index\` ASC;`;
 
         return this.#database.all(query, [showMetadataId]);
     }
@@ -279,7 +348,7 @@ FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id
     INNER JOIN metadata_items g ON p.parent_id=g.id
     INNER JOIN media_items m ON e.id=m.metadata_item_id
-WHERE e.parent_id=?
+WHERE e.parent_id=? AND e.metadata_type=4
 GROUP BY e.id
 ORDER BY e.\`index\` ASC;`;
 
@@ -291,6 +360,11 @@ ORDER BY e.\`index\` ASC;`;
      * @param {Iterable<number>} episodeMetadataIds
      * @returns {Promise<RawEpisodeData[]>}*/
     async getEpisodesFromList(episodeMetadataIds) {
+        if (episodeMetadataIds.length == 0) {
+            Log.warn('Why are we calling getEpisodesFromList with an empty list?');
+            return [];
+        }
+
         let query = `
     SELECT
         e.title AS title,
@@ -329,6 +403,36 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
+     * @param {Iterable<number>} episodeMetadataIds
+     * @returns {Promise<RawMovieData[]>}*/
+    async getMoviesFromList(movieMetadataIds) {
+        let query = `
+    SELECT movies.id AS id,
+        movies.title AS title,
+        movies.title_sort AS title_sort,
+        movies.original_title AS original_title,
+        movies.year AS year,
+        MAX(files.duration) AS duration
+  FROM metadata_items movies
+  INNER JOIN media_items files ON movies.id=files.metadata_item_id
+  WHERE (`;
+
+        let parameters = [];
+        for (const movieId of movieMetadataIds) {
+            parameters.push(movieId);
+            query += `movies.id=? OR `;
+        }
+
+        // Trim final ' OR '
+        query = query.substring(0, query.length - 4) + `)
+    GROUP BY movies.id
+    ORDER BY movies.title_sort ASC;`;
+
+        return this.#database.all(query, parameters);
+    }
+
+    /**
      * Retrieve episode info for an episode with the given guid, if any.
      * @param {string} guid
      * @returns {Promise<{ id: number, season_id: number, show_id: number }>} */
@@ -349,15 +453,38 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve guids for all episodes in a given section
+     * Retrieve the movie id for a movie with the given guid, if any.
+     * @param {string} guid
+     * @returns {Promise<{ id: number, season_id: -1, show_id: -1 }>} */
+    async getMovieFromGuid(guid) {
+        try {
+            return { id : (await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid])).id, season_id : -1, show_id: -1 };
+        } catch (_) {
+            return undefined;
+        }
+    }
+
+    /**
+     * Retrieve guids for all "base" items in a given section (i.e. movies or episodes)
      * @param {number} sectionId
      * @returns {Promise<{ [metadataId: number]: string }>} */
-    async episodeGuidsForSection(sectionId) {
-        const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=4;`;
-        const episodes = await this.#database.all(query, [sectionId]);
+    async baseGuidsForSection(sectionId) {
+        let sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        switch (sectionType) {
+            case MetadataType.Movie:
+                break;
+            case MetadataType.Show:
+                sectionType = MetadataType.Episode;
+                break;
+            default:
+                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+        }
+
+        const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=?;`;
+        const items = await this.#database.all(query, [sectionId, sectionType]);
         const dict = {};
-        for (const episode of episodes) {
-            dict[episode.id] = episode.guid;
+        for (const item of items) {
+            dict[item.id] = item.guid;
         }
 
         return dict;
@@ -379,19 +506,36 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve all markers for the given episodes.
-     * @param {number[]} episodeIds
+     * Retrieve all markers for the given mediaIds, which should all be either episodes
+     * or movies (and not mixed).
+     * @param {number[]} metadataIds
      * @returns {Promise<RawMarkerData[]>}*/
-    async getMarkersForEpisodes(episodeIds) {
-        let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
-        episodeIds.forEach(episodeId => {
-            if (isNaN(episodeId)) {
+    async getMarkersForItems(metadataIds) {
+        const metadataType = await this.#validateSameMetadataTypes(metadataIds);
+        if (metadataType == MetadataType.Invalid) {
+            throw new ServerError(`getMarkersForItems can only accept metadata ids that are the same metadata_type`, 400);
+        }
+
+        switch (metadataType) {
+            case MetadataType.Movie:
+                return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedMovieMarkerFields);
+            case MetadataType.Episode:
+                return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedEpisodeMarkerFields);
+            default:
+                throw new ServerError(`getMarkersForItems only expects movie or episode ids, found ${Object.keys(MetadataType).find(k => MetadataType[k] == metadataType)}.`, 400);
+        }
+    }
+
+    async #getMarkersForEpisodesOrMovies(mediaIds, extendedFields) {
+        let query = `SELECT ${extendedFields} WHERE taggings.tag_id=? AND (`;
+        mediaIds.forEach(mediaId => {
+            if (isNaN(mediaId)) {
                 // Don't accept bad keys, but don't fail the entire operation either.
-                Log.warn(episodeId, 'PlexQueryManager: Found bad key in queryIds, skipping');
+                Log.warn(mediaId, 'PlexQueryManager: Found bad key in queryIds, skipping');
                 return;
             }
 
-            query += 'metadata_item_id=' + episodeId + ' OR ';
+            query += 'metadata_item_id=' + mediaId + ' OR ';
         });
 
         // Strip trailing ' OR '
@@ -402,48 +546,58 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Retrieve all markers for a single episode.
-     * @param {number} episodeId */
-    async getEpisodeMarkers(episodeId) {
-        return this.#getMarkersForMetadataItem(episodeId, `taggings.metadata_item_id`);
+     * @param {number} metadataId
+     * @param {number} [baseType] */
+    async getBaseTypeMarkers(metadataId, baseType=undefined) {
+        if (!baseType) {
+            baseType = (await this.#mediaTypeFromId(metadataId)).metadata_type;
+        }
+
+        if (MetadataBaseTypes.indexOf(baseType) === -1) {
+            throw new ServerError(`Attempting to get markers for a base type that isn't actually a base type (${baseType})`);
+        }
+
+        return this.#getMarkersForMetadataItem(metadataId, `taggings.metadata_item_id`, this.#extendedFieldsFromMediaType(baseType));
     }
 
     /**
      * Retrieve all markers for a single season.
      * @param {number} seasonId */
     async getSeasonMarkers(seasonId) {
-        return this.#getMarkersForMetadataItem(seasonId, `seasons.id`);
+        return this.#getMarkersForMetadataItem(seasonId, `seasons.id`, this.#extendedEpisodeMarkerFields);
     }
 
     /**
      * Retrieve all markers for a single show.
      * @param {number} showId */
     async getShowMarkers(showId) {
-        return this.#getMarkersForMetadataItem(showId, `seasons.parent_id`);
+        return this.#getMarkersForMetadataItem(showId, `seasons.parent_id`, this.#extendedEpisodeMarkerFields);
     }
 
     /**
      * Retrieve all markers tied to the given metadataId.
      * @param {number} metadataId
-     * @returns {Promise<{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo}>} */
+     * @returns {Promise<MarkersWithTypeInfo>} */
     async getMarkersAuto(metadataId) {
         const typeInfo = await this.#mediaTypeFromId(metadataId);
         let where = '';
         switch (typeInfo.metadata_type) {
-            case 2: where = `seasons.parent_id`; break;
-            case 3: where = `seasons.id`; break;
-            case 4: where = `taggings.metadata_item_id`; break;
+            case MetadataType.Movie  : where = `movies.id`; break;
+            case MetadataType.Show   : where = `seasons.parent_id`; break;
+            case MetadataType.Season : where = `seasons.id`; break;
+            case MetadataType.Episode: where = `taggings.metadata_item_id`; break;
             default:
                 throw new ServerError(`Item ${metadataId} is not an episode, season, or series`, 400);
         }
 
-        const markers = await this.#getMarkersForMetadataItem(metadataId, where);
+        const markers = await this.#getMarkersForMetadataItem(metadataId, where, this.#extendedFieldsFromMediaType(typeInfo.metadata_type));
         return { markers : markers, typeInfo : typeInfo };
     }
 
     /**
      * Retrieve the media type and section id for item with the given metadata id.
      * @param {number} metadataId
-     * @returns {Promise<MetadataItemTypeInfo} */
+     * @returns {Promise<MetadataItemTypeInfo>} */
     async #mediaTypeFromId(metadataId) {
         const row = await this.#database.get('SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE id=?;', [metadataId]);
         if (!row) {
@@ -454,13 +608,70 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Ensure that the list of metadata ids all point to the same media type.
+     * @param {number[]} metadataIds 
+     * @returns {Promise<number>} */
+    async #validateSameMetadataTypes(metadataIds) {
+        if (metadataIds.length == 0) {
+            return MetadataType.Invalid;
+        }
+
+        let query = 'SELECT metadata_type, library_section_id AS section_id FROM metadata_items WHERE (';
+        for (const metadataId of metadataIds) {
+            if (isNaN(metadataId)) {
+                Log.warn(metadataId, 'Invalid metadata id in validateSameMetadataTypes');
+                return MetadataType.Invalid;
+            }
+
+            query += `id=${metadataId} OR `;
+        }
+
+        // Strip trailing ' OR '
+        query = query.substring(0, query.length - 4) + ');';
+        /** @type {MetadataItemTypeInfo[]} */
+        const items = await this.#database.all(query);
+        if (items.length != metadataIds.length) {
+            Log.warn(`validateSameMetadataTypes: ${metadataIds.length - items.length} metadata ids to not exist in the database.`);
+            return MetadataType.Invalid;
+        }
+
+        const metadataType = items[0].metadata_type;
+        for (const item of items) {
+            if (item.metadata_type != metadataType) {
+                Log.warn(`validateSameMetadataTypes: Metadata ids have different metadata types.`);
+                return MetadataType.Invalid;
+            }
+        }
+
+        return metadataType;
+    }
+
+    /**
+     * Retrieve the media type and section id for the item associated with the given marker.
+     * @param {number} markerId 
+     * @returns {Promise<MetadataItemTypeInfo} */
+    async #mediaTypeFromMarkerId(markerId) {
+        const row = await this.#database.get(
+            `SELECT metadata_type, library_section_id AS section_id
+            FROM metadata_items
+            INNER JOIN taggings ON taggings.metadata_item_id=metadata_items.id
+            WHERE taggings.id=?`, [markerId]);
+        if (!row) {
+            throw new ServerError(`Marker ${markerId} not found in database.`, 400);
+        }
+
+        return row;
+    }
+
+    /**
      * Retrieve all markers tied to the given metadataId.
      * @param {number} metadataId
      * @param {string} whereClause The field to match against `metadataId`.
+     * @param {string} extendedFields The SELECTed fields to retrieve.
      * @returns {Promise<RawMarkerData[]>} */
-    async #getMarkersForMetadataItem(metadataId, whereClause) {
+    async #getMarkersForMetadataItem(metadataId, whereClause, extendedFields) {
         return this.#postProcessExtendedMarkerFields(await this.#database.all(
-            `SELECT ${this.#extendedMarkerFields}
+            `SELECT ${extendedFields}
             WHERE ${whereClause}=? AND taggings.tag_id=?
             ORDER BY taggings.time_offset ASC;`,
             [metadataId, this.#markerTagId]));
@@ -473,27 +684,46 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} markerId
      * @returns {Promise<RawMarkerData>} */
     async getSingleMarker(markerId) {
+        const markerFields = this.#extendedFieldsFromMediaType((await this.#mediaTypeFromMarkerId(markerId)).metadata_type);
         return this.#postProcessExtendedMarkerFields(await this.#database.get(
-            `SELECT ${this.#extendedMarkerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
+            `SELECT ${markerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
             [markerId, this.#markerTagId]));
     }
 
     /**
+     * Given a MetadataType, determine what fields to include when
+     * querying for markers.
+     * @param {number} mediaType
+     * @returns {string} */
+    #extendedFieldsFromMediaType(mediaType) {
+        switch (mediaType) {
+            case MetadataType.Movie:
+                return this.#extendedMovieMarkerFields;
+            case MetadataType.Show:
+            case MetadataType.Season:
+            case MetadataType.Episode:
+                return this.#extendedEpisodeMarkerFields;
+            default:
+                throw new ServerError(mediaType, `Unexpected media type`);
+        }
+    }
+
+    /**
      * Add a marker to the database, taking care of reindexing if necessary.
-     * @param {number} metadataId The metadata id of the episode to add the marker to.
+     * @param {number} metadataId The metadata id of the item to add the marker to.
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
      * @param {string} markerType The type of marker
      * @param {number} final Whether this marker should be marked final. Only applies to Credits
      * @returns {Promise<{ allMarkers: RawMarkerData[], newMarker: RawMarkerData}>} */
     async addMarker(metadataId, startMs, endMs, markerType, final) {
-        // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
+        // Ensure metadataId is a base type, it doesn't make sense to add one to any other media type
         const typeInfo = await this.#mediaTypeFromId(metadataId);
-        if (typeInfo.metadata_type != 4) {
-            throw new ServerError(`Attempting to add marker to a media item that's not an episode!`, 400);
+        if (MetadataBaseTypes.indexOf(typeInfo.metadata_type) === -1) {
+            throw new ServerError(`Attempting to add marker to a media item that's not a base type!`, 400);
         }
 
-        const allMarkers = await this.getEpisodeMarkers(metadataId);
+        const allMarkers = await this.getBaseTypeMarkers(metadataId);
         const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
         if (newIndex == -1) {
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
@@ -515,7 +745,7 @@ ORDER BY e.\`index\` ASC;`;
         // Insert succeeded, update indexes of other markers if necessary
         await this.reindex(metadataId);
 
-        const newMarker = await this.getNewMarker(metadataId, startMs, endMs);
+        const newMarker = await this.#getNewMarker(metadataId, startMs, endMs, typeInfo.metadata_type);
         return { allMarkers : allMarkers, newMarker : newMarker };
     }
 
@@ -542,22 +772,23 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
+     * @param {number} sectionType The type of section we're restoring for (i.e. TV or movie)
      * @returns {Promise<{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[]}} */
-    async bulkRestore(actions) {
+    async bulkRestore(actions, sectionType) {
         /** @type {RawMarkerData[]} */
         let markerList;
         try {
-            markerList = await this.getMarkersForEpisodes(Object.keys(actions));
+            markerList = await this.getMarkersForItems(Object.keys(actions));
         } catch (err) {
             throw new ServerError(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`, 500);
         }
 
         // One query + postprocessing is faster than a query for each episode
-        /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
+        /** @type {{ [parent_id: number] : TrimmedMarker[] }} */
         let existingMarkers = {};
         for (const marker of markerList) {
             Log.tmi(marker, 'Adding existing marker');
-            (existingMarkers[marker.episode_id] ??= []).push(TrimmedMarker.fromRaw(marker));
+            (existingMarkers[marker.parent_id] ??= []).push(TrimmedMarker.fromRaw(marker));
         }
 
         let expectedInserts = 0;
@@ -627,7 +858,7 @@ ORDER BY e.\`index\` ASC;`;
         // All markers were added successfully. Now query them all to return back to the backup manager
         // so it can update caches accordingly.
         let params = [this.#markerTagId];
-        let query = `SELECT ${this.#extendedMarkerFields} WHERE taggings.tag_id=? AND (`;
+        let query = `SELECT ${this.#extendedFieldsFromMediaType(sectionType)} WHERE taggings.tag_id=? AND (`;
         for (const newMarkers of Object.values(existingMarkers)) {
             for (const newMarker of newMarkers) {
                 if (newMarker.existing()) {
@@ -635,7 +866,7 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 query += '(taggings.metadata_item_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?) OR ';
-                params.push(newMarker.episode_id, newMarker.start, newMarker.end);
+                params.push(newMarker.parent_id, newMarker.start, newMarker.end);
             }
         }
 
@@ -721,39 +952,60 @@ ORDER BY e.\`index\` ASC;`;
      * Retrieve a marker that was just added to the database.
      *
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
-     * @param {number} metadataId The metadata id of the episode the marker belongs to.
-     * @param {number} index The index of the marker in the marker table.
+     * @param {number} metadataId The metadata id of the item the marker belongs to.
+     * @param {number} startMs The start time of the new marker.
+     * @param {number} endMs The end time of the new marker.
+     * @param {number} baseType The type of item this marker is attached to (movie/episode)
      * @returns {Promise<RawMarkerData>} */
-    async getNewMarker(metadataId, startMs, endMs) {
+    async #getNewMarker(metadataId, startMs, endMs, baseType) {
         return this.#postProcessExtendedMarkerFields(await this.#database.get(
-            `SELECT ${this.#extendedMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
+            `SELECT ${this.#extendedFieldsFromMediaType(baseType)} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
             [metadataId, this.#markerTagId, startMs, endMs]));
     }
 
     /**
      * Retrieve all episodes and their markers (if any) in the given section.
      *
-     * Fields returned: `episode_id`, `tag_id`
+     * Fields returned: `parent_id`, `tag_id`
+     * TODO: Movies
      * @param {number} sectionId
-     * @returns {Promise<{episode_id: number, tag_id: number}[]>} */
+     * @returns {Promise<{parent_id: number, tag_id: number}[]>} */
     async markerStatsForSection(sectionId) {
-        // Note that the query below that grabs _all_ tags for an episode and discarding
+        const baseType = await this.#baseItemTypeFromSection(sectionId);
+        // Note that the query below that grabs _all_ tags for an item and discarding
         // those that aren't intro markers is faster than doing an outer join on a
         // temporary taggings table that only includes markers
         const query = `
-SELECT e.id AS episode_id, m.tag_id AS tag_id FROM metadata_items e
-    LEFT JOIN taggings m ON e.id=m.metadata_item_id
-WHERE e.library_section_id=? AND e.metadata_type=4
-ORDER BY e.id ASC;`;
+        SELECT b.id AS parent_id, m.tag_id AS tag_id FROM metadata_items b
+            LEFT JOIN taggings m ON b.id=m.metadata_item_id
+        WHERE b.library_section_id=? AND e.metadata_type=?
+        ORDER BY b.id ASC;`;
 
-        return this.#database.all(query, [sectionId]);
+        return this.#database.all(query, [sectionId, baseType]);
+    }
+
+    /**
+     * Retrieve the base item type for a given section, i.e. the media type
+     * that can actually have markers associated with it.
+     * @param {number} sectionId
+     * @returns {Promise<number>} */
+    async #baseItemTypeFromSection(sectionId) {
+        const sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        switch (sectionType) {
+            case MetadataType.Movie:
+                return sectionType;
+            case MetadataType.Show:
+                return MetadataType.Episode;
+            default:
+                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+        }
     }
 
     /**
      * Return the ids and UUIDs for all sections in the database.
-     * @returns {Promise<{ id: number, uuid: string }[]>} */
+     * @returns {Promise<{ id: number, uuid: string, section_type: number }[]>} */
     async sectionUuids() {
-        return this.#database.all('SELECT id, uuid FROM library_sections;');
+        return this.#database.all('SELECT id, uuid, section_type FROM library_sections;');
     }
 
     /**
@@ -776,9 +1028,9 @@ ORDER BY e.id ASC;`;
                 ++expectedShifts;
                 const userCreated = marker.modified_date < 0;
                 const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
-                let maxDuration = limits[marker.episode_id];
+                let maxDuration = limits[marker.parent_id];
                 if (!maxDuration) {
-                    throw new ServerError(`Unable to find max episode duration, the episode id ${marker.episode_id} doesn't appear to be valid.`);
+                    throw new ServerError(`Unable to find max episode duration, the episode id ${marker.parent_id} doesn't appear to be valid.`);
                 }
 
                 const newStart = Math.max(0, Math.min(marker.start + startShift, maxDuration));
@@ -796,8 +1048,9 @@ ORDER BY e.id ASC;`;
             }
         }
 
+        // TODO: Movies? Do we want to surface bulk actions? Makes less sense for movies versus all episodes of a season.
         await transaction.exec();
-        const newMarkers = await this.getMarkersForEpisodes(episodeIds);
+        const newMarkers = await this.getMarkersForItems(episodeIds);
         // No ignored markers, no need to prune
         if (newMarkers.length == expectedShifts) {
             return newMarkers;
@@ -805,7 +1058,7 @@ ORDER BY e.id ASC;`;
 
         const pruned = [];
         for (const marker of newMarkers) {
-            if (markers[marker.episode_id] && markers[marker.episode_id].find(x => x.id == marker.id)) {
+            if (markers[marker.parent_id] && markers[marker.parent_id].find(x => x.id == marker.id)) {
                 pruned.push(marker);
             }
         }
@@ -823,7 +1076,7 @@ ORDER BY e.id ASC;`;
         /** @type {{[episodeId: number]: RawMarkerData[]}} */
         const episodeMap = {};
         for (const marker of markerInfo.markers) {
-            (episodeMap[marker.episode_id] ??= []).push(marker);
+            (episodeMap[marker.parent_id] ??= []).push(marker);
         }
 
         const transaction = new TransactionBuilder(this.#database);
@@ -861,7 +1114,7 @@ ORDER BY e.id ASC;`;
 
     /**
      * Add a marker to every episode under metadataId (a show, season, or episode id)
-     * @param {RawMarkerData[]} markerData Existing markers for the given metadata id.
+     * @param {MarkersWithTypeInfo} markerData Existing markers for the given metadata id.
      * @param {number} metadataId
      * @param {number} baseStart Marker start, in milliseconds
      * @param {number} baseEnd Marker end, in milliseconds
@@ -878,16 +1131,16 @@ ORDER BY e.id ASC;`;
         const episodeIds = new Set();
         const newIgnoredEpisodes = [];
         switch (markerData.typeInfo.metadata_type) {
-            case 4: // Single episode. No reason to go through bulk, but might as well support it
+            case MetadataType.Episode: // Single episode. No reason to go through bulk, but might as well support it
                 if (!ignoredEpisodes.has(metadataId)) { episodeIds.add(metadataId); }
                 break;
-            case 3: // Season
+            case MetadataType.Season:
             {
                 const ids = await this.#database.all(`SELECT id FROM metadata_items WHERE parent_id=?;`, [metadataId]);
                 ids.forEach(i => episodeIds.add(i.id));
                 break;
             }
-            case 2: // Show
+            case MetadataType.Show:
             {
                 const ids = await this.#database.all(`SELECT e.id FROM metadata_items e INNER JOIN metadata_items p ON p.id=e.parent_id WHERE p.parent_id=?;`, [metadataId]);
                 ids.forEach(i => episodeIds.add(i.id));
@@ -903,7 +1156,7 @@ ORDER BY e.id ASC;`;
         /** @type {{[episodeId: number]: BulkAddResultEntry}} */
         const episodeMarkerMap = {};
         episodeData.forEach(e => episodeMarkerMap[e.id] = { episodeData : new EpisodeData(e), existingMarkers : [] });
-        existingMarkers.forEach(m => episodeMarkerMap[m.episode_id].existingMarkers.push(new MarkerData(m)));
+        existingMarkers.forEach(m => episodeMarkerMap[m.parent_id].existingMarkers.push(new MarkerData(m)));
         Object.values(episodeMarkerMap).forEach(ed => ed.existingMarkers.sort((a, b) => a.start - b.start));
 
         // For dry runs, we just return all episodes and their associated markers (if any)
@@ -916,7 +1169,7 @@ ORDER BY e.id ASC;`;
 
         // First conflict pass
         for (const marker of existingMarkers) {
-            if (ignoredEpisodes.has(marker.episode_id)) { continue; }
+            if (ignoredEpisodes.has(marker.parent_id)) { continue; }
             if (baseStart <= marker.start ? baseEnd >= marker.start : baseStart <= marker.end) {
                 // Conflict.
                 if (resolveType == BulkMarkerResolveType.Fail) {
@@ -929,9 +1182,9 @@ ORDER BY e.id ASC;`;
                 }
 
                 if (resolveType == BulkMarkerResolveType.Ignore) {
-                    episodeIds.delete(marker.episode_id);
-                    ignoredEpisodes.add(marker.episode_id);
-                    newIgnoredEpisodes.push(marker.episode_id);
+                    episodeIds.delete(marker.parent_id);
+                    ignoredEpisodes.add(marker.parent_id);
+                    newIgnoredEpisodes.push(marker.parent_id);
                 }
             }
         }
@@ -1005,14 +1258,14 @@ ORDER BY e.id ASC;`;
         for (const marker of newMarkers) {
             const markerData = new MarkerData(marker);
             if (mergeEdited.has(marker.id)) {
-                episodeMarkerMap[marker.episode_id].changedMarker = markerData;
-            } else if (plainAdd.has(marker.episode_id) && marker.start == baseStart) {
+                episodeMarkerMap[marker.parent_id].changedMarker = markerData;
+            } else if (plainAdd.has(marker.parent_id) && marker.start == baseStart) {
                 // End may be truncated, so only check for start. All the checks above should guarantee
                 // that only checking the start is unique.
-                episodeMarkerMap[marker.episode_id].changedMarker = markerData;
+                episodeMarkerMap[marker.parent_id].changedMarker = markerData;
             }
 
-            episodeMarkerMap[marker.episode_id].existingMarkers.push(markerData);
+            episodeMarkerMap[marker.parent_id].existingMarkers.push(markerData);
         }
 
         Object.values(episodeMarkerMap).forEach(eg => eg.existingMarkers.sort((a, b) => a.start - b.start));
@@ -1024,4 +1277,4 @@ ORDER BY e.id ASC;`;
     }
 }
 
-export { PlexQueryManager, Instance as PlexQueries, ExtraData };
+export { PlexQueryManager, Instance as PlexQueries, ExtraData, MetadataType };

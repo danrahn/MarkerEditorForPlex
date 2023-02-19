@@ -88,13 +88,13 @@ tr:nth-child(even):hover {
   border: 1px solid #666;
 }
 
-.showResult,
+.topLevelResult,
 .seasonResult,
 .bulkResultRow {
   border-bottom: 1px solid #999;
 }
 
-.showResult:hover,
+.topLevelResult:hover,
 .seasonResult:hover,
 .episodeResult:hover,
 .bulkResultRow:hover {

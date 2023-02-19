@@ -123,7 +123,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) {
-        const cached = this.#cache.getEpisode(metadataId);
+        const cached = this.#cache.getItem(metadataId);
         if (cached) {
             return cached.hasThumbs;
         }
@@ -148,12 +148,12 @@ class BifThumbnailManager extends ThumbnailManager {
         if (newest.path.length > 0) {
             const extra = newest.found > 1 ? ` (newest of ${newest.found})` : '';
             Log.verbose(newest.path, `Found thumbnail index file for ${metadataId}${extra}`);
-            this.#cache.addEpisode(metadataId, true, newest.path);
+            this.#cache.addItem(metadataId, true, newest.path);
             return true;
         }
 
         Log.verbose(`Did not find thumbnail index file for ${metadataId}`);
-        this.#cache.addEpisode(metadataId, false);
+        this.#cache.addItem(metadataId, false);
         return false;
     }
 
@@ -165,7 +165,7 @@ class BifThumbnailManager extends ThumbnailManager {
         // Use 1s as the smallest possible interval. 2 is the default, and I'd be very surprised
         // if anyone made is less than that, but better safe than sorry I guess.
         timestamp = Math.floor(timestamp / 1000);
-        if (!this.#cache.getEpisode(metadataId)) {
+        if (!this.#cache.getItem(metadataId)) {
             await this.hasThumbnails(metadataId);
         }
 
@@ -180,7 +180,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId The metadata id for the episode.
      * @param {number} timestamp The timestamp of the thumbnail, in seconds. */
     async #getThumbnailCore(metadataId, timestamp) {
-        const thumbCache = this.#cache.getEpisode(metadataId);
+        const thumbCache = this.#cache.getItem(metadataId);
         if (!thumbCache || !thumbCache.hasThumbs) {
             // We only expect to be called if thumbnails are actually available.
             throw new ServerError(`No thumbnails for ${metadataId}`);
@@ -206,7 +206,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} timestamp The timestamp of the thumbnail, in seconds.
      * @returns {Promise<Buffer>}*/
     async #readThumbnail(metadataId, timestamp) {
-        const thumbCache = this.#cache.getEpisode(metadataId);
+        const thumbCache = this.#cache.getItem(metadataId);
         return new Promise((resolve, reject) => {
 
             // File layout:
@@ -296,7 +296,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId The episode metadata id. */
     async hasThumbnails(metadataId) {
         // Check whether the file exists/we have access to it.
-        let cached = this.#cache.getEpisode(metadataId);
+        let cached = this.#cache.getItem(metadataId);
         if (cached) {
             return cached.hasThumbs;
         }
@@ -306,13 +306,13 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         for (const file of rows) {
             if (existsSync(file.file)) {
                 Log.verbose(file.file, `Found file for ${metadataId}`);
-                this.#cache.addEpisode(metadataId, true, file.file, file.duration);
+                this.#cache.addItem(metadataId, true, file.file, file.duration);
                 return true;
             }
         }
 
         Log.verbose(`No file found for ${metadataId}`);
-        this.#cache.addEpisode(metadataId, false);
+        this.#cache.addItem(metadataId, false);
         return false;
     }
 
@@ -321,7 +321,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId Episode metadata id.
      * @param {number} timestamp Timestamp, in milliseconds. */
     async getThumbnail(metadataId, timestamp) {
-        if (!this.#cache.getEpisode(metadataId)) {
+        if (!this.#cache.getItem(metadataId)) {
             await this.hasThumbnails(metadataId);
         }
 
@@ -333,11 +333,11 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId Metadata id of the episode
      * @param {number} timestamp Timestamp, in milliseconds */
     async #getThumbnailCore(metadataId, timestamp) {
-        if (!this.#cache.getEpisode(metadataId)?.hasThumbs) {
+        if (!this.#cache.getItem(metadataId)?.hasThumbs) {
             throw new ServerError(`No thumbnails for ${metadataId}`);
         }
 
-        const maxDuration = this.#cache.getEpisode(metadataId).duration;
+        const maxDuration = this.#cache.getItem(metadataId).duration;
 
         // Don't get _too_ accurate, round to the nearest tenth, which might help with caching too.
         timestamp = Math.round(Math.min(maxDuration, Math.floor(timestamp / 100) * 100));
@@ -366,7 +366,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         }
 
         mkdirSync(savePath, { recursive : true });
-        let episodeCache = this.#cache.getEpisode(metadataId);
+        let episodeCache = this.#cache.getItem(metadataId);
         const execStart = performance.now();
         execFileSync('ffmpeg', [
             '-loglevel', 'error',         // We don't care about the output
@@ -423,7 +423,7 @@ class CacheMap {
     /** Sets how many ticks pass before we prune the cache.
      * @type {number} */
     #maxTick = 20;
-    /** @type {{[metadataId: number]: EpisodeCache}} */
+    /** @type {{[metadataId: number]: MediaItemCache}} */
     #cacheMap = {};
 
     /**
@@ -436,8 +436,8 @@ class CacheMap {
     /**
      * Internal base implementation called by derived classes.
      * @param {number} metadataId
-     * @param {EpisodeCache} episodeCache */
-    _addEpisode(metadataId, episodeCache) {
+     * @param {MediaItemCache} episodeCache */
+    _addItem(metadataId, episodeCache) {
         this.#cacheMap[metadataId] = episodeCache;
     }
 
@@ -459,7 +459,7 @@ class CacheMap {
     /**
      * Retrieve episode thumbnail information.
      * @param {number} metadataId Episode metadata id. */
-    getEpisode(metadataId) {
+    getItem(metadataId) {
         return this.#cacheMap[metadataId] || false;
     }
 
@@ -513,14 +513,14 @@ class BifCacheMap extends CacheMap {
         super(maxCache);
     }
 
-    addEpisode(metadataId, hasThumbs, bifPath='') {
-        this._addEpisode(metadataId, new BifEpisodeCache(hasThumbs, bifPath));
+    addItem(metadataId, hasThumbs, bifPath='') {
+        this._addItem(metadataId, new BifMediaItemCache(hasThumbs, bifPath));
     }
 
     /**
      * @param {number} metadataId
-     * @returns {BifEpisodeCache} */
-    getEpisode(metadataId) { return super.getEpisode(metadataId) } // Just for intellisense
+     * @returns {BifMediaItemCache} */
+    getItem(metadataId) { return super.getItem(metadataId) } // Just for intellisense
 }
 
 /**
@@ -531,20 +531,20 @@ class FfmpegCacheMap extends CacheMap {
         super(maxCache);
     }
 
-    addEpisode(metadataId, hasThumbs, filePath='', duration=0) {
-        this._addEpisode(metadataId, new FfmpegEpisodeCache(hasThumbs, filePath, duration));
+    addItem(metadataId, hasThumbs, filePath='', duration=0) {
+        this._addItem(metadataId, new FfmpegMediaItemCache(hasThumbs, filePath, duration));
     }
 
     /**
      * @param {number} metadataId 
-     * @returns {FfmpegEpisodeCache} */
-    getEpisode(metadataId) { return super.getEpisode(metadataId) } // Just for intellisense
+     * @returns {FfmpegMediaItemCache} */
+    getItem(metadataId) { return super.getItem(metadataId) } // Just for intellisense
 }
 
 /** @typedef {{[timestamp: number]: CachedThumbnail}} ThumbnailMap */
 
 /** Base interface that information about the thumbnail status for an episode, including any cached thumbnails. */
-class EpisodeCache {
+class MediaItemCache {
     /** Whether this episode has thumbnails available.
      * @type {boolean} */
     hasThumbs;
@@ -560,7 +560,7 @@ class EpisodeCache {
 
 
 /** Extension of EpisodeCache that adds information about the index-sd.bif file for an episode. */
-class BifEpisodeCache extends EpisodeCache {
+class BifMediaItemCache extends MediaItemCache {
 
     /** The path to `index-sd.bif`, if `hasThumbs` is `true`.
      * @type {string} */
@@ -581,7 +581,7 @@ class BifEpisodeCache extends EpisodeCache {
 }
 
 /** Extension of EpisodeCache that adds information about the file path to an episode. */
-class FfmpegEpisodeCache extends EpisodeCache {
+class FfmpegMediaItemCache extends MediaItemCache {
     /** @type {string} */
     filePath;
     /** @type {number} */

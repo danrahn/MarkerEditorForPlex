@@ -1,4 +1,4 @@
-import { appendChildren, buildNode, msToHms } from './Common.js';
+import { appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 
@@ -7,7 +7,7 @@ import Overlay from './inc/Overlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ExistingMarkerRow, MarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import TableElements from './TableElements.js';
-import { EpisodeResultRow } from './ResultRow.js';
+import { ResultRow } from './ResultRow.js';
 
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.
@@ -19,12 +19,12 @@ class MarkerTable {
     #html;
 
     /**
-     * The episode UI that this table is attached to.
-     * @type {EpisodeResultRow} */
+     * The episode/movie UI that this table is attached to.
+     * @type {ResultRow} */
     #parentRow;
 
     /**
-     * The array of existing markers for this episode.
+     * The array of existing markers for this item.
      * @type {MarkerData[]} */
     #markers = [];
 
@@ -34,9 +34,16 @@ class MarkerTable {
     #rows = [];
 
     /**
+     * The number of markers we expect in this table before actually populating it.
+     * Only used by movies.
+     * @type {number?} */
+    #cachedMarkerCount = undefined;
+
+    /**
      * @param {MarkerData[]} markers The markers to add to this table.
-     * @param {EpisodeResultRow} parentRow The episode UI that this table is attached to. */
-    constructor(markers, parentRow) {
+     * @param {ResultRow} parentRow The episode/movie UI that this table is attached to.
+     * @param {boolean} [lazyLoad=false] Whether we expect our marker data to come in later, so don't populate the table yet. */
+    constructor(markers, parentRow, lazyLoad=false, cachedMarkerCount=0) {
         this.#parentRow = parentRow;
         this.#markers = markers.sort((a, b) => a.start - b.start);
         let container = buildNode('div', { class : 'tableHolder' });
@@ -54,14 +61,18 @@ class MarkerTable {
         );
 
         let rows = buildNode('tbody');
-        if (markers.length == 0) {
-            rows.appendChild(TableElements.noMarkerRow());
-        }
+        if (!lazyLoad) {
+            if (markers.length == 0) {
+                rows.appendChild(TableElements.noMarkerRow());
+            }
 
-        for (const marker of markers) {
-            const markerRow = new ExistingMarkerRow(marker);
-            this.#rows.push(markerRow);
-            rows.appendChild(markerRow.row());
+            for (const marker of markers) {
+                const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
+                this.#rows.push(markerRow);
+                rows.appendChild(markerRow.row());
+            }
+        } else {
+            this.#cachedMarkerCount = cachedMarkerCount;
         }
 
         rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this))));
@@ -70,11 +81,37 @@ class MarkerTable {
         this.#html = container;
     }
 
+    /**
+     * @param {MarkerData[]} markers */
+    lazyInit(markers) {
+        if (this.#markers.length !== 0) {
+            // Reset data
+            Log.warn(`Attempting to lazy-init a marker table that already has markers!`);
+            clearEle(this.#tbody());
+        }
+
+        this.#markers = markers.sort((a, b) => a.start - b.start);
+        const tbody = this.#tbody();
+        const addMarkerRow = tbody.children[0];
+        if (markers.length == 0) {
+            tbody.insertBefore(TableElements.noMarkerRow(), addMarkerRow);
+        }
+
+        for (const marker of markers) {
+            const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
+            this.#rows.push(markerRow);
+
+            tbody.insertBefore(markerRow.row(), addMarkerRow);
+        }
+
+        this.#cachedMarkerCount = undefined;
+    }
+
     /** @returns {HTMLElement} The raw HTML of the marker table. */
     table() { return this.#html; }
 
     /** @returns {number} The number of markers this episode has (not including in-progress additions). */
-    markerCount() { return this.#markers.length; }
+    markerCount() { return this.#cachedMarkerCount !== undefined ? this.#cachedMarkerCount : this.#markers.length; }
 
     /**
      * Returns whether a marker the user wants to add/edit is valid.
@@ -120,6 +157,15 @@ class MarkerTable {
       * @param {MarkerData} newMarker The marker to add.
       * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
     addMarker(newMarker, oldRow) {
+        if (this.#cachedMarkerCount !== undefined) {
+            // Assume that addMarker calls coming in when our table isn't initialized
+            // is coming from purge restores and just update the count/breakdown.
+            Log.tmi(`Got an addMarker call without an initialized table, updating cache count.`);
+            ++this.#cachedMarkerCount;
+            this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
+            return;
+        }
+
         //  oldRow will be null if a marker was added via purge restoration
         if (oldRow) {
             this.removeTemporaryMarkerRow(oldRow);
@@ -141,7 +187,7 @@ class MarkerTable {
             ++newIndex;
         }
 
-        const newRow = new ExistingMarkerRow(newMarker);
+        const newRow = new ExistingMarkerRow(newMarker, this.#parentRow);
         this.#rows.splice(newIndex, 0, newRow);
         this.#markers.splice(newIndex, 0, newMarker);
         tableBody.insertBefore(newRow.row(), tableBody.children[newIndex]);
@@ -248,7 +294,7 @@ class MarkerTable {
     /**
      * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row. */
     #onMarkerAdd() {
-        const addRow = new NewMarkerRow(this.#parentRow.episode().metadataId);
+        const addRow = new NewMarkerRow(this.#parentRow);
         const tbody = this.#tbody();
         tbody.insertBefore(addRow.row(), tbody.lastChild);
         this.#rows.push(addRow);

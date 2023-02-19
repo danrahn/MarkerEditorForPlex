@@ -108,7 +108,7 @@ input:focus-visible {
   margin: auto;
 }
 
-#showlist,
+#toplevellist,
 #seasonlist,
 #episodelist {
   max-width: 1000px;
@@ -164,7 +164,7 @@ input:focus-visible {
   vertical-align: middle;
 }
 
-.showResult,
+.topLevelResult,
 .seasonResult,
 .episodeResult,
 .bulkResultRow {
@@ -172,24 +172,24 @@ input:focus-visible {
   cursor: pointer;
 }
 
-.showResult,
+.topLevelResult,
 .seasonResult,
 .bulkResultRow {
   justify-content: center;
 }
 
-.showResult {
+.topLevelResult {
   padding: 10px;
 }
 
-.showResult:hover,
+.topLevelResult:hover,
 .seasonResult:hover,
 .episodeResult:hover,
 .bulkResultRow:hover {
   font-weight: bold;
 }
 
-.showResult>div,
+.topLevelResult>div,
 .bulkResultRow>div {
   flex: 1;
 }
@@ -223,7 +223,7 @@ input:focus-visible {
   justify-content: space-between;
 }
 
-.episodeName {
+.episodeName, .movieName {
   padding-left: 10px;
 }
 

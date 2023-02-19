@@ -84,7 +84,7 @@ class BulkDeleteOverlay {
         );
 
         for (const marker of sortedMarkers) {
-            this.#table.addRow(new BulkDeleteRow(this.#table, marker, data.episodeData[marker.episodeId]));
+            this.#table.addRow(new BulkDeleteRow(this.#table, marker, data.episodeData[marker.parentId]));
         }
 
         $('#bulkActionContainer').appendChild(this.#table.html());
@@ -113,7 +113,7 @@ class BulkDeleteRow extends BulkActionRow {
     /** Construct the table row. */
     build() {
         const row = this.buildRow(
-            this.createCheckbox(true /*checked*/, this.#marker.id, this.#marker.episodeId),
+            this.createCheckbox(true /*checked*/, this.#marker.id, this.#marker.parentId),
             `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
             TableElements.customClassColumn(this.#episode.title, 'bulkActionEpisodeColumn'),
             TableElements.timeData(this.#marker.start),

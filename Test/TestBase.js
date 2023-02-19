@@ -308,7 +308,18 @@ class TestBase {
                     Marker1: { Id : 6, Start : 13000, End : 47000, Index : 0, Type : 'intro', Final : false }, },
             },
         },
+        Movie1 : { Id : 100, },
+        Movie2 : { Id : 101,
+            Marker1: { Id : 7, Start : 10000, End : 30000, Index : 0, Type : 'intro', Final : false },
+            Marker2: { Id : 8, Start : 40000, End : 45000, Index : 1, Type : 'credits', Final : false },
+            Marker3: { Id : 9, Start : 55000, End : 60000, Index : 2, Type : 'credits', Final : true },
+        },
+        Movie3 : { Id : 102,
+            Marker1: { Id: 10, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
+        }
     }
+
+    static NextMarkerIndex = 11;
 
     /**
      * Create the minimal recreation of the Plex database and enter some default metadata and marker items. */
@@ -323,15 +334,16 @@ class TestBase {
         // Create the intro marker tag.
         const introInsert = `INSERT INTO tags (tag_type) VALUES (12);`;
 
-        // Create a single TV library, and a movie library
+        // Create a single TV, Movie, and Music library.
         const sectionInsert = `
         INSERT INTO library_sections (library_id, name, section_type, uuid)
         VALUES                       (1,          "TV", 2,            "94319c6e-16c0-11ed-861d-0242ac120002"),
-                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc");`;
+                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc"),
+                                     (3,       "Music", 8,            "27465ca2-2a7f-48b5-b5a2-d70da84f1cd9");`;
 
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override
         //       what's added to accommodate any scenario. Also have a map that indicates what's available
-        // Type - 2=show, 3=season, 4=episode
+        // Type - 2=show, 3=season, 4=episode, 8=artist, 9=album, 10=track
         // Index - show=1, everything else = season/episode index
         // inserting id isn't necessary, just helpful for tracking
         const metadataInsert = `
@@ -353,7 +365,13 @@ class TestBase {
                                    (15, 1,                  3,             11,        "Season2",  2,        "e"),
                                    (16, 1,                  4,             15,        "Episode1", 1,        "f"),
 
-                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00");`;
+                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00"),
+                                   (101,2,                  1,             NULL,      "Movie2",   1,        "01"),
+                                   (102,2,                  1,             NULL,      "Movie3",   1,        "02"),
+                                   
+                                   (200,3,                  8,             NULL,      "Artist1",  1,        "03"),
+                                   (201,3,                  9,             200,       "Album1",   1,        "04"),
+                                   (202,3,                  10,            201,       "Track1",   1,        "05");`;
 
         // Need existing media, but only the metadata_item_id and duration field (for now)
         // Make them all 10 minutes (10*60*1000=6000000)
@@ -366,7 +384,10 @@ class TestBase {
                                 (10,               600000),
                                 (13,               600000),
                                 (14,               600000),
-                                (16,               600000);`;
+                                (16,               600000),
+                                (100,              600000),
+                                (101,              600000),
+                                (102,              600000);`;
 
         return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + mediaInsert + this.defaultMarkers());
     }
@@ -389,7 +410,7 @@ class TestBase {
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
-                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, (strftime('%s','now')), "${markerType == 'intro' ? ExtraData.Intro : isFinal ? ExtraData.CreditsFinal : ExtraData.Credits}");\n`;
+                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, (strftime('%s','now')), "${ExtraData.get(markerType, isFinal)}");\n`;
 
 
         let insertString = '';
@@ -403,6 +424,14 @@ class TestBase {
         insertString += dbMarkerInsert(episode.Id, episode.Marker3.Index, episode.Marker3.Start, episode.Marker3.End, episode.Marker3.Type, episode.Marker3.Final);
         episode = TestBase.DefaultMetadata.Show3.Season2.Episode1;
         insertString += dbMarkerInsert(episode.Id, episode.Marker1.Index, episode.Marker1.Start, episode.Marker1.End, episode.Marker1.Type, episode.Marker1.Final);
+
+        // Movies
+        let movie = TestBase.DefaultMetadata.Movie2;
+        insertString += dbMarkerInsert(movie.Id, movie.Marker1.Index, movie.Marker1.Start, movie.Marker1.End, movie.Marker1.Type, movie.Marker1.Final);
+        insertString += dbMarkerInsert(movie.Id, movie.Marker2.Index, movie.Marker2.Start, movie.Marker2.End, movie.Marker2.Type, movie.Marker2.Final);
+        insertString += dbMarkerInsert(movie.Id, movie.Marker3.Index, movie.Marker3.Start, movie.Marker3.End, movie.Marker3.Type, movie.Marker3.Final);
+        movie = TestBase.DefaultMetadata.Movie3;
+        insertString += dbMarkerInsert(movie.Id, movie.Marker1.Index, movie.Marker1.Start, movie.Marker1.End, movie.Marker1.Type, movie.Marker1.Final);
         return insertString;
     }
 
@@ -411,35 +440,41 @@ class TestBase {
      * @param {number} episodeId The episode's metadata id
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async addMarker(episodeId, startMs, endMs) {
-        return this.#addMarkerCore(episodeId, startMs, endMs, false /*raw*/);
+    async addMarker(episodeId, startMs, endMs, markerType='intro', final=false) {
+        return this.#addMarkerCore(episodeId, startMs, endMs, markerType, final, false /*raw*/);
     }
 
     /**
      * Add a marker to the given episode via the 'add' endpoint, returning the raw request.
-     * @param {number} episodeId The episode's metadata id
+     * @param {number} metadataId The episode's metadata id
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<Response>} */
-    async addMarkerRaw(episodeId, startMs, endMs) {
-        return this.#addMarkerCore(episodeId, startMs, endMs, true /*raw*/);
+    async addMarkerRaw(metadataId, startMs, endMs, markerType='intro', final=false) {
+        return this.#addMarkerCore(metadataId, startMs, endMs, markerType, final, true /*raw*/);
     }
 
     /**
      * Add a marker to the given episode via the 'add' endpoint.
-     * @param {number} episodeId The episode's metadata id
+     * @param {number} metadataId The episode's metadata id
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @param {boolean} raw Whether the Response should be returned instead of the json response.
      * @returns {Promise<SerializedMarkerData|Response>} */
-    async #addMarkerCore(episodeId, startMs, endMs, raw=false) {
+    async #addMarkerCore(metadataId, startMs, endMs, markerType, final, raw=false) {
         return this.send('add', {
-            metadataId : episodeId,
+            metadataId : metadataId,
             start : startMs,
             end : endMs,
-            type : 'intro', // TODO: credits
-            final : 0, // TODO: credits
+            type : markerType,
+            final : final ? 1 : 0,
         }, raw);
     }
 
@@ -448,29 +483,37 @@ class TestBase {
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async editMarker(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, false /*raw*/); }
+    async editMarker(markerId, startMs, endMs, markerType='intro', final=false) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, false /*raw*/); }
 
     /**
      * Edit a marker with the given id via the 'edit' endpoint, returning the raw Response.
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<Response>} */
-    async editMarkerRaw(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, true /*raw*/); }
+    async editMarkerRaw(markerId, startMs, endMs, markerType, final) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, true /*raw*/); }
     /**
      * Edit a marker with the given id via the 'edit' endpoint.
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @param {boolean} raw Whether the Response should be returned instead of the json response.
      * @returns {Promise<SerializedMarkerData|Response>} */
-    async #editMarkerCore(markerId, startMs, endMs, raw) {
+    async #editMarkerCore(markerId, startMs, endMs, markerType, final, raw) {
         return this.send('edit', {
             id : markerId,
             start : startMs,
             end : endMs,
-            userCreated : 0
+            userCreated : 0,
+            type : markerType,
+            final : final ? 1 : 0,
         }, raw);
     }
 

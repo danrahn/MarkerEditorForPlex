@@ -8,14 +8,16 @@ import DatabaseWrapper from './DatabaseWrapper.js';
  * @typedef {{[metadataId: number] : MarkerShowNode}} MarkerShowMap
  * @typedef {{[metadataId: number] : MarkerSeasonNode}} MarkerSeasonMap
  * @typedef {{[metadataId: number] : MarkerEpisodeNode}} MarkerEpisodeMap
+ * @typedef {{[metadataId: number] : MarkerMovieNode}} MarkerMovieMap
  * @typedef {number} MarkerId
  * @typedef {{
  *     id : number,
- *     episode_id : number,
+ *     parent_id : number,
  *     season_id : number,
  *     show_id : number,
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
+ * @typedef {{ id: number, season_id: number, show_id: number, section_id: number }} MediaItemQueryResult
  * @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap
  */
 
@@ -65,11 +67,11 @@ class MarkerBreakdown {
     }
 
     /**
-     * Handles a new episode in the database.
-     * Adds to the 'episodes with 0 markers' bucket for the episode and all parent categories. */
-    initEpisode() {
+     * Handles a new base item (movie/episode) in the database.
+     * Adds to the 'items with 0 markers' bucket for the media item and all parent categories. */
+    initBase() {
         ++this.#counts[0];
-        this.#parent?.markerBreakdown.initEpisode();
+        this.#parent?.markerBreakdown.initBase();
     }
 
     /** Removes any marker counts that have no episodes in `#counts` */
@@ -95,10 +97,28 @@ class MarkerNodeBase {
 
 /** Representation of a library section in the marker cache. */
 class MarkerSectionNode extends MarkerNodeBase {
-    /** @type {MarkerShowMap} */
-    shows = {};
+    /** @type {MarkerShowMap|MarkerMovieMap} */
+    items = {};
     constructor() {
         super(null);
+    }
+}
+
+/** Represents the lowest-level media node, i.e. a node that can have markers added to it. */
+class BaseItemNode extends MarkerNodeBase {
+    /** @type {MarkerId[]} */
+    markers = [];
+    constructor(parent) {
+        super(parent);
+        this.markerBreakdown.initBase();
+    }
+}
+
+/** Representation of a movie in the marker cache. */
+class MarkerMovieNode extends BaseItemNode {
+    /** @param {MarkerSectionNode} parent */
+    constructor(parent) {
+        super(parent);
     }
 }
 
@@ -125,14 +145,10 @@ class MarkerSeasonNode extends MarkerNodeBase {
 }
 
 /** Representation of an episode of a TV show in the marker cache. */
-class MarkerEpisodeNode extends MarkerNodeBase {
-    /** @type {MarkerId[]} */
-    markers = [];
-
+class MarkerEpisodeNode extends BaseItemNode {
     /** @param {MarkerSeasonNode} parent */
     constructor(parent) {
         super(parent);
-        this.markerBreakdown.initEpisode();
     }
 }
 
@@ -171,7 +187,7 @@ class MarkerCacheManager {
 
     /** Ids of all episodes in the database.
      * @type {Set<number>} */
-    #allEpisodes = new Set();
+    #allBaseItems = new Set();
 
     /** The tag_id in the Plex database that corresponds to intro markers. */
     #tagId;
@@ -192,18 +208,39 @@ class MarkerCacheManager {
      * Build the marker cache for the entire Plex server. */
     async buildCache() {
         Log.info('Gathering markers...');
-        const rows = await this.#database.all(MarkerCacheManager.#markerQuery);
-        let markerCount = 0;
-        for (const row of rows) {
-            this.#addMarkerData(row);
-            if (row.tag_id != this.#tagId) {
-                continue;
-            }
-
-            ++markerCount;
+        const start = Date.now();
+        // Note: Creating separate queries for relevant markers and all media items, then combining them
+        //       ourselves is _significantly_ faster than combining it into a single query.
+        const markers = await this.#database.all(MarkerCacheManager.#markerOnlyQuery, [this.#tagId]);
+        const media = await this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
+        const end = Date.now();
+        Log.verbose(`Queried all markers (${markers.length} in ${((end- start) / 1000).toFixed(2)} seconds), analyzing...`);
+        const mediaMap = {};
+        for (const mediaItem of media) {
+            mediaMap[mediaItem.id] = mediaItem;
+            this.#initializeHierarchy(mediaItem);
         }
 
-        Log.info(`Cached ${markerCount} markers, starting server...`);
+        let missingData = 0;
+        for (const marker of markers) {
+            const baseItem = mediaMap[marker.parent_id];
+            if (baseItem) {
+                marker.season_id = baseItem.season_id;
+                marker.show_id = baseItem.show_id;
+                marker.tag_id = this.#tagId;
+                marker.section_id = baseItem.section_id;
+                this.#addMarkerData(marker);
+            } else {
+                ++missingData;
+            }
+        }
+
+        if (missingData > 0) {
+            Log.warn(`Found ${missingData} marker(s) without an associated media item, these can't be tracked.`);
+        }
+
+        Log.verbose(`Analyzed all markers in ${Date.now() - end}ms (${((Date.now() - start) / 1000).toFixed(2)} seconds total)`);
+        Log.info(`Cached ${markers.length} markers, starting server...`);
     }
 
     /**
@@ -217,9 +254,9 @@ class MarkerCacheManager {
         }
 
         delete this.#allMarkers[markerId];
-        const episode = this.#drillDown(markerData);
-        episode.markerBreakdown.remove(episode.markers.length);
-        episode.markers = episode.markers.filter(marker => marker != markerId);
+        const baseItem = this.#drillDown(markerData);
+        baseItem.markerBreakdown.remove(baseItem.markers.length);
+        baseItem.markers = baseItem.markers.filter(marker => marker != markerId);
     }
 
     /**
@@ -246,18 +283,18 @@ class MarkerCacheManager {
     }
 
     /**
-     * Retrieve marker breakdown stats for the given show.
-     * @param {number} metadataId The metadata id for the TV Show */
-    getShowStats(metadataId) {
-        let show = this.#showFromId(metadataId);
-        if (!show) {
+     * Retrieve marker breakdown stats for a top-level library item (i.e. a movie or an entire show).
+     * @param {number} metadataId The metadata id for the TV Show/movie */
+    getTopLevelStats(metadataId) {
+        let item = this.#topLevelItemFromId(metadataId);
+        if (!item) {
             Log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
             // Attempt to update the cache after the fact.
             this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
             return null;
         }
 
-        return show.markerBreakdown.data();
+        return item.markerBreakdown.data();
     }
 
     /**
@@ -265,17 +302,17 @@ class MarkerCacheManager {
      * @param {number} showId The metadata id of the show that `seasonId` belongs to.
      * @param {number} seasonId The metadata id of the season. */
     getSeasonStats(showId, seasonId) {
-        // Like getShowStats, just the show's metadataId is okay.
-        let show = this.#showFromId(showId);
+        // Like topLevelItemFromId, just the show's metadataId is okay.
+        let show = this.#topLevelItemFromId(showId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
-            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
+            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, showId);
             return null;
         }
 
         // Show exists, but season is new? Try to update.
         if (!show.seasons[seasonId]) {
-            this.#tryUpdateCache(MarkerCacheManager.#seasonMarkerQuery, metadataId);
+            this.#tryUpdateCache(MarkerCacheManager.#seasonMarkerQuery, seasonId);
         }
 
         return show.seasons[seasonId]?.markerBreakdown.data();
@@ -285,7 +322,7 @@ class MarkerCacheManager {
      * Retrieve marker breakdown stats for a given show, along with individual season stats.
      * @param {number} showId The metadata id of the show to retrieve data for. */
     getTreeStats(showId) {
-        let show = this.#showFromId(showId);
+        let show = this.#topLevelItemFromId(showId);
         if (!show) { return null; }
 
         let treeData = {
@@ -308,12 +345,12 @@ class MarkerCacheManager {
     }
 
     /**
-     * Return whether the given episode id exists in the database.
-     * Used by backup manager to check whether a purged marker is associated with an episode
+     * Return whether the given base id (movie/episode) exists in the database.
+     * Used by backup manager to check whether a purged marker is associated with an item
      * that actually exists.
-     * @param {number} episodeId */
-    episodeExists(episodeId) {
-        return this.#allEpisodes.has(episodeId);
+     * @param {number} metadataId */
+    baseItemExists(metadataId) {
+        return this.#allBaseItems.has(metadataId);
     }
 
     /**
@@ -328,8 +365,8 @@ class MarkerCacheManager {
                 return Log.error(`Unable to update marker cache for metadata item ${metadataId}`);
             }
 
-            if (this.#showFromId(metadataId)) {
-                return Log.verbose('getShowStats: Multiple update requests fired for this item, ignoring this one.');
+            if (this.#topLevelItemFromId(metadataId)) {
+                return Log.verbose('tryUpdateCache: Multiple update requests fired for this item, ignoring this one.');
             }
 
             let markerCount = 0;
@@ -346,12 +383,12 @@ class MarkerCacheManager {
         });
     }
 
-    #showFromId(showId) {
-        // Just a show metadataId is okay. Someone would need thousands of libraries before
+    #topLevelItemFromId(metadataId) {
+        // Just a metadataId is okay. Someone would need thousands of libraries before
         // the perf hit of looking for the right section was noticeable.
         for (const section of Object.values(this.#markerHierarchy)) {
-            if (section.shows[showId]) {
-                return section.shows[showId];
+            if (section.items[metadataId]) {
+                return section.items[metadataId];
             }
         }
 
@@ -360,12 +397,17 @@ class MarkerCacheManager {
 
     /**
      * Return the episode in the season associated with the given marker.
-     * @param {MarkerQueryResult} markerData */
+     * @param {MarkerQueryResult} markerData
+     * @returns {BaseItemNode} */
     #drillDown(markerData) {
+        if (markerData.show_id === -1) {
+            return this.#markerHierarchy[markerData.section_id].items[markerData.parent_id];
+        }
+
         return this.#markerHierarchy[markerData.section_id]
-            .shows[markerData.show_id]
+            .items[markerData.show_id]
             .seasons[markerData.season_id]
-            .episodes[markerData.episode_id];
+            .episodes[markerData.parent_id];
     }
 
     /**
@@ -375,13 +417,21 @@ class MarkerCacheManager {
      * @param {MarkerQueryResult} tag The row to (potentially) add to our cache. */
     #addMarkerData(tag) {
         const isMarker = tag.tag_id == this.#tagId;
+        const isMovie = tag.show_id == -1;
         let thisSection = this.#markerHierarchy[tag.section_id] ??= new MarkerSectionNode();
-        let show = thisSection.shows[tag.show_id] ??= new MarkerShowNode(thisSection);
-        let season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
-        let episode = season.episodes[tag.episode_id] ??= new MarkerEpisodeNode(season);
+        /** @type {BaseItemNode} */
+        let base;
+        if (isMovie) {
+            base = thisSection.items[tag.parent_id] ??= new MarkerMovieNode(thisSection);
+        } else {
+            let show = thisSection.items[tag.show_id] ??= new MarkerShowNode(thisSection);
+            let season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
+            base = season.episodes[tag.parent_id] ??= new MarkerEpisodeNode(season);
+        }
+
         if (isMarker) {
-            episode.markerBreakdown.add(episode.markers.length);
-            episode.markers.push(tag.id);
+            base.markerBreakdown.add(base.markers.length);
+            base.markers.push(tag.id);
 
             if (tag.id in this.#allMarkers) {
                 Log.warn(`Found marker id ${tag.id} multiple times, that's not right!`);
@@ -392,7 +442,26 @@ class MarkerCacheManager {
 
         // Core query includes episodes without markers, so this should
         // cover all episodes, not just those with markers.
-        this.#allEpisodes.add(tag.episode_id);
+        this.#allBaseItems.add(tag.parent_id);
+    }
+
+    /**
+     * Seeds the section/show/season/episode (or section/movie) hierarchy to ensue
+     * we track all base media items, even if they currently don't have markers.
+     * @param {MediaItemQueryResult} mediaItem */
+    #initializeHierarchy(mediaItem) {
+        const isMovie = mediaItem.show_id == -1;
+        let thisSection = this.#markerHierarchy[mediaItem.section_id] ??= new MarkerSectionNode();
+        /** @type {BaseItemNode} */
+        if (isMovie) {
+            thisSection.items[mediaItem.id] ??= new MarkerMovieNode(thisSection);
+        } else {
+            let show = thisSection.items[mediaItem.show_id] ??= new MarkerShowNode(thisSection);
+            let season = show.seasons[mediaItem.season_id] ??= new MarkerSeasonNode(show);
+            season.episodes[mediaItem.id] ??= new MarkerEpisodeNode(season);
+        }
+
+        this.#allBaseItems.add(mediaItem.id);
     }
 
     /**
@@ -400,30 +469,42 @@ class MarkerCacheManager {
      * One thing to note is that we join _all_ tags for an episode, not just markers. While
      * seemingly excessive, it's significantly faster than doing an outer join on a temporary
      * taggings table that's been filtered to only include markers. */
-    static #markerQueryBase = `
+    static #episodeMarkerQueryBase = `
 SELECT
     marker.id AS id,
-    episode.id AS episode_id,
+    base.id AS parent_id,
     season.id AS season_id,
     season.parent_id AS show_id,
     marker.tag_id AS tag_id,
-    episode.library_section_id AS section_id
-FROM metadata_items episode
-    INNER JOIN metadata_items season ON episode.parent_id=season.id
-    LEFT JOIN taggings marker ON episode.id=marker.metadata_item_id
-WHERE episode.metadata_type=4
+    base.library_section_id AS section_id
+FROM metadata_items base
+    INNER JOIN metadata_items season ON base.parent_id=season.id
+    LEFT JOIN taggings marker ON base.id=marker.metadata_item_id
+WHERE base.metadata_type=4
     `;
 
+    /** Query to grab all intro/credits markers on the server. */
+    static #markerOnlyQuery = `SELECT id, metadata_item_id AS parent_id FROM taggings WHERE tag_id=?;`;
+
+    /** Query to grab all episodes and movies from the database. For episodes, also include season/show id (replaced with -1 for movies) */
+    static #mediaOnlyQuery = `
+SELECT
+    base.id AS id,
+    (CASE WHEN season.id IS NULL THEN -1 ELSE season.id END) AS season_id,
+    (CASE WHEN season.id IS NULL THEN -1 ELSE season.parent_id END) AS show_id,
+    base.library_section_id AS section_id
+FROM metadata_items base
+    LEFT JOIN metadata_items season ON base.parent_id=season.id
+WHERE base.metadata_type=1 OR base.metadata_type=4;`;
+
     static #markerQuerySort = `
-ORDER BY episode.id ASC;`;
+ORDER BY base.id ASC;`;
 
-    static #markerQuery = MarkerCacheManager.#markerQueryBase + MarkerCacheManager.#markerQuerySort;
-
-    static #showMarkerQuery = MarkerCacheManager.#markerQueryBase + `
+    static #showMarkerQuery = MarkerCacheManager.#episodeMarkerQueryBase + `
 AND season.parent_id=?
 ` + MarkerCacheManager.#markerQuerySort;
 
-    static #seasonMarkerQuery = MarkerCacheManager.#markerQueryBase + `
+    static #seasonMarkerQuery = MarkerCacheManager.#episodeMarkerQueryBase + `
 AND season.id=?
 ` + MarkerCacheManager.#markerQuerySort;
 

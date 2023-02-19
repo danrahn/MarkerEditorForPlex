@@ -40,12 +40,18 @@ class QueryTest extends TestBase {
     async getSectionsTest() {
         const result = await this.send('get_sections');
 
-        // Currently database only has one section
+        // Currently database has three sections, tv, movie, and music. We should only grab tv and movie.
         TestHelpers.verify(result instanceof Array, `Expected get_sections to return an array.`);
-        TestHelpers.verify(result.length == 1, `Only expected 1 library section, found ${result.length}.`);
-        const lib = result[0];
-        TestHelpers.verify(lib.id == 1, `Expected library section to have an id of 1, found ${lib.id}.`);
-        TestHelpers.verify(lib.name == 'TV', `Expected library name to be TV, found ${lib.name}.`);
+        TestHelpers.verify(result.length == 2, `Only expected 2 library section, found ${result.length}.`);
+
+        // Assume they're ordered by first to last section
+        const tvLib = result[0];
+        TestHelpers.verify(tvLib.id == 1, `Expected library section to have an id of 1, found ${tvLib.id}.`);
+        TestHelpers.verify(tvLib.name == 'TV', `Expected library name to be TV, found ${tvLib.name}.`);
+
+        const movieLib = result[1];
+        TestHelpers.verify(movieLib.id == 2, `Expected library section to have an id of 2, fount ${movieLib.id}`);
+        TestHelpers.verify(movieLib.name == 'M', `Expected library name to be 'M', found ${movieLib.name}.`);
     }
 
      /////////////////////
@@ -58,7 +64,7 @@ class QueryTest extends TestBase {
         const result = await this.send('get_section', { id : 1 });
 
         const shows = TestBase.DefaultMetadata;
-        const showCount = Object.keys(shows).length;
+        const showCount = Object.keys(shows).filter(k => k.startsWith('Show')).length;
         TestHelpers.verify(result.length == showCount, `Expected ${showCount} shows, found ${result.length}`);
         for (const showResult of result) {
             const expectedShow = shows[showResult.title];
@@ -74,17 +80,26 @@ class QueryTest extends TestBase {
     /**
      * Ensure no data is returned when querying for an invalid library section. */
     async getEmptySectionTest() {
+        this.expectFailure();
         const result = await this.send('get_section', { id : 10 });
         TestHelpers.verify(result instanceof Array, `Expected get_section of a nonexistent library to still return an array.`);
         TestHelpers.verify(result.length == 0, `Expected get_section of nonexistent library to return an empty array.`);
     }
 
     /**
-     * Ensure no data is returned when querying for a movie section. */
+     * Ensure movies returned from the movie library matches what we expect. */
     async getMovieSectionTest() {
+        /** @type {ShowData[]} */
         const result = await this.send('get_section', { id : 2 });
-        TestHelpers.verify(result instanceof Array, `Expected get_section of a movie library to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_section of movie library to return an empty array.`);
+
+        const movies = TestBase.DefaultMetadata;
+        const movieCount = Object.keys(movies).filter(k => k.startsWith('Movie')).length;
+        TestHelpers.verify(result.length == movieCount, `Expected ${movieCount} movies, found ${result.length}`);
+        for (const movieResult of result) {
+            const expectedMovie = movies[movieResult.title];
+            TestHelpers.verify(expectedMovie, `get_section returned unknown movie "${movieResult.title}"`);
+            TestHelpers.verify(movieResult.metadataId == expectedMovie.Id, `Found metadata id ${movieResult.metadataId} for ${movieResult.title}, expected ${expectedMovie.Id}.`);
+        }
     }
 
     /**

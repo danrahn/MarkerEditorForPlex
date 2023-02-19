@@ -10,15 +10,15 @@ import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
-import ClientEpisodeData from './ClientEpisodeData.js';
+import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
-import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
+import { PurgedMovie, PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('../../Server/MarkerBackupManager.js').MarkerAction} MarkerAction */
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -67,7 +67,7 @@ class ResultRow {
     /** Build a row's HTML. Unimplemented in the base class. */
     buildRow() {}
 
-    /** @returns The base media item associated with this row. */
+    /** @returns {PlexData} The base media item associated with this row. */
     mediaItem() { return this.#mediaItem; }
 
     /** @returns The number of purged markers associated with this row. */
@@ -272,7 +272,7 @@ class ShowResultRow extends ResultRow {
 
     /** @param {ShowData} show */
     constructor(show) {
-        super(show, 'showResult');
+        super(show, 'topLevelResult showResult');
     }
 
     /**
@@ -302,7 +302,7 @@ class ShowResultRow extends ResultRow {
         if (selected) {
             this.addBackButton(row, 'Back to results', () => {
                 PlexUI.Get().clearAndShowSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.Get().showSections(UISection.Shows);
+                PlexUI.Get().showSections(UISection.MoviesOrShows);
             });
         }
 
@@ -401,7 +401,7 @@ class ShowResultRow extends ResultRow {
     #showSeasons(seasons) {
         const plexUI = PlexUI.Get();
         plexUI.clearAndShowSections(UISection.Seasons);
-        plexUI.hideSections(UISection.Shows);
+        plexUI.hideSections(UISection.MoviesOrShows);
 
         const addRow = row => plexUI.addRow(UISection.Seasons, row);
         this.#showTitle = new ShowResultRow(this.show());
@@ -484,23 +484,23 @@ class SeasonResultRow extends ResultRow {
 
         // newMarkers isn't pruned to only relevant ones, so check first
         for (const marker of newMarkers) {
-            const episode = this.#episodes[marker.episodeId];
+            const episode = this.#episodes[marker.parentId];
             if (!episode) {
                 continue;
             }
 
-            episode.episode().addMarker(marker, null /*oldRow*/);
-            updated[marker.episodeId] = true;
+            episode.episode().markerTable().addMarker(marker, null /*oldRow*/);
+            updated[marker.parentId] = true;
         }
 
         // We still want to update other episodes as well, since even if we didn't add
         // new markers, we still want to update purge text.
         unpurged.forEach(/**@this {SeasonResultRow}*/function(action) {
-            if (updated[action.episode_id]) {
+            if (updated[action.parent_id]) {
                 return;
             }
 
-            const episode = this.#episodes[action.episode_id];
+            const episode = this.#episodes[action.parent_id];
             if (episode) {
                 episode.updateMarkerBreakdown(0 /*delta*/);
             }
@@ -516,20 +516,20 @@ class SeasonResultRow extends ResultRow {
         // getting indexes out of sync.
         changedMarkers.sort((a, b) => b.start - a.start);
         for (const marker of changedMarkers) {
-            const episode = this.#episodes[marker.episodeId];
+            const episode = this.#episodes[marker.parentId];
             if (!episode) {
                 continue;
             }
 
             switch (bulkActionType) {
                 case BulkActionType.Shift:
-                    episode.episode().editMarker(marker, true);
+                    episode.episode().markerTable().editMarker(marker, true);
                     break;
                 case BulkActionType.Add:
-                    episode.episode().addMarker(marker, null /*oldRow*/);
+                    episode.episode().markerTable().addMarker(marker, null /*oldRow*/);
                     break;
                 case BulkActionType.Delete:
-                    episode.episode().deleteMarker(marker);
+                    episode.episode().markerTable().deleteMarker(marker);
                     break;
                 default:
                     Log.warn(bulkActionType, `Can't parse bulk action change, invalid bulkActionType`);
@@ -580,14 +580,14 @@ class SeasonResultRow extends ResultRow {
      * Takes the given list of episodes and makes a request for marker details for each episode.
      * @param {Object[]} episodes Array of episodes in a particular season of a show. */
     async #parseEpisodes(episodes) {
-        let queryString = [];
+        let queryIds = [];
         for (const episode of episodes) {
             PlexClientState.GetState().addEpisode(new ClientEpisodeData().setFromJson(episode));
-            queryString.push(episode.metadataId);
+            queryIds.push(episode.metadataId);
         }
 
         try {
-            this.#showEpisodesAndMarkers(await ServerCommand.query(queryString));
+            this.#showEpisodesAndMarkers(await ServerCommand.query(queryIds));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the markers for these episodes, please try again.`, err);
         }
@@ -654,7 +654,7 @@ class EpisodeResultRow extends ResultRow {
     #seasonRow;
 
     constructor(episode, seasonRow) {
-        super(episode);
+        super(episode, 'episodeResult');
         this.#seasonRow = seasonRow;
     }
 
@@ -682,7 +682,7 @@ class EpisodeResultRow extends ResultRow {
                 ),
                 this.#buildMarkerText()
             ),
-            ep.markerTable(),
+            ep.markerTable().table(),
             buildNode('hr', { class : 'episodeSeparator' })
         );
 
@@ -696,7 +696,7 @@ class EpisodeResultRow extends ResultRow {
     #buildMarkerText() {
         const episode = this.episode();
         const hasPurges = this.hasPurgedMarkers();
-        let text = buildNode('span', {}, plural(episode.markerCount(), 'Marker'));
+        let text = buildNode('span', {}, plural(episode.markerTable().markerCount(), 'Marker'));
         if (hasPurges) {
             text.appendChild(purgeIcon());
         }
@@ -729,7 +729,7 @@ class EpisodeResultRow extends ResultRow {
             return;
         }
 
-        const expanded = !$$('table', this.episode().markerTable()).classList.contains('hidden');
+        const expanded = !$$('table', this.episode().markerTable().table()).classList.contains('hidden');
         if (e.ctrlKey) {
             this.#seasonRow.showHideMarkerTables(expanded);
         } else {
@@ -746,7 +746,7 @@ class EpisodeResultRow extends ResultRow {
      * Expands or contracts the marker table for this row.
      * @param {boolean} hide */
     showHideMarkerTable(hide) {
-        $$('table', this.episode().markerTable()).classList[hide ? 'add' : 'remove']('hidden');
+        $$('table', this.episode().markerTable().table()).classList[hide ? 'add' : 'remove']('hidden');
         $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
 
         // Should really only be necessary on hide, but hide tooltips on both show and hide
@@ -755,7 +755,7 @@ class EpisodeResultRow extends ResultRow {
 
     /** Scroll the marker table into view */
     scrollTableIntoView() {
-        $$('table', this.episode().markerTable()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+        $$('table', this.episode().markerTable().table()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
     }
 
     /**
@@ -774,4 +774,173 @@ class EpisodeResultRow extends ResultRow {
     }
 }
 
-export { ShowResultRow, SeasonResultRow, EpisodeResultRow }
+class MovieResultRow extends ResultRow {
+
+    /** @type {boolean} */
+    #markersGrabbed = false;
+
+    /**
+     * @param {MarkerData} mediaItem */
+    constructor(mediaItem) {
+        let clientItem = new ClientMovieData().setFromJson(mediaItem);
+        super(clientItem, 'topLevelResult movieResultRow');
+    }
+    /**
+     * Return the underlying episode data associated with this result row.
+     * @returns {ClientMovieData} */
+    movie() { return this.mediaItem(); }
+
+    /**
+     * Builds a row for an episode of the form '> MovieName (year) | X Marker(s)'
+     * with a collapsed marker table that appears when this row is clicked. */
+    buildRow() {
+        const mov = this.movie();
+        // Create a blank marker table, and only load when the marker table is shown
+        mov.createMarkerTable(this, [] /*markerData*/);
+        const titleText = 'Click to expand/contract.';
+        const movTitle = `${mov.title} (${mov.year})`;
+        let row = buildNode('div');
+        appendChildren(row,
+            appendChildren(buildNode('div', { class : 'episodeResult', title : titleText, }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
+                appendChildren(buildNode('div', { class : 'movieName' }),
+                    buildNode('span', { class : 'markerExpand' }, '&#9205; '),
+                    buildNode('span', {}, movTitle)
+                ),
+
+                this.#buildMarkerText()
+            ),
+            mov.markerTable().table(),
+            buildNode('hr', { class : 'episodeSeparator' })
+        );
+
+        this.setHtml(row);
+        return row;
+    }
+
+    // TODO: Share with Episode?
+
+    /**
+     * Builds the "X Marker(s)" span for this movie, including a tooltip if purged markers are present.
+     * @returns {HTMLElement} */
+    #buildMarkerText() {
+        const movie = this.movie();
+        const hasPurges = this.hasPurgedMarkers();
+        let text = buildNode('span', {}, plural(movie.markerTable().markerCount(), 'Marker'));
+        if (hasPurges) {
+            text.appendChild(purgeIcon());
+        }
+
+        let main = buildNode('div', { class : 'episodeDisplayText' }, text);
+        if (!hasPurges) {
+            return main;
+        }
+
+        const purgeCount = this.getPurgeCount();
+        const markerText = purgeCount == 1 ? 'marker' : 'markers';
+        Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
+        main.addEventListener('click', this.#onMoviePurgeClick.bind(this));
+        // Explicitly set no title so it doesn't interfere with the tooltip
+        main.title = "";
+        return main;
+    }
+
+    /** Launches the purge table overlay. */
+    #onMoviePurgeClick() {
+        PurgedMarkerManager.GetManager().showSingleMovie(this.movie().metadataId);
+    }
+
+    /**
+     * Updates various UI states after purged markers are restored/ignored
+     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
+    notifyPurgeChange(newMarkers) {
+        for (const marker of newMarkers) {
+            // Markers aren't filtered to only those relevant to this movie.
+            if (marker.parentId == this.movie().metadataId) {
+                this.movie().markerTable().addMarker(marker, null /*oldRow*/);
+            }
+        }
+    }
+
+    /**
+     * Expand or collapse the marker table for the clicked episode.
+     * If the user ctrl+clicks the episode, expand/contract for all episodes.
+     * @param {MouseEvent} e */
+    async #showHideMarkerTableEvent(e) {
+        if (this.ignoreRowClick(e)) {
+            return;
+        }
+
+        const mov = this.movie();
+        if (!this.#markersGrabbed) {
+            this.#markersGrabbed = true;
+            try {
+                const markerData = await ServerCommand.query([mov.metadataId]);
+                if (mov.hasThumbnails === undefined) {
+                    mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
+                }
+    
+                markerData[mov.metadataId].sort((a, b) => a.start - b.start);
+                mov.initializeMarkerTable(markerData[mov.metadataId]);
+            } catch (ex) {
+                this.#markersGrabbed = false;
+                throw ex;
+            }
+        }
+
+        const expanded = !$$('table', mov.markerTable().table()).classList.contains('hidden');
+        this.showHideMarkerTable(expanded);
+
+        // Only want to scroll into view if we're expanding the table
+        if (!expanded) {
+            this.scrollTableIntoView();
+        }
+    }
+
+    /**
+     * Expands or contracts the marker table for this row.
+     * @param {boolean} hide */
+    showHideMarkerTable(hide) {
+        $$('table', this.movie().markerTable().table()).classList[hide ? 'add' : 'remove']('hidden');
+        $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
+
+        // Should really only be necessary on hide, but hide tooltips on both show and hide
+        Tooltip.dismiss();
+    }
+
+    /** Scroll the marker table into view */
+    scrollTableIntoView() {
+        $$('table', this.movie().markerTable().table()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+    }
+
+    /**
+     * Updates the marker statistics both in the UI and the client state.
+     * @param {number} delta 1 if a marker was added to this movie, -1 if one was removed. Unused, but mirrors ResultRow signature. */
+    updateMarkerBreakdown(delta) {
+        // Don't bother updating in-place, just recreate and replace.
+        const newNode = this.#buildMarkerText();
+        const oldNode = $$('.episodeDisplayText', this.html());
+        oldNode.parentElement.insertBefore(newNode, oldNode);
+        oldNode.parentElement.removeChild(oldNode);
+
+        // Note: No need to propagate changes up like for episodes, since
+        //       we're already at the top of the chain. The section-wide
+        //       marker chart queries the server directly every time.
+        const newCount = this.movie().markerTable().markerCount();
+        const oldCount = newCount - delta;
+        const breakdown = this.movie().markerBreakdown;
+        if (!(oldCount in breakdown)) {
+            Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
+            breakdown[oldCount] = 1;
+        }
+
+        --breakdown[oldCount];
+        if (breakdown[oldCount] == 0) {
+            delete breakdown[oldCount];
+        }
+
+        breakdown[newCount] ??= 0;
+        ++breakdown[newCount];
+    }
+}
+
+export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow }

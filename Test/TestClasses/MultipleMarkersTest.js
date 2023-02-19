@@ -14,6 +14,7 @@ class MultipleMarkers extends TestBase {
             this.testAddBeforeExisting,
             this.testAddOverlapFails,
             this.testReindexAfterDelete,
+            this.testCreditsBeforeFinalMarker,
         ];
     }
 
@@ -141,6 +142,14 @@ class MultipleMarkers extends TestBase {
         let error = await this.addMarkerRaw(show.Season1.Episode2.Id, start, end);
 
         TestHelpers.verifyBadRequest(error, `overlapping marker ${start}-${end}`);
+    }
+
+    /**
+     * Ensure we complain about adding a 'final' marker before the last marker. */
+    async testCreditsBeforeFinalMarker() {
+        this.expectFailure();
+        const baseItem = TestBase.DefaultMetadata.Movie3;
+        TestHelpers.verifyBadRequest(await this.addMarkerRaw(baseItem.Id, 5000, 10000, 'credits', true /*final*/));
     }
 }
 

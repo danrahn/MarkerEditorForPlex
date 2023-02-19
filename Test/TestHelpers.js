@@ -54,7 +54,7 @@ class TestHelpers {
         }
 
         checkField(markerData.markerType, expectedType, 'Marker type');
-        checkField(markerData.episodeId, expectedEpisodeId, 'Episode id');
+        checkField(markerData.parentId, expectedEpisodeId, 'Episode id');
         checkField(markerData.seasonId, expectedSeasonId, 'Season id');
         checkField(markerData.showId, expectedShowId, 'Show id');
         checkField(markerData.start, expectedStart, 'Marker start');

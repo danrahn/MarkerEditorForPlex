@@ -26,11 +26,12 @@ class ServerCommands {
 
         query         : async (params) => await QueryCommands.queryIds(params.ia('keys')),
         get_sections  : async (_     ) => await QueryCommands.getLibraries(),
-        get_section   : async (params) => await QueryCommands.getShows(params.i('id')),
+        get_section   : async (params) => await QueryCommands.getLibrary(params.i('id')),
         get_seasons   : async (params) => await QueryCommands.getSeasons(params.i('id')),
         get_episodes  : async (params) => await QueryCommands.getEpisodes(params.i('id')),
+        check_thumbs  : async (params) => await QueryCommands.checkForThumbs(params.i('id')),
         get_stats     : async (params) => await QueryCommands.allStats(params.i('id')),
-        get_breakdown : async (params) => await QueryCommands.getShowMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
+        get_breakdown : async (params) => await QueryCommands.getMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
 
         get_config    : async (_     ) => await GeneralCommands.getConfig(),
         log_settings  : async (params) => await GeneralCommands.setLogSettings(...params.ints('level', 'dark', 'trace')),

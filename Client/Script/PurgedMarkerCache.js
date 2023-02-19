@@ -3,11 +3,16 @@
  * Most definitely overkill for its low-level purpose.
  */
 
-/** Enum defining the various states of initialization possible for a PurgedGroup */
+import { Log } from '../../Shared/ConsoleLog.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
+
+/** Enum defining the various states of initialization possible for a PurgedGroup
+ * @enum */
 const PurgeCacheStatus = {
-    Uninitialized : 0,
-    PartiallyInitialized : 1,
-    Complete : 2,
+    /**@readonly*/ Uninitialized : 0,
+    /**@readonly*/ PartiallyInitialized : 1,
+    /**@readonly*/ Complete : 2,
 }
 
 /** A glorified dictionary that maps metadata ids (show/season/episode) to their corresponding PurgedShow/Season/Episode */
@@ -152,26 +157,42 @@ class PurgedGroup {
 /** A PurgedGroup representing an entire server. */
 class PurgedServer extends PurgedGroup {
     /** @returns {PurgedSection} */
-    addNewGroup(key) { return this.addInternal(key, new PurgedSection(key, this)); }
+    addNewGroup(key, isMovie) { return this.addInternal(key, isMovie ? new PurgedMovieSection(key, this) : new PurgedTVSection(key, this)); }
     /** @returns {PurgedServer} */
     deepClone() { return this.deepCloneInternal(new PurgedServer(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedSection} */ get(/**@type {number} */id) { return this.data[id]; }
-    /** @returns {PurgedSection} */ getOrAdd(/**@type {number} */id) { return this.data[id] || this.addNewGroup(id); }
+    /** @returns {PurgedSection} */ getOrAdd(/**@type {number} */id, /**@type {boolean} */isMovie) { return this.data[id] || this.addNewGroup(id, isMovie); }
 }
 
 /**
- * A PurgedGroup that represents a single library section of a server.
- * TODO: Really need a better name for this. PurgeSection vs PurgedSection */
-class PurgedSection extends PurgedGroup {
+ * A PurgedGroup that represents a single library section of the server.
+ * TODO: Really need a better name for this. PurgeSection vs PurgedSection. */
+class PurgedSection extends PurgedGroup {}
+
+/**
+ * A PurgedGroup that represents a single TV library section of a server. */
+class PurgedTVSection extends PurgedSection {
     addNewGroup(key) { return this.addInternal(key, new PurgedShow(key, this)); }
-    /** @returns {PurgedSection} */
-    deepClone() { return this.deepCloneInternal(new PurgedSection(this.id)); }
+    /** @returns {PurgedTVSection} */
+    deepClone() { return this.deepCloneInternal(new PurgedTVSection(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedShow} */ get(/**@type {number} */id) { return super.get(id); }
     /** @returns {PurgedShow} */ getOrAdd(/**@type {number} */id) { return super.getOrAdd(id); }
+}
+
+/**
+ * A PurgedGroup that represents a single Movie library section of a server. */
+class PurgedMovieSection extends PurgedSection {
+    addNewGroup(key) { return this.addInternal(key, new PurgedMovie(key, this)); }
+    /** @returns {PurgedMovieSection} */
+    deepClone() { return this.deepCloneInternal(new PurgedMovieSection(this.id)); }
+
+    // The following only exist for intellisense/"TypeScript" safety.
+    /** @returns {PurgedMovie} */ get(/**@type {number} */id) { return super.get(id); }
+    /** @returns {PurgedMovie} */ getOrAdd(/**@type {number} */id) { return super.getOrAdd(id); }
 }
 
 /**
@@ -198,22 +219,24 @@ class PurgedSeason extends PurgedGroup {
     /** @returns {PurgedEpisode} */ getOrAdd(/**@type {number} */id) { return super.getOrAdd(id); }
 }
 
-/**
- * A PurgedGroup that represents a single episode of a season. */
-class PurgedEpisode extends PurgedGroup {
-    addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on a purgedEpisode.`); }
-    getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a purgedEpisode.`); }
-    /** @returns {PurgedEpisode} */
+class PurgedBaseItem extends PurgedGroup {
+    addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on a base media type (purgedMovie/purgedEpisode).`); }
+    getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a base media type (purgedMovie/purgedEpisode).`); }
     deepClone() {
-        // Special handling for episodes since data values are not a PurgeGroup, but MarkerActions
-        let newEpisode = new PurgedEpisode(this.id);
+        // Special handling for base item types since data values are not a PurgeGroup, but MarkerActions
+        let newItem = this._getNewObjectForClone();
         for (const [key, value] of Object.entries(this.data)) {
-            newEpisode.data[key] = value;
+            newItem.data[key] = value;
         }
 
-        newEpisode.count = this.count;
-        return newEpisode;
+        newItem.count = this.count;
+        return newItem;
     }
+
+    /**
+     * @returns {PurgedBaseItem}
+     * ~internal method to be overridden by implementors (PurgedEpisode/PurgedMovie) to return a new instance of itself. */
+    _getNewObjectForClone() { Log.error(`PurgedGroup: _getNewObjectForClone must be overridden.`); }
 
 
     /**
@@ -254,4 +277,28 @@ class PurgedEpisode extends PurgedGroup {
     get(id) { return super.get(id); } // This only exists for intellisense/"TypeScript" safety.
 }
 
-export { PurgedGroup, PurgedServer, PurgedSection, PurgedShow, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus }
+/**
+ * A PurgedGroup that represents a single episode of a season. */
+class PurgedEpisode extends PurgedBaseItem {
+    /** @returns {PurgedEpisode} */
+    deepClone() {
+        return super.deepClone();
+    }
+
+    /** @returns {PurgedEpisode} */
+    _getNewObjectForClone() { return new PurgedEpisode(this.id); }
+}
+
+/**
+ * A PurgedGroup that represents a single movie */
+class PurgedMovie extends PurgedBaseItem {
+    /** @returns {PurgedMovie} */
+    deepClone() {
+        return super.deepClone();
+    }
+
+    /** @returns {PurgedMovie} */
+    _getNewObjectForClone() { return new PurgedMovie(this.id); }
+}
+
+export { PurgedGroup, PurgedServer, PurgedSection, PurgedTVSection, PurgedMovieSection, PurgedShow, PurgedSeason, PurgedBaseItem, PurgedEpisode, PurgedMovie, AgnosticPurgeCache, PurgeCacheStatus }

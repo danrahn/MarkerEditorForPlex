@@ -386,9 +386,9 @@ class BulkActionCommon {
     static sortMarkerList(markers, episodeData) {
         return markers.sort((a, b) => {
             /** @type {SerializedEpisodeData} */
-            const aEd = episodeData[a.episodeId];
+            const aEd = episodeData[a.parentId];
             /** @type {SerializedEpisodeData} */
-            const bEd = episodeData[b.episodeId];
+            const bEd = episodeData[b.parentId];
             if (aEd.seasonIndex != bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
             if (aEd.index != bEd.index) { return aEd.index - bEd.index; }
             return a.start - b.start;
