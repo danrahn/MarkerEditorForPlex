@@ -367,9 +367,9 @@ class BulkShiftOverlay {
         const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
         for (let i = 0; i < sortedMarkers.length; ++i) {
             let checkGroup = [];
-            const eInfo = shiftResult.episodeData[sortedMarkers[i].episodeId];
+            const eInfo = shiftResult.episodeData[sortedMarkers[i].parentId];
             checkGroup.push(sortedMarkers[i]);
-            while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].episodeId == eInfo.metadataId) {
+            while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
                 checkGroup.push(sortedMarkers[++i]);
             }
 
@@ -463,7 +463,7 @@ class BulkShiftRow extends BulkActionRow {
         this.#linked = linked;
     }
 
-    episodeId() { return this.#marker.episodeId; }
+    episodeId() { return this.#marker.parentId; }
     markerId() { return this.#marker.id; }
     /** Returns whether this row is linked to other rows that share the same episode id. */
     linked() { return this.#linked; }
@@ -477,7 +477,7 @@ class BulkShiftRow extends BulkActionRow {
     /** Build and return the marker row. */
     build() {
         const row = this.buildRow(
-            this.createCheckbox(!this.#linked, this.#marker.id, this.#marker.episodeId, { linked : this.#linked ? 1 : 0 }),
+            this.createCheckbox(!this.#linked, this.#marker.id, this.#marker.parentId, { linked : this.#linked ? 1 : 0 }),
             `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
             TableElements.timeData(this.#marker.start),
             TableElements.timeData(this.#marker.end),

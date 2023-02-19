@@ -98,6 +98,8 @@ In the following scenario, we can lose track of marker adds/edits:
   4. The episode is added again.
 
 In this case, the metadata id is not enough.
+
+V4 NOTE: this is bit of a misnomer now, parent_guid would be better. Maybe worth updating in a V5 schema, but not on its own.
 */
 
 /*
@@ -514,8 +516,8 @@ class MarkerBackupManager {
     INSERT INTO actions
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), (strftime('%s','now')), ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Add, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
-                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, 1 /*userCreated*/];
+            const parameters = [MarkerOp.Add, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
+                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, 1 /*userCreated*/];
     
             transaction.addStatement(query, parameters);
         }
@@ -554,8 +556,8 @@ class MarkerBackupManager {
     INSERT INTO actions
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Edit, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
-                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
+            const parameters = [MarkerOp.Edit, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
+                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
         }
 
@@ -586,8 +588,8 @@ class MarkerBackupManager {
     INSERT INTO actions
     (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Delete, marker.id, marker.episodeId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
-                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.episodeGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
+            const parameters = [MarkerOp.Delete, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
+                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
         }
 
@@ -617,8 +619,8 @@ class MarkerBackupManager {
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
-            const parameters = [MarkerOp.Restore, m.id, m.episodeId, m.seasonId, m.showId, m.sectionId, m.start, m.end, m.modifiedDate, m.createDate,
-                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.episodeGuid, m.markerType, m.isFinal, m.createdByUser ? 1 : 0];
+            const parameters = [MarkerOp.Restore, m.id, m.parentId, m.seasonId, m.showId, m.sectionId, m.start, m.end, m.modifiedDate, m.createDate,
+                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.parentGuid, m.markerType, m.isFinal, m.createdByUser ? 1 : 0];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
@@ -983,7 +985,7 @@ ORDER BY id DESC;`
         let restoredList = [];
 
         for (const newMarker of newMarkers) {
-            let oldAction = toRestore[newMarker.episode_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
+            let oldAction = toRestore[newMarker.parent_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
             if (oldAction.length != 1) {
                 Log.warn(`Unable to match new marker against old marker action, some things may be out of sync.`);
                 continue;
@@ -1002,7 +1004,7 @@ ORDER BY id DESC;`
 
         // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
         for (const ignoredMarker of ignoredMarkers) {
-            let oldAction = toRestore[ignoredMarker.episode_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
+            let oldAction = toRestore[ignoredMarker.parent_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
             if (oldAction.length != 1) {
                 Log.warn(`Unable to match identical marker against old marker action, some things may be out of sync.`);
                 continue;

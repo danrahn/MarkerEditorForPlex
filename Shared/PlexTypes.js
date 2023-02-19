@@ -4,13 +4,16 @@
 
 /**
  * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
- * @typedef {{id: number, name: string}} LibrarySection A library in the Plex database.
+ * @typedef {{id: number, type: number, name: string}} LibrarySection A library in the Plex database.
+ * @typedef {{[metadataId: number]: MovieData}} MovieMap A map of movie metadata ids to the movie itself.
  * @typedef {{[metadataId: number]: ShowData}} ShowMap A map of show metadata ids to the show itself.
  * @typedef {{[metadataId: number]: SeasonData}} SeasonMap A map of season metadata ids to the season itself.
  * @typedef {{[metadataId: number]: EpisodeData}} EpisodeMap A map of episode metadata ids to the episode itself.
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
- * @typedef {{start: number, end: number, index: number, id: number, episodeId: number,
- *            seasonId: number, showId: number, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
+ * @typedef {{start: number, end: number, index: number, id: number, parentId: number,
+ *            seasonId: number?, showId: number?, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
+ *            sortTitle: string, originalTitle: string, year: number, hasThumbnails: boolean? }} SerializedMovieData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
  *            sortTitle: string, originalTitle: string, seasonCount: number, episodeCount: number }} SerializedShowData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
@@ -62,7 +65,8 @@ function getBaseData(item) {
         return null;
     }
 
-    return { metadataId : item.id, markerBreakdown : item.markerBreakdown };
+    // Sometimes we get called with "raw" data, sometimes with "serialized" data, so find the right existing id.
+    return { metadataId : item.id || item.metadataId, markerBreakdown : item.markerBreakdown };
 }
 
 /**
@@ -102,35 +106,60 @@ class PlexData {
 }
 
 /**
- * Information about a TV show in the Plex database.
+ * Intermediate class that holds the fields common among top-level items, i.e. movies and TV shows
  */
- class ShowData extends PlexData {
-    // Note: It'd be nice for these fields (and those in the classes below) to be private
-    // and accessed via getters only, but as these are stringified when sent from server
-    // to client, JSON.stringify needs access to them.
+class TopLevelData extends PlexData {
 
     /**
-     * The name of the show.
+     * The name of the item.
      * @type {string} */
     title;
 
     /**
-     * The name of the show used for search purposes.
-     * This is the lowercase name of the show with whitespace and punctuation removed.
+     * The name of the item used for search purposes.
+     * This is the lowercase name of the item with whitespace and punctuation removed.
      * @type {string} */
     searchTitle;
 
     /**
-     * The sort title of the show if different from the title, otherwise an empty string.
+     * The sort title of the item if different from the title, otherwise an empty string.
      * The same transformations done to {@linkcode searchTitle} are done to `sortTitle`.
      * @type {string} */
     sortTitle;
 
     /**
-     * The original title of the show, if any.
+     * The original title of the item, if any.
      * The same transformations done to {@linkcode searchTitle} are done to `originalTitle`.
      * @type {string} */
     originalTitle;
+
+    constructor(mediaItem) {
+        super(getBaseData(mediaItem));
+        if (!mediaItem) {
+            return;
+        }
+
+        this.title = mediaItem.title;
+        this.searchTitle = TopLevelData.#transformTitle(mediaItem.title);
+        this.sortTitle = (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ? TopLevelData.#transformTitle(mediaItem.title_sort) : '';
+        this.originalTitle = mediaItem.original_title ? TopLevelData.#transformTitle(mediaItem.original_title) : '';
+    }
+
+    /**
+     * Transforms a show title to the search-friendly title.
+     * @param {string} title */
+    static #transformTitle(title) {
+        return title.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
+    }
+}
+
+/**
+ * Information about a TV show in the Plex database.
+ */
+ class ShowData extends TopLevelData {
+    // Note: It'd be nice for these fields (and those in the classes below) to be private
+    // and accessed via getters only, but as these are stringified when sent from server
+    // to client, JSON.stringify needs access to them.
 
     /**
      * The number of seasons that exist in Plex for this show.
@@ -152,15 +181,11 @@ class PlexData {
      * Constructs ShowData based on the given database row, or an empty show if not provided.
      * @param {Object<string, any>} [show] */
     constructor(show) {
-        super(getBaseData(show));
+        super(show);
         if (!show) {
             return;
         }
 
-        this.title = show.title;
-        this.searchTitle = ShowData.#transformTitle(show.title);
-        this.sortTitle = (show.title_sort && show.title.toLowerCase() != show.title_sort.toLowerCase()) ? ShowData.#transformTitle(show.title_sort) : '';
-        this.originalTitle = show.original_title ? ShowData.#transformTitle(show.original_title) : '';
         this.seasonCount = show.season_count;
         this.episodeCount = show.episode_count;
     }
@@ -185,13 +210,6 @@ class PlexData {
     /** Clears out this show's cache of seasons. */
     clearSeasons() {
         this.#seasons = {};
-    }
-
-    /**
-     * Transforms a show title to the search-friendly title.
-     * @param {string} title */
-    static #transformTitle(title) {
-        return title.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
     }
 }
 
@@ -315,6 +333,42 @@ class EpisodeData extends PlexData {
 }
 
 /**
+ * Information about a single movie in the Plex database.
+ */
+class MovieData extends TopLevelData {
+
+    /**
+     * The year the movie was released.
+     * @type {number} */
+    year;
+
+    /**
+     * The length of the show, in milliseconds.
+     * @type {number} */
+    duration;
+
+    /**
+     * Indicates whether we found a preview thumbnail file for this episode.
+     * @type {boolean?} */
+    hasThumbnails = undefined;
+
+    /**
+     * Cached count of markers for this item. */
+    markerCount = 0;
+
+    constructor(movie) {
+        super(movie);
+        if (!movie) {
+            return;
+        }
+
+        this.year = movie.year;
+        this.duration = movie.duration;
+        this.markerCount = movie.marker_count;
+    }
+}
+
+/**
  * Possible marker types
  * @enum */
 const MarkerType = {
@@ -366,16 +420,18 @@ class MarkerData extends PlexData {
     /**
      * The Plex metadata id of the episode this marker is attached to.
      * @type {number} */
-    episodeId;
+    parentId;
 
     /**
      * The Plex metadata id of the season this marker is attached to.
-     * @type {number} */
+     * `undefined` implies a movie marker.
+     * @type {number?} */
     seasonId;
 
     /**
      * The Plex metadata id of the show this marker is attached to.
-     * @type {number} */
+     * `undefined` implies a movie marker.
+     * @type {number?} */
     showId;
 
     /**
@@ -386,7 +442,7 @@ class MarkerData extends PlexData {
     /**
      * The guid of the episode this marker is attached to.
      * @type {string} */
-    episodeGuid;
+    parentGuid;
 
     /**
      * The type of marker this represents.
@@ -426,13 +482,16 @@ class MarkerData extends PlexData {
         this.createDate = marker.created_at;
 
         this.id = marker.id;
-        this.episodeId = marker.episode_id;
-        this.seasonId = marker.season_id;
-        this.showId = marker.show_id;
         this.sectionId = marker.section_id;
-        this.episodeGuid = marker.episode_guid;
+        this.parentGuid = marker.parent_guid;
         this.markerType = marker.marker_type;
         this.isFinal = this.type == MarkerType.Credits && marker.final;
+
+        // TODO: Find a better way to distinguish between episode versus movie marker
+        //       Potentially a base marker class, with episode/season/show and movie tacked on.
+        this.parentId = marker.parent_id;
+        this.seasonId = marker.season_id;
+        this.showId = marker.show_id;
     }
 }
 
@@ -449,4 +508,14 @@ const BulkMarkerResolveType = {
     Ignore : 3,
 };
 
-export { BulkMarkerResolveType, PlexData, ShowData, SeasonData, EpisodeData, MarkerData, MarkerType }
+/**
+ * Supported library types 
+ * @enum */
+const SectionType = {
+    /** @readonly */
+    Movie : 1,
+    /** @readonly */
+    TV : 2,
+};
+
+export { BulkMarkerResolveType, PlexData, TopLevelData, ShowData, SeasonData, EpisodeData, MovieData, MarkerData, MarkerType, SectionType }

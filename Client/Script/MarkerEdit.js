@@ -8,6 +8,9 @@ import SettingsManager from "./ClientSettings.js";
 import { MarkerRow } from "./MarkerTableRow.js";
 import PlexClientState from "./PlexClientState.js";
 import { Log } from "../../Shared/ConsoleLog.js";
+import { EpisodeResultRow } from "./ResultRow.js";
+import { MediaItemWithMarkerTable } from "./ClientDataExtensions.js";
+import MarkerTable from "./MarkerTable.js";
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 
@@ -171,17 +174,18 @@ class MarkerEdit {
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
         const endTime = timeToMs(inputs[1].value);
-        const metadataId = this.markerRow.episodeId();
-        const episode = PlexClientState.GetState().getEpisode(metadataId);
-        const final = endTime == episode.duration && markerType == MarkerType.Credits;
-        if (!episode.checkValues(this.markerRow.markerId(), startTime, endTime)) {
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
+        const metadataId = mediaItem.metadataId;
+        const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
+        if (!mediaItem.markerTable().checkValues(this.markerRow.markerId(), startTime, endTime)) {
             return;
         }
 
         try {
             const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
-            PlexClientState.GetState().getEpisode(newMarker.episodeId).addMarker(newMarker, this.markerRow.row());
+            PlexClientState.GetState().getEpisode(newMarker.parentId).markerTable().addMarker(newMarker, this.markerRow.row());
         } catch (err) {
             errorResponseOverlay('Sorry, something went wrong trying to add the marker. Please try again later.', err);
         }
@@ -189,7 +193,9 @@ class MarkerEdit {
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
     onMarkerAddCancel() {
-        PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).cancelMarkerAdd(this.markerRow.row());
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
+        mediaItem.markerTable().removeTemporaryMarkerRow(this.markerRow.row());
     }
 
     /** Commits a marker edit, assuming it passes marker validation. */
@@ -198,19 +204,19 @@ class MarkerEdit {
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
         const endTime = timeToMs(inputs[1].value);
-        const metadataId = this.markerRow.episodeId();
-        const episode = PlexClientState.GetState().getEpisode(metadataId);
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
         const userCreated = this.markerRow.createdByUser();
         const markerId = this.markerRow.markerId();
-        const final = endTime == episode.duration && markerType == MarkerType.Credits;
-        if (!episode.checkValues(markerId, startTime, endTime)) {
+        const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
+        if (!mediaItem.markerTable().checkValues(markerId, startTime, endTime)) {
             return;
         }
 
         try {
             const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, userCreated, final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            PlexClientState.GetState().getEpisode(editedMarker.episodeId).editMarker(editedMarker);
+            PlexClientState.GetState().getEpisode(editedMarker.parentId).markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
             this.onMarkerEditCancel();
@@ -223,7 +229,7 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        PlexClientState.GetState().getEpisode(partialMarker.episodeId).editMarker(partialMarker);
+        PlexClientState.GetState().getEpisode(partialMarker.parentId).markerTable().editMarker(partialMarker);
         this.resetAfterEdit();
     }
 
@@ -251,7 +257,7 @@ class MarkerEdit {
         }
 
         e.preventDefault();
-        input.value = msToHms(PlexClientState.GetState().getEpisode(this.markerRow.episodeId()).duration);
+        input.value = msToHms(this.markerRow.parent().mediaItem().duration);
 
         // Assume credits if they enter the end of the episode.
         $$('.inlineMarkerType', this.markerRow.row()).value = 'credits';
@@ -287,7 +293,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         let input = super.getTimeInput(isEnd);
         const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
-        const src = `t/${this.markerRow.episodeId()}/${timestamp}`;
+        const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
         let img = buildNode(
             'img',
             { src : src, class : 'inputThumb loading', alt : 'Timestamp Thumbnail', width : '240px', style : 'height: 0' },
@@ -391,7 +397,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        const url = `t/${this.markerRow.episodeId()}/${timestamp}`;
+        const url = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
         img.classList.remove('hidden');
         if (!img.src.endsWith(url)) {
             img.classList.remove('loaded');

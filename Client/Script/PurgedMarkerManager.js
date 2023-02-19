@@ -399,7 +399,7 @@ class PurgeNonActionInfo {
             end : this.#markerAction.end,
             modified_date : this.#markerAction.modified_at,
             created_at : this.#markerAction.created_at,
-            episode_id : this.#markerAction.episode_id,
+            parent_id : this.#markerAction.episode_id,
             season_id : this.#markerAction.season_id,
             show_id : this.#markerAction.show_id,
             section_id : PlexClientState.GetState().activeSection(),

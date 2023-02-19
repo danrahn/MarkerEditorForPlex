@@ -8,7 +8,9 @@ import ButtonCreator from "./ButtonCreator.js";
 import SettingsManager from "./ClientSettings.js";
 import { MarkerEdit, ThumbnailMarkerEdit } from "./MarkerEdit.js";
 import TableElements from "./TableElements.js";
-import PlexClientState from "./PlexClientState.js";
+import { EpisodeResultRow, MovieResultRow, ResultRow } from "./ResultRow.js";
+import { Log } from "../../Shared/ConsoleLog.js";
+import { MediaItemWithMarkerTable } from "./ClientDataExtensions.js";
 
 class MarkerRow {
     /**
@@ -17,9 +19,9 @@ class MarkerRow {
     html;
 
     /**
-     * The metadata id of the episode this marker belongs to.
-     * @type {number} */
-    #episodeId;
+     * The media item row that owns this marker row.
+     * @type {ResultRow} */
+    #parentRow;
 
     /**
      * The editor in charge of handling the UI and eventing related to marker edits.
@@ -28,10 +30,25 @@ class MarkerRow {
 
     /**
      * Create a new base MarkerRow. This should not be instantiated on its own, only through its derived classes.
-     * @param {number} episodeId The metadata id of the episode this marker belongs to. */
-    constructor(episodeId) {
-        this.#episodeId = episodeId;
-        if (SettingsManager.Get().useThumbnails() && PlexClientState.GetState().getEpisode(this.#episodeId).hasThumbnails) {
+     * @param {ResultRow} parent The media item that owns this marker.
+     * @param {boolean} isMovie Whether this marker is for a movie. */
+    constructor(parent) {
+        this.#parentRow = parent;
+        const useThumbs = SettingsManager.Get().useThumbnails();
+        let hasThumbs = false;
+        if (useThumbs) {
+            if (parent instanceof MovieResultRow) {
+                hasThumbs = parent.movie().hasThumbnails;
+            } else {
+                if (!(parent instanceof EpisodeResultRow)) {
+                    Log.warn(`Attempting to create a marker row for something that's not a movie or episode. That's not right!`);
+                    hasThumbs = false;
+                } else {
+                    hasThumbs = parent.episode().hasThumbnails;
+                }
+            }
+        }
+        if (hasThumbs) {
             this.#editor = new ThumbnailMarkerEdit(this);
         } else {
             this.#editor = new MarkerEdit(this);
@@ -45,7 +62,7 @@ class MarkerRow {
     row() { return this.html; }
 
     /** Return the metadata id of the episode this marker belongs to. */
-    episodeId() { return this.#episodeId; }
+    parent() { return this.#parentRow; }
 
     /** Returns the editor for this marker. */
     editor() { return this.#editor; }
@@ -78,9 +95,11 @@ class ExistingMarkerRow extends MarkerRow {
     /** @type {MarkerData} */
     #markerData;
 
-    /** @param {MarkerData} marker The marker to base this row off of. */
-    constructor(marker) {
-        super(marker.episodeId);
+    /**
+     * @param {MarkerData} marker The marker to base this row off of.
+     * @param {ResultRow} parent The parent media item that owns this marker. */
+    constructor(marker, parent) {
+        super(parent);
         this.#markerData = marker;
         this.buildRow();
     }
@@ -183,7 +202,9 @@ class ExistingMarkerRow extends MarkerRow {
             const rawMarkerData = await ServerCommand.delete(this.markerId());
             Overlay.dismiss();
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
-            PlexClientState.GetState().getEpisode(this.episodeId()).deleteMarker(deletedMarker, this.row());
+            /** @type {MediaItemWithMarkerTable} */
+            const mediaItem = this.parent().mediaItem();
+            mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
             errorResponseOverlay('Failed to delete marker.', err);
         }
@@ -194,9 +215,10 @@ class ExistingMarkerRow extends MarkerRow {
  * Represents a marker that does not exist yet, (i.e. being added by the user). */
 class NewMarkerRow extends MarkerRow {
 
-    /** @param {number} episodeId The metadata id of the episode to add the marker to. */
-    constructor(episodeId) {
-        super(episodeId);
+    /**
+     * @param {ResultRow} parent The parent metadata item that owns this row. */
+    constructor(parent) {
+        super(parent);
         this.buildRow();
     }
 

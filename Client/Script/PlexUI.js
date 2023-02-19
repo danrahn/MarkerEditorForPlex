@@ -4,8 +4,9 @@ import Overlay from './inc/Overlay.js';
 
 import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
-import { ShowResultRow } from './ResultRow.js';
+import { MovieResultRow, ShowResultRow } from './ResultRow.js';
 import { Log } from '../../Shared/ConsoleLog.js';
+import { SectionType } from '../../Shared/PlexTypes.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
 
@@ -16,9 +17,9 @@ import { Log } from '../../Shared/ConsoleLog.js';
  * sections at once to relevant methods.
  * @enum */
 const UISection = {
-    Shows    : 0x1,
-    Seasons  : 0x2,
-    Episodes : 0x4
+    MoviesOrShows : 0x1, // TODO: is there any value in a separate movie vs show hierarchy?
+    Seasons       : 0x2,
+    Episodes      : 0x4
 };
 
 /**
@@ -48,9 +49,9 @@ class PlexUI {
      * @type {{[group: number]: HTMLElement}}
      * */
     #uiSections = {
-        [UISection.Shows]    : $('#showlist'),
-        [UISection.Seasons]  : $('#seasonlist'),
-        [UISection.Episodes] : $('#episodelist')
+        [UISection.MoviesOrShows] : $('#toplevellist'),
+        [UISection.Seasons]       : $('#seasonlist'),
+        [UISection.Episodes]      : $('#episodelist')
     };
 
     /**
@@ -98,18 +99,18 @@ class PlexUI {
     init(libraries) {
         clearEle(this.#dropdown);
         if (libraries.length < 1) {
-            Overlay.show('No TV libraries found in the database.');
+            Overlay.show('No Movie/TV libraries found in the database.');
             return;
         }
 
-        this.#dropdown.appendChild(buildNode('option', { value : '-1' }, 'Select a library to parse'));
+        this.#dropdown.appendChild(buildNode('option', { value : '-1', libtype : '-1' }, 'Select a library to parse'));
         const savedSection = SettingsManager.Get().lastSection();
 
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
         for (const library of libraries) {
             lastSectionExists = lastSectionExists || library.id == savedSection;
-            this.#dropdown.appendChild(buildNode('option', { value : library.id }, library.name));
+            this.#dropdown.appendChild(buildNode('option', { value : library.id, libtype : library.type }, library.name));
         }
 
         if (savedSection != -1 && !lastSectionExists) {
@@ -150,7 +151,7 @@ class PlexUI {
 
     /** Clears data from the show, season, and episode lists. */
     clearAllSections() {
-        this.clearAndShowSections(UISection.Shows | UISection.Seasons | UISection.Episodes)
+        this.clearAndShowSections(UISection.MoviesOrShows | UISection.Seasons | UISection.Episodes)
         PlexClientState.GetState().clearActiveShow();
     }
 
@@ -192,7 +193,7 @@ class PlexUI {
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
         const section = parseInt(this.#dropdown.value);
-        await PlexClientState.GetState().setSection(section);
+        await PlexClientState.GetState().setSection(section, parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute('libtype')));
         this.clearAllSections();
         if (!isNaN(section) && section != -1) {
             SettingsManager.Get().setLastSection(section);
@@ -238,12 +239,46 @@ class PlexUI {
         // Remove any existing show/season/marker data
         this.clearAllSections();
         PlexClientState.GetState().search(this.#searchBox.value);
-        this.clearAndShowSections(UISection.Shows);
-        PlexClientState.GetState().clearActiveShow();
-        let showList = this.#uiSections[UISection.Shows];
+        this.clearAndShowSections(UISection.MoviesOrShows);
+        switch (PlexClientState.GetState().activeSectionType()) {
+            case SectionType.Movie:
+                this.#searchMovies();
+                break;
+            case SectionType.TV:
+                this.#searchShows();
+                break;
+            default:
+                Log.error(`Attempting to search with an invalid section type.`);
+                break;
+        }
+    }
+
+    #searchMovies() {
+        let movieList = this.#uiSections[UISection.MoviesOrShows];
         const searchResults = PlexClientState.GetState().getSearchResults();
         if (searchResults.length == 0) {
-            showList.appendChild(buildNode('div', { class : 'showResult' }, 'No results found.'));
+            movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
+            return;
+        }
+
+        this.#activeSearch = [];
+        for (const movie of searchResults) {
+            const newRow = new MovieResultRow(movie);
+            this.#activeSearch.push(newRow);
+            // TODO NEXT: This needs to have marker data associated,
+            // or most likely delay load until we want to show markers for the first time.
+            // Also, limit search results to first X (100)? It can be large, but we don't want
+            // to draw 10K rows, especially if we try to load marker data for all of them.
+            movieList.appendChild(newRow.buildRow());
+        }
+    }
+
+    #searchShows() {
+        PlexClientState.GetState().clearActiveShow();
+        let showList = this.#uiSections[UISection.MoviesOrShows];
+        const searchResults = PlexClientState.GetState().getSearchResults();
+        if (searchResults.length == 0) {
+            showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));
             return;
         }
 

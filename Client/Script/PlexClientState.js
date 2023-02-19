@@ -1,15 +1,16 @@
 import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { ShowData, SeasonData } from '../../Shared/PlexTypes.js';
+import { ShowData, SeasonData, SectionType, TopLevelData, MovieData } from '../../Shared/PlexTypes.js';
 
 import { BulkActionType } from './BulkActionCommon.js';
-import ClientEpisodeData from './ClientEpisodeData.js';
+import { ClientEpisodeData } from './ClientDataExtensions.js';
 import { PurgedSection } from './PurgedMarkerCache.js';
 import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
 import SettingsManager from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
+/** @typedef {!import('../../Shared/PlexTypes.js').MovieMap} MovieMap */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
 /** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
 
@@ -20,14 +21,18 @@ import { PlexUI } from './PlexUI.js';
 class PlexClientState {
     /** @type {number} */
     #activeSection = -1;
-    /** @type {{[sectionId: number]: ShowMap}} */
-    #shows = {};
+    /** @type {number} */
+    #activeSectionType = SectionType.TV;
+    /** @type {{[sectionId: number]: ShowMap|MovieMap}} */
+    #sections = {};
     /** @type {ShowData[]} */
     #activeSearch = [];
     /** @type {ShowResultRow} */
     #activeShow;
     /** @type {SeasonResultRow} */
     #activeSeason;
+    /** @type {MovieResultRow} */
+    #activeMovie;
     /**@type {PlexClientState} */
     static #clientState;
 
@@ -59,16 +64,20 @@ class PlexClientState {
 
     /**
       * Set the currently active library.
-      * @param {number} section The section to make active. */
-    async setSection(section) {
+      * @param {number} section The section to make active.
+      * @param {number} sectionType The SectionType of the section. */
+    async setSection(section, sectionType) {
         this.#activeSection = isNaN(section) ? -1 : section;
+        this.#activeSectionType = sectionType;
         if (this.#activeSection != -1) {
-            await this.#populateShows();
+            await this.populateTopLevel();
         }
     }
 
     /** @returns The active Plex library section. */
     activeSection() { return this.#activeSection; }
+    /** @returns The current section type. */
+    activeSectionType() { return this.#activeSectionType; }
 
     /** @returns The list of shows that match the current search. */
     getSearchResults() {
@@ -80,10 +89,15 @@ class PlexClientState {
       * @param {ShowResultRow} showResultRow
       * @returns {ShowData|false} The show with the given metadata id, or `false` if the show was not found. */
     setActiveShow(showResultRow) {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to set the active show when we're not in a TV library.`);
+            return;
+        }
+
         // We could/should just use showResultRow.show() directly, but this verifies that we've been
         // given a show we expect.
         const metadataId = showResultRow.show().metadataId;
-        if (!this.#shows[this.#activeSection][metadataId]) {
+        if (!this.#sections[this.#activeSection][metadataId]) {
             return false;
         }
 
@@ -100,6 +114,11 @@ class PlexClientState {
 
     /** @returns {ShowData} The active show, or null if no show is active. */
     getActiveShow() {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to retrieve the active show when we're not in a TV library.`);
+            return;
+        }
+
         return this.#activeShow?.show();
     }
 
@@ -117,6 +136,11 @@ class PlexClientState {
 
     /** Clears out the currently active season and its episode data. */
     clearActiveSeason() {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to set the active show when we're not in a TV library.`);
+            return;
+        }
+
         if (this.#activeSeason) {
             this.#activeSeason.season().clearEpisodes();
             this.#activeSeason = null;
@@ -127,6 +151,11 @@ class PlexClientState {
       * Adds the given season to the current show.
       * @param {SeasonData} season */
     addSeason(season) {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to set the active show when we're not in a TV library.`);
+            return;
+        }
+
         this.#activeShow.show().addSeason(season);
     }
 
@@ -153,6 +182,11 @@ class PlexClientState {
 
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to retrieve the active season when we're not in a TV library.`);
+            return;
+        }
+
         return this.#activeSeason?.season();
     }
 
@@ -230,7 +264,7 @@ class PlexClientState {
      * @param {ClientEpisodeData} episode The episode a marker was added to/removed from.
      * @param {number} delta 1 if a marker was added, -1 if removed. */
     #updateBreakdownCacheInternal(episode, delta) {
-        const newCount = episode.markerCount();
+        const newCount = episode.markerTable().markerCount();
         const oldCount = newCount - delta;
         for (const media of [this.#activeShow, this.#activeSeason]) {
             const breakdown = media.mediaItem().markerBreakdown;
@@ -250,24 +284,28 @@ class PlexClientState {
     }
 
     /**
-      * Search for shows that match the given query.
+      * Search for top-level items (movies/shows) that match the given query.
       * @param {string} query The show to search for. */
     async search(query)
     {
+        // For movies, also try matching any year that's present.
+        let queryYear = /\b(1[8-9]\d{2}|20\d{2})\b/.exec(query);
+        if (queryYear) { queryYear = queryYear[1]; }
         // Ignore non-word characters to improve matching if there are spacing or quote mismatches. Don't use \W though, since that also clears out unicode characters.
         // Rather than import some heavy package that's aware of unicode word characters, just clear out the most common characters we want to ignore.
         // I could probably figure out how to utilize Plex's spellfix tables, but substring search on display, sort, and original titles should be good enough here.
         query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
 
-        /** @type {ShowData[]} */
-        const showList = Object.values(this.#shows[this.#activeSection]);
+        /** @type {TopLevelData[]} */
+        const itemList = Object.values(this.#sections[this.#activeSection]);
 
         let result = [];
-        for (const show of showList) {
-            if (show.searchTitle.indexOf(query) != -1
-                || (show.sortTitle && show.sortTitle.indexOf(query) != -1)
-                || (show.originalTitle && show.originalTitle.indexOf(query) != -1)) {
-                result.push(show);
+        for (const item of itemList) {
+            if (item.searchTitle.indexOf(query) != -1
+                || (item.sortTitle && item.sortTitle.indexOf(query) != -1)
+                || (item.originalTitle && item.originalTitle.indexOf(query) != -1)
+                || (this.#activeSectionType == SectionType.Movie && queryYear && item.year == queryYear)) {
+                result.push(item);
             }
         }
 
@@ -398,7 +436,7 @@ class PlexClientState {
         }
     }
 
-    /** Comparator that sorts shows by sort title, falling back to the regular title if needed.
+    /** Comparator that sorts items by sort title, falling back to the regular title if needed.
      * @type {(a: ShowData, b: ShowData) => number} */
     #defaultSort(a, b) {
         const aTitle = a.sortTitle || a.searchTitle;
@@ -407,20 +445,32 @@ class PlexClientState {
     }
 
     /**
-      * Kick off a request to get all shows in the currently active session, if it's not already cached.
+      * Kick off a request to get all items in the currently active session, if it's not already cached.
       * @returns {Promise<void>} */
-    async #populateShows() {
-        if (this.#shows[this.#activeSection]) {
+    async populateTopLevel() {
+        if (this.#sections[this.#activeSection]) {
             return;
         }
 
         try {
-            const shows = await ServerCommand.getSection(this.#activeSection);
-            let allShows = {};
-            this.#shows[this.#activeSection] = allShows;
-            for (const show of shows) {
-                let showData = new ShowData().setFromJson(show);
-                allShows[showData.metadataId] = showData;
+            const items = await ServerCommand.getSection(this.#activeSection);
+            let allItems = {};
+            this.#sections[this.#activeSection] = allItems;
+            for (const movieOrShow of items) {
+                let itemData;
+                switch (this.#activeSectionType) {
+                    case SectionType.Movie:
+                        itemData = new MovieData().setFromJson(movieOrShow);
+                        break;
+                    case SectionType.TV:
+                        itemData = new ShowData().setFromJson(movieOrShow);
+                        break;
+                    default:
+                        Log.error(this.#activeSectionType, `Encountered unknown section type when populating top-level data`);
+                        break;
+                }
+
+                allItems[itemData.metadataId] = itemData;
             }
         } catch (err) {
             errorResponseOverlay('Something went wrong retrieving shows from the selected library, please try again later.', err);

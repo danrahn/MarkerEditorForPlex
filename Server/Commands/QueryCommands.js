@@ -1,5 +1,5 @@
 import { Log } from "../../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData, SeasonData, ShowData } from "../../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MovieData, SeasonData, SectionType, ShowData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
@@ -7,6 +7,8 @@ import { Config } from "../IntroEditorConfig.js";
 import { PlexQueries } from "../PlexQueryManager.js";
 import ServerError from "../ServerError.js";
 import { Thumbnails } from "../ThumbnailManager.js";
+
+/** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
 
 /**
  * Classification of commands that queries the database for information, does not edit any underlying data
@@ -18,37 +20,57 @@ class QueryCommands {
 
     /**
      * Retrieve an array of markers for all requested metadata ids.
+     * Each key is expected to be the same media type (e.g. all movie ids, or all episode ids).
      * @param {number[]} keys The metadata ids to lookup. */
     static async queryIds(keys) {
+        if (keys.length == 0) {
+            throw new ServerError(`Marker query must have at least one metadata id to search for,`, 400);
+        }
+
         let markers = {};
         for (const key of keys) {
             markers[key] = [];
         }
 
-        const rawMarkers = await PlexQueries.getMarkersForEpisodes(keys);
+        const rawMarkers = await PlexQueries.getMarkersForItems(keys);
         for (const rawMarker of rawMarkers) {
-            markers[rawMarker.episode_id].push(new MarkerData(rawMarker));
+            markers[rawMarker.parent_id].push(new MarkerData(rawMarker));
         }
 
         return markers;
     }
 
     /**
-     * Retrieve all TV libraries found in the database. */
+     * Retrieve all TV libraries found in the database.
+     * @returns {Promise<LibrarySection[]>} */
     static async getLibraries() {
-        const rows = await PlexQueries.getShowLibraries();
-        let libraries = [];
-        for (const row of rows) {
-            libraries.push({ id : row.id, name : row.name });
+        return PlexQueries.getLibraries();
+    }
+
+    /**
+     * Retrieve all movies/shows from the given library section.
+     * @param {number} sectionId The section id of the library. */
+    static async getLibrary(sectionId) {
+        const sections = await PlexQueries.getLibraries();
+        const section = sections.find(s => s.id == sectionId);
+        if (!section) {
+            throw new ServerError(sectionId, `Section id "${sectionId}" is not a valid movie or TV library`, 400);
         }
 
-        return libraries;
+        switch (section.type) {
+            case SectionType.Movie:
+                return this.#getMovies(sectionId);
+            case SectionType.TV:
+                return this.#getShows(sectionId);
+            default:
+                throw new ServerError(sectionId, `Section id "${sectionId}" is of an unknown type`, 400);
+        }
     }
 
     /**
      * Retrieve all shows from the given library section.
      * @param {number} sectionId The section id of the library. */
-    static async getShows(sectionId) {
+    static async #getShows(sectionId) {
         const rows = await PlexQueries.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
@@ -57,6 +79,22 @@ class QueryCommands {
         }
 
         return shows;
+    }
+
+    /**
+     * Retrieve all movies from the given library section.
+     * @param {number} sectionId
+     * @returns {Promise<MovieData[]>} */
+    static async #getMovies(sectionId) {
+        const rows = await PlexQueries.getMovies(sectionId);
+        let movies = [];
+        for (const movie of rows) {
+            // TODO: breakdown integration
+            // movie.markerBreakdown = MarkerCache?.getShowStats(movie.id);
+            movies.push(new MovieData(movie));
+        }
+
+        return movies;
     }
 
     /**
@@ -117,6 +155,14 @@ class QueryCommands {
                 resolve(episodes);
             }
         });
+    }
+
+    /**
+     * Check whether the item with the given metadata has thumbnails associated with it.
+     * Only applicable to episode and movie ids.
+     * @param {number} metadataId */
+    static async checkForThumbs(metadataId) {
+        return { hasThumbnails : await Thumbnails.hasThumbnails(metadataId) };
     }
 
     /**

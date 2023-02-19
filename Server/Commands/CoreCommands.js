@@ -67,7 +67,7 @@ class CoreCommands {
         }
 
         // Get all markers to adjust indexes if necessary
-        const allMarkers = await PlexQueries.getEpisodeMarkers(currentMarker.episode_id);
+        const allMarkers = await PlexQueries.getEpisodeMarkers(currentMarker.parent_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
         const currentMarkerInAllMarkers = allMarkers.find(m => m.id == markerId);
@@ -92,7 +92,7 @@ class CoreCommands {
         // Make the edit, then adjust indexes
         // TODO: removeIndex: newIndex parameter shouldn't be necessary
         await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated, markerType, final);
-        await PlexQueries.reindex(currentMarker.episode_id);
+        await PlexQueries.reindex(currentMarker.parent_id);
 
         const newMarkerRaw = await PlexQueries.getSingleMarker(markerId);
         const newMarker = new MarkerData(newMarkerRaw);
@@ -111,7 +111,7 @@ class CoreCommands {
             throw new ServerError("Could not find intro marker", 400);
         }
 
-        const allMarkers = await PlexQueries.getEpisodeMarkers(markerToDelete.episode_id);
+        const allMarkers = await PlexQueries.getEpisodeMarkers(markerToDelete.parent_id);
         let deleteIndex = 0;
         for (const marker of allMarkers) {
             if (marker.id == markerId) {
@@ -124,7 +124,7 @@ class CoreCommands {
 
         // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
         if (deleteIndex < allMarkers.length - 1) {
-            await PlexQueries.reindex(markerToDelete.episode_id);
+            await PlexQueries.reindex(markerToDelete.parent_id);
         }
 
         const deletedMarker = new MarkerData(markerToDelete);
@@ -158,13 +158,13 @@ class CoreCommands {
                 continue;
             }
 
-            if (!seen[marker.episode_id]) {
-                seen[marker.episode_id] = [];
+            if (!seen[marker.parent_id]) {
+                seen[marker.parent_id] = [];
             } else {
                 foundConflict = true;
             }
 
-            seen[marker.episode_id].push(marker);
+            seen[marker.parent_id].push(marker);
         }
 
         /** @type {number[]} */
@@ -248,12 +248,12 @@ class CoreCommands {
         const markerCounts = {};
         for (const marker of markerInfo.markers) {
             if (!ignoreSet.has(marker.id)) {
-                episodeIds.add(marker.episode_id);
+                episodeIds.add(marker.parent_id);
                 toDelete.push(marker);
             }
 
-            markerCounts[marker.episode_id] ??= 0;
-            ++markerCounts[marker.episode_id];
+            markerCounts[marker.parent_id] ??= 0;
+            ++markerCounts[marker.parent_id];
         }
 
         if (dryRun) {
@@ -289,7 +289,7 @@ class CoreCommands {
         for (const deletedMarker of toDelete) {
             const nonRaw = new MarkerData(deletedMarker);
             MarkerCache?.removeMarkerFromCache(deletedMarker.id);
-            LegacyMarkerBreakdown.Update(nonRaw, markerCounts[deletedMarker.episode_id]--, -1);
+            LegacyMarkerBreakdown.Update(nonRaw, markerCounts[deletedMarker.parent_id]--, -1);
             deleted.push(nonRaw);
         }
 
@@ -344,20 +344,20 @@ class CoreCommands {
             const markerCounts = {};
             const oldMarkerTimings = {};
             for (const marker of currentMarkers.markers) {
-                markerCounts[marker.episode_id] ??= 0;
-                ++markerCounts[marker.episode_id];
+                markerCounts[marker.parent_id] ??= 0;
+                ++markerCounts[marker.parent_id];
                 oldMarkerTimings[marker.id] = { start : marker.start, end : marker.end };
             }
 
             for (const add of adds) {
-                LegacyMarkerBreakdown.Update(add, markerCounts[add.episodeId]++, 1);
+                LegacyMarkerBreakdown.Update(add, markerCounts[add.parentId]++, 1);
                 MarkerCache?.addMarkerToCache({
                     // Gross, but need to convert from MarkerData to RawMarkerData
                     id : add.id,
                     section_id : add.sectionId,
                     show_id : add.showId,
                     season_id : add.seasonId,
-                    episode_id : add.episodeId
+                    parent_id : add.parentId
                 });
             }
 
@@ -365,7 +365,7 @@ class CoreCommands {
                 MarkerCache?.removeMarkerFromCache(deleted.id);
                 // TODO: Remove LegacyMarkerBreakdown. Forcing full marker enumeration makes things much easier,
                 //       but I don't have a large enough real-world database to test this on (100K+ episodes)
-                LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.episodeId]--, -1);
+                LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.parentId]--, -1);
             }
 
             await BackupManager?.recordAdds(adds);
