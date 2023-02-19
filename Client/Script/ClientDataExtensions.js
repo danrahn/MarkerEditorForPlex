@@ -51,7 +51,12 @@ class ClientMovieData extends MovieData {
             markers.push(new MarkerData().setFromJson(marker));
         }
 
-        this.#markerTable = new MarkerTable(markers, parentRow, true /*lazyLoad*/, parentRow.movie().markerCount);
+        const mov = parentRow.movie();
+
+        // Marker breakdown is currently overkill for movies, since it only ever has a single item inside of it.
+        // If intros/credits are ever separated though, this will do the right thing.
+        const markerCount = mov?.markerBreakdown ? Object.keys(mov.markerBreakdown).reduce((sum, k) => sum + k * mov.markerBreakdown[k]) : 0;
+        this.#markerTable = new MarkerTable(markers, parentRow, true /*lazyLoad*/, markerCount);
     }
 
     /**

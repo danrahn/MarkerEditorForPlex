@@ -865,7 +865,6 @@ class MovieResultRow extends ResultRow {
             this.#markersGrabbed = true;
             try {
                 const markerData = await ServerCommand.query([mov.metadataId]);
-                mov.markerCount = undefined; // We have real data now, don't use this temporary value anymore.
                 if (mov.hasThumbnails === undefined) {
                     mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
                 }
@@ -901,6 +900,21 @@ class MovieResultRow extends ResultRow {
     /** Scroll the marker table into view */
     scrollTableIntoView() {
         $$('table', this.movie().markerTable().table()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+    }
+
+    /**
+     * Updates the marker statistics both in the UI and the client state.
+     * @param {number} _delta 1 if a marker was added to this movie, -1 if one was removed. Unused, but mirrors ResultRow signature. */
+    updateMarkerBreakdown(_delta) {
+        // Don't bother updating in-place, just recreate and replace.
+        const newNode = this.#buildMarkerText();
+        const oldNode = $$('.episodeDisplayText', this.html());
+        oldNode.parentElement.insertBefore(newNode, oldNode);
+        oldNode.parentElement.removeChild(oldNode);
+
+        // Note: No need to propagate changes up like for episodes, since
+        //       we're already at the top of the chain. The section-wide
+        //       marker chart queries the server directly every time.
     }
 }
 

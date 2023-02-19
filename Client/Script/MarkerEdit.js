@@ -185,7 +185,9 @@ class MarkerEdit {
         try {
             const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
-            PlexClientState.GetState().getEpisode(newMarker.parentId).markerTable().addMarker(newMarker, this.markerRow.row());
+            /** @type {MediaItemWithMarkerTable} */
+            const mediaItem = this.markerRow.parent().mediaItem();
+            mediaItem.markerTable().addMarker(newMarker, this.markerRow.row());
         } catch (err) {
             errorResponseOverlay('Sorry, something went wrong trying to add the marker. Please try again later.', err);
         }
@@ -216,7 +218,9 @@ class MarkerEdit {
         try {
             const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, userCreated, final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            PlexClientState.GetState().getEpisode(editedMarker.parentId).markerTable().editMarker(editedMarker);
+            /** @type {MediaItemWithMarkerTable} */
+            const mediaItem = this.markerRow.parent().mediaItem();
+            mediaItem.markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
             this.onMarkerEditCancel();
@@ -229,7 +233,9 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        PlexClientState.GetState().getEpisode(partialMarker.parentId).markerTable().editMarker(partialMarker);
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
+        mediaItem.markerTable().editMarker(partialMarker);
         this.resetAfterEdit();
     }
 

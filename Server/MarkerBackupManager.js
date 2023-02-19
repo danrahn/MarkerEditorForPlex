@@ -98,8 +98,6 @@ In the following scenario, we can lose track of marker adds/edits:
   4. The episode is added again.
 
 In this case, the metadata id is not enough.
-
-V4 NOTE: this is bit of a misnomer now, parent_guid would be better. Maybe worth updating in a V5 schema, but not on its own.
 */
 
 /*
@@ -127,6 +125,20 @@ PMS 1.31.0.6654 introduced credits detection, and along with it a new marker typ
 'credits'. Add the two fields above to capture this new information.
 */
 
+/*
+Backup table V5 modifications:
+
+| OLD COLUMN   | NEW COLUMN  | DESCRIPTION                                              |
++--------------+-------------+----------------------------------------------------------+
+| episode_id   | parent_id   | Rename the column to be more agnostic for movie markers. |
++--------------+-------------+----------------------------------------------------------+
+| episode_guid | parent_guid | See above.                                               |
++--------------+-------------+----------------------------------------------------------+
+
+With the introduction of credit markers, there's a more compelling reason to allow movies
+to also be marked. The schema itself is still okay, but rename some columns so episodes
+aren't explicitly referenced. It would be nice if , but 
+
 
 /**
  * The accepted operation types
@@ -148,14 +160,14 @@ CREATE TABLE IF NOT EXISTS actions (
     id           INTEGER      PRIMARY KEY AUTOINCREMENT,
     op           INTEGER      NOT NULL,
     marker_id    INTEGER      NOT NULL,
-    episode_id   INTEGER      NOT NULL,
-    season_id    INTEGER      NOT NULL,
-    show_id      INTEGER      NOT NULL,
+    parent_id    INTEGER      NOT NULL,` /* V5: episode_id -> parent_id */ + `
+    season_id    INTEGER      NOT NULL,` /* V5: -1 indicates a movie marker */ + `
+    show_id      INTEGER      NOT NULL,` /* V5: -1 indicates a movie marker */ + `
     start        INTEGER      NOT NULL,
     end          INTEGER      NOT NULL,
     old_start    INTEGER,
     old_end      INTEGER,
-    modified_at  INTEGER      DEFAULT NULL,` + /* V4 -> VARCHAR to INTEGER */`
+    modified_at  INTEGER      DEFAULT NULL,` /* V4 -> VARCHAR to INTEGER */ + `
     created_at   INTEGER      NOT NULL,` /* V4 -> DATETIME to INTEGER */+ `
     recorded_at  INTEGER      DEFAULT (strftime('%s','now')),` /* V4 -> DATETIME to INTEGER */ + `
     extra_data   VARCHAR(255) NOT NULL,
@@ -165,7 +177,7 @@ CREATE TABLE IF NOT EXISTS actions (
     /* V2 */`
     section_id   INTEGER      NOT NULL DEFAULT -1,` +
     /* V3 */`
-    episode_guid VARCHAR(255) DEFAULT NULL,` +
+    parent_guid  VARCHAR(255) DEFAULT NULL,` /* V5: episode_guid -> parent_guid */ +
     /* V4 */`
     marker_type  VARCHAR(255) DEFAULT 'intro',
     final        INTEGER      DEFAULT 0,
@@ -175,10 +187,10 @@ CREATE TABLE IF NOT EXISTS actions (
 
 /**
  * A full row in the Actions table
- * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, episode_id: number,
+ * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, parent_id: number,
  *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
  *            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
- *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, episode_guid: string?,
+ *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
  *            episodeData: EpisodeData? }} MarkerAction
  */
 
@@ -188,7 +200,7 @@ CREATE TABLE IF NOT EXISTS actions (
  */
 
 /** The current table schema version. */
-const CurrentSchemaVersion = 4;
+const CurrentSchemaVersion = 5;
 
 /** Single-row table that indicates the current version of the actions table. */
 const CheckVersionTable = `
@@ -206,7 +218,7 @@ const ciine = (indexName, columnName) => `CREATE INDEX IF NOT EXISTS idx_actions
 /** The list of CREATE INDEX statements to execute after creating the Actions table. */
 const CreateIndexes = `
 ${ciine('uuid', 'section_uuid')};
-${ciine('eid', 'episode_id')};
+${ciine('eid', 'parent_id')};
 ${ciine('seasonid', 'season_id')};
 ${ciine('showid', 'show_id')};
 ${ciine('mid', 'marker_id')};
@@ -250,6 +262,12 @@ const SchemaUpgrades = [
      UPDATE actions SET created_at  = iif(typeof(created_at)  in ('datetime', 'text'), CAST(strftime('%s', created_at)  as INTEGER), created_at );
      UPDATE actions SET recorded_at = iif(typeof(recorded_at) in ('datetime', 'text'), CAST(strftime('%s', recorded_at) as INTEGER), recorded_at);
      UPDATE schema_version SET version=4;`,
+
+     // 4 -> 5:
+     // Movie support. No major changes, but rename episode_id/guid to parent_id/guid so it more generically refers to the marker's owner (either an episode or a movie)
+     `ALTER TABLE actions RENAME COLUMN episode_id TO parent_id;
+      ALTER TABLE actions RENAME COLUMN episode_guid TO parent_guid;
+      UPDATE schema_version SET version=5;`,
 ];
 
 /**
@@ -287,6 +305,7 @@ class MarkerBackupManager {
         async () => { }, // addEpisodeGuidAfterUpgrade, but we do it outside the main update process
         // New columns have default values that are guaranteed to be correct, but we need to update our hacked thumb_urls in the main database.
         this.#checkBadThumbUrls.bind(this),
+        async () => { }, // 4 -> 5. Just renaming columns, nothing else to do.
     ];
 
     /**
@@ -457,14 +476,14 @@ class MarkerBackupManager {
      * Since the backup database supports multiple servers, we may need to run updates
      * outside of the immediate schema upgrade. */
     async postUpgrade() {
-        await this.#addEpisodeGuidAfterUpgrade();
+        await this.#addParentGuidAfterUpgrade();
     }
 
     /**
      * Check for relevant marker actions that don't have an episode guid set.
      * If relevant actions are found that we can't find a guid for, that means the episode is deleted
      * and can no longer be restored, so will be marked as ignored in the database. */
-    async #addEpisodeGuidAfterUpgrade() {
+    async #addParentGuidAfterUpgrade() {
         const allActionsQuery = this.#allActionsQuery(true);
         /** @type {MarkerAction[]} */
         const allActions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
@@ -482,17 +501,17 @@ class MarkerBackupManager {
         Log.info('MarkerBackupManager: Found marker actions without an episode guid. Attempting to match them now.');
         const transaction = new TransactionBuilder(this.#actions);
         for (const [sectionId, actions] of Object.entries(bySection)) {
-            const episodes = await PlexQueries.episodeGuidsForSection(sectionId);
+            const items = await PlexQueries.baseGuidsForSection(sectionId);
             for (const action of actions) {
-                const guid = episodes[action.episode_id];
+                const guid = items[action.parent_id];
                 if (!guid) {
-                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.episode_id}, marking it as ignored as it cannot be restored.`);
+                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.parent_id}, marking it as ignored as it cannot be restored.`);
                     transaction.addStatement('UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?', [action.marker_id, this.#uuids[sectionId]]);
                     continue;
                 }
 
                 const parameters = [guid, action.marker_id, action.marker_id, this.#uuids[sectionId]];
-                transaction.addStatement('UPDATE actions SET episode_guid=? WHERE (marker_id=? OR restored_id=?) AND section_uuid=?', parameters);
+                transaction.addStatement('UPDATE actions SET parent_guid=? WHERE (marker_id=? OR restored_id=?) AND section_uuid=?', parameters);
             }
         }
 
@@ -514,7 +533,7 @@ class MarkerBackupManager {
             // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), (strftime('%s','now')), ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Add, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
                                 ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, 1 /*userCreated*/];
@@ -554,7 +573,7 @@ class MarkerBackupManager {
 
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Edit, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
                 ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
@@ -586,7 +605,7 @@ class MarkerBackupManager {
 
             const query = `
     INSERT INTO actions
-    (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, episode_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
             const parameters = [MarkerOp.Delete, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
                 marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
@@ -615,7 +634,7 @@ class MarkerBackupManager {
         for (const restore of restores) {
             const query = `
                 INSERT INTO actions
-                (op, marker_id, episode_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, episode_guid, marker_type, final, user_created) VALUES
+                (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
@@ -660,7 +679,7 @@ class MarkerBackupManager {
             if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
                 // Note: while this is "cleaner", it's a bit gross since it doesn't work with
                 // primitives, only objects due to reference semantics.
-                (episodeMap[action.episode_id] ??= []).push(action);
+                (episodeMap[action.parent_id] ??= []).push(action);
             }
         }
 
@@ -720,7 +739,7 @@ class MarkerBackupManager {
 
         const query = `
 SELECT *, MAX(id) FROM actions
-WHERE (${uuidString}) AND restored_id IS NULL ${guidCheck ? 'AND episode_guid IS NULL' : ''}
+WHERE (${uuidString}) AND restored_id IS NULL ${guidCheck ? 'AND parent_guid IS NULL' : ''}
 GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`
 
@@ -754,15 +773,15 @@ ORDER BY id DESC;`
             // TODO: UI similar to bulk add - show what conflicts with existing markers.
             //       Conflict resolution similar to bulk add, with new 'replace' option.
             //       Integrate into bulk action base table for multiselect, etc
-            if (!MarkerCache.episodeExists(action.episode_id)) {
-                if (!action.episode_guid) {
+            if (!MarkerCache.baseItemExists(action.parent_id)) {
+                if (!action.parent_guid) {
                     // Episode doesn't exist and we don't have a guid to associate in the future, mark as ignored
                     Log.warn(`Episode for marker id ${action.id} not found, marking as ignored since it cannot be recovered.`);
                     (disconnected[action.section_id] ??= []).push(action.marker_id);
                     continue;
                 }
 
-                const fromGuid = await PlexQueries.getEpisodeFromGuid(action.episode_guid);
+                const fromGuid = await (action.show_id != -1 ? PlexQueries.getEpisodeFromGuid(action.parent_guid) : PlexQueries.getMovieFromGuid(action.parent_guid));
                 if (!fromGuid) {
                     Log.verbose(`No episode found for marker id ${action.id}, but keeping around in case the episode guid is added in the future.`);
                     continue;
@@ -773,7 +792,7 @@ ORDER BY id DESC;`
                 await this.#updateMarkerMetadataIds(action, fromGuid.id, fromGuid.season_id, fromGuid.show_id);
             }
 
-            if (MarkerCache.episodeExists(action.episode_id) && !MarkerCache.markerExists(action.marker_id)) {
+            if (MarkerCache.baseItemExists(action.parent_id) && !MarkerCache.markerExists(action.marker_id)) {
                 this.#addToPurgeMap(action);
             }
         }
@@ -801,7 +820,7 @@ ORDER BY id DESC;`
      * @param {number} seasonId
      * @param {number} showId */
     async #updateMarkerMetadataIds(action, episodeId, seasonId, showId) {
-        const query = `UPDATE actions SET episode_id=?, season_id=?, show_id=? WHERE marker_id=?`;
+        const query = `UPDATE actions SET parent_id=?, season_id=?, show_id=? WHERE marker_id=?`;
         await this.#actions.run(query, [episodeId, seasonId, showId, action.marker_id]);
     }
 
@@ -816,7 +835,7 @@ ORDER BY id DESC;`
         let section = this.#purgeCache[action.section_id] ??= {};
         let show = section[action.show_id] ??= {};
         let season = show[action.season_id] ??= {};
-        (season[action.episode_id] ??= {})[action.marker_id] = action;
+        (season[action.parent_id] ??= {})[action.marker_id] = action;
     }
 
     /**
@@ -830,13 +849,13 @@ ORDER BY id DESC;`
         let show = section[action.show_id];
         if (!show[action.season_id]) { return; }
         let season = show[action.season_id];
-        if (!season[action.episode_id]) { return; }
-        let episode = season[action.episode_id];
+        if (!season[action.parent_id]) { return; }
+        let episode = season[action.parent_id];
         if (!episode[action.marker_id]) { return; }
 
         if (episode[action.marker_id]) { delete episode[action.marker_id]; }
 
-        if (Object.keys(episode).length == 0) { delete season[action.episode_id]; }
+        if (Object.keys(episode).length == 0) { delete season[action.parent_id]; }
         if (Object.keys(season).length == 0) { delete show[action.season_id]; }
         if (Object.keys(show).length == 0) { delete section[action.show_id]; }
         if (Object.keys(section).length == 0) { delete this.#purgeCache[action.section_id]; }
@@ -882,7 +901,7 @@ ORDER BY id DESC;`
                 for (const episode of Object.values(season)) {
                     for (const markerAction of Object.values(episode)) {
                         if (!markerAction.episodeData) {
-                            (needsEpisodeData[markerAction.episode_id] ??= []).push(markerAction);
+                            (needsEpisodeData[markerAction.parent_id] ??= []).push(markerAction);
                         }
                     }
                 }
@@ -967,7 +986,7 @@ ORDER BY id DESC;`
 
         let foundMarkers = {};
 
-        /** @type {{ [episode_id: number] : MarkerAction[] }} */
+        /** @type {{ [parent_id: number] : MarkerAction[] }} */
         let toRestore = {};
         for (const markerAction of rows) {
             if (foundMarkers[markerAction.marker_id]) {
@@ -975,7 +994,7 @@ ORDER BY id DESC;`
             }
 
             foundMarkers[markerAction.marker_id] = true;
-            (toRestore[markerAction.episode_id] ??= []).push(markerAction);
+            (toRestore[markerAction.parent_id] ??= []).push(markerAction);
         }
 
         const markerData = await PlexQueries.bulkRestore(toRestore);

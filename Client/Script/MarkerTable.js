@@ -1,4 +1,4 @@
-import { appendChildren, buildNode, msToHms } from './Common.js';
+import { appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 
@@ -84,6 +84,13 @@ class MarkerTable {
     /**
      * @param {MarkerData[]} markers */
     lazyInit(markers) {
+        if (this.#markers.length !== 0) {
+            // Reset data
+            Log.warn(`Attempting to lazy-init a marker table that already has markers!`);
+            clearEle(this.#tbody());
+        }
+
+        this.#markers = markers.sort((a, b) => a.start - b.start);
         const tbody = this.#tbody();
         const addMarkerRow = tbody.children[0];
         if (markers.length == 0) {

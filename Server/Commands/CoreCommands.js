@@ -67,7 +67,7 @@ class CoreCommands {
         }
 
         // Get all markers to adjust indexes if necessary
-        const allMarkers = await PlexQueries.getEpisodeMarkers(currentMarker.parent_id);
+        const allMarkers = await PlexQueries.getBaseTypeMarkers(currentMarker.parent_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
         const currentMarkerInAllMarkers = allMarkers.find(m => m.id == markerId);
@@ -111,7 +111,7 @@ class CoreCommands {
             throw new ServerError("Could not find intro marker", 400);
         }
 
-        const allMarkers = await PlexQueries.getEpisodeMarkers(markerToDelete.parent_id);
+        const allMarkers = await PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);
         let deleteIndex = 0;
         for (const marker of allMarkers) {
             if (marker.id == markerId) {

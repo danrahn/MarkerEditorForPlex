@@ -55,6 +55,8 @@ const MetadataType = {
     /** @readonly */ Track   : 10,
 };
 
+const MetadataBaseTypes = [MetadataType.Movie, MetadataType.Episode];
+
 /** Helper class used to align RawMarkerData and MarkerAction fields that are
  *  relevant for restoring purged markers. */
 class TrimmedMarker {
@@ -88,7 +90,7 @@ class TrimmedMarker {
 
     /** @param {MarkerAction} action */
     static fromBackup(action) {
-        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.episode_id, action.start, action.end, -1, action.marker_type, action.final);
+        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.parent_id, action.start, action.end, -1, action.marker_type, action.final);
     }
 }
 
@@ -146,7 +148,10 @@ FROM taggings
     taggings.created_at,
     taggings.extra_data,
     movies.id AS parent_id,
-    movies.guid AS parent_guid
+    -1 AS season_id,
+    -1 AS show_id,
+    movies.guid AS parent_guid,
+    movies.library_section_id AS section_id
 FROM taggings
     INNER JOIN metadata_items movies ON taggings.metadata_item_id = movies.id
 `;
@@ -241,38 +246,6 @@ FROM taggings
      * @param {number} sectionId
      * @returns {Promise<RawMovieData[]>} */
     async getMovies(sectionId) {
-        // Include marker counts as part of the query as a middle ground that
-        // allows us to display marker counts when searching for movies, but
-        // doesn't require us to actually initialize marker data for potentially
-        // thousands of items.
-
-        // It's faster to do two separate queries - one to get tags, another to get movies,
-        // and correlate them in code versus the query itself.
-        //
-        // TODO: bundle into marker cache manager.
-
-        /** Just for potential future reference. This is the slow version of the separated queries below*/
-        const _slowQuery = `
-SELECT movies.id AS id,
-       movies.title AS title,
-       movies.title_sort AS title_sort,
-       movies.original_title AS original_title,
-       movies.year AS year,
-       MAX(files.duration) AS duration,
-       SUM(CASE WHEN taggings.tag_id=? THEN 1 ELSE 0 END) AS marker_count
- FROM metadata_items movies
- INNER JOIN media_items files ON movies.id=files.metadata_item_id
- LEFT JOIN taggings ON taggings.metadata_item_id=movies.id
- WHERE movies.metadata_type=1 AND movies.library_section_id=?
- GROUP BY movies.id;
-`;
-
-        const allMarkersQuery = `SELECT metadata_item_id, COUNT(metadata_item_id) AS cnt FROM taggings WHERE tag_id=? GROUP BY metadata_item_id`;
-        const allMarkers = await this.#database.all(allMarkersQuery, [this.#markerTagId]);
-        const markerMap = {};
-        for (const mid of allMarkers) {
-            markerMap[mid.metadata_item_id] = mid.cnt;
-        }
         const movieQuery = `
 SELECT movies.id AS id,
         movies.title AS title,
@@ -285,12 +258,7 @@ SELECT movies.id AS id,
   WHERE movies.metadata_type=1 AND movies.library_section_id=?
   GROUP BY movies.id;
         `;
-        const allMovies = await this.#database.all(movieQuery, [sectionId]);
-        for (const movie of allMovies) {
-            movie.marker_count = markerMap[movie.id] || 0;
-        }
-
-        return allMovies;
+        return this.#database.all(movieQuery, [sectionId]);
     }
 
     /**
@@ -449,15 +417,38 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve guids for all episodes in a given section
+     * Retrieve the movie id for a movie with the given guid, if any.
+     * @param {string} guid
+     * @returns {Promise<{ id: number, season_id: -1, show_id: -1 }>} */
+    async getMovieFromGuid(guid) {
+        try {
+            return { id : (await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid])).id, season_id : -1, show_id: -1 };
+        } catch (_) {
+            return undefined;
+        }
+    }
+
+    /**
+     * Retrieve guids for all "base" items in a given section (i.e. movies or episodes)
      * @param {number} sectionId
      * @returns {Promise<{ [metadataId: number]: string }>} */
-    async episodeGuidsForSection(sectionId) {
-        const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=4;`;
-        const episodes = await this.#database.all(query, [sectionId]);
+    async baseGuidsForSection(sectionId) {
+        let sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        switch (sectionType) {
+            case MetadataType.Movie:
+                break;
+            case MetadataType.Show:
+                sectionType = MetadataType.Episode;
+                break;
+            default:
+                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+        }
+
+        const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=?;`;
+        const items = await this.#database.all(query, [sectionId, sectionType]);
         const dict = {};
-        for (const episode of episodes) {
-            dict[episode.id] = episode.guid;
+        for (const item of items) {
+            dict[item.id] = item.guid;
         }
 
         return dict;
@@ -519,9 +510,18 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Retrieve all markers for a single episode.
-     * @param {number} episodeId */
-    async getEpisodeMarkers(episodeId) {
-        return this.#getMarkersForMetadataItem(episodeId, `taggings.metadata_item_id`, this.#extendedEpisodeMarkerFields);
+     * @param {number} metadataId
+     * @param {number} [baseType] */
+    async getBaseTypeMarkers(metadataId, baseType=undefined) {
+        if (!baseType) {
+            baseType = (await this.#mediaTypeFromId(metadataId)).metadata_type;
+        }
+
+        if (MetadataBaseTypes.indexOf(baseType) === -1) {
+            throw new ServerError(`Attempting to get markers for a base type that isn't actually a base type (${baseType})`);
+        }
+
+        return this.#getMarkersForMetadataItem(metadataId, `taggings.metadata_item_id`, this.#extendedFieldsFromMediaType(baseType));
     }
 
     /**
@@ -674,20 +674,20 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Add a marker to the database, taking care of reindexing if necessary.
-     * @param {number} metadataId The metadata id of the episode to add the marker to.
+     * @param {number} metadataId The metadata id of the item to add the marker to.
      * @param {number} startMs Start time, in milliseconds.
      * @param {number} endMs End time, in milliseconds.
      * @param {string} markerType The type of marker
      * @param {number} final Whether this marker should be marked final. Only applies to Credits
      * @returns {Promise<{ allMarkers: RawMarkerData[], newMarker: RawMarkerData}>} */
     async addMarker(metadataId, startMs, endMs, markerType, final) {
-        // Ensure metadataId is an episode, it doesn't make sense to add one to any other media type
+        // Ensure metadataId is a base type, it doesn't make sense to add one to any other media type
         const typeInfo = await this.#mediaTypeFromId(metadataId);
-        if (typeInfo.metadata_type != 4) {
-            throw new ServerError(`Attempting to add marker to a media item that's not an episode!`, 400);
+        if (MetadataBaseTypes.indexOf(typeInfo.metadata_type) === -1) {
+            throw new ServerError(`Attempting to add marker to a media item that's not a base type!`, 400);
         }
 
-        const allMarkers = await this.getEpisodeMarkers(metadataId);
+        const allMarkers = await this.getBaseTypeMarkers(metadataId);
         const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
         if (newIndex == -1) {
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
@@ -709,7 +709,7 @@ ORDER BY e.\`index\` ASC;`;
         // Insert succeeded, update indexes of other markers if necessary
         await this.reindex(metadataId);
 
-        const newMarker = await this.getNewMarker(metadataId, startMs, endMs);
+        const newMarker = await this.#getNewMarker(metadataId, startMs, endMs, typeInfo.metadata_type);
         return { allMarkers : allMarkers, newMarker : newMarker };
     }
 
@@ -916,33 +916,53 @@ ORDER BY e.\`index\` ASC;`;
      * Retrieve a marker that was just added to the database.
      *
      * Fields returned: `id`, `metadata_item_id`, `index`, `start`, `end`, `modified_date`, `created_at`
-     * @param {number} metadataId The metadata id of the episode the marker belongs to.
-     * @param {number} index The index of the marker in the marker table.
+     * @param {number} metadataId The metadata id of the item the marker belongs to.
+     * @param {number} startMs The start time of the new marker.
+     * @param {number} endMs The end time of the new marker.
+     * @param {number} baseType The type of item this marker is attached to (movie/episode)
      * @returns {Promise<RawMarkerData>} */
-    async getNewMarker(metadataId, startMs, endMs) {
+    async #getNewMarker(metadataId, startMs, endMs, baseType) {
         return this.#postProcessExtendedMarkerFields(await this.#database.get(
-            `SELECT ${this.#extendedEpisodeMarkerFields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
+            `SELECT ${this.#extendedFieldsFromMediaType(baseType)} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
             [metadataId, this.#markerTagId, startMs, endMs]));
     }
 
     /**
      * Retrieve all episodes and their markers (if any) in the given section.
      *
-     * Fields returned: `episode_id`, `tag_id`
+     * Fields returned: `parent_id`, `tag_id`
      * TODO: Movies
      * @param {number} sectionId
-     * @returns {Promise<{episode_id: number, tag_id: number}[]>} */
+     * @returns {Promise<{parent_id: number, tag_id: number}[]>} */
     async markerStatsForSection(sectionId) {
-        // Note that the query below that grabs _all_ tags for an episode and discarding
+        const baseType = await this.#baseItemTypeFromSection(sectionId);
+        // Note that the query below that grabs _all_ tags for an item and discarding
         // those that aren't intro markers is faster than doing an outer join on a
         // temporary taggings table that only includes markers
         const query = `
-SELECT e.id AS episode_id, m.tag_id AS tag_id FROM metadata_items e
-    LEFT JOIN taggings m ON e.id=m.metadata_item_id
-WHERE e.library_section_id=? AND e.metadata_type=4
-ORDER BY e.id ASC;`;
+        SELECT b.id AS parent_id, m.tag_id AS tag_id FROM metadata_items b
+            LEFT JOIN taggings m ON b.id=m.metadata_item_id
+        WHERE b.library_section_id=? AND e.metadata_type=?
+        ORDER BY b.id ASC;`;
 
-        return this.#database.all(query, [sectionId]);
+        return this.#database.all(query, [sectionId, baseType]);
+    }
+
+    /**
+     * Retrieve the base item type for a given section, i.e. the media type
+     * that can actually have markers associated with it.
+     * @param {number} sectionId
+     * @returns {Promise<number>} */
+    async #baseItemTypeFromSection(sectionId) {
+        const sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        switch (sectionType) {
+            case MetadataType.Movie:
+                return sectionType;
+            case MetadataType.Show:
+                return MetadataType.Episode;
+            default:
+                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+        }
     }
 
     /**

@@ -74,7 +74,7 @@ class QueryCommands {
         const rows = await PlexQueries.getShows(sectionId);
         let shows = [];
         for (const show of rows) {
-            show.markerBreakdown = MarkerCache?.getShowStats(show.id);
+            show.markerBreakdown = MarkerCache?.getTopLevelStats(show.id);
             shows.push(new ShowData(show));
         }
 
@@ -89,8 +89,7 @@ class QueryCommands {
         const rows = await PlexQueries.getMovies(sectionId);
         let movies = [];
         for (const movie of rows) {
-            // TODO: breakdown integration
-            // movie.markerBreakdown = MarkerCache?.getShowStats(movie.id);
+            movie.markerBreakdown = MarkerCache?.getTopLevelStats(movie.id);
             movies.push(new MovieData(movie));
         }
 
@@ -195,14 +194,14 @@ class QueryCommands {
         let idCur = -1;
         let countCur = 0;
         for (const row of rows) {
-            if (row.episode_id == idCur) {
+            if (row.parent_id == idCur) {
                 if (row.tag_id == PlexQueries.markerTagId()) {
                     ++countCur;
                 }
             } else {
                 buckets[countCur] ??= 0;
                 ++buckets[countCur];
-                idCur = row.episode_id;
+                idCur = row.parent_id;
                 countCur = row.tag_id == PlexQueries.markerTagId() ? 1 : 0;
             }
         }
@@ -213,12 +212,12 @@ class QueryCommands {
     }
 
     /**
-     * Retrieve the marker breakdown (X episodes have Y markers) for a single show,
+     * Retrieve the marker breakdown (X episodes have Y markers) for a single top-level item (show/movie),
      * optionally with breakdowns for each season attached.
      * Only async to conform to command method signature.
-     * @param {number} showId The metadata id of the show to grab the breakdown for.
-     * @param {number} includeSeasons 1 to include season data, 0 to leave it out. */
-    static async getShowMarkerBreakdownTree(showId, includeSeasons) {
+     * @param {number} metadataId The metadata id of the show/movie to grab the breakdown for.
+     * @param {number} includeSeasons 1 to include season data, 0 to leave it out. Ignored if metadataId is a movie. */
+    static async getMarkerBreakdownTree(metadataId, includeSeasons) {
         if (!MarkerCache) {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }
@@ -226,14 +225,14 @@ class QueryCommands {
         includeSeasons = includeSeasons != 0;
         let data = null;
         if (includeSeasons) {
-            data = MarkerCache.getTreeStats(showId);
+            data = MarkerCache.getTreeStats(metadataId);
         } else {
-            data = MarkerCache.getShowStats(showId);
+            data = MarkerCache.getTopLevelStats(metadataId);
             data = { showData: data, seasonData : {} };
         }
 
         if (!data) {
-            throw new ServerError(`No marker data found for showId ${showId}.`, 400);
+            throw new ServerError(`No marker data found for showId ${metadataId}.`, 400);
         }
 
         return data;

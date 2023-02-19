@@ -352,10 +352,6 @@ class MovieData extends TopLevelData {
      * @type {boolean?} */
     hasThumbnails = undefined;
 
-    /**
-     * Cached count of markers for this item. */
-    markerCount = 0;
-
     constructor(movie) {
         super(movie);
         if (!movie) {
@@ -364,7 +360,6 @@ class MovieData extends TopLevelData {
 
         this.year = movie.year;
         this.duration = movie.duration;
-        this.markerCount = movie.marker_count;
     }
 }
 
@@ -424,14 +419,14 @@ class MarkerData extends PlexData {
 
     /**
      * The Plex metadata id of the season this marker is attached to.
-     * `undefined` implies a movie marker.
-     * @type {number?} */
+     * -1 implies a movie marker.
+     * @type {number} */
     seasonId;
 
     /**
      * The Plex metadata id of the show this marker is attached to.
-     * `undefined` implies a movie marker.
-     * @type {number?} */
+     * -1 implies a movie marker.
+     * @type {number} */
     showId;
 
     /**
@@ -490,8 +485,8 @@ class MarkerData extends PlexData {
         // TODO: Find a better way to distinguish between episode versus movie marker
         //       Potentially a base marker class, with episode/season/show and movie tacked on.
         this.parentId = marker.parent_id;
-        this.seasonId = marker.season_id;
-        this.showId = marker.show_id;
+        this.seasonId = marker.season_id || -1;
+        this.showId = marker.show_id || -1;
     }
 }
 

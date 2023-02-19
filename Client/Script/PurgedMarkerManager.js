@@ -300,7 +300,7 @@ class PurgeNonActionInfo {
         let dummyLibrary = new PurgedSection();
         let dummyShow = new PurgedShow(this.#markerAction.show_id, dummyLibrary);
         let dummySeason = new PurgedSeason(this.#markerAction.season_id, dummyShow);
-        let dummyEpisode = new PurgedEpisode(this.#markerAction.episode_id, dummySeason);
+        let dummyEpisode = new PurgedEpisode(this.#markerAction.parent_id, dummySeason);
         dummyLibrary.addInternal(dummyShow.id, dummyShow);
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
@@ -399,7 +399,7 @@ class PurgeNonActionInfo {
             end : this.#markerAction.end,
             modified_date : this.#markerAction.modified_at,
             created_at : this.#markerAction.created_at,
-            parent_id : this.#markerAction.episode_id,
+            parent_id : this.#markerAction.parent_id,
             season_id : this.#markerAction.season_id,
             show_id : this.#markerAction.show_id,
             section_id : PlexClientState.GetState().activeSection(),
@@ -797,7 +797,7 @@ class PurgedMarkerManager {
         // expected for there to be enough purged markers for this to cause any significant slowdown.
         // In theory not necessary, but good to be safe.
         show.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ markerAction) {
-            this.#purgeCache.get(markerAction.episode_id).status = PurgeCacheStatus.Complete;
+            this.#purgeCache.get(markerAction.parent_id).status = PurgeCacheStatus.Complete;
             this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
         }.bind(this));
 
@@ -817,7 +817,7 @@ class PurgedMarkerManager {
         let section = this.#serverPurgeInfo.getOrAdd(action.section_id);
         let show = section.getOrAdd(action.show_id);
         let season = show.getOrAdd(action.season_id);
-        let episode = season.getOrAdd(action.episode_id);
+        let episode = season.getOrAdd(action.parent_id);
         this.#purgeCache.lazySet(show.id, show);
         this.#purgeCache.lazySet(season.id, season);
         this.#purgeCache.lazySet(episode.id, episode);
@@ -835,10 +835,10 @@ class PurgedMarkerManager {
     onPurgedMarkerAction(purgedSection, newMarkers=null) {
         purgedSection.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ marker) {
             /** @type {PurgedEpisode} */
-            const episode = this.#purgeCache.get(marker.episode_id);
+            const episode = this.#purgeCache.get(marker.parent_id);
             if (episode) {
                 episode.removeIfPresent(marker.marker_id);
-                if (episode.count <= 0) { delete this.#purgeCache[marker.episode_id]; }
+                if (episode.count <= 0) { delete this.#purgeCache[marker.parent_id]; }
                 if (this.#purgeCache.get(marker.season_id).count <= 0) { delete this.#purgeCache[marker.season_id]; }
                 if (this.#purgeCache.get(marker.show_id).count <= 0) { delete this.#purgeCache[marker.show_id]; }
             }
