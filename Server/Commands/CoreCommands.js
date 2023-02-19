@@ -6,7 +6,7 @@ import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../.
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
-import { PlexQueries } from '../PlexQueryManager.js';
+import { MetadataType, PlexQueries } from '../PlexQueryManager.js';
 import { BackupManager } from '../MarkerBackupManager.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
 import ServerError from '../ServerError.js';
@@ -143,7 +143,10 @@ class CoreCommands {
      * @param {number[]} ignoredMarkerIds Markers to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
     static async shiftMarkers(metadataId, startShift, endShift, applyType, ignoredMarkerIds) {
-        const markers = await PlexQueries.getMarkersAuto(metadataId);
+        const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
+        if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
+            throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
+        }
         /** @type {{ [episodeId: number]: RawMarkerData[] }} */
         const seen = {};
 
@@ -153,7 +156,7 @@ class CoreCommands {
         }
 
         let foundConflict = false;
-        for (const marker of markers.markers) {
+        for (const marker of markerInfo.markers) {
             if (ignoreSet.has(marker.id)) {
                 continue;
             }
@@ -175,7 +178,7 @@ class CoreCommands {
         if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
             /** @type {MarkerData[]} */
             const notRaw = [];
-            markers.markers.forEach(rm => notRaw.push(new MarkerData(rm)));
+            markerInfo.markers.forEach(rm => notRaw.push(new MarkerData(rm)));
             /** @type {{[episodeId: number]: EpisodeData}} */
             const episodeData = {};
             rawEpisodeData.forEach(e => episodeData[e.id] = new EpisodeData(e));
@@ -205,7 +208,7 @@ class CoreCommands {
         const markerData = [];
         /** @type {{[markerId: number]: RawMarkerData}} */
         const oldMarkerMap = {};
-        markers.markers.forEach(m => oldMarkerMap[m.id] = m);
+        markerInfo.markers.forEach(m => oldMarkerMap[m.id] = m);
         for (const marker of shifted) {
             if (reindexMap[marker.id]) {
                 marker.index = reindexMap[marker.id].index; // TODO: indexRemove: remove
@@ -237,6 +240,9 @@ class CoreCommands {
      */
     static async bulkDelete(metadataId, dryRun, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
+        if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
+            throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
+        }
         const ignoreSet = new Set();
         for (const markerId of ignoredMarkerIds) {
             ignoreSet.add(markerId);

@@ -10,6 +10,7 @@
  * @typedef {(err: Error?, row: RawMarkerData) => void} SingleMarkerQuery
  * @typedef {(err: Error?) => void} NoResultQuery
  * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
+ * @typedef {{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo }} MarkersWithTypeInfo
  */
 
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
@@ -317,9 +318,9 @@ SELECT
     COUNT(episodes.id) AS episode_count
 FROM metadata_items seasons
     INNER JOIN metadata_items episodes ON episodes.parent_id=seasons.id
-WHERE seasons.parent_id=?
+WHERE seasons.parent_id=? AND seasons.metadata_type=3
 GROUP BY seasons.id
- ORDER BY seasons.\`index\` ASC;`;
+ORDER BY seasons.\`index\` ASC;`;
 
         return this.#database.all(query, [showMetadataId]);
     }
@@ -347,7 +348,7 @@ FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id
     INNER JOIN metadata_items g ON p.parent_id=g.id
     INNER JOIN media_items m ON e.id=m.metadata_item_id
-WHERE e.parent_id=?
+WHERE e.parent_id=? AND e.metadata_type=4
 GROUP BY e.id
 ORDER BY e.\`index\` ASC;`;
 
@@ -359,6 +360,11 @@ ORDER BY e.\`index\` ASC;`;
      * @param {Iterable<number>} episodeMetadataIds
      * @returns {Promise<RawEpisodeData[]>}*/
     async getEpisodesFromList(episodeMetadataIds) {
+        if (episodeMetadataIds.length == 0) {
+            Log.warn('Why are we calling getEpisodesFromList with an empty list?');
+            return [];
+        }
+
         let query = `
     SELECT
         e.title AS title,
@@ -571,7 +577,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve all markers tied to the given metadataId.
      * @param {number} metadataId
-     * @returns {Promise<{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo}>} */
+     * @returns {Promise<MarkersWithTypeInfo>} */
     async getMarkersAuto(metadataId) {
         const typeInfo = await this.#mediaTypeFromId(metadataId);
         let where = '';
@@ -778,7 +784,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         // One query + postprocessing is faster than a query for each episode
-        /** @type {{ [episode_id: number] : TrimmedMarker[] }} */
+        /** @type {{ [parent_id: number] : TrimmedMarker[] }} */
         let existingMarkers = {};
         for (const marker of markerList) {
             Log.tmi(marker, 'Adding existing marker');
@@ -1052,7 +1058,7 @@ ORDER BY e.\`index\` ASC;`;
 
         const pruned = [];
         for (const marker of newMarkers) {
-            if (markers[marker.episode_id] && markers[marker.episode_id].find(x => x.id == marker.id)) {
+            if (markers[marker.parent_id] && markers[marker.parent_id].find(x => x.id == marker.id)) {
                 pruned.push(marker);
             }
         }
@@ -1108,7 +1114,7 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Add a marker to every episode under metadataId (a show, season, or episode id)
-     * @param {RawMarkerData[]} markerData Existing markers for the given metadata id.
+     * @param {MarkersWithTypeInfo} markerData Existing markers for the given metadata id.
      * @param {number} metadataId
      * @param {number} baseStart Marker start, in milliseconds
      * @param {number} baseEnd Marker end, in milliseconds
@@ -1125,16 +1131,16 @@ ORDER BY e.\`index\` ASC;`;
         const episodeIds = new Set();
         const newIgnoredEpisodes = [];
         switch (markerData.typeInfo.metadata_type) {
-            case 4: // Single episode. No reason to go through bulk, but might as well support it
+            case MetadataType.Episode: // Single episode. No reason to go through bulk, but might as well support it
                 if (!ignoredEpisodes.has(metadataId)) { episodeIds.add(metadataId); }
                 break;
-            case 3: // Season
+            case MetadataType.Season:
             {
                 const ids = await this.#database.all(`SELECT id FROM metadata_items WHERE parent_id=?;`, [metadataId]);
                 ids.forEach(i => episodeIds.add(i.id));
                 break;
             }
-            case 2: // Show
+            case MetadataType.Show:
             {
                 const ids = await this.#database.all(`SELECT e.id FROM metadata_items e INNER JOIN metadata_items p ON p.id=e.parent_id WHERE p.parent_id=?;`, [metadataId]);
                 ids.forEach(i => episodeIds.add(i.id));
@@ -1150,7 +1156,7 @@ ORDER BY e.\`index\` ASC;`;
         /** @type {{[episodeId: number]: BulkAddResultEntry}} */
         const episodeMarkerMap = {};
         episodeData.forEach(e => episodeMarkerMap[e.id] = { episodeData : new EpisodeData(e), existingMarkers : [] });
-        existingMarkers.forEach(m => episodeMarkerMap[m.episode_id].existingMarkers.push(new MarkerData(m)));
+        existingMarkers.forEach(m => episodeMarkerMap[m.parent_id].existingMarkers.push(new MarkerData(m)));
         Object.values(episodeMarkerMap).forEach(ed => ed.existingMarkers.sort((a, b) => a.start - b.start));
 
         // For dry runs, we just return all episodes and their associated markers (if any)
@@ -1163,7 +1169,7 @@ ORDER BY e.\`index\` ASC;`;
 
         // First conflict pass
         for (const marker of existingMarkers) {
-            if (ignoredEpisodes.has(marker.episode_id)) { continue; }
+            if (ignoredEpisodes.has(marker.parent_id)) { continue; }
             if (baseStart <= marker.start ? baseEnd >= marker.start : baseStart <= marker.end) {
                 // Conflict.
                 if (resolveType == BulkMarkerResolveType.Fail) {
@@ -1176,9 +1182,9 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 if (resolveType == BulkMarkerResolveType.Ignore) {
-                    episodeIds.delete(marker.episode_id);
-                    ignoredEpisodes.add(marker.episode_id);
-                    newIgnoredEpisodes.push(marker.episode_id);
+                    episodeIds.delete(marker.parent_id);
+                    ignoredEpisodes.add(marker.parent_id);
+                    newIgnoredEpisodes.push(marker.parent_id);
                 }
             }
         }

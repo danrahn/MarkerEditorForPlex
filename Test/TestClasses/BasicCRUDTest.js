@@ -16,6 +16,7 @@ class BasicCRUD extends TestBase {
             this.testAddToShow,
             this.testSingleEdit,
             this.testEditOfNonexistentMarker,
+            this.testEditOfFinalIntroMarker,
             this.testEditFlippedStartAndEnd,
             this.testSingleDelete,
             this.testDeleteOfNonexistentMarker,
@@ -124,9 +125,29 @@ class BasicCRUD extends TestBase {
         // Don't surface expected errors from the main application log
         this.expectFailure();
         /* MarkerId of 100 = arbitrary bad value */
-        let response = await this.editMarkerRaw(100, 0, 10000);
+        let response = await this.editMarkerRaw(100, 0, 10000, 'intro', false /*final*/);
 
         return TestHelpers.verifyBadRequest(response, 'edit of nonexistent marker');
+    }
+
+    /**
+     * Ensure that if we try to mark an intro marker final, we still edit it, but don't mark it final. */
+    async testEditOfFinalIntroMarker() {
+        // With default config, taggings id 1 is a marker from 15 to 45 seconds.
+        const show = TestBase.DefaultMetadata.Show1;
+        this.expectFailure(); // We get warned about doing this, as we should.
+        let marker = await this.editMarker(show.Season1.Episode2.Marker1.Id, 14000, 46000, 'intro', true /*final*/);
+
+        return TestHelpers.validateMarker(marker,
+            'intro' /*expectedType*/,
+            show.Season1.Episode2.Id,
+            show.Season1.Id,
+            show.Id,
+            14000 /*expectedStart*/,
+            46000 /*expectedEnd*/,
+            0 /*expectedIndex*/,
+            false /*expectedFinal*/,
+            this.testDb);
     }
 
     /**

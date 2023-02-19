@@ -40,12 +40,18 @@ class QueryTest extends TestBase {
     async getSectionsTest() {
         const result = await this.send('get_sections');
 
-        // Currently database only has one section
+        // Currently database has three sections, tv, movie, and music. We should only grab tv and movie.
         TestHelpers.verify(result instanceof Array, `Expected get_sections to return an array.`);
-        TestHelpers.verify(result.length == 1, `Only expected 1 library section, found ${result.length}.`);
-        const lib = result[0];
-        TestHelpers.verify(lib.id == 1, `Expected library section to have an id of 1, found ${lib.id}.`);
-        TestHelpers.verify(lib.name == 'TV', `Expected library name to be TV, found ${lib.name}.`);
+        TestHelpers.verify(result.length == 2, `Only expected 2 library section, found ${result.length}.`);
+
+        // Assume they're ordered by first to last section
+        const tvLib = result[0];
+        TestHelpers.verify(tvLib.id == 1, `Expected library section to have an id of 1, found ${tvLib.id}.`);
+        TestHelpers.verify(tvLib.name == 'TV', `Expected library name to be TV, found ${tvLib.name}.`);
+
+        const movieLib = result[1];
+        TestHelpers.verify(movieLib.id == 2, `Expected library section to have an id of 2, fount ${movieLib.id}`);
+        TestHelpers.verify(movieLib.name == 'M', `Expected library name to be 'M', found ${movieLib.name}.`);
     }
 
      /////////////////////
@@ -74,6 +80,7 @@ class QueryTest extends TestBase {
     /**
      * Ensure no data is returned when querying for an invalid library section. */
     async getEmptySectionTest() {
+        this.expectFailure();
         const result = await this.send('get_section', { id : 10 });
         TestHelpers.verify(result instanceof Array, `Expected get_section of a nonexistent library to still return an array.`);
         TestHelpers.verify(result.length == 0, `Expected get_section of nonexistent library to return an empty array.`);

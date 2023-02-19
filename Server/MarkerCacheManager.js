@@ -306,13 +306,13 @@ class MarkerCacheManager {
         let show = this.#topLevelItemFromId(showId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
-            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
+            this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, showId);
             return null;
         }
 
         // Show exists, but season is new? Try to update.
         if (!show.seasons[seasonId]) {
-            this.#tryUpdateCache(MarkerCacheManager.#seasonMarkerQuery, metadataId);
+            this.#tryUpdateCache(MarkerCacheManager.#seasonMarkerQuery, seasonId);
         }
 
         return show.seasons[seasonId]?.markerBreakdown.data();

@@ -496,11 +496,11 @@ class SeasonResultRow extends ResultRow {
         // We still want to update other episodes as well, since even if we didn't add
         // new markers, we still want to update purge text.
         unpurged.forEach(/**@this {SeasonResultRow}*/function(action) {
-            if (updated[action.episode_id]) {
+            if (updated[action.parent_id]) {
                 return;
             }
 
-            const episode = this.#episodes[action.episode_id];
+            const episode = this.#episodes[action.parent_id];
             if (episode) {
                 episode.updateMarkerBreakdown(0 /*delta*/);
             }

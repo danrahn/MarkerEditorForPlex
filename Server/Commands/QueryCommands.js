@@ -54,7 +54,8 @@ class QueryCommands {
         const sections = await PlexQueries.getLibraries();
         const section = sections.find(s => s.id == sectionId);
         if (!section) {
-            throw new ServerError(sectionId, `Section id "${sectionId}" is not a valid movie or TV library`, 400);
+            Log.error(`Section id "${sectionId}" is not a valid movie or TV library`);
+            return [];
         }
 
         switch (section.type) {
@@ -63,7 +64,7 @@ class QueryCommands {
             case SectionType.TV:
                 return this.#getShows(sectionId);
             default:
-                throw new ServerError(sectionId, `Section id "${sectionId}" is of an unknown type`, 400);
+                throw new ServerError(`Section id "${sectionId}" is of an unknown type`, 400);
         }
     }
 

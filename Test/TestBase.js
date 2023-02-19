@@ -323,15 +323,16 @@ class TestBase {
         // Create the intro marker tag.
         const introInsert = `INSERT INTO tags (tag_type) VALUES (12);`;
 
-        // Create a single TV library, and a movie library
+        // Create a single TV, Movie, and Music library.
         const sectionInsert = `
         INSERT INTO library_sections (library_id, name, section_type, uuid)
         VALUES                       (1,          "TV", 2,            "94319c6e-16c0-11ed-861d-0242ac120002"),
-                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc");`;
+                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc"),
+                                     (3,       "Music", 8,            "27465ca2-2a7f-48b5-b5a2-d70da84f1cd9");`;
 
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override
         //       what's added to accommodate any scenario. Also have a map that indicates what's available
-        // Type - 2=show, 3=season, 4=episode
+        // Type - 2=show, 3=season, 4=episode, 8=artist, 9=album, 10=track
         // Index - show=1, everything else = season/episode index
         // inserting id isn't necessary, just helpful for tracking
         const metadataInsert = `
@@ -353,7 +354,11 @@ class TestBase {
                                    (15, 1,                  3,             11,        "Season2",  2,        "e"),
                                    (16, 1,                  4,             15,        "Episode1", 1,        "f"),
 
-                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00");`;
+                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00"),
+                                   
+                                   (200,3,                  8,             NULL,      "Artist1",  1,        "01"),
+                                   (201,3,                  9,             200,       "Album1",   1,        "02"),
+                                   (202,3,                  10,            201,       "Track1",   1,        "03");`;
 
         // Need existing media, but only the metadata_item_id and duration field (for now)
         // Make them all 10 minutes (10*60*1000=6000000)
@@ -448,29 +453,37 @@ class TestBase {
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async editMarker(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, false /*raw*/); }
+    async editMarker(markerId, startMs, endMs, markerType='intro', final=false) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, false /*raw*/); }
 
     /**
      * Edit a marker with the given id via the 'edit' endpoint, returning the raw Response.
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @returns {Promise<Response>} */
-    async editMarkerRaw(markerId, startMs, endMs) { return this.#editMarkerCore(markerId, startMs, endMs, true /*raw*/); }
+    async editMarkerRaw(markerId, startMs, endMs, markerType, final) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, true /*raw*/); }
     /**
      * Edit a marker with the given id via the 'edit' endpoint.
      * @param {number} markerId
      * @param {number} startMs
      * @param {number} endMs
+     * @param {string} markerType
+     * @param {boolean} final
      * @param {boolean} raw Whether the Response should be returned instead of the json response.
      * @returns {Promise<SerializedMarkerData|Response>} */
-    async #editMarkerCore(markerId, startMs, endMs, raw) {
+    async #editMarkerCore(markerId, startMs, endMs, markerType, final, raw) {
         return this.send('edit', {
             id : markerId,
             start : startMs,
             end : endMs,
-            userCreated : 0
+            userCreated : 0,
+            type : markerType,
+            final : final ? 1 : 0,
         }, raw);
     }
 
