@@ -7,6 +7,7 @@ import PlexClientState from './PlexClientState.js';
 import { MovieResultRow, ShowResultRow } from './ResultRow.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
+import PurgedMarkerManager from './PurgedMarkerManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
 
@@ -212,6 +213,12 @@ class PlexUI {
         if (!isNaN(section) && section != -1) {
             SettingsManager.Get().setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
+        }
+
+        if (SettingsManager.Get().backupEnabled() && SettingsManager.Get().showExtendedMarkerInfo()) {
+            // In this case, we should have pre-built our purge cache, so grab everything now so that
+            // we don't have to 'Find Purged Markers' to hydrate the warning icons at the movie/show/season/episode level
+            PurgedMarkerManager.GetManager().findPurgedMarkers(true /*dryRun*/);
         }
 
         if (this.#searchBox.value.length > 0) {

@@ -870,19 +870,24 @@ class PurgedMarkerManager {
      * @returns {PurgedMarkerManager} */
     static GetManager() { return this.#manager; }
 
-    /** Find all purged markers for the current library section. */
-    async findPurgedMarkers() {
+    /**
+     * Find all purged markers for the current library section.
+     * @param {boolean} [dryRun=false] Whether we just want to populate our purge data, not show it. */
+    async findPurgedMarkers(dryRun=false) {
         const section = PlexClientState.GetState().activeSection();
         const cachedSection = this.#serverPurgeInfo.get(section);
         if (cachedSection && cachedSection.status == PurgeCacheStatus.Complete) {
             // We have full cached data, used that.
             Log.tmi(`PurgedMarkerManager::findPurgedMarkers: Found cached data, bypassing all_purges call to server.`);
-            new PurgeOverlay(cachedSection, section).show();
+            if (!dryRun) {
+                new PurgeOverlay(cachedSection, section).show();
+            }
+
             return;
         }
 
         try {
-            this.#onMarkersFound(await ServerCommand.allPurges(section));
+            this.#onMarkersFound(await ServerCommand.allPurges(section), dryRun);
         } catch (err) {
             errorResponseOverlay(`Something went wrong retrieving purged markers. Please try again later.`, err);
         }
@@ -1065,8 +1070,9 @@ class PurgedMarkerManager {
 
     /**
      * Callback invoked when we successfully queried for purged markers (regardless of whether we found any).
-     * @param {PurgeSection} purgeSection Tree of purged markers in the current library section. */
-    #onMarkersFound(purgeSection) {
+     * @param {PurgeSection} purgeSection Tree of purged markers in the current library section.
+     * @param {boolean} dryRun Whether we just want to populate our cache data, not show the purges. */
+    #onMarkersFound(purgeSection, dryRun) {
         if (PlexClientState.GetState().activeSectionType() == SectionType.Movie) {
             for (const [movieId, movie] of Object.entries(purgeSection)) {
                 const movieCache = this.#purgeCache.get(movieId);
@@ -1107,6 +1113,10 @@ class PurgedMarkerManager {
 
         const activeSection = PlexClientState.GetState().activeSection();
         this.#serverPurgeInfo.getOrAdd(activeSection).status = PurgeCacheStatus.Complete;
+        if (dryRun) {
+            return;
+        }
+
         new PurgeOverlay(this.#serverPurgeInfo.get(activeSection), activeSection).show();
     }
 }
