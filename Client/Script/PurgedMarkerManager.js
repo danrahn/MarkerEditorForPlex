@@ -858,7 +858,7 @@ class PurgedMarkerManager {
         if (findAllEnabled) {
             $$('#findAllPurgedHolder').classList.remove('hidden');
             const button = $$('#purgedMarkers');
-            $$('#purgedMarkers').addEventListener('click', this.findPurgedMarkers.bind(this));
+            $$('#purgedMarkers').addEventListener('click', this.findPurgedMarkers.bind(this, false));
             Tooltip.setTooltip(button, 'Search for user modified markers<br>that Plex purged from its database.');
         }
 
