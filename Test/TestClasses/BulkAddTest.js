@@ -41,7 +41,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : 7, start : 0, end : 10000, index : 0},
+            [   { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0},
                 { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 1 }
             ],
             {}
@@ -53,8 +53,8 @@ class BulkAddTest extends TestBase {
     async easyBulkAddSeasonTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         let expectedMarkers = [
-            { id : 7, start : 0, end : 10000, index : 0 },
-            { id : 8, start : 0, end : 10000, index : 0 },
+            { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0 },
+            { id : TestBase.NextMarkerIndex + 1, start : 0, end : 10000, index : 0 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 1),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 1),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 2),
@@ -80,9 +80,9 @@ class BulkAddTest extends TestBase {
         const newStart = 50000;
         const newEnd = 70000;
         let expectedMarkers = [
-            { id : 7, start : newStart, end : newEnd, index : 1 },
-            { id : 8, start : newStart, end : newEnd, index : 1 },
-            { id : 9, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex + 1, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex + 2, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(show.Season1.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(show.Season1.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(show.Season1.Episode2.Marker2, 2),
@@ -134,7 +134,7 @@ class BulkAddTest extends TestBase {
         const newStart = 300000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 7, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
@@ -161,7 +161,7 @@ class BulkAddTest extends TestBase {
         const newStart = 330000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 7, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 1, 300000, newEnd),
@@ -239,7 +239,7 @@ class BulkAddTest extends TestBase {
         const newStart = 330000;
         const newEnd = 350000;
         let expectedMarkers = [
-            { id : 7, start : newStart, end : newEnd, index : 1 },
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
@@ -271,7 +271,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : 7, start : 50000, end : 600000, index : 1},
+            [   { id : TestBase.NextMarkerIndex, start : 50000, end : 600000, index : 1},
                 this.#testMarkerFromTestData(episode.Marker1, 0)
             ],
             {}

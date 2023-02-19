@@ -487,7 +487,7 @@ class MarkerData extends PlexData {
         this.sectionId = marker.section_id;
         this.parentGuid = marker.parent_guid;
         this.markerType = marker.marker_type;
-        this.isFinal = this.type == MarkerType.Credits && marker.final;
+        this.isFinal = this.markerType == MarkerType.Credits && marker.final;
 
         // TODO: Find a better way to distinguish between episode versus movie marker
         //       Potentially a base marker class, with episode/season/show and movie tacked on.
