@@ -54,7 +54,14 @@
  *      episodeMap: {[episodeId: number]: SerializedBulkAddResultEntry},
  *      ignoredEpisodes: number[]?
  * }} SerializedBulkAddResult
- */
+ *
+ * A full row in the Actions table
+ * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, parent_id: number,
+*            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
+*            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
+*            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
+*            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
+*/
 
 /**
  * Retrieve an object to initialize the base PlexData of a derived class.

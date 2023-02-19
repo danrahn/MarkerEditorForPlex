@@ -15,10 +15,10 @@ import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
-import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
+import { PurgedMovie, PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('../../Server/MarkerBackupManager.js').MarkerAction} MarkerAction */
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -852,6 +852,18 @@ class MovieResultRow extends ResultRow {
     }
 
     /**
+     * Updates various UI states after purged markers are restored/ignored
+     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
+    notifyPurgeChange(newMarkers) {
+        for (const marker of newMarkers) {
+            // Markers aren't filtered to only those relevant to this movie.
+            if (marker.parentId == this.movie().metadataId) {
+                this.movie().markerTable().addMarker(marker, null /*oldRow*/);
+            }
+        }
+    }
+
+    /**
      * Expand or collapse the marker table for the clicked episode.
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
@@ -904,8 +916,8 @@ class MovieResultRow extends ResultRow {
 
     /**
      * Updates the marker statistics both in the UI and the client state.
-     * @param {number} _delta 1 if a marker was added to this movie, -1 if one was removed. Unused, but mirrors ResultRow signature. */
-    updateMarkerBreakdown(_delta) {
+     * @param {number} delta 1 if a marker was added to this movie, -1 if one was removed. Unused, but mirrors ResultRow signature. */
+    updateMarkerBreakdown(delta) {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
         const oldNode = $$('.episodeDisplayText', this.html());
@@ -915,6 +927,21 @@ class MovieResultRow extends ResultRow {
         // Note: No need to propagate changes up like for episodes, since
         //       we're already at the top of the chain. The section-wide
         //       marker chart queries the server directly every time.
+        const newCount = this.movie().markerTable().markerCount();
+        const oldCount = newCount - delta;
+        const breakdown = this.movie().markerBreakdown;
+        if (!(oldCount in breakdown)) {
+            Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
+            breakdown[oldCount] = 1;
+        }
+
+        --breakdown[oldCount];
+        if (breakdown[oldCount] == 0) {
+            delete breakdown[oldCount];
+        }
+
+        breakdown[newCount] ??= 0;
+        ++breakdown[newCount];
     }
 }
 

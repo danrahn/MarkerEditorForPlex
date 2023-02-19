@@ -3,7 +3,7 @@
  *             season_id : number, show_id : number, section_id : number, parent_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
- * @typedef {{ id: number, title: string, title_srt: string, original_title: string, year: number, duration: number, marker_count: number }} RawMovieData
+ * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, duration: number, marker_count: number }} RawMovieData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
  * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
@@ -15,7 +15,7 @@
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResultEntry} BulkAddResultEntry */
 /** @typedef {!import('../Shared/PlexTypes.js').LibrarySection} LibrarySection */
-/** @typedef {!import('./MarkerBackupManager.js').MarkerAction} MarkerAction */
+/** @typedef {!import('../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 
 import { Log } from '../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../Shared/PlexTypes.js';
@@ -397,6 +397,36 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
+     * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
+     * @param {Iterable<number>} episodeMetadataIds
+     * @returns {Promise<RawMovieData[]>}*/
+    async getMoviesFromList(movieMetadataIds) {
+        let query = `
+    SELECT movies.id AS id,
+        movies.title AS title,
+        movies.title_sort AS title_sort,
+        movies.original_title AS original_title,
+        movies.year AS year,
+        MAX(files.duration) AS duration
+  FROM metadata_items movies
+  INNER JOIN media_items files ON movies.id=files.metadata_item_id
+  WHERE (`;
+
+        let parameters = [];
+        for (const movieId of movieMetadataIds) {
+            parameters.push(movieId);
+            query += `movies.id=? OR `;
+        }
+
+        // Trim final ' OR '
+        query = query.substring(0, query.length - 4) + `)
+    GROUP BY movies.id
+    ORDER BY movies.title_sort ASC;`;
+
+        return this.#database.all(query, parameters);
+    }
+
+    /**
      * Retrieve episode info for an episode with the given guid, if any.
      * @param {string} guid
      * @returns {Promise<{ id: number, season_id: number, show_id: number }>} */
@@ -736,12 +766,12 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
+     * @param {number} sectionType The type of section we're restoring for (i.e. TV or movie)
      * @returns {Promise<{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[]}} */
-    async bulkRestore(actions) {
+    async bulkRestore(actions, sectionType) {
         /** @type {RawMarkerData[]} */
         let markerList;
         try {
-            // TODO: movies
             markerList = await this.getMarkersForItems(Object.keys(actions));
         } catch (err) {
             throw new ServerError(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`, 500);
@@ -822,7 +852,7 @@ ORDER BY e.\`index\` ASC;`;
         // All markers were added successfully. Now query them all to return back to the backup manager
         // so it can update caches accordingly.
         let params = [this.#markerTagId];
-        let query = `SELECT ${this.#extendedEpisodeMarkerFields} WHERE taggings.tag_id=? AND (`;
+        let query = `SELECT ${this.#extendedFieldsFromMediaType(sectionType)} WHERE taggings.tag_id=? AND (`;
         for (const newMarkers of Object.values(existingMarkers)) {
             for (const newMarker of newMarkers) {
                 if (newMarker.existing()) {
@@ -967,9 +997,9 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Return the ids and UUIDs for all sections in the database.
-     * @returns {Promise<{ id: number, uuid: string }[]>} */
+     * @returns {Promise<{ id: number, uuid: string, section_type: number }[]>} */
     async sectionUuids() {
-        return this.#database.all('SELECT id, uuid FROM library_sections;');
+        return this.#database.all('SELECT id, uuid, section_type FROM library_sections;');
     }
 
     /**
@@ -1241,4 +1271,4 @@ ORDER BY e.\`index\` ASC;`;
     }
 }
 
-export { PlexQueryManager, Instance as PlexQueries, ExtraData };
+export { PlexQueryManager, Instance as PlexQueries, ExtraData, MetadataType };

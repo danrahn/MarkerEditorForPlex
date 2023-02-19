@@ -157,6 +157,15 @@ class MarkerTable {
       * @param {MarkerData} newMarker The marker to add.
       * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
     addMarker(newMarker, oldRow) {
+        if (this.#cachedMarkerCount !== undefined) {
+            // Assume that addMarker calls coming in when our table isn't initialized
+            // is coming from purge restores and just update the count/breakdown.
+            Log.tmi(`Got an addMarker call without an initialized table, updating cache count.`);
+            ++this.#cachedMarkerCount;
+            this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
+            return;
+        }
+
         //  oldRow will be null if a marker was added via purge restoration
         if (oldRow) {
             this.removeTemporaryMarkerRow(oldRow);

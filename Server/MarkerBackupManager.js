@@ -4,12 +4,12 @@ import { join as joinPath } from "path";
 
 // Client/Server shared dependencies
 import { Log } from "../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData } from "../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MovieData } from "../Shared/PlexTypes.js";
 
 // Server dependencies/typedefs
 import DatabaseWrapper from "./DatabaseWrapper.js";
 import { MarkerCache } from "./MarkerCacheManager.js";
-import { ExtraData, PlexQueries } from "./PlexQueryManager.js";
+import { ExtraData, MetadataType, PlexQueries } from "./PlexQueryManager.js";
 import ServerError from "./ServerError.js";
 import TransactionBuilder from "./TransactionBuilder.js";
 /** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
@@ -186,15 +186,6 @@ CREATE TABLE IF NOT EXISTS actions (
 `;
 
 /**
- * A full row in the Actions table
- * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, parent_id: number,
- *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
- *            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
- *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
- *            episodeData: EpisodeData? }} MarkerAction
- */
-
-/**
  * A map of purged markers
  * @typedef {{ [sectionId: number] : PurgeSection }} PurgeMap
  */
@@ -297,6 +288,8 @@ class MarkerBackupManager {
 
     /** @type {PurgeMap} */
     #purgeCache = null;
+    /** @type {{[sectionId: number]: number}} */
+    #sectionTypes = {};
 
     /** @type {(async (callback: Function) => void)[]} */
     #schemaUpgradeCallbacks = [
@@ -319,7 +312,7 @@ class MarkerBackupManager {
         }
 
         Log.info('MarkerBackupManager: Initializing marker backup database...');
-        /** @type {{id: number, uuid: string}[]} */
+        /** @type {{id: number, uuid: string, section_type: number}[]} */
         let sections;
         try {
             sections = await PlexQueries.sectionUuids();
@@ -328,9 +321,11 @@ class MarkerBackupManager {
             throw err;
         }
 
+        let sectionTypes = {};
         let uuids = {};
         for (const section of sections) {
             uuids[section.id] = section.uuid;
+            sectionTypes[section.id] = section.section_type;
         }
 
         const dbPath = joinPath(dataRoot, 'Backup');
@@ -357,7 +352,7 @@ class MarkerBackupManager {
 
             const row = await db.get('SELECT version FROM schema_version;');
             const version = row ? row.version : 0;
-            const manager = new MarkerBackupManager(uuids, db);
+            const manager = new MarkerBackupManager(uuids, sectionTypes, db);
             if (version != CurrentSchemaVersion) {
                 if (version != 0) {
                     // Only log if this isn't a new database, i.e. version isn't 0.
@@ -385,9 +380,11 @@ class MarkerBackupManager {
 
     /**
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
+     * @param {{[sectionId: number]: number}} sectionTypes A map of section ids to the type of library it is. Used to differentiate hierarchies in the purge map.
      * @param {DatabaseWrapper} actionsDatabase The connection to the backup database. */
-    constructor(uuids, actionsDatabase) {
+    constructor(uuids, sectionTypes, actionsDatabase) {
         this.#uuids = uuids;
+        this.#sectionTypes = sectionTypes;
         this.#actions = actionsDatabase;
     }
 
@@ -664,6 +661,9 @@ class MarkerBackupManager {
         const markerData = await PlexQueries.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
+        if (typeInfo.metadata_type == MetadataType.Movie) {
+            throw new ServerError(`checkForPurges doesn't work for individual movies (yet?)`, 400);
+        }
 
         let markerMap = {};
         for (const marker of existingMarkers) {
@@ -720,6 +720,37 @@ class MarkerBackupManager {
             // But still scope it to the same library to prevent cross-library contamination.
             if (!episodeMap[eid][0].episodeData) {
                 delete episodeMap[eid];
+            }
+        }
+    }
+
+    /**
+     * Find and attach movie data for the given movies.
+     * _Very_ similar to populateEpisodeData. What can be shared?
+     * TODO: can markerAction.episodeData and markerAction.movieData be combined?
+     * @param {{[movieId: number]: MarkerAction[] }} movieMap */
+    async #populateMovieData(movieMap) {
+        if (Object.keys(movieMap).length == 0) {
+            return;
+        }
+
+        const movies = await PlexQueries.getMoviesFromList(Object.keys(movieMap));
+        for (const movie of movies) {
+            if (!movieMap[movie.id]) {
+                Log.warn(`MarkerBackupManager: Couldn't find movie ${movie.id} in purge list.`);
+                continue;
+            }
+
+            const movieData = new MovieData(movie);
+            for (const markerAction of movieMap[movie.id]) {
+                markerAction.movieData = movieData;
+            }
+        }
+
+        for (const mid of Object.keys(movieMap)) {
+            // See eid loop in populateEpisodeData
+            if (!movieMap[mid][0].movieData) {
+                delete movieMap[mid];
             }
         }
     }
@@ -833,9 +864,13 @@ ORDER BY id DESC;`
         // Each instance of this application is tied to a single server's database,
         // so it's okay to use the section_id instead of the globally unique section_uuid.
         let section = this.#purgeCache[action.section_id] ??= {};
-        let show = section[action.show_id] ??= {};
-        let season = show[action.season_id] ??= {};
-        (season[action.parent_id] ??= {})[action.marker_id] = action;
+        if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
+            (section[action.parent_id] ??= {})[action.marker_id] = action;
+        } else {
+            let show = section[action.show_id] ??= {};
+            let season = show[action.season_id] ??= {};
+            (season[action.parent_id] ??= {})[action.marker_id] = action;
+        }
     }
 
     /**
@@ -845,19 +880,28 @@ ORDER BY id DESC;`
         if (!this.#purgeCache) { return; }
         if (!this.#purgeCache[action.section_id]) { return; }
         let section = this.#purgeCache[action.section_id];
-        if (!section[action.show_id]) { return; }
-        let show = section[action.show_id];
-        if (!show[action.season_id]) { return; }
-        let season = show[action.season_id];
-        if (!season[action.parent_id]) { return; }
-        let episode = season[action.parent_id];
-        if (!episode[action.marker_id]) { return; }
+        if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
+            if (!section[action.parent_id]) { return; }
+            let movie = section[action.parent_id];
+            if (!movie[action.marker_id]) { return; }
+            delete movie[action.marker_id];
+            if (Object.keys(movie).length == 0) { delete section[action.parent_id]; }
+        } else {
+            if (!section[action.show_id]) { return; }
+            let show = section[action.show_id];
+            if (!show[action.season_id]) { return; }
+            let season = show[action.season_id];
+            if (!season[action.parent_id]) { return; }
+            let episode = season[action.parent_id];
+            if (!episode[action.marker_id]) { return; }
+    
+            if (episode[action.marker_id]) { delete episode[action.marker_id]; }
+    
+            if (Object.keys(episode).length == 0) { delete season[action.parent_id]; }
+            if (Object.keys(season).length == 0) { delete show[action.season_id]; }
+            if (Object.keys(show).length == 0) { delete section[action.show_id]; }
+        }
 
-        if (episode[action.marker_id]) { delete episode[action.marker_id]; }
-
-        if (Object.keys(episode).length == 0) { delete season[action.parent_id]; }
-        if (Object.keys(season).length == 0) { delete show[action.season_id]; }
-        if (Object.keys(show).length == 0) { delete section[action.show_id]; }
         if (Object.keys(section).length == 0) { delete this.#purgeCache[action.section_id]; }
     }
 
@@ -868,7 +912,17 @@ ORDER BY id DESC;`
         }
 
         let count = 0;
-        for (const section of Object.values(this.#purgeCache)) {
+        for (const [sectionId, section] of Object.entries(this.#purgeCache)) {
+            if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+                // Movies don't have the hierarchy
+                for (const movie of Object.values(section)) {
+                    count += Object.keys(movie).length;
+                }
+
+                continue;
+            }
+
+            // Otherwise we have the full show/season/episode/marker hierarchy
             for (const show of Object.values(section)) {
                 for (const season of Object.values(show)) {
                     for (const episode of Object.values(season)) {
@@ -895,6 +949,14 @@ ORDER BY id DESC;`
             return {};
         }
 
+        if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
+            return this.#purgesForMovieSection(sectionId);
+        }
+
+        return this.#purgesForTVSection(sectionId);
+    }
+
+    async #purgesForTVSection(sectionId) {
         let needsEpisodeData = {};
         for (const show of Object.values(this.#purgeCache[sectionId])) {
             for (const season of Object.values(show)) {
@@ -909,6 +971,23 @@ ORDER BY id DESC;`
         }
 
         await this.#populateEpisodeData(needsEpisodeData);
+        return this.#purgeCache[sectionId];
+    }
+
+    /**
+     * Retrieve all purged markers associated with the given movie library
+     * @param {number} sectionId */
+    async #purgesForMovieSection(sectionId) {
+        let needsMovieData = {};
+        for (const movie of Object.values(this.#purgeCache[sectionId])) {
+            for (const markerAction of Object.values(movie)) {
+                if (!markerAction.movieData) {
+                    (needsMovieData[markerAction.parent_id] ??= []).push(markerAction);
+                }
+            }
+        }
+
+        await this.#populateMovieData(needsMovieData);
         return this.#purgeCache[sectionId];
     }
 
@@ -997,7 +1076,7 @@ ORDER BY id DESC;`
             (toRestore[markerAction.parent_id] ??= []).push(markerAction);
         }
 
-        const markerData = await PlexQueries.bulkRestore(toRestore);
+        const markerData = await PlexQueries.bulkRestore(toRestore, this.#sectionTypes[sectionId]);
         const newMarkers = markerData.newMarkers;
         const ignoredMarkers = markerData.identicalMarkers;
 
@@ -1073,12 +1152,22 @@ ORDER BY id DESC;`
         await this.#actions.run(query, parameters);
 
         // Inefficient, but I'm lazy
-        for (const show of Object.values(this.#purgeCache[sectionId])) {
-            for (const season of Object.values(show)) {
-                for (const episode of Object.values(season)) {
-                    for (const markerAction of Object.values(episode)) {
-                        if (idSet[markerAction.marker_id]) {
-                            this.#removeFromPurgeMap(markerAction);
+        if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+            for (const movie of this.#purgeCache[sectionId]) {
+                for (const markerAction of Object.values(movie)) {
+                    if (idSet[markerAction.marker_id]) {
+                        this.#removeFromPurgeMap(markerAction);
+                    }
+                }
+            }
+        } else {
+            for (const show of Object.values(this.#purgeCache[sectionId])) {
+                for (const season of Object.values(show)) {
+                    for (const episode of Object.values(season)) {
+                        for (const markerAction of Object.values(episode)) {
+                            if (idSet[markerAction.marker_id]) {
+                                this.#removeFromPurgeMap(markerAction);
+                            }
                         }
                     }
                 }

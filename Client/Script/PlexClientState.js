@@ -4,8 +4,8 @@ import { ShowData, SeasonData, SectionType, TopLevelData, MovieData } from '../.
 
 import { BulkActionType } from './BulkActionCommon.js';
 import { ClientEpisodeData } from './ClientDataExtensions.js';
-import { PurgedSection } from './PurgedMarkerCache.js';
-import { SeasonResultRow, ShowResultRow } from './ResultRow.js';
+import { PurgedMovieSection, PurgedSection } from './PurgedMarkerCache.js';
+import { MovieResultRow, SeasonResultRow, ShowResultRow } from './ResultRow.js';
 import SettingsManager from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
 
@@ -339,8 +339,27 @@ class PlexClientState {
      * @param {MarkerData[]} newMarkers List of newly restored markers, if any. */
     notifyPurgeChange(unpurged, newMarkers) {
 
+        // Duplicated a bit for movies, but it's simpler than a bunch of if/else
+        if (unpurged instanceof PurgedMovieSection) {
+            // Update any visible movies
+            /** @type {MovieResultRow} */
+            let searchRow;
+            for (searchRow of PlexUI.Get().getActiveSearchRows()) {
+                let newItems = unpurged.get(searchRow.mediaItem().metadataId);
+                if (newItems) {
+                    Log.verbose(`Updating search result movie row ${searchRow.movie().title} after purge update.`);
+                    // Movies don't have the active/inactive/hierarchy issues, so we can get away with the single notification.
+                    searchRow.notifyPurgeChange(newMarkers);
+                }
+            }
+
+            return;
+        }
+
         // Update non-active shows (as they're all cached for quick search results)
-        for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
+        /** @type {ShowResultRow} */
+        let searchRow;
+        for (searchRow of PlexUI.Get().getActiveSearchRows()) {
             if (unpurged.get(searchRow.mediaItem().metadataId)) {
                 Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
                 this.updateNonActiveBreakdown(searchRow, []);

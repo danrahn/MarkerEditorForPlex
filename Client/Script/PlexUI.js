@@ -59,7 +59,7 @@ class PlexUI {
      * @type {number} */
     #searchTimer;
 
-    /** @type {ShowResultRow[]} */
+    /** @type {ShowResultRow[]|MovieResultRow[]} */
     #activeSearch = [];
 
     /** Creates the singleton PlexUI for this session. */
