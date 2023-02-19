@@ -690,7 +690,7 @@ class TVPurgeTable extends PurgeTable {
     purgedGroup() { return super.purgedGroup(); }
     /** @returns {string} */
     mainTitle() {
-        return this.purgedGroup().getAny().episodeData.title;
+        return this.purgedGroup().getAny().episodeData.showName;
     }
 
     /** @returns {HTMLElement} */

@@ -17,6 +17,7 @@ import DatabaseWrapper from './DatabaseWrapper.js';
  *     show_id : number,
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
+ * @typedef {{ id: number, season_id: number, show_id: number, section_id: number }} MediaItemQueryResult
  * @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap
  */
 
@@ -206,22 +207,40 @@ class MarkerCacheManager {
     /**
      * Build the marker cache for the entire Plex server. */
     async buildCache() {
-        Log.info('Gathering markers. This will take some time for large libraries');
+        Log.info('Gathering markers...');
         const start = Date.now();
-        /** @type {MarkerQueryResult[]} */
-        const rows = await this.#database.all(MarkerCacheManager.allMarkerQuery);
-        Log.verbose(`Got all markers (${rows.length} in ${((Date.now() - start) / 1000).toFixed(2)} seconds), trimming to intros/credits...`);
-        let markerCount = 0;
-        for (const row of rows) {
-            this.#addMarkerData(row);
-            if (row.tag_id != this.#tagId) {
-                continue;
-            }
-
-            ++markerCount;
+        // Note: Creating separate queries for relevant markers and all media items, then combining them
+        //       ourselves is _significantly_ faster than combining it into a single query.
+        const markers = await this.#database.all(MarkerCacheManager.#markerOnlyQuery, [this.#tagId]);
+        const media = await this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
+        const end = Date.now();
+        Log.verbose(`Queried all markers (${markers.length} in ${((end- start) / 1000).toFixed(2)} seconds), analyzing...`);
+        const mediaMap = {};
+        for (const mediaItem of media) {
+            mediaMap[mediaItem.id] = mediaItem;
+            this.#initializeHierarchy(mediaItem);
         }
 
-        Log.info(`Cached ${markerCount} markers, starting server...`);
+        let missingData = 0;
+        for (const marker of markers) {
+            const baseItem = mediaMap[marker.parent_id];
+            if (baseItem) {
+                marker.season_id = baseItem.season_id;
+                marker.show_id = baseItem.show_id;
+                marker.tag_id = this.#tagId;
+                marker.section_id = baseItem.section_id;
+                this.#addMarkerData(marker);
+            } else {
+                ++missingData;
+            }
+        }
+
+        if (missingData > 0) {
+            Log.warn(`Found ${missingData} marker(s) without an associated media item, these can't be tracked.`);
+        }
+
+        Log.verbose(`Analyzed all markers in ${Date.now() - end}ms (${((Date.now() - start) / 1000).toFixed(2)} seconds total)`);
+        Log.info(`Cached ${markers.length} markers, starting server...`);
     }
 
     /**
@@ -427,6 +446,25 @@ class MarkerCacheManager {
     }
 
     /**
+     * Seeds the section/show/season/episode (or section/movie) hierarchy to ensue
+     * we track all base media items, even if they currently don't have markers.
+     * @param {MediaItemQueryResult} mediaItem */
+    #initializeHierarchy(mediaItem) {
+        const isMovie = mediaItem.show_id == -1;
+        let thisSection = this.#markerHierarchy[mediaItem.section_id] ??= new MarkerSectionNode();
+        /** @type {BaseItemNode} */
+        if (isMovie) {
+            thisSection.items[mediaItem.id] ??= new MarkerMovieNode(thisSection);
+        } else {
+            let show = thisSection.items[mediaItem.show_id] ??= new MarkerShowNode(thisSection);
+            let season = show.seasons[mediaItem.season_id] ??= new MarkerSeasonNode(show);
+            season.episodes[mediaItem.id] ??= new MarkerEpisodeNode(season);
+        }
+
+        this.#allBaseItems.add(mediaItem.id);
+    }
+
+    /**
      * Query to retrieve all episodes in the database along with their associated tags (if any).
      * One thing to note is that we join _all_ tags for an episode, not just markers. While
      * seemingly excessive, it's significantly faster than doing an outer join on a temporary
@@ -434,39 +472,33 @@ class MarkerCacheManager {
     static #episodeMarkerQueryBase = `
 SELECT
     marker.id AS id,
-    episode.id AS parent_id,
+    base.id AS parent_id,
     season.id AS season_id,
     season.parent_id AS show_id,
     marker.tag_id AS tag_id,
-    episode.library_section_id AS section_id
-FROM metadata_items episode
-    INNER JOIN metadata_items season ON episode.parent_id=season.id
-    LEFT JOIN taggings marker ON episode.id=marker.metadata_item_id
-WHERE episode.metadata_type=4
+    base.library_section_id AS section_id
+FROM metadata_items base
+    INNER JOIN metadata_items season ON base.parent_id=season.id
+    LEFT JOIN taggings marker ON base.id=marker.metadata_item_id
+WHERE base.metadata_type=4
     `;
 
-    /**
-     * Query to retrieve all movies/episodes in the database along with their associated tags (if any).
-     * One thing to note is that we join _all_ tags for an item, not just markers. While seemingly
-     * excessive, it's significantly faster than doing an outer join on a temporary taggings table
-     * that's been filtered to only include markers. */
-    static #markerQueryBase = `
+    /** Query to grab all intro/credits markers on the server. */
+    static #markerOnlyQuery = `SELECT id, metadata_item_id AS parent_id FROM taggings WHERE tag_id=?;`;
+
+    /** Query to grab all episodes and movies from the database. For episodes, also include season/show id (replaced with -1 for movies) */
+    static #mediaOnlyQuery = `
 SELECT
-    marker.id AS id,
-    base.id AS parent_id,
+    base.id AS id,
     (CASE WHEN season.id IS NULL THEN -1 ELSE season.id END) AS season_id,
     (CASE WHEN season.id IS NULL THEN -1 ELSE season.parent_id END) AS show_id,
-    marker.tag_id AS tag_id,
     base.library_section_id AS section_id
 FROM metadata_items base
     LEFT JOIN metadata_items season ON base.parent_id=season.id
-    LEFT JOIN taggings marker ON base.id=marker.metadata_item_id
-WHERE base.metadata_type=1 OR base.metadata_type=4`;
+WHERE base.metadata_type=1 OR base.metadata_type=4;`;
 
     static #markerQuerySort = `
 ORDER BY base.id ASC;`;
-
-    static allMarkerQuery = MarkerCacheManager.#markerQueryBase + MarkerCacheManager.#markerQuerySort;
 
     static #showMarkerQuery = MarkerCacheManager.#episodeMarkerQueryBase + `
 AND season.parent_id=?
