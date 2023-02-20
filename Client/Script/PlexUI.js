@@ -41,6 +41,12 @@ class PlexUI {
     #searchBox = $('#search');
 
     /**
+     * The last value we searched for, used to ensure
+     * we don't reparse thing on null input (e.g. alt key down)
+     * @type {string} */
+    #lastSearch = '';
+
+    /**
      * The container that encapsulates the three result groups
      * @type {HTMLElement} */
     #searchContainer = $('#container');
@@ -241,11 +247,7 @@ class PlexUI {
         // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values.
         const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta',
                            'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
-        if (modifiers.indexOf(e.key) !== -1) {
-            return;
-        }
-
-        if (this.#searchBox.value.length == 0) {
+        if (this.#searchBox.value.length == 0 && modifiers.indexOf(e.key) === -1) {
             // Only show all series if the user explicitly presses 'Enter'
             // on a blank query, otherwise clear the results.
             this.clearAllSections();
@@ -257,6 +259,12 @@ class PlexUI {
 
     /** Initiate a search to the database for shows. */
     #search() {
+        if (this.#searchBox.value == this.#lastSearch) {
+            return;
+        }
+
+        this.#lastSearch = this.#searchBox.value;
+
         // Remove any existing show/season/marker data
         this.clearAllSections();
         PlexClientState.GetState().search(this.#searchBox.value);
@@ -284,14 +292,32 @@ class PlexUI {
         }
 
         this.#activeSearch = [];
-        for (const movie of searchResults) {
+        const rowsLimit = 250; // Most systems should still be fine with this. Even 1000 might not be horrible, but play it safe.
+        for (const movie of searchResults.slice(0, rowsLimit)) {
             const newRow = new MovieResultRow(movie);
             this.#activeSearch.push(newRow);
-            // TODO NEXT: This needs to have marker data associated,
-            // or most likely delay load until we want to show markers for the first time.
-            // Also, limit search results to first X (100)? It can be large, but we don't want
-            // to draw 10K rows, especially if we try to load marker data for all of them.
             movieList.appendChild(newRow.buildRow());
+        }
+
+        if (searchResults.length > rowsLimit) {
+
+            const loadTheRest = () => {
+                movieList.removeChild(movieList.children[movieList.children.length - 1]);
+                for (const movie of searchResults.slice(rowsLimit)) {
+                    const newRow = new MovieResultRow(movie);
+                    this.#activeSearch.push(newRow);
+                    movieList.appendChild(newRow.buildRow());
+                }
+            };
+
+            const text = `Results are limited to the top ${rowsLimit} items, ` + 
+            `click here to load the remaining ${searchResults.length - rowsLimit}.<br><br>` +
+            `WARNING: loading too many rows might hang your browser page.<br>`;
+            movieList.appendChild(
+                buildNode('div',
+                    { class : 'topLevelResult movieResult', style : 'text-align: center' },
+                    text,
+                    { click: loadTheRest }));
         }
     }
 

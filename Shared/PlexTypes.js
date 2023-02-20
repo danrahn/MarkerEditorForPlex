@@ -12,10 +12,12 @@
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  * @typedef {{start: number, end: number, index: number, id: number, parentId: number,
  *            seasonId: number?, showId: number?, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
- * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
- *            sortTitle: string, originalTitle: string, year: number, hasThumbnails: boolean? }} SerializedMovieData
- * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, searchTitle: string,
- *            sortTitle: string, originalTitle: string, seasonCount: number, episodeCount: number }} SerializedShowData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, normalizedTitle: string,
+ *            sortTitle: string, normalizedSortTitle: string, originalTitle: string, normalizedOriginalTitle: string,
+ *            year: number, hasThumbnails: boolean? }} SerializedMovieData
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, normalizedTitle: string,
+ *            sortTitle: string, normalizedSortTitle: string, originalTitle: string, normalizedOriginalTitle: string,
+ *            seasonCount: number, episodeCount: number }} SerializedShowData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, index: number,
  *            seasonName: string, seasonIndex: number, showName: string, duration: number}} SerializedEpisodeData
@@ -140,19 +142,27 @@ class TopLevelData extends PlexData {
      * The name of the item used for search purposes.
      * This is the lowercase name of the item with whitespace and punctuation removed.
      * @type {string} */
-    searchTitle;
+    normalizedTitle;
 
     /**
-     * The sort title of the item if different from the title, otherwise an empty string.
-     * The same transformations done to {@linkcode searchTitle} are done to `sortTitle`.
+     * The original sort title if different from the title, otherwise an empty string.
      * @type {string} */
     sortTitle;
 
     /**
-     * The original title of the item, if any.
-     * The same transformations done to {@linkcode searchTitle} are done to `originalTitle`.
+     * The sort title above, but with the same transformations done to {@linkcode normalizedTitle}.
+     * @type {string} */
+    normalizedSortTitle;
+
+    /**
+     * The "original" original title, if any.
      * @type {string} */
     originalTitle;
+
+    /**
+     * The original title above, but with the same transformations done to {@linkcode normalizedTitle}.
+     * @type {string} */
+    normalizedOriginalTitle;
 
     constructor(mediaItem) {
         super(getBaseData(mediaItem));
@@ -161,9 +171,11 @@ class TopLevelData extends PlexData {
         }
 
         this.title = mediaItem.title;
-        this.searchTitle = TopLevelData.#transformTitle(mediaItem.title);
-        this.sortTitle = (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ? TopLevelData.#transformTitle(mediaItem.title_sort) : '';
-        this.originalTitle = mediaItem.original_title ? TopLevelData.#transformTitle(mediaItem.original_title) : '';
+        this.normalizedTitle = TopLevelData.#transformTitle(mediaItem.title);
+        this.sortTitle = mediaItem.title_sort && mediaItem.title_sort != this.title ? mediaItem.title_sort : '';
+        this.normalizedSortTitle = (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ? TopLevelData.#transformTitle(mediaItem.title_sort) : '';
+        this.originalTitle = mediaItem.original_title || '';
+        this.normalizedOriginalTitle = mediaItem.original_title ? TopLevelData.#transformTitle(mediaItem.original_title) : '';
     }
 
     /**

@@ -815,13 +815,18 @@ class MovieResultRow extends ResultRow {
         // Create a blank marker table, and only load when the marker table is shown
         mov.createMarkerTable(this, [] /*markerData*/);
         const titleText = 'Click to expand/contract.';
-        const movTitle = `${mov.title} (${mov.year})`;
+        const titleNode = buildNode('div', { class : 'movieName', title : titleText });
+        titleNode.appendChild(buildNode('span', { class : 'markerExpand' }, '&#9205; '));
+        titleNode.appendChild(buildNode('span', { }, mov.title));
+        if (mov.originalTitle) {
+            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${mov.originalTitle})`));
+        }
+        titleNode.appendChild(buildNode('span', {}, ` (${mov.year})`));
         let row = buildNode('div');
         appendChildren(row,
             appendChildren(buildNode('div', { class : 'episodeResult' }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
                 appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
-                    buildNode('span', { class : 'markerExpand' }, '&#9205; '),
-                    buildNode('span', {}, movTitle)
+                    titleNode
                 ),
 
                 this.#buildMarkerText()
@@ -849,7 +854,7 @@ class MovieResultRow extends ResultRow {
         // realMarkerCount == -1: we don't know how many markers we have, add '?' with a title
         // Extended stats disabled and no markers grabbed, but we have a realMarkerCount - use it
         // All other scenarios: use the actual marker table count.
-        if (this.movie().realMarkerCount == -1) {
+        if (!SettingsManager.Get().showExtendedMarkerInfo() && this.movie().realMarkerCount == -1) {
             text = buildNode('span', {}, '? Marker(s)');
             tooltipText = 'Click on the row to load marker counts.';
         } else {
