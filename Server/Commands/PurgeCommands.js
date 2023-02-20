@@ -1,10 +1,12 @@
 import { Log } from "../../Shared/ConsoleLog.js";
-import { MarkerData } from "../../Shared/PlexTypes.js";
+import { MarkerData, PurgeConflictResolution } from "../../Shared/PlexTypes.js";
 
 import { BackupManager } from "../MarkerBackupManager.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
 import { Config } from "../IntroEditorConfig.js";
 import ServerError from "../ServerError.js";
+
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
 class PurgeCommands {
 
@@ -31,31 +33,53 @@ class PurgeCommands {
     /**
      * Attempts to restore the last known state of the markers with the given ids.
      * @param {number[]} oldMarkerIds
-     * @param {number} sectionId */
-    static async restoreMarkers(oldMarkerIds, sectionId) {
-        PurgeCommands.#checkBackupManagerEnabled();
+     * @param {number} sectionId
+     * @param {number} resolveType */
+    static async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
+        PurgeCommands.#checkBackupManagerEnabled(); // TODO: Why does bulk overwrite keep the old markers around?
 
-        const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId);
+        if (Object.keys(PurgeConflictResolution).filter(k => PurgeConflictResolution[k] == resolveType).length == 0) {
+            throw new ServerError(`Unexpected PurgeConflictResolution type: ${resolveType}`, 400);
+        }
+
+        const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId, resolveType);
         const restoredMarkers = restoredMarkerData.restoredMarkers;
-        const existingMarkers = restoredMarkerData.existingMarkers;
+        const deletedMarkers = restoredMarkerData.deletedMarkers;
+        const modifiedMarkers = restoredMarkerData.modifiedMarkers;
 
         if (restoredMarkers.length == 0) {
             Log.verbose(`IntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
         }
 
-        let markerData = [];
+
+        /** @type {MarkerDataMap} */
+        const delMarkerMap = {};
+        Log.tmi(`Removing ${deletedMarkers} from marker cache.`);
+        for (const deletedMarker of deletedMarkers) {
+            MarkerCache?.removeMarkerFromCache(deletedMarker.id);
+            (delMarkerMap[deletedMarker.parentId] ??= []).push(deletedMarker);
+        }
+
+        /** @type {MarkerDataMap} */
+        const newMarkerMap = {};
         Log.tmi(`Adding ${restoredMarkers.length} to marker cache.`);
         for (const restoredMarker of restoredMarkers) {
             MarkerCache?.addMarkerToCache(restoredMarker);
-            markerData.push(new MarkerData(restoredMarker));
+            (newMarkerMap[restoredMarker.parent_id] ??= []).push(new MarkerData(restoredMarker));
         }
 
-        let existingMarkerData = [];
-        for (const existingMarker of existingMarkers) {
-            existingMarkerData.push(new MarkerData(existingMarker));
+        // TODO: If cache is ever broken down by intros/credits, we'll need
+        //       to integrate with MarkerCache for edited markers here.
+        /** @type {MarkerDataMap} */
+        const modMarkerMap = {};
+        for (const modMarker of modifiedMarkers) {
+            (modMarkerMap[modMarker.parentId] ??= []).push(modMarker);
         }
-
-        return { newMarkers : markerData, existingMarkers : existingMarkerData };
+        return {
+            newMarkers : newMarkerMap,
+            deletedMarkers : delMarkerMap,
+            modifiedMarkers : modMarkerMap,
+            ignoredMarkers : restoredMarkerData.ignoredMarkers };
     }
 
     /**

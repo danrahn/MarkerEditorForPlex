@@ -38,7 +38,7 @@ class ServerCommands {
 
         purge_check   : async (params) => await PurgeCommands.purgeCheck(params.i('id')),
         all_purges    : async (params) => await PurgeCommands.allPurges(params.i('sectionId')),
-        restore_purge : async (params) => await PurgeCommands.restoreMarkers(params.ia('markerIds'), params.i('sectionId')),
+        restore_purge : async (params) => await PurgeCommands.restoreMarkers(params.ia('markerIds'), ...params.ints('sectionId', 'resolveType')),
         ignore_purge  : async (params) => await PurgeCommands.ignorePurgedMarkers(params.ia('markerIds'), params.i('sectionId')),
     };
 

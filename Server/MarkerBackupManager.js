@@ -1034,8 +1034,9 @@ ORDER BY id DESC;`
     /**
      * Attempts to restore the markers specified by the given ids
      * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
-     * @param {number} sectionId The id of the section the old marker belonged to. */
-    async restoreMarkers(oldMarkerIds, sectionId) {
+     * @param {number} sectionId The id of the section the old marker belonged to.
+     * @param {number} resolveType How to resolve overlapping markers. */
+    async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
         if (!(sectionId in this.#uuids)) {
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }
@@ -1076,9 +1077,35 @@ ORDER BY id DESC;`
             (toRestore[markerAction.parent_id] ??= []).push(markerAction);
         }
 
-        const markerData = await PlexQueries.bulkRestore(toRestore, this.#sectionTypes[sectionId]);
+        const markerData = await PlexQueries.bulkRestore(toRestore, this.#sectionTypes[sectionId], resolveType);
+
+        // First thing to log is deletes, as we want order to indicate that they were replaced by subsequent entries.
+        const deletedMarkers = markerData.deletedMarkers.map(x => new MarkerData(x));
+        if (deletedMarkers.length > 0) {
+            await this.recordDeletes(deletedMarkers);
+        }
+
+        // Then record edits
+        const editedMarkers = [];
+        if (markerData.modifiedMarkers.length > 0) {
+            const oldTimings = {};
+            for (const mod of markerData.modifiedMarkers) {
+                const edited = mod.marker;
+                const newData = mod.newData;
+                oldTimings[edited.id] = { start : edited.start, end : edited.end };
+                edited.start = newData.newStart;
+                edited.end = newData.newEnd;
+                edited.modified_date = newData.newModified;
+                edited.marker_type = newData.newType;
+                edited.final = newData.newFinal;
+                editedMarkers.push(new MarkerData(edited));
+            }
+
+            await this.recordEdits(editedMarkers, oldTimings);
+        }
+
+        // Then the ones we actually restored.
         const newMarkers = markerData.newMarkers;
-        const ignoredMarkers = markerData.identicalMarkers;
 
         let restoredList = [];
 
@@ -1098,7 +1125,11 @@ ORDER BY id DESC;`
         }
 
         await this.recordRestores(restoredList, sectionId);
-        restoredList = []; // reset for ignored markers.
+
+        // Then "ignored via identical" markers, where we pretend the exiting marker is the one
+        // we created to restore the purged one.
+        const ignoredMarkers = markerData.identicalMarkers;
+        restoredList = [];
 
         // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
         for (const ignoredMarker of ignoredMarkers) {
@@ -1110,13 +1141,26 @@ ORDER BY id DESC;`
 
             oldAction = oldAction[0];
             Log.tmi(`MarkerBackupManager::restoreMarkers: Identical marker found, setting it as the restored id.`);
-            restoredList.push({ marker : ignoredMarker.getRaw(), oldMarkerId : oldAction.marker_id });
+            restoredList.push({ marker : ignoredMarker, oldMarkerId : oldAction.marker_id });
             this.#removeFromPurgeMap(oldAction);
         }
 
         await this.recordRestores(restoredList, sectionId);
 
-        return { restoredMarkers : newMarkers, existingMarkers : ignoredMarkers.map(x => x.getRaw()) };
+        // Finally, ignore anything that we decided to ignore based on the resolution type/overlapping status.
+        if (markerData.ignoredActions.length > 0) {
+            await this.ignorePurgedMarkers(markerData.ignoredActions.map(a => a.marker_id), sectionId);
+        }
+
+        // Return everything that might require a client-side update: restored, deleted existing, and modifiedExisting.
+        // TODO: converge to processing either MarkerData or RawMarkerData throughout. E.g. MarkerCache prefers
+        //       RawMarkerData, but BackupManager prefers MarkerData, leading to excessive conversions.
+        return {
+            restoredMarkers : newMarkers,
+            deletedMarkers : deletedMarkers,
+            modifiedMarkers : editedMarkers,
+            ignoredMarkers : ignoredMarkers.length + markerData.ignoredActions.length
+        };
     }
 
     /**

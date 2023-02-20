@@ -11,6 +11,9 @@
  * @typedef {(err: Error?) => void} NoResultQuery
  * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
  * @typedef {{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo }} MarkersWithTypeInfo
+ * @typedef {{ marker: RawMarkerData, newData: { newStart: number, newEnd: number, newType: string, newFinal: boolean, newModified: number }}} ModifiedMarkerDetails
+ * @typedef {{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[], deletedMarkers: RawMarkerData[],
+ *            modifiedMarkers: ModifiedMarkerDetails[], ignoredActions: MarkerAction[]}} BulkRestoreResult
  */
 
 /** @typedef {!import('../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
@@ -19,7 +22,7 @@
 /** @typedef {!import('../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 
 import { Log } from '../Shared/ConsoleLog.js';
-import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType, PurgeConflictResolution } from '../Shared/PlexTypes.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
@@ -70,12 +73,17 @@ class TrimmedMarker {
     /** @type {number} */ newIndex;
     /** @type {string} */ marker_type;
     /** @type {number} */ final;
+    /** @type {number} */ modified_date;
+    /** @type {boolean} */ user_created;
+    /** @type {number} */ created_at;
     /** @type {boolean} */ #isRaw = false;
     /** @type {RawMarkerData} */ #raw;
     getRaw() { if (!this.#isRaw) { throw new ServerError('Attempting to access a non-existent raw marker', 500); } return this.#raw; }
 
-    constructor(id, pid, start, end, index, markerType, final) {
-        this.id = id, this.parent_id = pid, this.start = start, this.end = end, this.index = index, this.newIndex = -1; this.marker_type = markerType, this.final = final;
+    constructor(id, pid, start, end, index, markerType, final, modified_date, user_created, created_at) {
+        this.id = id; this.parent_id = pid; this.start = start; this.end = end; this.index = index;
+        this.newIndex = -1; this.marker_type = markerType; this.final = final; this.modified_date = modified_date;
+        this.user_created = user_created; this.created_at = created_at;
     }
 
     /** Return whether this is an existing marker */
@@ -83,7 +91,8 @@ class TrimmedMarker {
 
     /** @param {RawMarkerData} marker */
     static fromRaw(marker) {
-        let trimmed = new TrimmedMarker(marker.id, marker.parent_id, marker.start, marker.end, marker.index, marker.marker_type, marker.final);
+        let trimmed = new TrimmedMarker(marker.id, marker.parent_id, marker.start, marker.end, marker.index,
+            marker.marker_type, marker.final, marker.modified_date, marker.user_created, marker.created_at);
         trimmed.#raw = marker;
         trimmed.#isRaw = true;
         return trimmed;
@@ -91,7 +100,11 @@ class TrimmedMarker {
 
     /** @param {MarkerAction} action */
     static fromBackup(action) {
-        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.parent_id, action.start, action.end, -1, action.marker_type, action.final);
+        // For the purposes of TrimmedMarker usage, we'll consider the modified date to be either the
+        // modified date or the recorded_at date if that's unavailable
+        let modifiedAt = action.modified_at || action.recorded_at;
+        return new TrimmedMarker(TrimmedMarker.#newMarkerId, action.parent_id, action.start, action.end, -1,
+            action.marker_type, action.final, modifiedAt, action.user_created, action.created_at);
     }
 }
 
@@ -757,15 +770,27 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startMs Start time of the new marker, in milliseconds.
      * @param {number} endMs End time of the new marker, in milliseconds.
      * @param {string} markerType The type of marker (intro/credits)
-     * @param {number} final Whether this is the last credits marker that goes to the end of the episode */
-    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final) {
-        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
+     * @param {number} final Whether this is the last credits marker that goes to the end of the episode
+     * @param {number} modifiedAt What to set as the 'modified at' time. Used by bulkRestore to restore original timestamps.
+     * @param {number} [createdAt] What to set as the 'created at' time. Used by bulkRestore to restore original timestamps. */
+    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, modifiedAt=undefined, createdAt=undefined) {
+        const thumbUrl = this.#pureMode ? '""' : (modifiedAt || `(strftime('%s','now')) * -1`); // negative == user created
+        const created_at = createdAt || `(strftime('%s','now'))`;
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, (strftime('%s','now')), ?);`;
-        const parameters = [episodeId, this.#markerTagId, newIndex, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final)];
+                `(?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+        const parameters = [
+            episodeId,
+            this.#markerTagId,
+            newIndex,
+            markerType,
+            startMs.toString(),
+            endMs,
+            thumbUrl,
+            created_at,
+            ExtraData.get(markerType, final)];
         transaction.addStatement(addQuery, parameters);
     }
 
@@ -773,8 +798,9 @@ ORDER BY e.\`index\` ASC;`;
      * Restore multiple markers at once.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
      * @param {number} sectionType The type of section we're restoring for (i.e. TV or movie)
-     * @returns {Promise<{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[]}} */
-    async bulkRestore(actions, sectionType) {
+     * @param {number} resolveType How to resolve conflicts with existing markers.
+     * @returns {Promise<BulkRestoreResult>} */
+    async bulkRestore(actions, sectionType, resolveType) {
         /** @type {RawMarkerData[]} */
         let markerList;
         try {
@@ -784,7 +810,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         // One query + postprocessing is faster than a query for each episode
-        /** @type {{ [parent_id: number] : TrimmedMarker[] }} */
+        /** @type {{ [parent_id: string|number] : TrimmedMarker[] }} */
         let existingMarkers = {};
         for (const marker of markerList) {
             Log.tmi(marker, 'Adding existing marker');
@@ -794,42 +820,136 @@ ORDER BY e.\`index\` ASC;`;
         let expectedInserts = 0;
         let identicalMarkers = [];
         let potentialRestores = 0;
-        const transaction = new TransactionBuilder(this.#database);
-        for (const [episodeId, markerActions] of Object.entries(actions)) {
-            // Calculate new indexes
-            for (const action of markerActions) {
-                ++potentialRestores;
-                existingMarkers[episodeId] ??= [];
 
-                // Ignore identical markers, though we should probably have better
-                // messaging, or not show them to the user at all.
-                let identicalMarker = existingMarkers[episodeId].find(marker => marker.start == action.start && marker.end == action.end);
-                if (!identicalMarker) {
-                    Log.tmi(action, 'Adding marker to restore');
-                    existingMarkers[episodeId].push(TrimmedMarker.fromBackup(action));
-                } else {
-                    Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
-                    identicalMarkers.push(identicalMarker);
+        let ignoredActions = new Set();
+        /** @type {RawMarkerData[]} */
+        let toDelete = [];
+        /** @type {{[id: number]: ModifiedMarkerDetails}} */
+        let toModify = {};
+        const transaction = new TransactionBuilder(this.#database);
+        for (const [baseItemId, markerActions] of Object.entries(actions)) {
+            markerActions.sort((a, b) => a.start - b.start);
+            let lastAction = { start: -2, end: -1, marker_type: 'intro', final: false, modified_at: 0 };
+            // Need a first loop to trim our actions based on overlap with ourselves
+            for (const action of markerActions) {
+                if (action.start <= lastAction.start ? action.end >= lastAction.start : action.start <= lastAction.end) {
+                    // Regardless of how things overlap, we always ignore the current marker,
+                    // for the reasons outlined below:
+                    ignoredActions.add(action);
+                    switch (resolveType) {
+                        case PurgeConflictResolution.Ignore:
+                            // Making the first marker take precedence gives us a better chance to
+                            // restore the most markers possible.
+                            // "|A  [B  A| {C  B]  C}" will become "|A  A| {C  C}" and not "{C  C}"
+                            break;
+                        case PurgeConflictResolution.Merge:
+                            // Just extend the last marker, making it the new "tracker" in the backup database.
+                            // Credits/final takes precedence over intro/non-final
+                            lastAction.start = Math.min(lastAction.start, action.start);
+                            lastAction.end = Math.max(lastAction.end, action.end);
+                            lastAction.marker_type = action.marker_type == MarkerType.Credits ? MarkerType.Credits : lastAction.marker_type;
+                            lastAction.final = lastAction.final || action.final;
+                            lastAction.modified_at = Math.max(lastAction.modified_at, action.modified_at);
+                            break;
+                        case PurgeConflictResolution.Overwrite:
+                            // Similar to Ignore.
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
 
-            // TODO: Better overlap strategy. Should we silently merge them? Or let the user decide what to do?
+            // Second loop for overlap with existing markers.
+            for (const action of markerActions) {
+                if (ignoredActions.has(action)) {
+                    continue; // We're already ignoring this one.
+                }
+
+                const getOverlapping = m => {
+                    return action.start <= m.start ? action.end >= m.start : action.start <= m.end;
+                };
+
+                ++potentialRestores;
+                existingMarkers[baseItemId] ??= [];
+
+                // Now check for overlap with existing markers.
+                let overlappingMarkers = existingMarkers[baseItemId].filter(getOverlapping);
+                for (const overlappingMarker of overlappingMarkers) {
+                    // If they're identical, ignore no matter the resolution strategy
+                    if (action.start == overlappingMarker.start && action.end == overlappingMarker.end) {
+                        Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
+                        // Add to identicalMarkers, but not to ignoredActions. The idea being that for
+                        // identicalMarkers we pretend that we restored it with the existing marker, but
+                        // we pretend like we explicitly ignored actions in ignoredActions.
+                        identicalMarkers.push(overlappingMarker.getRaw());
+                        continue;
+                    }
+
+                    switch (resolveType) {
+                        case PurgeConflictResolution.Ignore:
+                            ignoredActions.add(action);
+                            continue;
+                        case PurgeConflictResolution.Merge:
+                            toModify[overlappingMarker.id] = {
+                                marker : overlappingMarker.getRaw(),
+                                newData : {
+                                    newStart    : Math.min(action.start, overlappingMarker.start),
+                                    newEnd      : Math.max(action.end, overlappingMarker.end),
+                                    newType     : action.type == MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
+                                    newFinal    : overlappingMarker.final || action.final,
+                                    newModified : Math.max(action.modified_at || action.recorded_at, overlappingMarker.modified_date),
+                                }
+                            };
+
+                            ignoredActions.add(action);
+                            continue;
+                        case PurgeConflictResolution.Overwrite:
+                            // Delete. However, potentially change the action type if the overlapping marker is a
+                            // credits marker, since it's very likely that we're overwriting an automatically created
+                            // credits marker with a manually added intro marker that was added before credits were supported.
+                            // However, don't override "final", since that might have been a manual operation to prevent the
+                            // marker from triggering the PostPlay screen.
+                            action.marker_type = overlappingMarker.marker_type == MarkerType.Credits ? MarkerType.Credits : action.marker_type;
+                            toDelete.push(overlappingMarker.getRaw());
+                            const existingIndex = existingMarkers[baseItemId].indexOf(overlappingMarker);
+                            if (existingIndex !== -1) {
+                                existingMarkers[baseItemId].splice(existingIndex, 1 /*deleteCount*/);
+                            } else {
+                                Log.warn(`How did we process a marker that's not in the existingMarkers map?`);
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                if (ignoredActions.has(action)) {
+                    continue;
+                }
+
+                // If we're here, we've passed all checks and want to restore the action.
+                Log.tmi(action, 'Adding marker to restore');
+                existingMarkers[baseItemId].push(TrimmedMarker.fromBackup(action));
+            }
+
             // TODO: indexRemove: just +1 to existing length
-            existingMarkers[episodeId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
+            existingMarkers[baseItemId].sort((a, b) => a.start - b.start).forEach((marker, index) => {
                 marker.newIndex = index;
             });
 
-            for (const marker of Object.values(existingMarkers[episodeId])) {
+            for (const marker of Object.values(existingMarkers[baseItemId])) {
                 if (marker.existing()) {
                     continue;
                 }
 
                 ++expectedInserts;
-                this.#addMarkerStatement(transaction, episodeId, marker.newIndex, marker.start, marker.end, marker.marker_type, marker.final);
+                const modifiedAt = marker.modified_date * (marker.user_created ? -1 : 1);
+                this.#addMarkerStatement(transaction, baseItemId, marker.newIndex, marker.start, marker.end, marker.marker_type, marker.final, modifiedAt, marker.created_at);
             }
 
             // updateMarkerIndex, without actually executing it.
-            for (const marker of Object.values(existingMarkers[episodeId])) {
+            for (const marker of Object.values(existingMarkers[baseItemId])) {
                 if (marker.index != marker.newIndex && marker.existing()) {
                     Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
                     transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
@@ -837,12 +957,29 @@ ORDER BY e.\`index\` ASC;`;
             }
         }
 
+        for (const marker of toDelete) {
+            transaction.addStatement('DELETE FROM taggings WHERE id=?;', [marker.id]);
+        }
+
+        for (const markerInfo of Object.values(toModify)) {
+            const newData = markerInfo.newData;
+            const thumbUrl = this.#pureMode ? '""' : newData.newModified * (markerInfo.marker.user_created ? -1 : 1);
+            // Index is taken care of further down below.
+            transaction.addStatement(
+                'UPDATE taggings SET text=?, time_offset=?, end_time_offset=?, thumb_url=?, extra_data=? WHERE id=?',
+                [newData.newType, newData.newStart, newData.newEnd, thumbUrl, ExtraData.get(newData.newType, newData.newFinal), markerInfo.marker.id]
+            );
+        }
+
         if (expectedInserts == 0) {
-            // This is only expected if every marker we tried to restore already exists. In that case just
-            // immediately return without any new markers, since we didn't add any.
-            Log.assert(identicalMarkers.length == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
-            Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
-            return { newMarkers : [], identicalMarkers : identicalMarkers };
+            Log.assert(ignoredActions.size > 0, `PlexQueryManager::bulkRestore: no inserts expected, but we aren't blocking any actions.`);
+            if (toDelete.length == 0 && Object.keys(toModify).length == 0) {
+                // This is only expected if every marker we tried to restore already exists. In that case just
+                // immediately return without any new markers, since we didn't add any.
+                Log.assert(identicalMarkers.length + ignoredActions.size == potentialRestores, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
+                Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
+                return { newMarkers : [], identicalMarkers : identicalMarkers, deletedMarkers: [], modifiedMarkers: [], ignoredActions: Array.from(ignoredActions) };
+            }
         }
 
         Log.tmi('Built full restore query:\n' + transaction.toString());
@@ -874,12 +1011,18 @@ ORDER BY e.\`index\` ASC;`;
 
         // If this throws, the server really should restart. We added the markers successfully,
         // but we can't update our caches since we couldn't retrieve them.
-        const newMarkers = await this.#database.all(query, params);
+        const newMarkers = params.length == 1 ? [] : await this.#database.all(query, params);
         if (newMarkers.length != expectedInserts) {
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
 
-        return { newMarkers : this.#postProcessExtendedMarkerFields(newMarkers), identicalMarkers : identicalMarkers };
+        return {
+            newMarkers : this.#postProcessExtendedMarkerFields(newMarkers),
+            identicalMarkers : identicalMarkers,
+            deletedMarkers : toDelete,
+            modifiedMarkers : Object.values(toModify),
+            ignoredActions  : Array.from(ignoredActions)
+        };
     }
 
     /**

@@ -54,14 +54,28 @@
  *      episodeMap: {[episodeId: number]: SerializedBulkAddResultEntry},
  *      ignoredEpisodes: number[]?
  * }} SerializedBulkAddResult
- *
+ * 
+ * @typedef {{[metadataId: number]: MarkerData[] }} MarkerDataMap
+ * @typedef {{[metadataId: number]: SerializedMarkerData[] }} SerializedMarkerDataMap
+ */
+/**
+ * @typedef {Object} BulkRestoreResponse
+ * @property {SerializedMarkerDataMap} newMarkers Markers that were added as the result of a bulk restore.
+ * @property {SerializedMarkerDataMap} deletedMarkers Existing markers that were deleted during the restoration.
+ *                                     Will be empty if PurgeConflictResolution was not Overwrite.
+ * @property {SerializedMarkerDataMap} modifiedMarkers Existing markers that were adjusted instead of creating a new marker.
+ *                                     Will be empty if PurgeConflictResolution was not Merge.
+ * @property {number} ignoredMarkers Number of markers we decided to ignore, either because an identical marker already existed,
+ *                    or because it overlapped with an existing marker and the PurgeConflictResolution was Merge or Ignore.
+ */
+/**
  * A full row in the Actions table
  * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, parent_id: number,
-*            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
-*            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
-*            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
-*            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
-*/
+ *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
+ *            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
+ *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
+ *            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
+ */
 
 /**
  * Retrieve an object to initialize the base PlexData of a derived class.
@@ -520,4 +534,16 @@ const SectionType = {
     TV : 2,
 };
 
-export { BulkMarkerResolveType, PlexData, TopLevelData, ShowData, SeasonData, EpisodeData, MovieData, MarkerData, MarkerType, SectionType }
+/**
+ * Ways to resolve restoring purged markers.
+ * @enum */
+const PurgeConflictResolution = {
+    /** If any existing markers overlap the restored marker, delete the existing marker. */
+    Overwrite : 1,
+    /** Merge overlapping markers into a single marker that spans the entire length of both. */
+    Merge : 2,
+    /** Keep the existing marker and mark the purged marker as ignored. */
+    Ignore : 3,
+}
+
+export { BulkMarkerResolveType, PlexData, TopLevelData, ShowData, SeasonData, EpisodeData, MovieData, MarkerData, MarkerType, SectionType, PurgeConflictResolution }

@@ -1,7 +1,7 @@
 import { Log } from "../../Shared/ConsoleLog.js";
-import { MarkerData, SectionType } from "../../Shared/PlexTypes.js";
+import { MarkerData, PurgeConflictResolution, SectionType } from "../../Shared/PlexTypes.js";
 import ButtonCreator from "./ButtonCreator.js";
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, ServerCommand, pad0 } from "./Common.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, ServerCommand, pad0 } from "./Common.js";
 import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
@@ -12,6 +12,7 @@ import ThemeColors from "./ThemeColors.js";
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 /** @typedef {!import("../../Server/PlexQueryManager.js").RawMarkerData} RawMarkerData */
 
 
@@ -24,7 +25,7 @@ import ThemeColors from "./ThemeColors.js";
 
     /** @type {string} */
     text;
-    /** @type {() => void} */
+    /** @type {(newMarkers: MarkerDataMap, deletedMarkers: MarkerDataMap, modifiedMarkers: MarkerDataMap) => void} */
     successFn;
     /** @type {() => void} */
     failureFn;
@@ -167,9 +168,18 @@ class PurgeNonActionInfo {
         $$('.restoreButton img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
 
         try {
-            const restoreData = await ServerCommand.restorePurge(markers, PlexClientState.GetState().activeSection());
+            const restoreData = await ServerCommand.restorePurge(markers,
+                PlexClientState.GetState().activeSection(),
+                PurgeConflictControl.CurrentResolutionType());
+            const newMarkers = {};
+            Object.entries(restoreData.newMarkers).forEach(d => newMarkers[d[0]] = d[1].map(m => new MarkerData().setFromJson(m)));
+            const deletedMarkers = {};
+            Object.entries(restoreData.deletedMarkers).forEach(d => deletedMarkers[d[0]] = d[1].map(m => new MarkerData().setFromJson(m)));
+            const modifiedMarkers = {};
+            Object.entries(restoreData.modifiedMarkers).forEach(d => modifiedMarkers[d[0]] = d[1].map(m => new MarkerData().setFromJson(m)));
+
             this.#resetConfirmImg('restoreButton');
-            this.#restoreInfo.successFn(restoreData.newMarkers);
+            this.#restoreInfo.successFn(newMarkers, deletedMarkers, modifiedMarkers, restoreData.ignoredMarkers);
         } catch (err) {
             errorMessage(err); // For logging
             this.#resetConfirmImg('restoreButton');
@@ -303,15 +313,19 @@ class PurgeNonActionInfo {
     }
 
     /** Sends a notification to the client state that a marker has been restored/ignored.
-     * @param {MarkerData[]?} _newMarkerArr The newly restored marker as a single element array, or null if the purged marker was ignored. */
-    notifyPurgeChange(_newMarkerArr=null) { Log.error(`notifyPurgeChange should not be called on the base class.`) }
+     * @param {MarkerDataMap} _new The newly restored marker as a single element array, or null if the purged marker was ignored
+     * @param {MarkerDataMap} _del Array of deleted markers as a result of the restoration (or null as above)
+     * @param {MarkerDataMap} _mod Array of edited markers as a result of the restore (or null as above) */
+    notifyPurgeChange(_new=null, _del=null, _mod=null) { Log.error(`notifyPurgeChange should not be called on the base class.`) }
 
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
-     * @param {MarkerData[]} newMarker The newly restored marker, in the form of a single-element array. */
-    #onRestoreSuccess(newMarker) {
+     * @param {MarkerDataMap} newMarker The newly restored marker, in the form of a single-element array.
+     * @param {MarkerDataMap} deletedMarkers Any markers deleted as a result of this restore.
+     * @param {MarkerDataMap} modifiedMarkers Any modified existing markers as a result of this restore. */
+    #onRestoreSuccess(newMarker, deletedMarkers, modifiedMarkers) {
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 500);
         Animation.queueDelayed({ color : 'transparent', backgroundColor : 'transparent', height : '0px' }, this.#html, 500, 500, false, this.#removeSelfAfterAnimation.bind(this));
-        this.notifyPurgeChange(newMarker);
+        this.notifyPurgeChange(newMarker, deletedMarkers, modifiedMarkers);
     }
 
     /** Callback when a marker failed to be restored. Flashes the row and then resets back to its original state. */
@@ -349,7 +363,7 @@ class PurgeNonActionInfo {
     #onIgnoreSuccess() {
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}4` }, this.#html, 500);
         Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#removeSelfAfterAnimation.bind(this));
-        this.notifyPurgeChange();
+        this.notifyPurgeChange({}, {}, {});
     }
 
     /** Callback when a marker failed to be ignored. Flash the row and reset it back to its original state. */
@@ -429,8 +443,10 @@ class TVPurgeRow extends PurgeRow {
 
     /**
      * Sends a notification to the client state that a marker has been restored/ignored.
-     * @param {MarkerData[]?} newMarkerArr The newly restored marker as a single element array, or null if the purged marker was ignored. */
-    notifyPurgeChange(newMarkerArr=null) {
+     * @param {MarkerDataMap} newMarkers The newly restored marker as a single element array. Empty if the purged marker was ignored.
+     * @param {MarkerDataMap} deletedMarkers Array of deleted markers as a result of the restoration (or empty as above)
+     * @param {MarkerDataMap} modifiedMarkers Array of edited markers as a result of the restore (or empty as above) */
+    notifyPurgeChange(newMarkers, deletedMarkers, modifiedMarkers) {
         const markerAction = this.markerAction();
         let dummyLibrary = new PurgedTVSection();
         let dummyShow = new PurgedShow(markerAction.show_id, dummyLibrary);
@@ -440,7 +456,7 @@ class TVPurgeRow extends PurgeRow {
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
         dummyEpisode.addNewMarker(markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 }
 
@@ -459,14 +475,16 @@ class MoviePurgeRow extends PurgeRow {
 
     /**
      * Sends a notification to the client state that a marker has been restored/ignored.
-     * @param {MarkerData[]?} newMarkerArr The newly restored marker as a single element array, or null if the purged marker was ignored. */
-    notifyPurgeChange(newMarkerArr=null) {
+     * @param {MarkerDataMap} newMarkers The newly restored marker as a single element array. Empty if the purged marker was ignored.
+     * @param {MarkerDataMap} deletedMarkers Array of deleted markers as a result of the restoration (or empty as above)
+     * @param {MarkerDataMap} modifiedMarkers Array of edited markers as a result of the restore (or empty as above) */
+    notifyPurgeChange(newMarkers, deletedMarkers, modifiedMarkers) {
         const markerAction = this.markerAction();
         let dummyLibrary = new PurgedMovieSection();
         let dummyMovie = new PurgedMovie(markerAction.parent_id, dummyLibrary);
         dummyLibrary.addInternal(dummyMovie.id, dummyMovie);
         dummyMovie.addNewMarker(markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkerArr);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 }
 
@@ -509,9 +527,12 @@ class BulkPurgeAction {
     html() { return this.#html; }
 
     /** Callback invoked when markers were successfully restored.
-     * @param {MarkerData[]} newMarkers Array of newly restored markers. */
-    #onRestoreSuccess(newMarkers) {
-        this.#onActionSuccess(newMarkers);
+     * @param {MarkerDataMap} newMarkers Array of newly restored markers.
+     * @param {MarkerDataMap} deletedMarkers
+     * @param {MarkerDataMap} modifiedMarkers
+     * @param {number} ignoredMarkers */
+    #onRestoreSuccess(newMarkers, deletedMarkers, modifiedMarkers, ignoredMarkers) {
+        this.#onActionSuccess(newMarkers, deletedMarkers, modifiedMarkers, ignoredMarkers);
     }
 
     /** Callback invoked when markers were unsuccessfully restored. */
@@ -534,12 +555,19 @@ class BulkPurgeAction {
     }
 
     /** Common actions done when markers were successfully restored or ignored. */
-    #onActionSuccess(newMarkers=null) {
+    #onActionSuccess(newMarkers, deletedMarkers, modifiedMarkers, ignoredMarkers) {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 250);
 
         const wrappedCallback = /**@this {BulkPurgeAction}*/ function() {
-            this.#successCallback(newMarkers);
+            const arrLen = (x) => Object.values(x).reduce((sum, arr) => sum + arr.length, 0);
+
+            Overlay.show(`<h2>Restoration Succeeded</h2><hr>` +
+                `Restored Markers: ${arrLen(newMarkers)}<br>` +
+                `Edited Markers: ${arrLen(modifiedMarkers)}<br>` + 
+                `Replaced Markers: ${arrLen(deletedMarkers)}<br>` +
+                `Ignored Markers: ${ignoredMarkers}`);
+            this.#successCallback(newMarkers, deletedMarkers, modifiedMarkers);
         }.bind(this);
 
         Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true, wrappedCallback);
@@ -574,16 +602,20 @@ class PurgeTable {
     #removedCallback;
     /** @type {DisplayType} */
     #displayType;
+    /** @type {boolean} */
+    #showResolutionControl;
 
     /**
      * Create a new table for one or more purged markers in a single show.
      * @param {PurgedGroup} purgedGroup Group of purged markers in this show/movie.
      * @param {() => void} removedCallback Callback invoked when all markers are ignored or restored.
-     * @param {DisplayType=DisplayType.All} displayType The type of overlay being shown. */
-    constructor(purgedGroup, removedCallback, displayType=DisplayType.All) {
+     * @param {DisplayType=DisplayType.All} displayType The type of overlay being shown.
+     * @param {boolean} showResolutionControl Whether to show the purge resolution options. True for single items, false for section-wide overlay. */
+    constructor(purgedGroup, removedCallback, displayType=DisplayType.All, showResolutionControl=false) {
         this.#purgedGroup = purgedGroup;
         this.#removedCallback = removedCallback;
         this.#displayType = displayType;
+        this.#showResolutionControl = showResolutionControl;
         this.#removed = false;
     }
 
@@ -603,6 +635,10 @@ class PurgeTable {
         }
 
         container.appendChild(buildNode('h2', {}, this.mainTitle()));
+        if (this.#showResolutionControl) {
+            container.appendChild(PurgeConflictControl.GetControl());
+        }
+
         if (this.markerIds().length > 1) {
             // Only show bulk operation actions if we're not showing a single marker
             container.appendChild(
@@ -634,6 +670,8 @@ class PurgeTable {
     tableHeader() { Log.error(`tableHeader cannot be called on the base class.`); return buildNode('span'); }
     /** @returns {PurgeRow} */
     getNewPurgedRow() { Log.error(`getNewPurgedRow cannot be called on the base class.`); }
+    /** @returns {PurgedSection} */
+    newPurgedSection() { Log.error(`newPurgedSection cannot be called on the base class.`); }
 
     /** @returns {PurgedGroup} */
     purgedGroup() { return this.#purgedGroup; }
@@ -642,16 +680,18 @@ class PurgeTable {
     removed() { return this.#removed; }
 
     /** Callback invoked when all markers in the table have been handled.
-     * @param {MarkerData[]} newMarkers The newly restored markers, or null if the purged markers were ignored. */
-    #onBulkActionSuccess(newMarkers=null) {
+     * @param {MarkerDataMap} newMarkers The newly restored markers, or null if the purged markers were ignored.
+     * @param {MarkerDataMap} deletedMarkers Array of deleted markers as a result of the restoration (or null as above)
+     * @param {MarkerDataMap} modifiedMarkers Array of edited markers as a result of the restore (or null as above) */
+    #onBulkActionSuccess(newMarkers={}, deletedMarkers={}, modifiedMarkers={}) {
         this.#onRowRemoved();
         let allMarkers = [];
         this.#forMarker(marker => allMarkers.push(marker));
-        let dummyLibrary = new PurgedSection();
+        let dummyLibrary = this.newPurgeSection();
         // Need a deep copy of purgedShow so we don't get confused between markers that are
         // still purged and those that were just cleared in onPurgedMarkerAction.
         dummyLibrary.addInternal(this.#purgedGroup.id, this.#purgedGroup.deepClone());
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 
     /**
@@ -708,6 +748,8 @@ class TVPurgeTable extends PurgeTable {
     getNewPurgedRow(marker, callback) {
         return new TVPurgeRow(marker, callback);
     }
+
+    newPurgeSection() { return new PurgedTVSection(); }
 }
 
 /**
@@ -736,6 +778,64 @@ class MoviePurgeTable extends PurgeTable {
     getNewPurgedRow(marker, callback) {
         return new MoviePurgeRow(marker, callback);
     }
+
+    newPurgeSection() { return new PurgedMovieSection(); }
+}
+
+class PurgeConflictControl {
+    static #resolutionDescriptions = {
+        [PurgeConflictResolution.Overwrite]:
+            `If any existing markers overlap with the restored marker, delete the existing marker.<br>` +
+            `This is useful if you previously tweaked Plex-generated markers and analyzing the item reset them.`,
+        [PurgeConflictResolution.Merge]:
+            `If any existing markers overlap with the restored marker, merge them into one marker that spans ` +
+            `the full length of both.`,
+        [PurgeConflictResolution.Ignore]:
+            `If any existing markers overlap with the restored marker, keep the existing marker and permanently ` +
+            `ignore the purged marker.`,
+    };
+
+    static GetControl() {
+        let selectContainer = buildNode('div', { id : 'purgeResolutionContainer' });
+
+        const resolutionTypeChange = () => {
+            const description = $$('#purgeResolutionDescription');
+            if (description) {
+                description.innerHTML = PurgeConflictControl.#resolutionDescriptions[PurgeConflictControl.CurrentResolutionType()];
+            }
+        }
+
+        const select = buildNode('select', { id : 'purgeResolution' }, 0, { change : resolutionTypeChange });
+        for (const [key, value] of Object.entries(PurgeConflictResolution)) {
+            select.appendChild(buildNode('option', { value : value }, key));
+        }
+
+        const showHideResolutionStrategy = () => {
+            const description = $$('#purgeResolutionDescription');
+            const show = description.classList.contains('hidden');
+            $('#purgeResolutionLabel').innerHTML = (show ? '&#9660;' : '&#9205;') + ' Resolve Strategy:';
+            description.classList.toggle('hidden');
+        }
+
+        appendChildren(selectContainer,
+            buildNode('label', {
+                id : 'purgeResolutionLabel',
+                for : 'purgeResolution',
+                title : 'Click to show/hide resolve strategy descriptions' },
+                '&#9205; Resolve Strategy: ',
+                { click : showHideResolutionStrategy }),
+            select,
+            buildNode('div',
+                { id : 'purgeResolutionDescription', class : 'hidden' },
+                PurgeConflictControl.#resolutionDescriptions[PurgeConflictResolution.Overwrite]));
+
+        return selectContainer;
+    }
+
+    /**
+     * Return the current purge conflict resolution type.
+     * @returns {number} */
+    static CurrentResolutionType() { return parseInt($$('#purgeResolution')?.value || 0); }
 }
 
 /**
@@ -765,6 +865,7 @@ class PurgeOverlay {
         let container = buildNode('div', { id : 'purgeContainer' });
         appendChildren(container,
             buildNode('h1', {}, 'Purged Markers'),
+            PurgeConflictControl.GetControl(),
             new BulkPurgeAction('purge_all', 'Restore All Markers', 'Ignore All Markers', this.#onBulkActionSuccess.bind(this), this.#getAllMarkerIds.bind(this)).html()
         );
 
@@ -799,10 +900,12 @@ class PurgeOverlay {
     }
 
     /** Callback invoked when all tables in the overlay have been handled.
-     * @param {MarkerData[]} newMarkers Array of newly restored markers, or null if the purged markers were ignored. */
-    #onBulkActionSuccess(newMarkers=null) {
+     * @param {MarkerData[]} newMarkers Array of newly restored markers, or null if the purged markers were ignored.
+     * @param {MarkerData[]} deletedMarkers Array of deleted markers as a result of the restoration (or null as above)
+     * @param {MarkerData[]} modifiedMarkers Array of edited markers as a result of the restore (or null as above) */
+    #onBulkActionSuccess(newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
         this.#onTableRemoved();
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers);
+        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers, deletedMarkers, modifiedMarkers);
     }
 
     /**
@@ -968,8 +1071,10 @@ class PurgedMarkerManager {
     /**
      * Callback invoked when a marker or markers are restored or ignored, updating all relevant caches.
      * @param {PurgedSection} purgedSection
-     * @param {MarkerData[]} newMarkers */
-    onPurgedMarkerAction(purgedSection, newMarkers=null) {
+     * @param {MarkerDataMap} newMarkers 
+     * @param {MarkerDataMap} deletedMarkers Map of deleted markers as a result of the restoration (or empty as above)
+     * @param {MarkerDataMap} modifiedMarkers Map of edited markers as a result of the restore (or empty as above) */
+    onPurgedMarkerAction(purgedSection, newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
         purgedSection.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ marker) {
             /** @type {PurgedBaseItem} */
             const baseItem = this.#purgeCache.get(marker.parent_id);
@@ -983,7 +1088,7 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
-        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers || []);
+        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
     }
 
     /**
@@ -1062,7 +1167,7 @@ class PurgedMarkerManager {
             return;
         }
 
-        const args = [purgedItem, Overlay.dismiss, displayType];
+        const args = [purgedItem, Overlay.dismiss, displayType, true /*showResolutionControl*/];
         const table = purgedItem instanceof PurgedMovie ? new MoviePurgeTable(...args) : new TVPurgeTable(...args);
         const html = appendChildren(buildNode('div', { id : 'purgeContainer' }), table.html());
         Overlay.build({ dismissible : true, closeButton : true }, html);

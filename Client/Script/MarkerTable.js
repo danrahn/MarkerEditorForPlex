@@ -224,6 +224,7 @@ class MarkerTable {
             }
 
             this.#markers.splice(newIndex, 0, updatedItem);
+            this.#parentRow.updateMarkerBreakdown(0 /*delta*/); // This edit might update the purge status.
             return; // Same position, no rearranging needed.
         }
 
@@ -237,6 +238,7 @@ class MarkerTable {
 
         this.#rows.splice(newIndex, 0, this.#rows.splice(oldIndex, 1)[0]);
         this.#markers.splice(newIndex, 0, updatedItem);
+        this.#parentRow.updateMarkerBreakdown(0 /*delta*/); // This edit might update the purge status.
     }
 
     /**

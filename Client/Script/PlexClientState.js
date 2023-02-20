@@ -13,6 +13,7 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').MovieMap} MovieMap */
 /** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
 /** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
 /**
 * A class that keeps track of the currently UI state of the Intro Editor,
@@ -336,8 +337,10 @@ class PlexClientState {
     /**
      * Notify various parts of the app that purged markers have been restored/ignored.
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged.
-     * @param {MarkerData[]} newMarkers List of newly restored markers, if any. */
-    notifyPurgeChange(unpurged, newMarkers) {
+     * @param {MarkerDataMap} newMarkers List of newly restored markers, if any.
+     * @param {MarkerDataMap} deletedMarkers List of newly deleted markers, if any.
+     * @param {MarkerDataMap} modifiedMarkers List of newly edited markers, if any. */
+    notifyPurgeChange(unpurged, newMarkers, deletedMarkers, modifiedMarkers) {
 
         // Duplicated a bit for movies, but it's simpler than a bunch of if/else
         if (unpurged instanceof PurgedMovieSection) {
@@ -345,11 +348,12 @@ class PlexClientState {
             /** @type {MovieResultRow} */
             let searchRow;
             for (searchRow of PlexUI.Get().getActiveSearchRows()) {
-                let newItems = unpurged.get(searchRow.mediaItem().metadataId);
+                const metadataId = searchRow.mediaItem().metadataId;
+                let newItems = unpurged.get(metadataId);
                 if (newItems) {
                     Log.verbose(`Updating search result movie row ${searchRow.movie().title} after purge update.`);
                     // Movies don't have the active/inactive/hierarchy issues, so we can get away with the single notification.
-                    searchRow.notifyPurgeChange(newMarkers);
+                    searchRow.notifyPurgeChange(newMarkers[metadataId], deletedMarkers[metadataId], modifiedMarkers[metadataId]);
                 }
             }
 
@@ -362,7 +366,7 @@ class PlexClientState {
         for (searchRow of PlexUI.Get().getActiveSearchRows()) {
             if (unpurged.get(searchRow.mediaItem().metadataId)) {
                 Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
-                this.updateNonActiveBreakdown(searchRow, []);
+                this.updateNonActiveBreakdown(searchRow, []); // TODO: Await? Was this on purpose for perf, or did I just miss this?
             }
         }
 
@@ -389,7 +393,7 @@ class PlexClientState {
 
         // If possible we want to update the activeSeason first to avoid
         // any conflicts when updating marker breakdown caches.
-        this.#activeSeason.notifyPurgeChange(seasonData, newMarkers);
+        this.#activeSeason.notifyPurgeChange(seasonData, newMarkers, deletedMarkers, modifiedMarkers);
         this.#activeShow.notifyPurgeChange(showData);
     }
 

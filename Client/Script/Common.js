@@ -2,6 +2,7 @@ import { Log } from '../../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import Overlay from './inc/Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+/** @typedef {!import('../../Shared/PlexTypes.js').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMovieData} SerializedMovieData */
@@ -194,8 +195,9 @@ const ServerCommand = {
      * Restore the given purged markers associated with the given section.
      * @param {number[]} markerIds Array of purged marker ids to restore.
      * @param {number} sectionId
-     * @returns {Promise<{newMarkers: SerializedMarkerData[], existingMarkers: SerializedMarkerData[]}>} */
-    restorePurge : async (markerIds, sectionId) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId }),
+     * @param {number} resolveType
+     * @returns {Promise<BulkRestoreResponse>} */
+    restorePurge : async (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType: resolveType }),
 
     /**
      * Ignore the given purged markers associated with the given section.

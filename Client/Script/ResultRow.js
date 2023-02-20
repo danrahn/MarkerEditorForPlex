@@ -19,6 +19,7 @@ import { PurgedMovie, PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
+/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -478,19 +479,26 @@ class SeasonResultRow extends ResultRow {
     /**
      * Updates various UI states after purged markers are restored/ignored
      * @param {PurgedSeason} unpurged
-     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
-    notifyPurgeChange(unpurged, newMarkers) {
+     * @param {MarkerDataMap} newMarkers New markers that were added as the result of a restoration, or null if there weren't any
+     * @param {MarkerDataMap} deletedMarkers
+     * @param {MarkerDataMap} modifiedMarkers */
+    notifyPurgeChange(unpurged, newMarkers, deletedMarkers, modifiedMarkers) {
         let updated = {};
-
-        // newMarkers isn't pruned to only relevant ones, so check first
-        for (const marker of newMarkers) {
-            const episode = this.#episodes[marker.parentId];
-            if (!episode) {
-                continue;
+        for (const row of Object.values(this.#episodes)) {
+            const episode = row.episode();
+            const metadataId = episode.metadataId;
+            for (const marker of (newMarkers[metadataId] || [])) {
+                updated[metadataId] = true;
+                episode.markerTable().addMarker(marker, null /*oldRow*/);
             }
-
-            episode.episode().markerTable().addMarker(marker, null /*oldRow*/);
-            updated[marker.parentId] = true;
+            for (const marker of (deletedMarkers[metadataId] || [])) {
+                updated[metadataId] = true;
+                episode.markerTable().deleteMarker(marker, null /*oldRow*/);
+            }
+            for (const marker of (modifiedMarkers[metadataId] || [])) {
+                updated[metadataId] = true;
+                episode.markerTable().editMarker(marker, true /*forceReset*/);
+            }
         }
 
         // We still want to update other episodes as well, since even if we didn't add
@@ -851,13 +859,18 @@ class MovieResultRow extends ResultRow {
 
     /**
      * Updates various UI states after purged markers are restored/ignored
-     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any */
-    notifyPurgeChange(newMarkers) {
-        for (const marker of newMarkers) {
-            // Markers aren't filtered to only those relevant to this movie.
-            if (marker.parentId == this.movie().metadataId) {
-                this.movie().markerTable().addMarker(marker, null /*oldRow*/);
-            }
+     * @param {MarkerData[]?} newMarkers New markers that were added as the result of a restoration, or null if there weren't any
+     * @param {MarkerData[]?} deletedMarkers
+     * @param {MarkerData[]?} modifiedMarkers */
+    notifyPurgeChange(newMarkers, deletedMarkers, modifiedMarkers) {
+        for (const marker of (newMarkers || [])) {
+            this.movie().markerTable().addMarker(marker, null /*oldRow*/);
+        }
+        for (const marker of (deletedMarkers || [])) {
+            this.movie().markerTable().deleteMarker(marker);
+        }
+        for (const marker of (modifiedMarkers || [])) {
+            this.movie().markerTable().editMarker(marker, true /*forceReset*/);
         }
     }
 

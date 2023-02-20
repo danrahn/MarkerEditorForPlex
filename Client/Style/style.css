@@ -366,6 +366,18 @@ input:focus-visible {
   padding: 4px;
 }
 
+#purgeResolutionContainer {
+  text-align: center;
+  width: 60%;
+  min-width: 600px;
+  margin: auto;
+  margin-bottom: 20px;
+}
+
+#purgeResolutionDescription {
+  size: 10pt;
+}
+
 .markerTable {
   margin-top: 15px;
 }
