@@ -6,7 +6,7 @@ import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
 import { MovieResultRow, ShowResultRow } from './ResultRow.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { SectionType } from '../../Shared/PlexTypes.js';
+import { MovieData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
@@ -276,6 +276,7 @@ class PlexUI {
 
     #searchMovies() {
         let movieList = this.#uiSections[UISection.MoviesOrShows];
+        /** @type {MovieData[]} */
         const searchResults = PlexClientState.GetState().getSearchResults();
         if (searchResults.length == 0) {
             movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
@@ -297,6 +298,7 @@ class PlexUI {
     #searchShows() {
         PlexClientState.GetState().clearActiveShow();
         let showList = this.#uiSections[UISection.MoviesOrShows];
+        /** @type {ShowData[]} */
         const searchResults = PlexClientState.GetState().getSearchResults();
         if (searchResults.length == 0) {
             showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));

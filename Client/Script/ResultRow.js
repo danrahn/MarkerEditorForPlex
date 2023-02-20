@@ -15,7 +15,7 @@ import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
-import { PurgedMovie, PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
+import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
@@ -788,10 +788,19 @@ class MovieResultRow extends ResultRow {
     #markersGrabbed = false;
 
     /**
-     * @param {MarkerData} mediaItem */
+     * TODO: A better system here. This is used when extended marker stats
+     * are disabled to signal back to the original item that we know how many
+     * markers this thing actually has, since this is the one that gets reused
+     * across searches.
+     * @type {MovieData} */
+    #plainData;
+
+    /**
+     * @param {MovieData} mediaItem */
     constructor(mediaItem) {
         let clientItem = new ClientMovieData().setFromJson(mediaItem);
         super(clientItem, 'topLevelResult movieResultRow');
+        this.#plainData = mediaItem;
     }
     /**
      * Return the underlying episode data associated with this result row.
@@ -809,8 +818,8 @@ class MovieResultRow extends ResultRow {
         const movTitle = `${mov.title} (${mov.year})`;
         let row = buildNode('div');
         appendChildren(row,
-            appendChildren(buildNode('div', { class : 'episodeResult', title : titleText, }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
-                appendChildren(buildNode('div', { class : 'movieName' }),
+            appendChildren(buildNode('div', { class : 'episodeResult' }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
+                appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
                     buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                     buildNode('span', {}, movTitle)
                 ),
@@ -833,19 +842,43 @@ class MovieResultRow extends ResultRow {
     #buildMarkerText() {
         const movie = this.movie();
         const hasPurges = this.hasPurgedMarkers();
-        let text = buildNode('span', {}, plural(movie.markerTable().markerCount(), 'Marker'));
+        let text;
+        let tooltipText = '';
+
+        // Three scenarios to find the number of markers:
+        // realMarkerCount == -1: we don't know how many markers we have, add '?' with a title
+        // Extended stats disabled and no markers grabbed, but we have a realMarkerCount - use it
+        // All other scenarios: use the actual marker table count.
+        if (this.movie().realMarkerCount == -1) {
+            text = buildNode('span', {}, '? Marker(s)');
+            tooltipText = 'Click on the row to load marker counts.';
+        } else {
+            let markerCount = 0;;
+            if (!SettingsManager.Get().showExtendedMarkerInfo() && !this.#markersGrabbed) {
+                markerCount = movie.realMarkerCount;
+            } else {
+                markerCount = movie.markerTable().markerCount();
+            }
+    
+            text = buildNode('span', {}, plural(markerCount, 'Marker'));
+        }
+
         if (hasPurges) {
             text.appendChild(purgeIcon());
         }
 
         let main = buildNode('div', { class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
+            if (tooltipText) {
+                Tooltip.setTooltip(main, tooltipText);
+            }
             return main;
         }
 
+        tooltipText += tooltipText.length > 0 ? '<br><br>' : '';
         const purgeCount = this.getPurgeCount();
         const markerText = purgeCount == 1 ? 'marker' : 'markers';
-        Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
+        Tooltip.setTooltip(main, `${tooltipText}Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onMoviePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
         main.title = "";
@@ -893,6 +926,20 @@ class MovieResultRow extends ResultRow {
                 }
     
                 markerData[mov.metadataId].sort((a, b) => a.start - b.start);
+                if (mov.realMarkerCount == -1) {
+                    mov.realMarkerCount = markerData[mov.metadataId].length;
+                    this.#plainData.realMarkerCount = 0; // The initialize call below ensures the right delta.
+                }
+
+                if (SettingsManager.Get().backupEnabled()) {
+                    // Gather purge data before continuing
+                    try {
+                        await PurgedMarkerManager.GetManager().getPurgedMovieMarkers(this.movie().metadataId);
+                    } catch (err) {
+                        Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
+                    }
+                }
+
                 mov.initializeMarkerTable(markerData[mov.metadataId]);
             } catch (ex) {
                 this.#markersGrabbed = false;
@@ -941,6 +988,12 @@ class MovieResultRow extends ResultRow {
         const newCount = this.movie().markerTable().markerCount();
         const oldCount = newCount - delta;
         const breakdown = this.movie().markerBreakdown;
+        if (!breakdown) {
+            // Extended stats not enabled.
+            this.#plainData.realMarkerCount += delta;
+            return;
+        }
+
         if (!(oldCount in breakdown)) {
             Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
             breakdown[oldCount] = 1;

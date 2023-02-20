@@ -661,9 +661,6 @@ class MarkerBackupManager {
         const markerData = await PlexQueries.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
-        if (typeInfo.metadata_type == MetadataType.Movie) {
-            throw new ServerError(`checkForPurges doesn't work for individual movies (yet?)`, 400);
-        }
 
         let markerMap = {};
         for (const marker of existingMarkers) {
@@ -671,23 +668,28 @@ class MarkerBackupManager {
         }
 
         const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
-        /** @type {{[episodeId: number]: MarkerAction[]}} */
-        let episodeMap = {};
+        /** @type {{[parentId: number]: MarkerAction[]}} */
+        let baseItemMap = {};
         const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
             if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
                 // Note: while this is "cleaner", it's a bit gross since it doesn't work with
                 // primitives, only objects due to reference semantics.
-                (episodeMap[action.parent_id] ??= []).push(action);
+                (baseItemMap[action.parent_id] ??= []).push(action);
             }
         }
 
-        await this.#populateEpisodeData(episodeMap);
+        if (typeInfo.metadata_type == MetadataType.Movie) {
+            await this.#populateMovieData(baseItemMap);
+        } else {
+            await this.#populateEpisodeData(baseItemMap);
+        }
+
         /** @type {MarkerAction[]} */
-        const pruned = [];
-        for (const actions of Object.values(episodeMap)) {
-            pruned.concat(actions);
+        let pruned = [];
+        for (const actions of Object.values(baseItemMap)) {
+            pruned = pruned.concat(actions);
         }
 
         return pruned;
@@ -997,9 +999,9 @@ ORDER BY id DESC;`
      * @throws {ServerError} if `mediaType` is not an episode, season, or series. */
     #columnFromMediaType(mediaType) {
         switch (mediaType) {
-            case 2: return 'show';
-            case 3: return 'season';
-            case 4: return 'episode';
+            case MetadataType.Show: return 'show';
+            case MetadataType.Season: return 'season';
+            case MetadataType.Episode: case MetadataType.Movie: return 'parent';
             default:
                 Log.error(`MarkerBackupManager: The caller should have verified a valid value already.`);
                 throw new ServerError(`columnFromMediaType: Unexpected media type ${mediaType}`, 400);
@@ -1009,7 +1011,7 @@ ORDER BY id DESC;`
     /**
      * Retrieve the list of markers that we expect to exist in the Plex database for a media item.
      * @param {number} metadataId
-     * @param {string} mediaType The type metadataId points to (episode, season, or show)
+     * @param {string} mediaType The type metadataId points to (parent, season, or show)
      * @param {number} sectionId
      * @returns {Promise<MarkerAction[]>}*/
     async #getExpectedMarkers(metadataId, mediaType, sectionId) {

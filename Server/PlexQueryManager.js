@@ -3,7 +3,7 @@
  *             season_id : number, show_id : number, section_id : number, parent_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
- * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, duration: number, marker_count: number }} RawMovieData
+ * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, duration: number }} RawMovieData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
  * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
@@ -482,7 +482,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} sectionId
      * @returns {Promise<{ [metadataId: number]: string }>} */
     async baseGuidsForSection(sectionId) {
-        let sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        let sectionType = (await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId])).section_type;
         switch (sectionType) {
             case MetadataType.Movie:
                 break;
@@ -490,7 +490,7 @@ ORDER BY e.\`index\` ASC;`;
                 sectionType = MetadataType.Episode;
                 break;
             default:
-                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+                throw new ServerError(`baseGuidsForSection: Unexpected library type ${sectionType}`, 500);
         }
 
         const query = `SELECT id, guid FROM metadata_items WHERE library_section_id=? AND metadata_type=?;`;
@@ -717,7 +717,7 @@ ORDER BY e.\`index\` ASC;`;
             case MetadataType.Episode:
                 return this.#extendedEpisodeMarkerFields;
             default:
-                throw new ServerError(mediaType, `Unexpected media type`);
+                throw new ServerError(`Unexpected media type ${mediaType}`, 400);
         }
     }
 
@@ -1121,7 +1121,7 @@ ORDER BY e.\`index\` ASC;`;
         const query = `
         SELECT b.id AS parent_id, m.tag_id AS tag_id FROM metadata_items b
             LEFT JOIN taggings m ON b.id=m.metadata_item_id
-        WHERE b.library_section_id=? AND e.metadata_type=?
+        WHERE b.library_section_id=? AND b.metadata_type=?
         ORDER BY b.id ASC;`;
 
         return this.#database.all(query, [sectionId, baseType]);
@@ -1133,14 +1133,14 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} sectionId
      * @returns {Promise<number>} */
     async #baseItemTypeFromSection(sectionId) {
-        const sectionType = await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId]);
+        const sectionType = (await this.#database.get(`SELECT section_type FROM library_sections WHERE id=?`, [sectionId])).section_type;
         switch (sectionType) {
             case MetadataType.Movie:
                 return sectionType;
             case MetadataType.Show:
                 return MetadataType.Episode;
             default:
-                throw new ServerError(sectionType, `baseGuidsForSection: Unexpected library type`, 500);
+                throw new ServerError(`baseGuidsForSection: Unexpected library type ${sectionType}`, 500);
         }
     }
 

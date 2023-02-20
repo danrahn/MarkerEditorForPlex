@@ -104,7 +104,12 @@ class MarkerTable {
             tbody.insertBefore(markerRow.row(), addMarkerRow);
         }
 
+        // Cyclical issues here. We want to check cachedMarkerCount against the marker length to
+        // update the marker text if needed, but we won't get an accurate count if cachedMarkerCount
+        // isn't undefined.
+        const cachedCount = this.#cachedMarkerCount;
         this.#cachedMarkerCount = undefined;
+        this.#parentRow.updateMarkerBreakdown(markers.length - cachedCount);
     }
 
     /** @returns {HTMLElement} The raw HTML of the marker table. */

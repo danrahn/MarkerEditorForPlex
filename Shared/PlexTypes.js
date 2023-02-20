@@ -373,6 +373,16 @@ class MovieData extends TopLevelData {
      * @type {boolean?} */
     hasThumbnails = undefined;
 
+    /**
+     * This should only be used when extendedMarkerStats are disabled, since we won't
+     * initially have any marker data, but as soon as a row is clicked, we load it
+     * in and can display it.
+     * @type {number} */
+    realMarkerCount = -1;
+
+    /**
+     * 
+     * @param {RawMovieData} movie */
     constructor(movie) {
         super(movie);
         if (!movie) {
@@ -381,6 +391,7 @@ class MovieData extends TopLevelData {
 
         this.year = movie.year;
         this.duration = movie.duration;
+        this.realMarkerCount = -1;
     }
 }
 

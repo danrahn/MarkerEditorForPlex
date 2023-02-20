@@ -1000,23 +1000,11 @@ class PurgedMarkerManager {
      * @param {number} showId
      * @throws {Error} if the purge_check fails */
     async getPurgedShowMarkers(showId) {
-        let section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection());
-        let show = section.getOrAdd(showId);
-
-        if (show.status == PurgeCacheStatus.Complete) {
-            return;
-        } else if (show.status == PurgeCacheStatus.PartiallyInitialized) {
-            // Partial state, this shouldn't happen! Overwrite.
-            show = section.addNewGroup(show.id);
+        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection());
+        const show = (await this.#getPurgedTopLevelMarkersShared(section, showId));
+        if (show === false) {
+            return; // We already cached things, no need to update season/episode map.
         }
-
-        // No try/catch, caller must handle
-        /** @type {MarkerAction[]} */
-        const actions = await ServerCommand.purgeCheck(showId);
-        for (const action of actions) {
-            this.#addToCache(action);
-        }
-
 
         // Mark each season/episode of the show as complete. Somewhat inefficient, but it's not
         // expected for there to be enough purged markers for this to cause any significant slowdown.
@@ -1025,8 +1013,40 @@ class PurgedMarkerManager {
             this.#purgeCache.get(markerAction.parent_id).status = PurgeCacheStatus.Complete;
             this.#purgeCache.get(markerAction.season_id).status = PurgeCacheStatus.Complete;
         }.bind(this));
+        
+    }
 
-        show.status = PurgeCacheStatus.Complete;
+    /**
+     * Retrieve all purged markers for the movie with the given metadata id.
+     * @param {number} movieId */
+    async getPurgedMovieMarkers(movieId) {
+        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection(), true /*isMovie*/);
+        await this.#getPurgedTopLevelMarkersShared(section, movieId);
+    }
+
+    /**
+     * Shared method of getting purged markers for a given top-level item (movie or show)
+     * @param {PurgedSection} section
+     * @param {number} metadataId */
+    async #getPurgedTopLevelMarkersShared(section, metadataId) {
+        let topLevelItem = section.getOrAdd(metadataId);
+
+        if (topLevelItem.status == PurgeCacheStatus.Complete) {
+            return false;
+        } else if (topLevelItem.status == PurgeCacheStatus.PartiallyInitialized) {
+            // Partial state, this shouldn't happen! Overwrite.
+            topLevelItem = section.addNewGroup(topLevelItem.id);
+        }
+
+        // No try/catch, caller must handle
+        /** @type {MarkerAction[]} */
+        const actions = await ServerCommand.purgeCheck(metadataId);
+        for (const action of actions) {
+            this.#addToCache(action);
+        }
+
+        topLevelItem.status = PurgeCacheStatus.Complete;
+        return topLevelItem;
     }
 
     /**Return the number of purged markers associated with the given show/season/episode */

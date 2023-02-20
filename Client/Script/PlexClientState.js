@@ -16,7 +16,7 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
 /**
-* A class that keeps track of the currently UI state of the Intro Editor,
+* A class that keeps track of the current UI state of the Intro Editor,
 * including search results and the active show/season.
 */
 class PlexClientState {
@@ -26,7 +26,7 @@ class PlexClientState {
     #activeSectionType = SectionType.TV;
     /** @type {{[sectionId: number]: ShowMap|MovieMap}} */
     #sections = {};
-    /** @type {ShowData[]} */
+    /** @type {ShowData[]|MovieData[]} */
     #activeSearch = [];
     /** @type {ShowResultRow} */
     #activeShow;
