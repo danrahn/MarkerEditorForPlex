@@ -93,7 +93,7 @@ class ResultRow {
             return;
         }
 
-        this.episodeDisplay(span);
+        span.replaceWith(this.episodeDisplay());
     }
 
     /**
@@ -142,11 +142,10 @@ class ResultRow {
 
     /**
      * Get the episode summary display, which varies depending on whether extended marker information is enabled.
-     * @param {HTMLElement?} currentDisplay
      * @returns A basic 'X Episode(s)' string if extended marker information is disabled, otherwise a Span
      * that shows how many episodes have at least one marker, with tooltip text with a further breakdown of
      * how many episodes have X markers. */
-    episodeDisplay(currentDisplay=null) {
+    episodeDisplay() {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
         if (!SettingsManager.Get().showExtendedMarkerInfo() || !mediaItem.markerBreakdown) {
@@ -182,18 +181,6 @@ class ResultRow {
             const purgeCount = this.getPurgeCount();
             const markerText = purgeCount == 1 ? 'marker' : 'markers';
             tooltipText += `<br>Found ${purgeCount} purged ${markerText}.<br>Click for details.`;
-        }
-
-        if (currentDisplay) {
-            // To cover various changes in state, always remove the purge event listener, even if it
-            // was never attached, and (re)attach it if we found purged markers.
-            currentDisplay.removeEventListener('click', this.getPurgeEventListener());
-            if (this.hasPurgedMarkers()) { currentDisplay.addEventListener('click', this.getPurgeEventListener()); }
-
-            clearEle(currentDisplay);
-            currentDisplay.appendChild(innerText);
-            Tooltip.setText(currentDisplay, tooltipText);
-            return true;
         }
 
         let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
@@ -773,8 +760,7 @@ class EpisodeResultRow extends ResultRow {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
         const oldNode = $$('.episodeDisplayText', this.html());
-        oldNode.parentElement.insertBefore(newNode, oldNode);
-        oldNode.parentElement.removeChild(oldNode);
+        oldNode.replaceWith(newNode);
 
         if (SettingsManager.Get().showExtendedMarkerInfo()) {
             PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
@@ -989,8 +975,7 @@ class MovieResultRow extends ResultRow {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
         const oldNode = $$('.episodeDisplayText', this.html());
-        oldNode.parentElement.insertBefore(newNode, oldNode);
-        oldNode.parentElement.removeChild(oldNode);
+        oldNode.replaceWith(newNode);
 
         // Note: No need to propagate changes up like for episodes, since
         //       we're already at the top of the chain. The section-wide
