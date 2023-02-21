@@ -176,7 +176,7 @@ class ExistingMarkerRow extends MarkerRow {
         // Build confirmation dialog
         let container = buildNode('div', { class : 'overlayDiv' });
         let header = buildNode('h2', {}, 'Are you sure?');
-        let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this intro marker?');
+        let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this marker?');
 
         let okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
         let okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);

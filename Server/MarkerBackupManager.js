@@ -270,9 +270,9 @@ let Instance;
 /**
  * The MarkerRecorder class handles interactions with a database that keeps track of all the user's marker actions.
  *
- * The main motivation behind this class is Plex's behavior of wiping out all intro markers when a new episode is
- * added to a season (even its own previous markers). This database of recorded actions can be used to help
- * determine what user-modified markers no longer exist, and restore them in the Plex database.
+ * The main motivation behind this class is Plex's behavior of wiping out markers on analysis (even its own previous
+ * markers, which it restores as new markers). This database of recorded actions can be used to help determine what
+ * user-modified markers no longer exist, and restore them in the Plex database.
  *
  * [Maybe] TODO: Add a different view to the main page that shows recently added episodes, and allow drilling down
  * into its season to detect whether any markers were lost, and give the user the option to recover them.

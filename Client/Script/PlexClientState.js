@@ -16,7 +16,7 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
 /**
-* A class that keeps track of the current UI state of the Intro Editor,
+* A class that keeps track of the current UI state of the Marker Editor,
 * including search results and the active show/season.
 */
 class PlexClientState {

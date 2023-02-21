@@ -1,6 +1,6 @@
-# Intro Editor for Plex
+# Marker Editor for Plex
 
-Plex does not let users modify or add intro markers, relying solely on their own audio detection process. This project aims to make it easier to view/edit/add/delete individual intro markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple intro markers, for example to skip credits or a "previously on XYZ" section (as seen in the image below).
+Plex does not let users modify or manually add markers, relying solely on their own detection processes. This project aims to make it easier to view/edit/add/delete individual markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple markers, for example a "previously on XYZ" section (as seen in the image below).
 
 ![image](https://user-images.githubusercontent.com/7410989/182755772-5aabbfe9-4c25-486c-8798-d7ed09337edb.png)
 
@@ -11,7 +11,7 @@ Plex does not let users modify or add intro markers, relying solely on their own
 
 For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/IntroEditorForPlex/wiki/installation).
 
-If running Windows, download the latest [release](https://github.com/danrahn/IntroEditorForPlex/releases), extract the contents to a new folder, and double click IntroEditorForPlex.exe.
+If running Windows, download the latest [release](https://github.com/danrahn/IntroEditorForPlex/releases), extract the contents to a new folder, and double click MarkerEditorForPlex.exe.
 
 In Docker:
 
@@ -30,12 +30,12 @@ For all other platforms (or to run from source):
 
 ## Configuration
 
-See [Configuring Intro Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/configuration) for details on the various settings within `config.json`.
+See [Configuring Marker Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/configuration) for details on the various settings within `config.json`.
 
 ## Using the Application
 
-For full usage instruction, see [Using Intro Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/usage).
+For full usage instruction, see [Using Marker Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/usage).
 
-0. (Strongly encouraged) Shut down PMS
+0. (Strongly encouraged, required on some systems) Shut down PMS
 1. Back up your Plex database
 2. Run `node app.js` from the root of the project

@@ -6,7 +6,7 @@ import Overlay from "./inc/Overlay.js";
  * @type {HTMLElement} */
 const helpText = appendChildren(
     buildNode('div', { id : 'helpOverlayHolder' }),
-    buildNode('h1', {}, 'Welcome to Intro Editor for Plex'),
+    buildNode('h1', {}, 'Welcome to Marker Editor for Plex'),
     buildNode('p', {}, `
 For help with the configuration and usage of ths app, see the 
 <a href="https://github.com/danrahn/IntroEditorForPlex/wiki" target="_blank" rel="noreferrer">wiki on GitHub</a>.`),

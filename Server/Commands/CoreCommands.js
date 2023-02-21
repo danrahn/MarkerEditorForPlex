@@ -63,7 +63,7 @@ class CoreCommands {
 
         const currentMarker = await PlexQueries.getSingleMarker(markerId);
         if (!currentMarker) {
-            throw new ServerError('Intro marker not found', 400);
+            throw new ServerError('Marker not found', 400);
         }
 
         // Get all markers to adjust indexes if necessary
@@ -108,7 +108,7 @@ class CoreCommands {
     static async deleteMarker(markerId) {
         const markerToDelete = await PlexQueries.getSingleMarker(markerId);
         if (!markerToDelete) {
-            throw new ServerError("Could not find intro marker", 400);
+            throw new ServerError("Could not find marker", 400);
         }
 
         const allMarkers = await PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);

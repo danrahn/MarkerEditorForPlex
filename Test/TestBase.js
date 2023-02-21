@@ -138,7 +138,7 @@ class TestBase {
     }
 
     /**
-     * Starts the intro editor. Expects to have been run via launch.json's "Run Tests"
+     * Starts the marker editor. Expects to have been run via launch.json's "Run Tests"
      * configuration, which will pass in the right command line arguments to mainRun. */
     async startService() {
         if (GetServerState() == ServerState.FirstBoot) {

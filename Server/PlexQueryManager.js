@@ -120,7 +120,7 @@ let Instance;
  */
 class PlexQueryManager {
     /**
-     * The tag id in the database that represents an intro marker.
+     * The tag id in the database that represents a marker.
      * @type {number} */
     #markerTagId;
 
@@ -197,20 +197,20 @@ FROM taggings
             if (!row) {
                 // What's the path forward if/when Plex adds custom extensions to the `taggings` table?
                 // Probably some gross solution that invokes shell commands to Plex SQLite.
-                Log.error(`PlexQueryManager: tags table exists, but didn't find intro tag. Plex SQLite is required to modify this table, so we cannot continue.`);
-                Log.error(`                  Either ensure at least one episode has an intro marker, or manually run the following using Plex SQLite:`);
+                Log.error(`PlexQueryManager: tags table exists, but didn't find marker tag. Plex SQLite is required to modify this table, so we cannot continue.`);
+                Log.error(`                  Either ensure at least one movie/episode has a marker, or manually run the following using Plex SQLite:`);
                 Log.error();
                 Log.error(`                 INSERT INTO tags (tag_type, created_at, updated_at) VALUES (12, (strftime('%s','now')), (strftime('%s','now')));`);
                 Log.error();
                 Log.error(`See https://support.plex.tv/articles/repair-a-corrupted-database/ for more information on Plex SQLite and the database location.`);
-                throw new ServerError(`Plex database must contain at least one intro marker.`, 500);
+                throw new ServerError(`Plex database must contain at least one marker.`, 500);
             }
 
             Log.info('PlexQueryManager: Database verified');
             Instance = new PlexQueryManager(db, pureMode, row.id);
             return Instance;
         } catch (err) {
-            Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing intro marker?`);
+            Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing marker?`);
             throw ServerError.FromDbError(err);
         }
     }
@@ -222,7 +222,7 @@ FROM taggings
      * Initializes the query manager. Should only be called via the static CreateInstance.
      * @param {DatabaseWrapper} database
      * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data.
-     * @param {markerTagId} markerTagId The database tag id that represents intro markers. */
+     * @param {markerTagId} markerTagId The database tag id that represents markers. */
     constructor(database, pureMode, markerTagId) {
         this.#database = database;
         this.#pureMode = pureMode;
@@ -1118,7 +1118,7 @@ ORDER BY e.\`index\` ASC;`;
     async markerStatsForSection(sectionId) {
         const baseType = await this.#baseItemTypeFromSection(sectionId);
         // Note that the query below that grabs _all_ tags for an item and discarding
-        // those that aren't intro markers is faster than doing an outer join on a
+        // those that aren't markers is faster than doing an outer join on a
         // temporary taggings table that only includes markers
         const query = `
         SELECT b.id AS parent_id, m.tag_id AS tag_id FROM metadata_items b

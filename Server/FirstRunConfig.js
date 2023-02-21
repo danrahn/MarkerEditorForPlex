@@ -23,7 +23,7 @@ async function FirstRunConfig(dataRoot) {
         input: process.stdin,
         output: process.stdout });
     console.log();
-    if (!await askUserYesNo('Welcome to Intro Editor for Plex! It looks like this is your first run, as config.json\n' +
+    if (!await askUserYesNo('Welcome to Marker Editor for Plex! It looks like this is your first run, as config.json\n' +
                             'could not be found. Would you like to go through the first-time setup', true, rl)) {
         if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
             writeFileSync(configPath, "{}\n");

@@ -207,19 +207,19 @@ const ServerCommand = {
     ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds : markerIds, sectionId : sectionId }),
 
     /**
-     * Shutdown Intro Editor.
+     * Shutdown Marker Editor.
      * @returns {Promise<void>} */
     shutdown : async () => jsonRequest('shutdown'),
     /**
-     * Restart Intro Editor.
+     * Restart Marker Editor.
      * @returns {Promise<void>} */
     restart : async () => jsonRequest('restart'),
     /**
-     * Suspend Intro Editor.
+     * Suspend Marker Editor.
      * @returns {Promise<void>} */
     suspend : async () => jsonRequest('suspend'),
     /**
-     * Resume a suspended Intro Editor.
+     * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
     resume : async () => jsonRequest('resume'),
 };

@@ -165,7 +165,7 @@ class MarkerCacheManager {
     /**
      * Instantiate the singleton MarkerCacheManager.
      * @param {DatabaseWrapper} database The connection to the Plex database.
-     * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers. */
+     * @param {number} tagId The tag_id in the Plex database that corresponds to markers. */
     static Create(database, tagId) {
         if (Instance) {
             Log.warn(`Marker cache already initialized, we shouldn't do it again!`);
@@ -189,7 +189,7 @@ class MarkerCacheManager {
      * @type {Set<number>} */
     #allBaseItems = new Set();
 
-    /** The tag_id in the Plex database that corresponds to intro markers. */
+    /** The tag_id in the Plex database that corresponds to markers. */
     #tagId;
 
     /** The connection to the Plex database. */
@@ -198,7 +198,7 @@ class MarkerCacheManager {
     /**
      * Instantiate a MarkerCache.
      * @param {DatabaseWrapper} database The connection to the Plex database.
-     * @param {number} tagId The tag_id in the Plex database that corresponds to intro markers. */
+     * @param {number} tagId The tag_id in the Plex database that corresponds to markers. */
     constructor(database, tagId) {
         this.#database = database;
         this.#tagId = tagId;

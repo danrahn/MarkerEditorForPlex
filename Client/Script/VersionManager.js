@@ -198,7 +198,7 @@ const IgnoreTimings = {
 }
 
 /**
- * Represents a semantic-ish version of Intro Editor
+ * Represents a semantic-ish version of Marker Editor
  */
 class Version {
     /**
@@ -284,7 +284,7 @@ class Version {
         }
     }
 
-    /** Return whether this Version represents a valid Intro Editor version. */
+    /** Return whether this Version represents a valid Marker Editor version. */
     valid() { return this.major != -1; }
     /** Return the full version string. */
     toString() {
