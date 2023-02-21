@@ -237,7 +237,7 @@ class PurgeNonActionInfo {
      /**
       * The number of columns to backup and clear out when showing an inline row message.
       * @type {number} */
-     static #backupLength = 4;
+     static #backupLength = 5;
 
     /** @type {MarkerAction} */
     #markerAction;
@@ -379,7 +379,7 @@ class PurgeNonActionInfo {
             this.#html.removeChild(this.#html.firstChild);
         }
 
-        this.#html.insertBefore(buildNode('td', { colspan : 4, class : 'spanningTableRow' }, message), this.#html.firstChild);
+        this.#html.insertBefore(buildNode('td', { colspan : PurgeRow.#backupLength, class : 'spanningTableRow' }, message), this.#html.firstChild);
     }
 
     /** Backs up the main content of the row in preparation of `#html` being cleared out. */
@@ -560,13 +560,15 @@ class BulkPurgeAction {
         Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 250);
 
         const wrappedCallback = /**@this {BulkPurgeAction}*/ function() {
-            const arrLen = (x) => Object.values(x).reduce((sum, arr) => sum + arr.length, 0);
+            // TODO: find a different way to show stats, since getting here doesn't necessarily mean
+            //       all markers in the overlay are taken care of, and we don't want to interrupt with an overlay.
+            // const arrLen = (x) => x ? Object.values(x).reduce((sum, arr) => sum + arr.length, 0) : 0;
 
-            Overlay.show(`<h2>Restoration Succeeded</h2><hr>` +
-                `Restored Markers: ${arrLen(newMarkers)}<br>` +
-                `Edited Markers: ${arrLen(modifiedMarkers)}<br>` + 
-                `Replaced Markers: ${arrLen(deletedMarkers)}<br>` +
-                `Ignored Markers: ${ignoredMarkers}`);
+            // Overlay.show(`<h2>Restoration Succeeded</h2><hr>` +
+            //     `Restored Markers: ${arrLen(newMarkers)}<br>` +
+            //     `Edited Markers: ${arrLen(modifiedMarkers)}<br>` + 
+            //     `Replaced Markers: ${arrLen(deletedMarkers)}<br>` +
+            //     `Ignored Markers: ${ignoredMarkers}`);
             this.#successCallback(newMarkers, deletedMarkers, modifiedMarkers);
         }.bind(this);
 
@@ -580,10 +582,12 @@ class BulkPurgeAction {
 const DisplayType = {
     /** Display all purged markers for a given section. */
     All : 0,
+    /** Display all purged markers for a given show/movie. */
+    SingleTopLevel : 1,
     /** Display all purged markers for a given season of a show. */
-    SingleSeason : 1,
+    SingleSeason : 2,
     /** Display a single purged marker */
-    SingleEpisode : 2
+    SingleEpisode : 3
 }
 
 /**
@@ -1122,7 +1126,7 @@ class PurgedMarkerManager {
             return;
         }
 
-        this.#showSingle(showMarkers, DisplayType.All);
+        this.#showSingle(showMarkers, DisplayType.SingleTopLevel);
     }
 
     /**
@@ -1175,7 +1179,7 @@ class PurgedMarkerManager {
             return;
         }
 
-        this.#showSingle(movieMarkers, DisplayType.All);
+        this.#showSingle(movieMarkers, DisplayType.SingleTopLevel);
     }
 
     /**

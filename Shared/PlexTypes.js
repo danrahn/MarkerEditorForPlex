@@ -376,6 +376,11 @@ class MovieData extends TopLevelData {
     year;
 
     /**
+     * The edition title, if any (e.g. 'Extended', 'Theatrical', etc)
+     * @type {string} */
+    edition;
+
+    /**
      * The length of the show, in milliseconds.
      * @type {number} */
     duration;
@@ -403,6 +408,7 @@ class MovieData extends TopLevelData {
 
         this.year = movie.year;
         this.duration = movie.duration;
+        this.edition = movie.edition;
         this.realMarkerCount = -1;
     }
 }

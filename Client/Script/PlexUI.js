@@ -44,7 +44,7 @@ class PlexUI {
      * The last value we searched for, used to ensure
      * we don't reparse thing on null input (e.g. alt key down)
      * @type {string} */
-    #lastSearch = '';
+    #lastSearch = null;
 
     /**
      * The container that encapsulates the three result groups
@@ -199,6 +199,7 @@ class PlexUI {
 
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
+        this.#lastSearch = null;
         const section = parseInt(this.#dropdown.value);
         const libType = parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute('libtype'));
         switch (libType) {

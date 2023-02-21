@@ -821,7 +821,12 @@ class MovieResultRow extends ResultRow {
         if (mov.originalTitle) {
             titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${mov.originalTitle})`));
         }
+
         titleNode.appendChild(buildNode('span', {}, ` (${mov.year})`));
+        if (mov.edition) {
+            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` [${mov.edition}]`));
+        }
+
         let row = buildNode('div');
         appendChildren(row,
             appendChildren(buildNode('div', { class : 'episodeResult' }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name

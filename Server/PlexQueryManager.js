@@ -3,7 +3,7 @@
  *             season_id : number, show_id : number, section_id : number, parent_guid : string, marker_type : string, final : number, user_created }} RawMarkerData
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
- * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, duration: number }} RawMovieData
+ * @typedef {{ id: number, title: string, title_sort: string, original_title: string, year: number, edition: string, duration: number }} RawMovieData
  * @typedef {(err: Error?, rows: any[]) => void} MultipleRowQuery
  * @typedef {(err: Error?, rows: RawMarkerData[])} MultipleMarkerQuery
  * @typedef {(err: Error?, row: any) => void} SingleRowQuery
@@ -266,6 +266,7 @@ SELECT movies.id AS id,
         movies.title_sort AS title_sort,
         movies.original_title AS original_title,
         movies.year AS year,
+        movies.edition_title AS edition,
         MAX(files.duration) AS duration
   FROM metadata_items movies
   INNER JOIN media_items files ON movies.id=files.metadata_item_id
@@ -426,6 +427,7 @@ ORDER BY e.\`index\` ASC;`;
         movies.title_sort AS title_sort,
         movies.original_title AS original_title,
         movies.year AS year,
+        movies.edition_title AS edition,
         MAX(files.duration) AS duration
   FROM metadata_items movies
   INNER JOIN media_items files ON movies.id=files.metadata_item_id
