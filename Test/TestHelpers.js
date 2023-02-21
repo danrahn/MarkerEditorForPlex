@@ -162,7 +162,7 @@ class TestHelpers {
             "time_offset" integer,
             "end_time_offset" integer,
             "thumb_url" varchar(255),
-            "created_at" datetime,
+            "created_at" dt_integer(8),
             'extra_data' varchar(255));
         CREATE INDEX "index_taggings_on_metadata_item_id" ON "taggings" ("metadata_item_id" );
         CREATE INDEX "index_taggings_on_tag_id" ON "taggings" ("tag_id" );`;
@@ -185,7 +185,7 @@ class TestHelpers {
 
         // .schema metadata_items, minus triggers, minus nonstandard collate
         const metadataItems = `
-        CREATE TABLE IF NOT EXISTS "metadata_items" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "library_section_id" integer, "parent_id" integer, "metadata_type" integer, "guid" varchar(255), "media_item_count" integer, "title" varchar(255), "title_sort" varchar(255) COLLATE NOCASE, "original_title" varchar(255), "studio" varchar(255), "rating" float, "rating_count" integer, "tagline" varchar(255), "summary" text, "trivia" text, "quotes" text, "content_rating" varchar(255), "content_rating_age" integer, "index" integer, "absolute_index" integer, "duration" integer, "user_thumb_url" varchar(255), "user_art_url" varchar(255), "user_banner_url" varchar(255), "user_music_url" varchar(255), "user_fields" varchar(255), "tags_genre" varchar(255), "tags_collection" varchar(255), "tags_director" varchar(255), "tags_writer" varchar(255), "tags_star" varchar(255), "originally_available_at" dt_integer(8), "available_at" dt_integer(8), "expires_at" dt_integer(8), "refreshed_at" dt_integer(8), "year" integer, "added_at" dt_integer(8), "created_at" dt_integer(8), "updated_at" dt_integer(8), "deleted_at" dt_integer(8), "tags_country" varchar(255), "extra_data" varchar(255), "hash" varchar(255), 'audience_rating' float, 'changed_at' integer(8) default '0', 'resources_changed_at' integer(8) default '0', 'remote' integer);
+        CREATE TABLE IF NOT EXISTS "metadata_items" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "library_section_id" integer, "parent_id" integer, "metadata_type" integer, "guid" varchar(255), "media_item_count" integer, "title" varchar(255), "title_sort" varchar(255) COLLATE NOCASE, "original_title" varchar(255), "studio" varchar(255), "rating" float, "rating_count" integer, "tagline" varchar(255), "summary" text, "trivia" text, "quotes" text, "content_rating" varchar(255), "content_rating_age" integer, "index" integer, "absolute_index" integer, "duration" integer, "user_thumb_url" varchar(255), "user_art_url" varchar(255), "user_banner_url" varchar(255), "user_music_url" varchar(255), "user_fields" varchar(255), "tags_genre" varchar(255), "tags_collection" varchar(255), "tags_director" varchar(255), "tags_writer" varchar(255), "tags_star" varchar(255), "originally_available_at" dt_integer(8), "available_at" dt_integer(8), "expires_at" dt_integer(8), "refreshed_at" dt_integer(8), "year" integer, "added_at" dt_integer(8), "created_at" dt_integer(8), "updated_at" dt_integer(8), "deleted_at" dt_integer(8), "tags_country" varchar(255), "extra_data" varchar(255), "hash" varchar(255), 'audience_rating' float, 'changed_at' integer(8) default '0', 'resources_changed_at' integer(8) default '0', 'remote' integer, 'edition_title' varchar(255));
         CREATE INDEX "index_metadata_items_on_library_section_id" ON "metadata_items" ("library_section_id" );
         CREATE INDEX "index_metadata_items_on_parent_id" ON "metadata_items" ("parent_id" );
         CREATE INDEX "index_metadata_items_on_created_at" ON "metadata_items" ("created_at" );
@@ -203,7 +203,8 @@ class TestHelpers {
         CREATE INDEX 'index_metadata_items_on_resources_changed_at' ON 'metadata_items' ('resources_changed_at' );
         CREATE INDEX 'index_metadata_items_on_original_title' ON 'metadata_items' ('original_title');
         CREATE INDEX 'index_metadata_items_on_absolute_index' ON 'metadata_items' ('absolute_index');
-        CREATE INDEX 'index_metadata_items_on_remote' ON 'metadata_items' ('remote');`;
+        CREATE INDEX 'index_metadata_items_on_remote' ON 'metadata_items' ('remote');
+        CREATE INDEX 'index_metadata_items_on_edition_title' ON 'metadata_items' ('edition_title');`;
 
         // .schema media_items
         const mediaItems = `

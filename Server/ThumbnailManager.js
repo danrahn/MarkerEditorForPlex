@@ -340,7 +340,11 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         const maxDuration = this.#cache.getItem(metadataId).duration;
 
         // Don't get _too_ accurate, round to the nearest tenth, which might help with caching too.
-        timestamp = Math.round(Math.min(maxDuration, Math.floor(timestamp / 100) * 100));
+        // Also don''t get too close to the supposed end. There are a fair number of cases where our max
+        // duration doesn't actually line up with the video stream of the file. Give ourselves some leeway
+        // by grabbing a timestamp that's a bit earlier, and hopefully within the bounds of the stream.
+        timestamp = Math.round(Math.min(maxDuration - 1000, Math.floor(timestamp / 100) * 100));
+
         const cachedThumb = this.#cache.tryGet(metadataId, timestamp);
         if (cachedThumb) {
             Log.tmi(`Found cached thumbnail for ${metadataId}:${timestamp}`);
