@@ -241,6 +241,7 @@ class PlexUI {
     async #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
         if (e.key == 'Enter') {
+            this.#lastSearch = null; // Guarantee we reload things.
             return this.#search();
         }
 
@@ -251,7 +252,9 @@ class PlexUI {
         if (this.#searchBox.value.length == 0 && modifiers.indexOf(e.key) === -1) {
             // Only show all series if the user explicitly presses 'Enter'
             // on a blank query, otherwise clear the results.
-            this.clearAllSections();
+            if (this.#lastSearch.length != 0) {
+                this.clearAllSections();
+            }
             return;
         }
 
