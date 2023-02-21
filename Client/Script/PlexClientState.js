@@ -289,6 +289,13 @@ class PlexClientState {
       * @param {string} query The show to search for. */
     async search(query)
     {
+        let regexp = undefined;
+        // Not a perfect test, but close enough
+        const match = /^\/(.+)\/(g?i?d?y?)$/.exec(query);
+        if (match) {
+            regexp = new RegExp(match[1], match[2]);
+        }
+
         // For movies, also try matching any year that's present.
         let queryYear = /\b(1[8-9]\d{2}|20\d{2})\b/.exec(query);
         if (queryYear) { queryYear = queryYear[1]; }
@@ -302,11 +309,19 @@ class PlexClientState {
 
         let result = [];
         for (const item of itemList) {
-            if (item.searchTitle.indexOf(query) != -1
-                || (item.sortTitle && item.sortTitle.indexOf(query) != -1)
-                || (item.originalTitle && item.originalTitle.indexOf(query) != -1)
-                || (this.#activeSectionType == SectionType.Movie && queryYear && item.year == queryYear)) {
-                result.push(item);
+            // If we have a regular expression, it takes precedence over our plain query string
+            if (regexp) {
+                if (regexp.test(item.title) || regexp.test(item.sortTitle) || regexp.test(item.originalTitle)
+                    || (this.#activeSectionType == SectionType.Movie && regexp.test(queryYear))) {
+                    result.push(item);
+                }
+            } else {
+                if (item.normalizedTitle.indexOf(query) != -1
+                    || (item.normalizedSortTitle && item.normalizedSortTitle.indexOf(query) != -1)
+                    || (item.normalizedOriginalTitle && item.normalizedOriginalTitle.indexOf(query) != -1)
+                    || (this.#activeSectionType == SectionType.Movie && queryYear && item.year == queryYear)) {
+                    result.push(item);
+                }
             }
         }
 
@@ -462,8 +477,8 @@ class PlexClientState {
     /** Comparator that sorts items by sort title, falling back to the regular title if needed.
      * @type {(a: ShowData, b: ShowData) => number} */
     #defaultSort(a, b) {
-        const aTitle = a.sortTitle || a.searchTitle;
-        const bTitle = b.sortTitle || b.searchTitle;
+        const aTitle = a.normalizedSortTitle || a.normalizedTitle;
+        const bTitle = b.normalizedSortTitle || b.normalizedTitle;
         return aTitle.localeCompare(bTitle);
     }
 
