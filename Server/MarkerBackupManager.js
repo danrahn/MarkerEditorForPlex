@@ -443,8 +443,23 @@ class MarkerBackupManager {
         const modifiedMarkers = await db.all(modifiedMarkersQuery);
         const txn = new TransactionBuilder(db);
         for (const marker of modifiedMarkers) {
-            const userCreated = marker.thumb_url.endsWith('*');
-            const date = (new Date(userCreated ? marker.thumb_url.substring(0, marker.thumb_url.length - 1) : marker.thumb_url).getTime() / 1000) * (userCreated ? -1 : 1);
+            let userCreated = marker.thumb_url.endsWith('*');
+            let date = (new Date(userCreated ? marker.thumb_url.substring(0, marker.thumb_url.length - 1) : marker.thumb_url).getTime() / 1000) * (userCreated ? -1 : 1);
+            if (isNaN(date)) {
+                // Did another instance already switch to epoch?
+                const asEpoch = Math.abs(marker.thumb_url);
+                if (isNaN(asEpoch)) {
+                    // Bad data, reset to blank
+                    date = '';
+                } else {
+                    const year = new Date(asEpoch * 1000).getFullYear();
+                    if (year > 1990 && year < Date.now()) {
+                        date = marker.thumb_url;
+                    } else {
+                        date = '';
+                    }
+                }
+            }
             txn.addStatement(`UPDATE taggings SET thumb_url=? WHERE id=?`, [date, marker.id]);
         }
 
