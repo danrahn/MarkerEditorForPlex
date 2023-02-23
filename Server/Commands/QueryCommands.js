@@ -1,5 +1,5 @@
 import { Log } from "../../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData, MovieData, SeasonData, SectionType, ShowData } from "../../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MarkerType, MovieData, SeasonData, SectionType, ShowData } from "../../Shared/PlexTypes.js";
 
 import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
 import { MarkerCache } from "../MarkerCacheManager.js";
@@ -192,18 +192,21 @@ class QueryCommands {
 
         let buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
-        let idCur = -1;
+        let idCur = rows.length > 0 ? rows[0].parent_id : -1;
         let countCur = 0;
+        // See MarkerBreakdown.js
+        const bucketDelta = (markerType) => markerType == MarkerType.Intro ? 1 : (1 << 16);
         for (const row of rows) {
             if (row.parent_id == idCur) {
                 if (row.tag_id == PlexQueries.markerTagId()) {
-                    ++countCur;
+                    // See MarkerBreakdown.js
+                    countCur += bucketDelta(row.marker_type);
                 }
             } else {
                 buckets[countCur] ??= 0;
                 ++buckets[countCur];
                 idCur = row.parent_id;
-                countCur = row.tag_id == PlexQueries.markerTagId() ? 1 : 0;
+                countCur = row.tag_id == PlexQueries.markerTagId() ? bucketDelta(row.marker_type) : 0;
             }
         }
 

@@ -14,3 +14,9 @@
 .largerTooltip {
     font-size: 12pt;
 }
+
+#tooltip hr {
+    margin-top: 3px;
+    margin-bottom: 3px;
+    opacity: 0.8;
+}

@@ -2,6 +2,8 @@
  * Contains classes that represent show, season, episode, and marker data.
  */
 
+import MarkerBreakdown from './MarkerBreakdown.js';
+
 /**
  * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
  * @typedef {{id: number, type: number, name: string}} LibrarySection A library in the Plex database.
@@ -103,9 +105,15 @@ class PlexData {
     metadataId;
 
     /**
-     * The breakdown of how many episodes have X markers.
+     * The breakdown of how many episodes have X markers, as a raw dictionary of values.
      * @type {MarkerBreakdownMap} */
-    markerBreakdown;
+    rawMarkerBreakdown;
+
+    /**
+     * The "real" marker breakdown class based on the raw marker breakdown.
+     * Should only be used client-side.
+     * @type {MarkerBreakdown} */
+    #markerBreakdown;
 
     /**
      * @param {PlexDataBaseData} [data]
@@ -114,7 +122,7 @@ class PlexData {
     {
         if (data) {
             this.metadataId = data.metadataId;
-            this.markerBreakdown = data.markerBreakdown;
+            this.rawMarkerBreakdown = data.markerBreakdown;
         }
     }
 
@@ -124,8 +132,30 @@ class PlexData {
      * @returns itself. */
      setFromJson(json) {
         Object.assign(this, json);
+        if (this.rawMarkerBreakdown) {
+            this.#markerBreakdown = new MarkerBreakdown().initFromRawBreakdown(this.rawMarkerBreakdown);
+            // We don't want to reference rawMarkerBreakdown after this.
+            this.rawMarkerBreakdown = undefined;
+        }
+
         return this;
     }
+
+    /**
+     * @param {MarkerBreakdownMap} */
+    setBreakdownFromRaw(rawBreakdown) {
+        this.#markerBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
+    }
+
+    /**
+     * Overwrites the current marker breakdown with the new one.
+     * @param {MarkerBreakdown} newBreakdown */
+    setBreakdown(newBreakdown) {
+        this.#markerBreakdown = newBreakdown;
+    }
+
+    /** @returns {MarkerBreakdown} */
+    markerBreakdown() { return this.#markerBreakdown; }
 }
 
 /**

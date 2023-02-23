@@ -20,7 +20,7 @@ class MarkerRow {
 
     /**
      * The media item row that owns this marker row.
-     * @type {ResultRow} */
+     * @type {BaseItemResultRow} */
     #parentRow;
 
     /**
@@ -30,7 +30,7 @@ class MarkerRow {
 
     /**
      * Create a new base MarkerRow. This should not be instantiated on its own, only through its derived classes.
-     * @param {ResultRow} parent The media item that owns this marker.
+     * @param {BaseItemResultRow} parent The media item that owns this marker.
      * @param {boolean} isMovie Whether this marker is for a movie. */
     constructor(parent) {
         this.#parentRow = parent;
@@ -63,6 +63,12 @@ class MarkerRow {
 
     /** Return the metadata id of the episode this marker belongs to. */
     parent() { return this.#parentRow; }
+
+    /**
+     * The marker table this row belongs to can be cached across searches, but the
+     * result row will be different, so we have to update the parent.
+     * @param {BaseItemResultRow} parentRow */
+    setParent(parentRow) { this.#parentRow = parentRow; }
 
     /** Returns the editor for this marker. */
     editor() { return this.#editor; }

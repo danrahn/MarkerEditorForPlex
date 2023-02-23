@@ -125,6 +125,7 @@ let Chart = new function()
         sortData(data);
 
         let total = data.points.reduce((acc, cur) => acc + cur.value, 0);
+        const singlePoint = data.points.length === 1;
 
         let r = data.radius;
         let hasTitle = data.title && !data.noTitle;
@@ -154,8 +155,9 @@ let Chart = new function()
             {
                 sliceColor = colors[colorIndex++ % colors.length];
             }
-            let slice = buildPieSlice(d, sliceColor);
 
+            // For a single point, ignore the whole path we created above and just make a circle
+            let slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
             let label = buildPieTooltip(point, total, data.labelOptions);
             if (label.length != 0)
             {
@@ -337,6 +339,33 @@ let Chart = new function()
                 mouseleave : function() { this.setAttribute("stroke", "#616161"); }
             });
     };
+
+    /**
+     * Creates a circle representing the one and only data point for a pie chart.
+     * @param {number} radius Radius of the circle
+     * @param {number} yOffset Additional y-offset for the circle
+     * @param {string} fill The fill color as a hex string
+     * @returns A SVG Circle for a pie chart with a single data point.
+     */
+    let buildPieCircle = function(radius, yOffset, fill)
+    {
+        return buildNodeNS("http://www.w3.org/2000/svg",
+            "circle",
+            {
+                r : radius,
+                cx : radius,
+                cy : radius + yOffset,
+                fill : fill,
+                stroke : "#616161",
+                "pointer-events" : "all",
+                xmlns : "http://www.w3.org/2000/svg"
+            },
+            0,
+            {
+                mouseenter : highlightPieSlice,
+                mouseleave : function() { this.setAttribute("stroke", "#616161"); }
+            })
+    }
 
     /**
      * Builds tooltip text for a point on the chart.

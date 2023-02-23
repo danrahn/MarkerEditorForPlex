@@ -1114,14 +1114,14 @@ ORDER BY e.\`index\` ASC;`;
      * Fields returned: `parent_id`, `tag_id`
      * TODO: Movies
      * @param {number} sectionId
-     * @returns {Promise<{parent_id: number, tag_id: number}[]>} */
+     * @returns {Promise<{parent_id: number, tag_id: number, marker_type: string}[]>} */
     async markerStatsForSection(sectionId) {
         const baseType = await this.#baseItemTypeFromSection(sectionId);
         // Note that the query below that grabs _all_ tags for an item and discarding
         // those that aren't markers is faster than doing an outer join on a
         // temporary taggings table that only includes markers
         const query = `
-        SELECT b.id AS parent_id, m.tag_id AS tag_id FROM metadata_items b
+        SELECT b.id AS parent_id, m.tag_id AS tag_id, m.text AS marker_type FROM metadata_items b
             LEFT JOIN taggings m ON b.id=m.metadata_item_id
         WHERE b.library_section_id=? AND b.metadata_type=?
         ORDER BY b.id ASC;`;

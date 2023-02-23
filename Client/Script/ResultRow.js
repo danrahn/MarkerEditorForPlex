@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
+import { $$, appendChildren, buildNode, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { MarkerData, PlexData, SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
@@ -10,13 +10,14 @@ import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
+import { ClientEpisodeData, ClientMovieData, MediaItemWithMarkerTable } from './ClientDataExtensions.js';
 import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
 import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
+import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
@@ -148,7 +149,7 @@ class ResultRow {
     episodeDisplay() {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        if (!SettingsManager.Get().showExtendedMarkerInfo() || !mediaItem.markerBreakdown) {
+        if (!SettingsManager.Get().showExtendedMarkerInfo() || !mediaItem.markerBreakdown()) {
             // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
             // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
             return baseText;
@@ -157,10 +158,13 @@ class ResultRow {
         let atLeastOne = 0;
         // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
         // for slightly larger text than the default.
-        let tooltipText = `<span class="largerTooltip">${baseText}<br>`;
-        const keys = Object.keys(mediaItem.markerBreakdown).sort((a, b) => parseInt(a) - parseInt(b));
-        for (const key of keys) {
-            const episodeCount = mediaItem.markerBreakdown[key];
+        let tooltipText = `<span class="largerTooltip">${baseText}<hr>`;
+        const breakdown = mediaItem.markerBreakdown();
+        const intros = breakdown.itemsWithIntros();
+        const credits = breakdown.itemsWithCredits();
+        tooltipText += `${intros} ${intros == 1 ? 'has' : 'have'} intros<br>`;
+        tooltipText += `${credits} ${credits == 1 ? 'has' : 'have'} credits<hr>`;
+        for (const [key, episodeCount] of Object.entries(mediaItem.markerBreakdown().collapsedBuckets())) {
             tooltipText += `${episodeCount} ${episodeCount == 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
             if (key != 0) {
                 atLeastOne += episodeCount;
@@ -170,7 +174,7 @@ class ResultRow {
         if (atLeastOne == 0) {
             tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
         } else {
-            tooltipText += '</span>';
+            tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);
@@ -180,7 +184,7 @@ class ResultRow {
             innerText.appendChild(purgeIcon());
             const purgeCount = this.getPurgeCount();
             const markerText = purgeCount == 1 ? 'marker' : 'markers';
-            tooltipText += `<br>Found ${purgeCount} purged ${markerText}.<br>Click for details.`;
+            tooltipText += `Found ${purgeCount} purged ${markerText}.<br>Click for details.</span>`;
         }
 
         let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
@@ -639,9 +643,34 @@ class SeasonResultRow extends ResultRow {
 }
 
 /**
+ * Class with functionality shared between "base" media types, i.e. movies and episodes.
+ */
+class BaseItemResultRow extends ResultRow {
+    /** Current MarkerBreakdown key. See MarkerCacheManager.js's BaseItemNode */
+    #markerCountKey = 0;
+
+    /**
+     * @param {MediaItemWithMarkerTable} mediaItem 
+     * @param {string} [className] */
+    constructor(mediaItem, className) {
+        super(mediaItem, className);
+        if (mediaItem && mediaItem.markerBreakdown()) {
+            // Episodes are loaded differently from movies. It's only expected that movies have a valid value
+            // here. Episodes set this when creating the marker table for the first time.
+            Log.assert(mediaItem instanceof ClientMovieData, 'mediaItem instanceof ClientMovieData');
+            this.#markerCountKey = MarkerBreakdown.keyFromMarkerCount(mediaItem.markerBreakdown().totalIntros(), mediaItem.markerBreakdown().totalCredits());
+        }
+    }
+
+    currentKey() { return this.#markerCountKey; }
+    /** @param {number} key */
+    setCurrentKey(key) { this.#markerCountKey = key; }
+}
+
+/**
  * A result row for a single episode of a show.
  */
-class EpisodeResultRow extends ResultRow {
+class EpisodeResultRow extends BaseItemResultRow {
     /**
      * The parent {@linkcode SeasonResultRow}, used to communicate that marker tables of all
      * episodes in the season need to be shown/hidden.
@@ -754,39 +783,33 @@ class EpisodeResultRow extends ResultRow {
     }
 
     /**
-     * Updates the marker statistics both in the UI and the client state.
-     * @param {number} delta 1 if a marker was added to this episode, -1 if one was removed. */
-    updateMarkerBreakdown(delta) {
+     * Updates the marker statistics both in the UI and the client state. */
+    updateMarkerBreakdown() {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
         const oldNode = $$('.episodeDisplayText', this.html());
         oldNode.replaceWith(newNode);
 
+        const newKey = this.episode().markerTable().markerKey();
+        const delta = newKey - this.currentKey();
         if (SettingsManager.Get().showExtendedMarkerInfo()) {
             PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
         }
+
+        this.setCurrentKey(newKey);
     }
 }
 
-class MovieResultRow extends ResultRow {
+class MovieResultRow extends BaseItemResultRow {
 
     /** @type {boolean} */
     #markersGrabbed = false;
 
     /**
-     * TODO: A better system here. This is used when extended marker stats
-     * are disabled to signal back to the original item that we know how many
-     * markers this thing actually has, since this is the one that gets reused
-     * across searches.
-     * @type {MovieData} */
-    #plainData;
-
-    /**
-     * @param {MovieData} mediaItem */
+     * @param {ClientMovieData} mediaItem */
     constructor(mediaItem) {
-        let clientItem = new ClientMovieData().setFromJson(mediaItem);
-        super(clientItem, 'topLevelResult movieResultRow');
-        this.#plainData = mediaItem;
+        super(mediaItem, 'topLevelResult movieResultRow');
+        this.#markersGrabbed = this.movie().markerTable()?.hasRealData();
     }
     /**
      * Return the underlying episode data associated with this result row.
@@ -924,7 +947,6 @@ class MovieResultRow extends ResultRow {
                 markerData[mov.metadataId].sort((a, b) => a.start - b.start);
                 if (mov.realMarkerCount == -1) {
                     mov.realMarkerCount = markerData[mov.metadataId].length;
-                    this.#plainData.realMarkerCount = 0; // The initialize call below ensures the right delta.
                 }
 
                 if (SettingsManager.Get().backupEnabled()) {
@@ -969,39 +991,29 @@ class MovieResultRow extends ResultRow {
     }
 
     /**
-     * Updates the marker statistics both in the UI and the client state.
-     * @param {number} delta 1 if a marker was added to this movie, -1 if one was removed. Unused, but mirrors ResultRow signature. */
-    updateMarkerBreakdown(delta) {
+     * Updates the marker statistics both in the UI and the client state. */
+    updateMarkerBreakdown() {
         // Don't bother updating in-place, just recreate and replace.
         const newNode = this.#buildMarkerText();
         const oldNode = $$('.episodeDisplayText', this.html());
         oldNode.replaceWith(newNode);
 
+        const newKey = this.movie().markerTable().markerKey();
+        const oldKey = this.currentKey();
         // Note: No need to propagate changes up like for episodes, since
         //       we're already at the top of the chain. The section-wide
         //       marker chart queries the server directly every time.
-        const newCount = this.movie().markerTable().markerCount();
-        const oldCount = newCount - delta;
-        const breakdown = this.movie().markerBreakdown;
+        const breakdown = this.movie().markerBreakdown();
         if (!breakdown) {
             // Extended stats not enabled.
-            this.#plainData.realMarkerCount += delta;
+            this.movie().realMarkerCount = this.movie().markerTable().markerCount();
             return;
         }
 
-        if (!(oldCount in breakdown)) {
-            Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
-            breakdown[oldCount] = 1;
-        }
+        breakdown.delta(oldKey, newKey - oldKey);
+        this.setCurrentKey(newKey);
 
-        --breakdown[oldCount];
-        if (breakdown[oldCount] == 0) {
-            delete breakdown[oldCount];
-        }
-
-        breakdown[newCount] ??= 0;
-        ++breakdown[newCount];
     }
 }
 
-export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow }
+export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow, BaseItemResultRow }

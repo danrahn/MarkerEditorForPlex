@@ -7,7 +7,8 @@ import Overlay from './inc/Overlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ExistingMarkerRow, MarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import TableElements from './TableElements.js';
-import { ResultRow } from './ResultRow.js';
+import { BaseItemResultRow } from './ResultRow.js';
+import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.
@@ -20,7 +21,7 @@ class MarkerTable {
 
     /**
      * The episode/movie UI that this table is attached to.
-     * @type {ResultRow} */
+     * @type {BaseItemResultRow} */
     #parentRow;
 
     /**
@@ -37,13 +38,14 @@ class MarkerTable {
      * The number of markers we expect in this table before actually populating it.
      * Only used by movies.
      * @type {number?} */
-    #cachedMarkerCount = undefined;
+    #cachedMarkerCountKey = undefined;
 
     /**
      * @param {MarkerData[]} markers The markers to add to this table.
-     * @param {ResultRow} parentRow The episode/movie UI that this table is attached to.
-     * @param {boolean} [lazyLoad=false] Whether we expect our marker data to come in later, so don't populate the table yet. */
-    constructor(markers, parentRow, lazyLoad=false, cachedMarkerCount=0) {
+     * @param {BaseItemResultRow} parentRow The episode/movie UI that this table is attached to.
+     * @param {boolean} [lazyLoad=false] Whether we expect our marker data to come in later, so don't populate the table yet.
+     * @param {number} [cachedMarkerCountKey] If we're lazy loading, this captures the number of credits and intros that we expect the table to have. */
+    constructor(markers, parentRow, lazyLoad=false, cachedMarkerCountKey=0) {
         this.#parentRow = parentRow;
         this.#markers = markers.sort((a, b) => a.start - b.start);
         let container = buildNode('div', { class : 'tableHolder' });
@@ -72,13 +74,25 @@ class MarkerTable {
                 rows.appendChild(markerRow.row());
             }
         } else {
-            this.#cachedMarkerCount = cachedMarkerCount;
+            this.#cachedMarkerCountKey = cachedMarkerCountKey;
         }
 
         rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this))));
         table.appendChild(rows);
         container.appendChild(table);
         this.#html = container;
+    }
+
+    /**
+     * Sets the new parent of this table. Used for movies, where this table
+     * is cached on the ClientMovieData, which can survive multiple searches,
+     * but the ResultRow is different every time, so this needs to be reattached.
+     * @param {BaseItemResultRow} parentRow */
+    setParent(parentRow) {
+        this.#parentRow = parentRow;
+        for (const row of this.#rows) {
+            row.setParent(parentRow);
+        }
     }
 
     /**
@@ -97,26 +111,45 @@ class MarkerTable {
             tbody.insertBefore(TableElements.noMarkerRow(), addMarkerRow);
         }
 
+        let newKey = 0;
         for (const marker of markers) {
             const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
             this.#rows.push(markerRow);
 
             tbody.insertBefore(markerRow.row(), addMarkerRow);
+            newKey += MarkerBreakdown.deltaFromType(1, marker.markerType);
         }
 
-        // Cyclical issues here. We want to check cachedMarkerCount against the marker length to
-        // update the marker text if needed, but we won't get an accurate count if cachedMarkerCount
-        // isn't undefined.
-        const cachedCount = this.#cachedMarkerCount;
-        this.#cachedMarkerCount = undefined;
-        this.#parentRow.updateMarkerBreakdown(markers.length - cachedCount);
+        this.#cachedMarkerCountKey = undefined;
+        this.#parentRow.updateMarkerBreakdown();
     }
+
+    /**
+     * Return whether this table has real data, or just a placeholder marker count. */
+    hasRealData() { return this.#cachedMarkerCountKey === undefined; }
 
     /** @returns {HTMLElement} The raw HTML of the marker table. */
     table() { return this.#html; }
 
     /** @returns {number} The number of markers this episode has (not including in-progress additions). */
-    markerCount() { return this.#cachedMarkerCount !== undefined ? this.#cachedMarkerCount : this.#markers.length; }
+    markerCount() {
+        if (this.#cachedMarkerCountKey === undefined) {
+            return this.#markers.length;
+        }
+
+        return MarkerBreakdown.markerCountFromKey(this.#cachedMarkerCountKey);
+    }
+
+    /** @returns {number} */
+    markerKey() {
+        if (this.#cachedMarkerCountKey === undefined) {
+            // TODO: Replace base item's MarkerBreakdown with a single-key class so this doesn't have to be calculated
+            //       from scratch every time.
+            return this.#markers.reduce((acc, marker) => acc + MarkerBreakdown.deltaFromType(1, marker.markerType), 0);
+        }
+
+        return this.#cachedMarkerCountKey;
+    }
 
     /**
      * Returns whether a marker the user wants to add/edit is valid.
@@ -162,12 +195,12 @@ class MarkerTable {
       * @param {MarkerData} newMarker The marker to add.
       * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
     addMarker(newMarker, oldRow) {
-        if (this.#cachedMarkerCount !== undefined) {
+        if (this.#cachedMarkerCountKey !== undefined) {
             // Assume that addMarker calls coming in when our table isn't initialized
             // is coming from purge restores and just update the count/breakdown.
             Log.tmi(`Got an addMarker call without an initialized table, updating cache count.`);
-            ++this.#cachedMarkerCount;
-            this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
+            this.#cachedMarkerCountKey += MarkerBreakdown.deltaFromType(1, newMarker.markerType);
+            this.#parentRow.updateMarkerBreakdown();
             return;
         }
 
@@ -196,7 +229,7 @@ class MarkerTable {
         this.#rows.splice(newIndex, 0, newRow);
         this.#markers.splice(newIndex, 0, newMarker);
         tableBody.insertBefore(newRow.row(), tableBody.children[newIndex]);
-        this.#parentRow.updateMarkerBreakdown(1 /*delta*/);
+        this.#parentRow.updateMarkerBreakdown();
     }
 
     /**
@@ -229,7 +262,7 @@ class MarkerTable {
             }
 
             this.#markers.splice(newIndex, 0, updatedItem);
-            this.#parentRow.updateMarkerBreakdown(0 /*delta*/); // This edit might update the purge status.
+            this.#parentRow.updateMarkerBreakdown(); // This edit might update the purge status.
             return; // Same position, no rearranging needed.
         }
 
@@ -243,7 +276,7 @@ class MarkerTable {
 
         this.#rows.splice(newIndex, 0, this.#rows.splice(oldIndex, 1)[0]);
         this.#markers.splice(newIndex, 0, updatedItem);
-        this.#parentRow.updateMarkerBreakdown(0 /*delta*/); // This edit might update the purge status.
+        this.#parentRow.updateMarkerBreakdown(); // This edit might update the purge status.
     }
 
     /**
@@ -252,6 +285,14 @@ class MarkerTable {
      * marker that's in {@linkcode this.markers}, but a standalone copy.
      * @param {HTMLElement} [row=null] The HTML row for the deleted marker. */
     deleteMarker(deletedMarker, row=null) {
+        if (this.#cachedMarkerCountKey !== undefined) {
+            // Assume that deleteMarker calls coming in when our table isn't initialized
+            // is coming from purge restores and just update the count/breakdown.
+            Log.tmi(`Got an addMarker call without an initialized table, updating cache count.`);
+            this.#cachedMarkerCountKey += MarkerBreakdown.deltaFromType(-1, deletedMarker.markerType);
+            this.#parentRow.updateMarkerBreakdown();
+            return;
+        }
         const oldIndex = this.#markers.findIndex(x => x.id == deletedMarker.id);
         let tableBody = this.#tbody();
         if (this.#markers.length == 1) {
@@ -275,7 +316,7 @@ class MarkerTable {
         tableBody.removeChild(row);
         this.#markers.splice(oldIndex, 1);
         this.#rows.splice(oldIndex, 1);
-        this.#parentRow.updateMarkerBreakdown(-1 /*delta*/);
+        this.#parentRow.updateMarkerBreakdown();
     }
 
     /**

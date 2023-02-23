@@ -3,7 +3,7 @@ import { Log } from '../../Shared/ConsoleLog.js';
 import { ShowData, SeasonData, SectionType, TopLevelData, MovieData } from '../../Shared/PlexTypes.js';
 
 import { BulkActionType } from './BulkActionCommon.js';
-import { ClientEpisodeData } from './ClientDataExtensions.js';
+import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { PurgedMovieSection, PurgedSection } from './PurgedMarkerCache.js';
 import { MovieResultRow, SeasonResultRow, ShowResultRow } from './ResultRow.js';
 import SettingsManager from './ClientSettings.js';
@@ -26,14 +26,12 @@ class PlexClientState {
     #activeSectionType = SectionType.TV;
     /** @type {{[sectionId: number]: ShowMap|MovieMap}} */
     #sections = {};
-    /** @type {ShowData[]|MovieData[]} */
+    /** @type {ShowData[]|ClientMovieData[]} */
     #activeSearch = [];
     /** @type {ShowResultRow} */
     #activeShow;
     /** @type {SeasonResultRow} */
     #activeSeason;
-    /** @type {MovieResultRow} */
-    #activeMovie;
     /**@type {PlexClientState} */
     static #clientState;
 
@@ -233,7 +231,7 @@ class PlexClientState {
 
         let response;
         try {
-            response = await ServerCommand.getBreakdown(show.show().metadataId, seasons.length == 0 /*includeSeasons*/);
+            response = await ServerCommand.getBreakdown(show.show().metadataId, seasons.length !== 0 /*includeSeasons*/);
         } catch (err) {
             Log.warn(`Failed to update ("${errorMessage(err)}"), marker stats will be incorrect.`);
             return;
@@ -246,14 +244,14 @@ class PlexClientState {
                 continue;
             }
 
-            seasonRow.season().markerBreakdown = newBreakdown;
+            seasonRow.season().setBreakdownFromRaw(newBreakdown);
             seasonRow.updateMarkerBreakdown();
         }
 
         if (!response.showData) {
             Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
         } else {
-            show.show().markerBreakdown = response.showData;
+            show.show().setBreakdownFromRaw(response.showData);
         }
 
         show.updateMarkerBreakdown();
@@ -265,22 +263,10 @@ class PlexClientState {
      * @param {ClientEpisodeData} episode The episode a marker was added to/removed from.
      * @param {number} delta 1 if a marker was added, -1 if removed. */
     #updateBreakdownCacheInternal(episode, delta) {
-        const newCount = episode.markerTable().markerCount();
-        const oldCount = newCount - delta;
+        const newKey = episode.markerTable().markerKey();
+        const oldBucket = newKey - delta;
         for (const media of [this.#activeShow, this.#activeSeason]) {
-            const breakdown = media.mediaItem().markerBreakdown;
-            if (!(oldCount in breakdown)) {
-                Log.warn(`Old marker count bucket doesn't exist, that's not right!`);
-                breakdown[oldCount] = 1;
-            }
-
-            --breakdown[oldCount];
-            if (breakdown[oldCount] == 0) {
-                delete breakdown[oldCount];
-            }
-
-            breakdown[newCount] ??= 0;
-            ++breakdown[newCount];
+            media.mediaItem().markerBreakdown().delta(oldBucket, delta);
         }
     }
 
@@ -498,7 +484,10 @@ class PlexClientState {
                 let itemData;
                 switch (this.#activeSectionType) {
                     case SectionType.Movie:
-                        itemData = new MovieData().setFromJson(movieOrShow);
+                        // TODO: investigate whether creating ClientMovieData
+                        // directly causes any perf issues, or whether it's offset
+                        // by not needing to do new ClientMovieData().setFromJson(...) within ResultRow
+                        itemData = new ClientMovieData().setFromJson(movieOrShow);
                         break;
                     case SectionType.TV:
                         itemData = new ShowData().setFromJson(movieOrShow);

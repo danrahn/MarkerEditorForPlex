@@ -21,15 +21,15 @@ hr {
     border-color: #444;
 }
 
-#libraries option {
+.fancySelect option {
     background-color: #ffcfaa;
 }
 
-#libraries option:hover {
+.fancySelect option:hover {
     background-color: #ff8f88;
 }
 
-#libraries:hover,
+.fancySelect:hover,
 #search:hover,
 .inlineButton:hover {
     border-color: #000;

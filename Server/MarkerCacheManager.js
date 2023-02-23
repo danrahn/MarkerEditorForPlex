@@ -1,4 +1,5 @@
 import { Log } from '../Shared/ConsoleLog.js';
+import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
@@ -12,6 +13,7 @@ import DatabaseWrapper from './DatabaseWrapper.js';
  * @typedef {number} MarkerId
  * @typedef {{
  *     id : number,
+ *     marker_type : string,
  *     parent_id : number,
  *     season_id : number,
  *     show_id : number,
@@ -22,67 +24,26 @@ import DatabaseWrapper from './DatabaseWrapper.js';
  */
 
 /**
- * Manages marker statistics at an arbitrary level (section/series/season/episode)
+ * Extension of MarkerBreakdown to handle the parent hierarchy that the client-side breakdown doesn't have.
  */
-class MarkerBreakdown {
-    /** @type {MarkerBreakdownMap} */
-    #counts = { 0 : 0 };
+class ServerMarkerBreakdown extends MarkerBreakdown {
     /** @type {MarkerNodeBase} */
     #parent;
 
     /** @param {MarkerNodeBase} parent */
     constructor(parent=null) {
+        super();
         this.#parent = parent;
     }
 
-    /** @returns {MarkerBreakdownMap} */
-    data() {
-        // Create a copy by stringifying/serializing to prevent underlying data from being overwritten.
-        this.#minify();
-        return JSON.parse(JSON.stringify(this.#counts));
-    }
-
-    /** Increase the marker count for an episode that previously had `oldCount` markers.
-     * @param {number} oldCount */
-    add(oldCount) {
-        this.delta(oldCount, 1);
-    }
-
-    /** Decrease the marker count for an episode that previously had `oldCount` markers.
-     * @param {number} oldCount */
-    remove(oldCount) {
-        this.delta(oldCount, -1);
-    }
-
-    /** Adjust the marker count for an episode that previously had `oldCount` markers
-     * @param {number} oldCount
-     * @param {number} delta 1 if a marker was added, -1 if one was deleted. */
     delta(oldCount, delta) {
-        this.#counts[oldCount + delta] ??= 0;
-        --this.#counts[oldCount];
-        ++this.#counts[oldCount + delta];
-        if (this.#parent) {
-            this.#parent.markerBreakdown.delta(oldCount, delta);
-        }
+        super.delta(oldCount, delta);
+        this.#parent?.markerBreakdown.delta(oldCount, delta);
     }
 
-    /**
-     * Handles a new base item (movie/episode) in the database.
-     * Adds to the 'items with 0 markers' bucket for the media item and all parent categories. */
     initBase() {
-        ++this.#counts[0];
+        super.initBase();
         this.#parent?.markerBreakdown.initBase();
-    }
-
-    /** Removes any marker counts that have no episodes in `#counts` */
-    #minify() {
-        // Remove episode counts that have no episodes.
-        const keys = Object.keys(this.#counts);
-        for (const key of keys) {
-            if (this.#counts[key] == 0) {
-                delete this.#counts[key];
-            }
-        }
     }
 }
 
@@ -91,7 +52,7 @@ class MarkerNodeBase {
     markerBreakdown;
     /** @param {MarkerNodeBase} parent */
     constructor(parent=null) {
-        this.markerBreakdown = new MarkerBreakdown(parent);
+        this.markerBreakdown = new ServerMarkerBreakdown(parent);
     }
 }
 
@@ -106,11 +67,41 @@ class MarkerSectionNode extends MarkerNodeBase {
 
 /** Represents the lowest-level media node, i.e. a node that can have markers added to it. */
 class BaseItemNode extends MarkerNodeBase {
+
     /** @type {MarkerId[]} */
     markers = [];
+    /** The current bucket key for this breakdown, which indicates the number of both intros and credits. */
+    #currentKey = 0;
     constructor(parent) {
         super(parent);
         this.markerBreakdown.initBase();
+    }
+
+    /**
+     * Add the given marker to the breakdown cache.
+     * @param {MarkerQueryResult} markerData */
+    add(markerData) {
+        this.#deltaBase(markerData, 1);
+    }
+
+    /**
+     * Remove the given marker to the breakdown cache.
+     * @param {number} oldCount */
+    remove(markerData) {
+        this.#deltaBase(markerData, -1);
+    }
+
+    /**
+     * Signals the addition/removal of a marker.
+     * @param {MarkerQueryResult} markerData
+     * @param {number} multiplier 1 if we're adding a marker, -1 if we're removing one */
+    #deltaBase(markerData, multiplier) {
+        // TODO: temporary. Make sure that base items only have a single "active" bucket, it doesn't
+        //       make sense for a single episode/movie to have multiple buckets.
+        Log.assert(this.markerBreakdown.buckets() == 1);
+        const deltaReal = MarkerBreakdown.deltaFromType(multiplier, markerData.marker_type);
+        this.markerBreakdown.delta(this.#currentKey, deltaReal);
+        this.#currentKey += deltaReal;
     }
 }
 
@@ -255,7 +246,7 @@ class MarkerCacheManager {
 
         delete this.#allMarkers[markerId];
         const baseItem = this.#drillDown(markerData);
-        baseItem.markerBreakdown.remove(baseItem.markers.length);
+        baseItem.remove(markerData);
         baseItem.markers = baseItem.markers.filter(marker => marker != markerId);
     }
 
@@ -430,7 +421,7 @@ class MarkerCacheManager {
         }
 
         if (isMarker) {
-            base.markerBreakdown.add(base.markers.length);
+            base.add(tag);
             base.markers.push(tag.id);
 
             if (tag.id in this.#allMarkers) {
@@ -472,6 +463,7 @@ class MarkerCacheManager {
     static #episodeMarkerQueryBase = `
 SELECT
     marker.id AS id,
+    marker.text AS marker_type,
     base.id AS parent_id,
     season.id AS season_id,
     season.parent_id AS show_id,
@@ -484,7 +476,7 @@ WHERE base.metadata_type=4
     `;
 
     /** Query to grab all intro/credits markers on the server. */
-    static #markerOnlyQuery = `SELECT id, metadata_item_id AS parent_id FROM taggings WHERE tag_id=?;`;
+    static #markerOnlyQuery = `SELECT id, text AS marker_type, metadata_item_id AS parent_id FROM taggings WHERE tag_id=?;`;
 
     /** Query to grab all episodes and movies from the database. For episodes, also include season/show id (replaced with -1 for movies) */
     static #mediaOnlyQuery = `

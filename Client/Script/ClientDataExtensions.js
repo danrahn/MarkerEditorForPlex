@@ -1,5 +1,7 @@
 import { Log } from "../../Shared/ConsoleLog.js";
+import MarkerBreakdown from "../../Shared/MarkerBreakdown.js";
 import { EpisodeData, MarkerData, MovieData, PlexData } from "../../Shared/PlexTypes.js";
+import { $$ } from "./Common.js";
 import MarkerTable from "./MarkerTable.js";
 import { EpisodeResultRow, MovieResultRow } from "./ResultRow.js";
 
@@ -43,7 +45,12 @@ class ClientMovieData extends MovieData {
      * serialized {@linkcode MarkerData} for the episode. */
     createMarkerTable(parentRow, serializedMarkers) {
         if (this.#markerTable != null) {
-            Log.warn('The marker table already exists, we shouldn\'t be creating a new one!');
+            // This is expected if the result has appeared in multiple search results.
+            // Assume we're in a good state and ignore this, but reset the parent and make
+            // sure the table is in its initial hidden state.
+            this.#markerTable.setParent(parentRow);
+            $$('table', this.#markerTable.table()).classList.add('hidden');
+            return;
         }
 
         const markers = [];
@@ -51,12 +58,9 @@ class ClientMovieData extends MovieData {
             markers.push(new MarkerData().setFromJson(marker));
         }
 
-        const mov = parentRow.movie();
-
         // Marker breakdown is currently overkill for movies, since it only ever has a single item inside of it.
         // If intros/credits are ever separated though, this will do the right thing.
-        const markerCount = mov?.markerBreakdown ? Object.keys(mov.markerBreakdown).reduce((sum, k) => sum + k * mov.markerBreakdown[k]) : 0;
-        this.#markerTable = new MarkerTable(markers, parentRow, true /*lazyLoad*/, markerCount);
+        this.#markerTable = new MarkerTable(markers, parentRow, true /*lazyLoad*/, parentRow.currentKey());
     }
 
     /**
@@ -97,7 +101,7 @@ class ClientEpisodeData extends EpisodeData {
     /**
      * Creates the marker table for this episode.
      * @param {EpisodeResultRow} parentRow The UI associated with this episode.
-     * @param {{[metadataId: number]: Object[]}} serializedMarkers Map of episode ids to an array of
+     * @param {SerializedMarkerData[]} serializedMarkers Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode. */
     createMarkerTable(parentRow, serializedMarkers) {
         if (this.#markerTable != null) {
@@ -109,6 +113,7 @@ class ClientEpisodeData extends EpisodeData {
             markers.push(new MarkerData().setFromJson(marker));
         }
 
+        parentRow.setCurrentKey(markers.reduce((acc, marker) => acc + MarkerBreakdown.deltaFromType(1, marker.markerType), 0));
         this.#markerTable = new MarkerTable(markers, parentRow);
     }
 

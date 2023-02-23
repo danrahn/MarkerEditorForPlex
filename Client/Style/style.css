@@ -75,7 +75,7 @@ input, select {
   text-align: center;
 }
 
-#libraries,
+.fancySelect,
 #search {
   padding: 5px;
   border-radius: 5px;
@@ -84,7 +84,7 @@ input, select {
   font-size: 14pt;
 }
 
-#libraries {
+.fancySelect {
   min-width: 350px;
 }
 

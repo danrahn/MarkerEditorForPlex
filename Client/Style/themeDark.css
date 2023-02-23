@@ -28,15 +28,15 @@ a:visited {
   color: #6191c1;
 }
 
-#libraries option {
+.fancySelect option {
   background-color: #212121;
 }
 
-#libraries option:hover {
+.fancySelect option:hover {
   background-color: #414141;
 }
 
-#libraries:hover,
+.fancySelect:hover,
 #search:hover,
 .inlineButton:hover {
   border-color: #909090;
