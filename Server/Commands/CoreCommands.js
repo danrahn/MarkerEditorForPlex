@@ -363,7 +363,8 @@ class CoreCommands {
                     section_id : add.sectionId,
                     show_id : add.showId,
                     season_id : add.seasonId,
-                    parent_id : add.parentId
+                    parent_id : add.parentId,
+                    marker_type : add.markerType,
                 });
             }
 
