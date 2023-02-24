@@ -6,6 +6,11 @@
 #settingsContainer select {
     border: 1px solid #53575a;
     background-color: #fec;
+    background-color: transparent;
+}
+
+#settingsContainer option {
+    background-color: #ffefca;
 }
 
 #settingsContainer input[type=checkbox] {

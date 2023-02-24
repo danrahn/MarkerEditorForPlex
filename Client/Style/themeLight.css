@@ -83,7 +83,8 @@ tr:nth-child(even):hover {
 
 .topLevelResult,
 .seasonResult,
-.bulkResultRow {
+.bulkResultRow,
+.sectionOptionsResultRow {
     border-bottom: 1px solid #666;
 }
 
@@ -92,6 +93,14 @@ tr:nth-child(even):hover {
 .episodeResult:hover,
 .bulkResultRow:hover {
     background-color: rgba(0,0,0,0.2);
+}
+
+.sectionOptionsResultRow {
+    background-color: rgba(30,100,0,0.2);
+}
+
+.sectionOptionsResultRow:hover {
+    background-color: rgba(30,100,0,0.1);
 }
 
 .showResultSeasons,
@@ -142,7 +151,8 @@ input[type=button]:hover {
     background-color: #f66a !important;
 }
 
-#restartServer:hover {
+#restartServer:hover,
+#resetFilter:hover {
     background-color: #fb0a !important;
 }
 

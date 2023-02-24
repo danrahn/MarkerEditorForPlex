@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
+import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { MarkerData, PlexData, SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
@@ -17,23 +17,41 @@ import { PlexUI, UISection } from './PlexUI.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
 import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
+import { FilterDialog, FilterSettings } from './FilterDialog.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
- * @returns {HTMLElement} */
+ * @returns {HTMLImageElement} */
 function purgeIcon() {
     return buildNode(
         'img',
         {
             src : ThemeColors.getIcon('warn', 'orange'),
             class : 'purgedIcon',
+            alt   : 'Purged marker warning',
             theme : 'orange'
         })
     ;
+}
+
+/**
+ * Returns a filter icon used to indicate that a season/episode list is hiding some
+ * entries due to the current filter.
+ * @returns {HTMLImageElement} */
+function filteredListIcon() {
+    return buildNode('img', {
+        src : ThemeColors.getIcon('filter', 'orange'),
+        class : 'filteredGroupIndicator',
+        theme : 'orange',
+        alt : 'Filter Icon',
+        width: 16,
+        height: 16 })
 }
 
 /** Represents a single row of a show/season/episode in the results page. */
@@ -249,6 +267,57 @@ class BulkActionResultRow extends ResultRow {
 }
 
 /**
+ * A section-wide header that is displayed no matter what the current view state is (beside the blank state).
+ * Currently only contains the Filter entrypoint.
+ */
+class SectionOptionsResultRow extends ResultRow {
+    /** @type {HTMLElement} */
+    #filterButton;
+    constructor() {
+        super(null, 'topLevelResult sectionOptions');
+    }
+
+    /**
+     * Build the section-wide header. */
+    buildRow() {
+        if (this.html()) {
+            Log.warn(`buildRow has already been called for this SectionOptionsResultRow, that shouldn't happen!`);
+            return this.html();
+        }
+
+        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+            Log.error(`SectionOptionsResultRow requires extended marker info`);
+            return buildNode('div');
+        }
+
+        let titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
+        let row = buildNode('div', { class : 'sectionOptionsResultRow' });
+        this.#filterButton = ButtonCreator.fullButton('Filter', 'filter', 'Filter results', 'standard', () => new FilterDialog().show(), { style : 'margin-right: 10px'});
+        Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
+        this.updateFilterTooltip();
+
+        appendChildren(row,
+            titleNode,
+            appendChildren(row.appendChild(buildNode('div',  { class : 'goBack' })),
+                this.#filterButton));
+        this.setHtml(row);
+        return row;
+    }
+
+    /**
+     * Update the filter button's style and tooltip based on whether a filter is currently active. */
+    updateFilterTooltip() {
+        if (FilterSettings.hasFilter()) {
+            this.#filterButton.classList.add('filterActive');
+            Tooltip.setText(this.#filterButton, FilterSettings.filterTooltipText());
+        } else {
+            this.#filterButton.classList.remove('filterActive');
+            Tooltip.setText(this.#filterButton, 'No Active Filter');
+        }
+    }
+}
+
+/**
  * A result row for a single show in the library.
  */
 class ShowResultRow extends ResultRow {
@@ -256,6 +325,14 @@ class ShowResultRow extends ResultRow {
      * When this show is active, holds a map of season metadata ids to its corresponding SeasonResultRow
      * @type {{[metadataId: number]: SeasonResultRow}} */
     #seasons = {};
+
+    /**
+     * If this is the active show, this is the number of rows that are currently filtered out.
+     * @type {number} */
+    #seasonsFiltered = 0;
+
+    /** @type {SectionOptionsResultRow} */
+    #sectionTitle;
 
     /**
      * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in season view.
@@ -293,7 +370,8 @@ class ShowResultRow extends ResultRow {
         let row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to results', () => {
-                PlexUI.Get().clearAndShowSections(UISection.Seasons | UISection.Episodes);
+                PlexUI.Get().clearSections(UISection.Seasons | UISection.Episodes);
+                PlexUI.Get().hideSections(UISection.Seasons | UISection.Episodes);
                 PlexUI.Get().showSections(UISection.MoviesOrShows);
             });
         }
@@ -389,23 +467,98 @@ class ShowResultRow extends ResultRow {
 
     /**
      * Takes the seasons retrieved for a show and creates and entry for each season.
-     * @param {Object[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
+     * @param {SerializedSeasonData[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
     #showSeasons(seasons) {
         const plexUI = PlexUI.Get();
         plexUI.clearAndShowSections(UISection.Seasons);
         plexUI.hideSections(UISection.MoviesOrShows);
 
         const addRow = row => plexUI.addRow(UISection.Seasons, row);
+        if (SettingsManager.Get().showExtendedMarkerInfo()) {
+            this.#sectionTitle = new SectionOptionsResultRow();
+            addRow(this.#sectionTitle.buildRow())
+        }
+
         this.#showTitle = new ShowResultRow(this.show());
         addRow(this.#showTitle.buildRow(true /*selected*/));
         addRow(new BulkActionResultRow(this.show()).buildRow());
         addRow(buildNode('hr'));
+        this.#seasonsFiltered = 0;
+        let anyShowing = false;
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
             const seasonRow = new SeasonResultRow(season, this);
             this.#seasons[season.metadataId] = seasonRow;
-            addRow(seasonRow.buildRow());
+            if (FilterSettings.shouldFilter(season.markerBreakdown())) {
+                ++this.#seasonsFiltered;
+            } else {
+                addRow(seasonRow.buildRow());
+                anyShowing = true;
+            }
+
             PlexClientState.GetState().addSeason(season);
+        }
+
+        if (!anyShowing) {
+            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        }
+
+        this.#onFilterStatusChanged();
+    }
+
+    /**
+     * Update what rows are visible based on the new filter. */
+    onFilterApplied() {
+        const plexUI = PlexUI.Get();
+        plexUI.clearSections(UISection.Seasons);
+        const addRow = row => plexUI.addRow(UISection.Seasons, row);
+        addRow(this.#sectionTitle.html());
+        addRow(this.#showTitle.html());
+        addRow(new BulkActionResultRow(this.show()).buildRow()); // TODO: Make this a class var too?
+        addRow(buildNode('hr'));
+        const seasons = Object.values(this.#seasons).sort((a, b) => a.season().index - b.season().index);
+        this.#seasonsFiltered = 0;
+        let anyShowing = false;
+        for (const season of seasons) {
+            if (FilterSettings.shouldFilter(season.season().markerBreakdown())) {
+                ++this.#seasonsFiltered;
+            } else {
+                addRow(season.html() || season.buildRow());
+                anyShowing = true;
+            }
+        }
+
+        if (!anyShowing) {
+            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        }
+
+        this.#onFilterStatusChanged();
+        this.#sectionTitle?.updateFilterTooltip();
+    }
+
+    /**
+     * Updates the 'X Season(s)' header with a filter icon if any seasons are hidden by the current filter. */
+    #onFilterStatusChanged() {
+        if (!this.#showTitle) {
+            return;
+        }
+
+        const seasons = $$('.showResultSeasons', this.#showTitle.html());
+        if (!seasons) {
+            return;
+        }
+
+        const baseText = plural(this.show().seasonCount, 'Season');
+
+        // Clear any existing tooltip to be safe
+        Tooltip.removeTooltip(seasons);
+        if (this.#seasonsFiltered !== 0) {
+            Tooltip.setTooltip(seasons, `Current filter is hiding ${plural(this.#seasonsFiltered, 'season')}.`);
+            clearEle(seasons);
+            seasons.appendChild(filteredListIcon());
+            seasons.appendChild(buildNode('span', {}, baseText));
+        } else {
+            seasons.innerHTML = baseText;
         }
     }
 }
@@ -420,6 +573,11 @@ class SeasonResultRow extends ResultRow {
     #episodes = {};
 
     /**
+     * The top-level section bar that allows for common actions.
+     * @type {SectionOptionsResultRow} */
+    #sectionTitle;
+
+    /**
      * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in episode view.
      * @type {ShowResultRow} */
     #showTitle;
@@ -428,6 +586,11 @@ class SeasonResultRow extends ResultRow {
      * The placeholder {@linkcode SeasonResultRow} that displays the season name/stats when in episode view.
      * @type {SeasonResultRow} */
     #seasonTitle;
+
+    /**
+     * If this is the active season, this is the number of episodes that we are not showing due to the active filter.
+     * @type {number} */
+    #episodesFiltered = 0;
 
     constructor(season) {
         super(season, 'seasonResult');
@@ -450,7 +613,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         const season = this.season();
-        let title = buildNode('div', {}, `Season ${season.index}`);
+        let title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
         if (season.title.toLowerCase() != `season ${season.index}`) {
             title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
         }
@@ -458,7 +621,8 @@ class SeasonResultRow extends ResultRow {
         let row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', () => {
-                PlexUI.Get().clearAndShowSections(UISection.Episodes);
+                PlexUI.Get().clearSections(UISection.Episodes);
+                PlexUI.Get().hideSections(UISection.Episodes)
                 PlexUI.Get().showSections(UISection.Seasons);
             });
         }
@@ -594,14 +758,19 @@ class SeasonResultRow extends ResultRow {
 
     /**
      * Takes the given list of episode data and creates entries for each episode and its markers.
-     * @param {{[metadataId: number]: Object[]}} data Map of episode ids to an array of
+     * @param {{[metadataId: number]: SerializedMarkerData[]}} data Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode. */
     #showEpisodesAndMarkers(data) {
         const plexUI = PlexUI.Get();
-        plexUI.clearSections(UISection.Episodes);
+        plexUI.clearAndShowSections(UISection.Episodes);
         plexUI.hideSections(UISection.Seasons);
         const addRow = row => plexUI.addRow(UISection.Episodes, row);
         const clientState = PlexClientState.GetState();
+        if (SettingsManager.Get().showExtendedMarkerInfo()) {
+            this.#sectionTitle = new SectionOptionsResultRow();
+            addRow(this.#sectionTitle.buildRow())
+        }
+
         this.#showTitle = new ShowResultRow(clientState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));
         addRow(buildNode('hr'));
@@ -616,10 +785,93 @@ class SeasonResultRow extends ResultRow {
             episodeRows.push(new EpisodeResultRow(clientState.getEpisode(parseInt(metadataId)), this));
         }
 
+        this.#episodesFiltered = 0;
+        let anyShowing = false;
         episodeRows.sort((a, b) => a.episode().index - b.episode().index);
         for (const resultRow of episodeRows) {
-            addRow(resultRow.buildRow(data[resultRow.episode().metadataId]));
+            const markers = data[resultRow.episode().metadataId];
+            if (FilterSettings.shouldFilterEpisode(markers)) {
+                ++this.#episodesFiltered;
+                // Still want to seed the marker table so when a filter change exposes more episodes,
+                // we can grab the associated markers..
+                // TODO: find a better place to expose markers
+                resultRow.buildRow(markers);
+            } else {
+                addRow(resultRow.buildRow(markers));
+                anyShowing = true;
+            }
+
             this.#episodes[resultRow.episode().metadataId] = resultRow;
+        }
+
+        if (!anyShowing) {
+            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        }
+
+        this.#onFilterStatusChanged();
+    }
+
+    /**
+     * Update what rows are visible based on the new filter. */
+    onFilterApplied() {
+        if (Object.keys(this.#episodes).length === 0) {
+            // We're not the active season.
+            return;
+        }
+
+        const plexUI = PlexUI.Get();
+        plexUI.clearSections(UISection.Episodes);
+        const addRow = row => plexUI.addRow(UISection.Episodes, row);
+
+        // Recreate headers
+        addRow(this.#sectionTitle.html());
+        addRow(this.#showTitle.html());
+        addRow(buildNode('hr'));
+        addRow(this.#seasonTitle.html());
+        addRow(new BulkActionResultRow(this.season()).buildRow());
+        addRow(buildNode('hr'));
+        this.#episodesFiltered = 0;
+        let anyShowing = false;
+        const episodes = Object.values(this.#episodes).sort((a, b) => a.episode().index - b.episode().index);
+        for (const episode of episodes) {
+            if (FilterSettings.shouldFilterEpisode(episode.episode().markerTable().markers())) {
+                ++this.#episodesFiltered;
+            } else {
+                addRow(episode.html() || episode.buildRow());
+                anyShowing = true;
+            }
+        }
+
+        if (!anyShowing) {
+            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        }
+
+        this.#onFilterStatusChanged();
+        this.#sectionTitle?.updateFilterTooltip();
+    }
+
+    /**
+     * Updates the 'Season X' header to include a filter icon if any episodes are currently hidden. */
+    #onFilterStatusChanged() {
+        if (!this.#seasonTitle) {
+            return;
+        }
+
+        const seasonName = $$('.selectedSeasonTitle', this.#seasonTitle.html());
+        if (!seasonName) {
+            return;
+        }
+
+        if ((seasonName.childNodes[0].tagName == 'IMG') == this.#episodesFiltered) {
+            return;
+        }
+
+        Tooltip.removeTooltip(seasonName);
+        if (this.#episodesFiltered !== 0) {
+            seasonName.prepend(filteredListIcon());
+            Tooltip.setTooltip(seasonName, `Current filter is hiding ${plural(this.#episodesFiltered, 'episode')}.`);
+        } else {
+            seasonName.removeChild(seasonName.childNodes[0]);
         }
     }
 
@@ -845,7 +1097,6 @@ class MovieResultRow extends BaseItemResultRow {
 
                 this.#buildMarkerText()
             ),
-            mov.markerTable().table(),
             buildNode('hr', { class : 'episodeSeparator' })
         );
 
@@ -959,6 +1210,7 @@ class MovieResultRow extends BaseItemResultRow {
                 }
 
                 mov.initializeMarkerTable(markerData[mov.metadataId]);
+                this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
             } catch (ex) {
                 this.#markersGrabbed = false;
                 throw ex;
@@ -1016,4 +1268,4 @@ class MovieResultRow extends BaseItemResultRow {
     }
 }
 
-export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow, BaseItemResultRow }
+export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow, BaseItemResultRow, SectionOptionsResultRow }

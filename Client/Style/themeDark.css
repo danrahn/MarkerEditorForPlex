@@ -90,15 +90,20 @@ tr:nth-child(even):hover {
 
 .topLevelResult,
 .seasonResult,
-.bulkResultRow {
+.sectionOptionsResultRow {
   border-bottom: 1px solid #999;
 }
 
 .topLevelResult:hover,
 .seasonResult:hover,
 .episodeResult:hover,
-.bulkResultRow:hover {
+.bulkResultRow:hover,
+.sectionOptionsResultRow:hover {
   background-color: rgba(0,0,0,0.5);
+}
+
+.sectionOptionsResultRow {
+  background-color: rgba(0,0,0,0.4);
 }
 
 .showResultSeasons,

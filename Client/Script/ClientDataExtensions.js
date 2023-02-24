@@ -49,7 +49,7 @@ class ClientMovieData extends MovieData {
             // Assume we're in a good state and ignore this, but reset the parent and make
             // sure the table is in its initial hidden state.
             this.#markerTable.setParent(parentRow);
-            $$('table', this.#markerTable.table()).classList.add('hidden');
+            $$('table', this.#markerTable.table())?.classList.add('hidden');
             return;
         }
 

@@ -159,10 +159,10 @@ const ServerCommand = {
     getMarkerStats : async (id) => jsonRequest('get_stats', { id : id }),
 
     /**
-     * Retrieve the marker breakdown stats for a single show.
+     * Retrieve the marker breakdown stats for a single show or movie.
      * @param {number} id
-     * @param {boolean} includeSeasons True to include season data, false to leave it out.
-     * @returns {Promise<{showData: MarkerBreakdownMap, seasonData?: { [seasonId: number]: MarkerBreakdownMap }}>} */
+     * @param {boolean} includeSeasons True to include season data, false to leave it out (or if it's for a movie).
+     * @returns {Promise<{mainData: MarkerBreakdownMap, seasonData?: { [seasonId: number]: MarkerBreakdownMap }}>} */
     getBreakdown : async (id, includeSeasons) => jsonRequest('get_breakdown', { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
 
 

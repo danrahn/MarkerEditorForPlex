@@ -27,7 +27,7 @@ class PlexClientState {
     /** @type {{[sectionId: number]: ShowMap|MovieMap}} */
     #sections = {};
     /** @type {ShowData[]|ClientMovieData[]} */
-    #activeSearch = [];
+    activeSearchUnfiltered = [];
     /** @type {ShowResultRow} */
     #activeShow;
     /** @type {SeasonResultRow} */
@@ -79,8 +79,8 @@ class PlexClientState {
     activeSectionType() { return this.#activeSectionType; }
 
     /** @returns The list of shows that match the current search. */
-    getSearchResults() {
-        return this.#activeSearch;
+    getUnfilteredSearchResults() {
+        return this.activeSearchUnfiltered;
     }
 
     /**
@@ -135,11 +135,6 @@ class PlexClientState {
 
     /** Clears out the currently active season and its episode data. */
     clearActiveSeason() {
-        if (this.#activeSectionType !== SectionType.TV) {
-            Log.error(`Attempting to set the active show when we're not in a TV library.`);
-            return;
-        }
-
         if (this.#activeSeason) {
             this.#activeSeason.season().clearEpisodes();
             this.#activeSeason = null;
@@ -163,6 +158,11 @@ class PlexClientState {
       * @param {SeasonResultRow} seasonResultRow The metadata of the season.
       * @returns {SeasonData|false} The season with the given metadata id, or `false` if the season could not be found. */
     setActiveSeason(seasonResultRow) {
+        if (this.#activeSectionType !== SectionType.TV) {
+            Log.error(`Attempting to set the active show when we're not in a TV library.`);
+            return;
+        }
+
         const metadataId = seasonResultRow.season().metadataId;
         if (!this.#activeShow.show().getSeason(metadataId)) {
             return false;
@@ -202,6 +202,13 @@ class PlexClientState {
       * @returns {ClientEpisodeData} */
     getEpisode(metadataId) {
         return this.#activeSeason.season().getEpisode(metadataId);
+    }
+
+    /**
+     * Update any necessary season/episode lists based on a new filter. */
+    onFilterApplied() {
+        this.#activeShow?.onFilterApplied();
+        this.#activeSeason?.onFilterApplied();
     }
 
     /**
@@ -248,13 +255,36 @@ class PlexClientState {
             seasonRow.updateMarkerBreakdown();
         }
 
-        if (!response.showData) {
+        if (!response.mainData) {
             Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
         } else {
-            show.show().setBreakdownFromRaw(response.showData);
+            show.show().setBreakdownFromRaw(response.mainData);
         }
 
         show.updateMarkerBreakdown();
+    }
+
+    /**
+     * Updates the breakdown for an item in the library that's currently
+     * hidden from view (i.e. doesn't have an actual HTML row associated with it)
+     *
+     * TODO: Verify that this works with hidden items that do have HTML associated with them
+     * @param {TopLevelData} topLevelItem */
+    async #updateInactiveBreakdownCore(topLevelItem) {
+        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+            return;
+        }
+
+        Log.verbose(`Updating breakdown for inactive item ${topLevelItem.metadataId}`);
+        let response;
+        try {
+            response = await ServerCommand.getBreakdown(topLevelItem.metadataId, false /*includeSeasons*/);
+        } catch (err) {
+            Log.warn(`Failed to update ("${errorMessage(err)}'), marker stats may be incorrect.`);
+            return;
+        }
+
+        topLevelItem.setBreakdownFromRaw(response.mainData);
     }
 
     /**
@@ -331,8 +361,25 @@ class PlexClientState {
             return this.#defaultSort(a, b);
         });
 
-        this.#activeSearch = result;
+        this.activeSearchUnfiltered = result;
         return;
+    }
+
+    /**
+     * @param {Set<number>} activeIds
+     * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged. */
+    async #updateInactiveBreakdown(activeIds, unpurged) {
+        let promises = [];
+        for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection])) {
+            if (activeIds.has(metadataId) || !unpurged.get(metadataId)) {
+                continue;
+            }
+
+            Log.verbose(`Updating unshown movie row ${item.title} after purge update`);
+            promises.push(this.#updateInactiveBreakdownCore(item));
+        }
+
+        return Promise.all(promises);
     }
 
     /**
@@ -341,7 +388,8 @@ class PlexClientState {
      * @param {MarkerDataMap} newMarkers List of newly restored markers, if any.
      * @param {MarkerDataMap} deletedMarkers List of newly deleted markers, if any.
      * @param {MarkerDataMap} modifiedMarkers List of newly edited markers, if any. */
-    notifyPurgeChange(unpurged, newMarkers, deletedMarkers, modifiedMarkers) {
+    async notifyPurgeChange(unpurged, newMarkers, deletedMarkers, modifiedMarkers) {
+        const activeIds = new Set();
 
         // Duplicated a bit for movies, but it's simpler than a bunch of if/else
         if (unpurged instanceof PurgedMovieSection) {
@@ -350,6 +398,7 @@ class PlexClientState {
             let searchRow;
             for (searchRow of PlexUI.Get().getActiveSearchRows()) {
                 const metadataId = searchRow.mediaItem().metadataId;
+                activeIds.add(metadataId);
                 let newItems = unpurged.get(metadataId);
                 if (newItems) {
                     Log.verbose(`Updating search result movie row ${searchRow.movie().title} after purge update.`);
@@ -358,6 +407,8 @@ class PlexClientState {
                 }
             }
 
+            // We want to (a)wait here, since it may affect our current filter
+            await this.#updateInactiveBreakdown(activeIds, unpurged);
             return;
         }
 
@@ -365,11 +416,15 @@ class PlexClientState {
         /** @type {ShowResultRow} */
         let searchRow;
         for (searchRow of PlexUI.Get().getActiveSearchRows()) {
+            activeIds.add(searchRow.mediaItem().metadataId);
             if (unpurged.get(searchRow.mediaItem().metadataId)) {
                 Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
                 this.updateNonActiveBreakdown(searchRow, []); // TODO: Await? Was this on purpose for perf, or did I just miss this?
             }
         }
+
+        // We want to (a)wait here, since it may affect our current filter
+        await this.#updateInactiveBreakdown(activeIds, unpurged);
 
         if (!this.#activeShow) {
             return;

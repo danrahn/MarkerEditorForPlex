@@ -232,7 +232,7 @@ class QueryCommands {
             data = MarkerCache.getTreeStats(metadataId);
         } else {
             data = MarkerCache.getTopLevelStats(metadataId);
-            data = { showData: data, seasonData : {} };
+            data = { mainData: data, seasonData : {} };
         }
 
         if (!data) {

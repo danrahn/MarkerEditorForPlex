@@ -47,6 +47,17 @@ class MarkerTable {
      * @param {number} [cachedMarkerCountKey] If we're lazy loading, this captures the number of credits and intros that we expect the table to have. */
     constructor(markers, parentRow, lazyLoad=false, cachedMarkerCountKey=0) {
         this.#parentRow = parentRow;
+        if (lazyLoad) {
+            this.#cachedMarkerCountKey = cachedMarkerCountKey;
+        } else {
+            this.#initCore(markers);
+        }
+    }
+
+    /**
+     * Create the HTML table for the given markers.
+     * @param {MarkerData[]} markers */
+    #initCore(markers) {
         this.#markers = markers.sort((a, b) => a.start - b.start);
         let container = buildNode('div', { class : 'tableHolder' });
         let table = buildNode('table', { class : 'hidden markerTable' });
@@ -63,18 +74,14 @@ class MarkerTable {
         );
 
         let rows = buildNode('tbody');
-        if (!lazyLoad) {
-            if (markers.length == 0) {
-                rows.appendChild(TableElements.noMarkerRow());
-            }
+        if (markers.length == 0) {
+            rows.appendChild(TableElements.noMarkerRow());
+        }
 
-            for (const marker of markers) {
-                const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
-                this.#rows.push(markerRow);
-                rows.appendChild(markerRow.row());
-            }
-        } else {
-            this.#cachedMarkerCountKey = cachedMarkerCountKey;
+        for (const marker of markers) {
+            const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
+            this.#rows.push(markerRow);
+            rows.appendChild(markerRow.row());
         }
 
         rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this))));
@@ -104,22 +111,7 @@ class MarkerTable {
             clearEle(this.#tbody());
         }
 
-        this.#markers = markers.sort((a, b) => a.start - b.start);
-        const tbody = this.#tbody();
-        const addMarkerRow = tbody.children[0];
-        if (markers.length == 0) {
-            tbody.insertBefore(TableElements.noMarkerRow(), addMarkerRow);
-        }
-
-        let newKey = 0;
-        for (const marker of markers) {
-            const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
-            this.#rows.push(markerRow);
-
-            tbody.insertBefore(markerRow.row(), addMarkerRow);
-            newKey += MarkerBreakdown.deltaFromType(1, marker.markerType);
-        }
-
+        this.#initCore(markers);
         this.#cachedMarkerCountKey = undefined;
         this.#parentRow.updateMarkerBreakdown();
     }
@@ -130,6 +122,16 @@ class MarkerTable {
 
     /** @returns {HTMLElement} The raw HTML of the marker table. */
     table() { return this.#html; }
+
+    /** @returns {MarkerData[]} */
+    markers() {
+        if (this.#cachedMarkerCountKey !== undefined) {
+            Log.warn(`Attempting to grab MarkerTable markers before the table has been initialized!`);
+            return [];
+        }
+
+        return this.#markers;
+    }
 
     /** @returns {number} The number of markers this episode has (not including in-progress additions). */
     markerCount() {

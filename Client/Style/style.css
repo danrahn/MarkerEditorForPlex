@@ -167,14 +167,16 @@ input:focus-visible {
 .topLevelResult,
 .seasonResult,
 .episodeResult,
-.bulkResultRow {
+.bulkResultRow,
+.sectionOptionsResultRow {
   display: flex;
   cursor: pointer;
 }
 
 .topLevelResult,
 .seasonResult,
-.bulkResultRow {
+.bulkResultRow,
+.sectionOptionsResultRow {
   justify-content: center;
 }
 
@@ -189,8 +191,13 @@ input:focus-visible {
   font-weight: bold;
 }
 
+.sectionOptionsResultRow {
+  font-weight: bold;
+}
+
 .topLevelResult>div,
-.bulkResultRow>div {
+.bulkResultRow>div,
+.sectionOptionsResultRow>div {
   flex: 1;
 }
 
@@ -208,6 +215,11 @@ input:focus-visible {
 
 .bulkResultRow {
   padding: 5px 10px 5px 20px;
+}
+
+.sectionOptionsResultRow {
+  padding: 10px 10px 10px 20px;
+  line-height: 23px;
 }
 
 .bulkActionTitle {
@@ -426,6 +438,17 @@ input:focus-visible {
 
 #updateRemindLabel {
   margin-left: 30px;
+}
+
+.filterActive {
+  background-color: rgba(0, 140, 0, 0.5);
+  border-radius: 5px;
+}
+
+.filteredGroupIndicator {
+  opacity: 0.7;
+  margin-right: 5px;
+  vertical-align: text-top;
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)

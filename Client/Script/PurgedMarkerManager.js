@@ -6,6 +6,7 @@ import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
 import PlexClientState from "./PlexClientState.js";
+import { PlexUI } from "./PlexUI.js";
 import { PurgedServer, PurgedShow, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus, PurgedSection, PurgedMovieSection, PurgedGroup, PurgedMovie, PurgedTVSection } from "./PurgedMarkerCache.js"
 import TableElements from "./TableElements.js";
 import ThemeColors from "./ThemeColors.js";
@@ -1098,7 +1099,7 @@ class PurgedMarkerManager {
      * @param {MarkerDataMap} newMarkers 
      * @param {MarkerDataMap} deletedMarkers Map of deleted markers as a result of the restoration (or empty as above)
      * @param {MarkerDataMap} modifiedMarkers Map of edited markers as a result of the restore (or empty as above) */
-    onPurgedMarkerAction(purgedSection, newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
+    async onPurgedMarkerAction(purgedSection, newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
         purgedSection.forEach(/**@this {PurgedMarkerManager}*/function(/**@type {MarkerAction}*/ marker) {
             /** @type {PurgedBaseItem} */
             const baseItem = this.#purgeCache.get(marker.parent_id);
@@ -1112,7 +1113,10 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
-        PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
+        await PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
+
+        // After everything's updated, reapply the current filter in case the new/removed items affected anything
+        PlexUI.Get().onFilterApplied();
     }
 
     /**

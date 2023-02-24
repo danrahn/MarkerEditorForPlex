@@ -97,3 +97,13 @@
     margin-left: 5px;
     border-radius: 3px;
   }
+
+/** TODO: Move to the appropriate place/update this file to be a generic overlay style definition */
+.filterNumberInput {
+  width: 40px;
+  margin: 0 0 0 10px;
+}
+
+.filterSelect option {
+  height: 20px;
+}

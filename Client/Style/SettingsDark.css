@@ -7,7 +7,11 @@
 #settingsContainer select {
     border: 1px solid #53575a;
     color: #c0bdba;
-    background-color: #414141;
+    background-color: transparent;
+}
+
+#settingsContainer option {
+    background-color: #212121;
 }
 
 #settingsContainer hr {
@@ -44,7 +48,9 @@
     background-color: #a00a !important;
 }
 
-#restartServer:hover {
+/** TODO: Move to the appropriate place/update this file to be a generic overlay style definition */
+#restartServer:hover,
+#resetFilter:hover {
     background-color: #a80a !important;
 }
 

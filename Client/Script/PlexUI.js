@@ -4,10 +4,12 @@ import Overlay from './inc/Overlay.js';
 
 import SettingsManager from './ClientSettings.js';
 import PlexClientState from './PlexClientState.js';
-import { MovieResultRow, ShowResultRow } from './ResultRow.js';
+import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { MovieData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
 import PurgedMarkerManager from './PurgedMarkerManager.js';
+import { FilterDialog, FilterSettings } from './FilterDialog.js';
+import { ClientMovieData } from './ClientDataExtensions.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
 
@@ -262,23 +264,35 @@ class PlexUI {
     }
 
     /** Initiate a search to the database for shows. */
-    #search() {
-        if (this.#searchBox.value == this.#lastSearch) {
+    #search(forFilterReapply=false) {
+        if (!forFilterReapply && this.#searchBox.value == this.#lastSearch) {
             return;
         }
 
         this.#lastSearch = this.#searchBox.value;
 
-        // Remove any existing show/season/marker data
-        this.clearAllSections();
-        PlexClientState.GetState().search(this.#searchBox.value);
-        this.clearAndShowSections(UISection.MoviesOrShows);
+        // If we're adjusting the list due to a filter change,
+        // we don't want to reapply the search itself, just decide
+        // what items we want to display.
+        if (!forFilterReapply) {
+
+            // Remove any existing show/season/marker data
+            this.clearAllSections();
+
+            PlexClientState.GetState().search(this.#searchBox.value);
+
+            this.clearAndShowSections(UISection.MoviesOrShows);
+        } else {
+            // Clear the section, but don't show it
+            this.clearSections(UISection.MoviesOrShows);
+        }
+
         switch (PlexClientState.GetState().activeSectionType()) {
             case SectionType.Movie:
                 this.#searchMovies();
                 break;
             case SectionType.TV:
-                this.#searchShows();
+                this.#searchShows(forFilterReapply);
                 break;
             default:
                 Log.error(`Attempting to search with an invalid section type.`);
@@ -288,8 +302,13 @@ class PlexUI {
 
     #searchMovies() {
         let movieList = this.#uiSections[UISection.MoviesOrShows];
-        /** @type {MovieData[]} */
-        const searchResults = PlexClientState.GetState().getSearchResults();
+        const config = SettingsManager.Get();
+        if (config.backupEnabled() && config.showExtendedMarkerInfo()) {
+            movieList.appendChild(new SectionOptionsResultRow().buildRow());
+        }
+
+        /** @type {ClientMovieData[]} */
+        const searchResults = PlexClientState.GetState().getUnfilteredSearchResults();
         if (searchResults.length == 0) {
             movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
             return;
@@ -297,25 +316,41 @@ class PlexUI {
 
         this.#activeSearch = [];
         const rowsLimit = 250; // Most systems should still be fine with this. Even 1000 might not be horrible, but play it safe.
-        for (const movie of searchResults.slice(0, rowsLimit)) {
-            const newRow = new MovieResultRow(movie);
-            this.#activeSearch.push(newRow);
-            movieList.appendChild(newRow.buildRow());
+        let nonFiltered = 0;
+        let nextFilterIndex = 0;
+        for (const movie of searchResults) {
+            ++nextFilterIndex;
+            if (!FilterSettings.shouldFilter(movie.markerBreakdown())) {
+                ++nonFiltered;
+                const newRow = new MovieResultRow(movie);
+                this.#activeSearch.push(newRow);
+                movieList.appendChild(newRow.buildRow());
+            }
+
+            if (nonFiltered == rowsLimit) {
+                break;
+            }
         }
 
-        if (searchResults.length > rowsLimit) {
+        if (nonFiltered === 0) {
+            movieList.appendChild(PlexUI.noResultsBecauseOfFilterRow());
+        }
+
+        if (searchResults.length > nextFilterIndex) {
 
             const loadTheRest = () => {
                 movieList.removeChild(movieList.children[movieList.children.length - 1]);
-                for (const movie of searchResults.slice(rowsLimit)) {
-                    const newRow = new MovieResultRow(movie);
-                    this.#activeSearch.push(newRow);
-                    movieList.appendChild(newRow.buildRow());
+                for (const movie of searchResults.slice(nextFilterIndex)) {
+                    if (!FilterSettings.shouldFilter(movie.markerBreakdown())) {
+                        const newRow = new MovieResultRow(movie);
+                        this.#activeSearch.push(newRow);
+                        movieList.appendChild(newRow.buildRow());
+                    }
                 }
             };
 
             const text = `Results are limited to the top ${rowsLimit} items, ` + 
-            `click here to load the remaining ${searchResults.length - rowsLimit}.<br><br>` +
+            `click here to load up to ${searchResults.length - nextFilterIndex} more.<br><br>` +
             `WARNING: loading too many rows might hang your browser page.<br>`;
             movieList.appendChild(
                 buildNode('div',
@@ -325,11 +360,20 @@ class PlexUI {
         }
     }
 
-    #searchShows() {
-        PlexClientState.GetState().clearActiveShow();
+    #searchShows(forFilterReapply=false) {
+        if (!forFilterReapply) {
+            // "Background" update, we don't want to wipe out the
+            // current view if the user is viewing a show/season
+            PlexClientState.GetState().clearActiveShow();
+        }
+
         let showList = this.#uiSections[UISection.MoviesOrShows];
+        const config = SettingsManager.Get();
+        if (config.backupEnabled() && config.showExtendedMarkerInfo()) {
+            showList.appendChild(new SectionOptionsResultRow().buildRow());
+        }
         /** @type {ShowData[]} */
-        const searchResults = PlexClientState.GetState().getSearchResults();
+        const searchResults = PlexClientState.GetState().getUnfilteredSearchResults();
         if (searchResults.length == 0) {
             showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));
             return;
@@ -337,10 +381,28 @@ class PlexUI {
 
         this.#activeSearch = [];
         for (const show of searchResults) {
-            const newRow = new ShowResultRow(show);
-            this.#activeSearch.push(newRow);
-            showList.appendChild(newRow.buildRow());
+            if (!FilterSettings.shouldFilter(show.markerBreakdown())) {
+                const newRow = new ShowResultRow(show);
+                this.#activeSearch.push(newRow);
+                showList.appendChild(newRow.buildRow());
+            }
         }
+
+        if (this.#activeSearch.length === 0) {
+            showList.appendChild(PlexUI.noResultsBecauseOfFilterRow());
+        }
+    }
+
+    /**
+     * Return a row indicating that there are no rows to show because
+     * the active filter is hiding all of them. Clicking the row displays the filter UI.
+     * @returns {HTMLElement} */
+    static noResultsBecauseOfFilterRow() {
+        return buildNode(
+            'div',
+            { class : 'topLevelResult ' },
+            'No results with the current filter.',
+            { click : () => new FilterDialog().show() })
     }
 
     /** Apply the given function to all UI sections specified in uiSections. */
@@ -350,6 +412,20 @@ class PlexUI {
                 fn(this.#uiSections[group]);
             }
         }
+    }
+
+    /**
+     * Callback invoked when a new filter is applied. */
+    onFilterApplied() {
+        // Don't initialize a search if we don't have any existing items
+        if (PlexClientState.GetState().getUnfilteredSearchResults().length !== 0) {
+            this.#search(true /*forFilterReapply*/);
+        }
+
+        // onFilterApplied should probably live completely within PlexClientState,
+        // or I need to set stricter boundaries on what goes there versus here, since
+        // they both are UI-related.
+        PlexClientState.GetState().onFilterApplied();
     }
 }
 

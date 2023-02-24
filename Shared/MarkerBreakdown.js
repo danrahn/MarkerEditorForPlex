@@ -74,6 +74,10 @@ class MarkerBreakdown {
     introBuckets() {
         const collapsed = {};
         for (const [key, value] of Object.entries(this.#counts)) {
+            if (value === 0) {
+                continue;
+            }
+
             const introKey = this.#ic(key);
             collapsed[introKey] ??= 0;
             collapsed[introKey] += value;
@@ -87,6 +91,10 @@ class MarkerBreakdown {
     creditsBuckets() {
         const collapsed = {};
         for (const [key, value] of Object.entries(this.#counts)) {
+            if (value === 0) {
+                continue;
+            }
+
             const creditsKey = this.#cc(key);
             collapsed[creditsKey] ??= 0;
             collapsed[creditsKey] += value;
