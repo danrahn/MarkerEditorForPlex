@@ -5,7 +5,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import Overlay from './inc/Overlay.js';
-import PlexClientState from './PlexClientState.js';
+import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
 
 
@@ -53,7 +53,7 @@ class BulkDeleteOverlay {
             const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, ignored);
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
 
-            PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Delete);
+            PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Delete);
             await BulkActionCommon.flashButton('deleteApply', 'green');
             if (result.markers.length == 0) {
                 return Overlay.dismiss();

@@ -5,7 +5,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
 import Overlay from './inc/Overlay.js';
-import PlexClientState from './PlexClientState.js';
+import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
 /** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
@@ -267,7 +267,7 @@ class BulkShiftOverlay {
         const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, startShift, endShift, false /*force*/, ignoreInfo.ignored);
         if (shiftResult.applied) {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
-            PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
+            PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Shift);
             await BulkActionCommon.flashButton('shiftApply', 'green');
 
             Overlay.dismiss();
@@ -300,7 +300,7 @@ class BulkShiftOverlay {
             }
 
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
-            PlexClientState.GetState().notifyBulkActionChange(markerMap, BulkActionType.Shift);
+            PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Shift);
             $('.shiftForceApply').forEach(async f => {
                 await BulkActionCommon.flashButton(f, 'green');
                 Overlay.dismiss();

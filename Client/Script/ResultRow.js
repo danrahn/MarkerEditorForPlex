@@ -11,10 +11,10 @@ import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientEpisodeData, ClientMovieData, MediaItemWithMarkerTable } from './ClientDataExtensions.js';
-import SettingsManager from './ClientSettings.js';
-import PlexClientState from './PlexClientState.js';
+import { ClientSettings } from './ClientSettings.js';
+import { PlexClientState } from './PlexClientState.js';
 import { PlexUI, UISection } from './PlexUI.js';
-import PurgedMarkerManager from './PurgedMarkerManager.js';
+import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
 import ThemeColors from './ThemeColors.js';
 import { FilterDialog, FilterSettings } from './FilterDialog.js';
@@ -91,7 +91,7 @@ class ResultRow {
     mediaItem() { return this.#mediaItem; }
 
     /** @returns The number of purged markers associated with this row. */
-    getPurgeCount() { return PurgedMarkerManager.GetManager().getPurgeCount(this.#mediaItem.metadataId); }
+    getPurgeCount() { return PurgedMarkers.getPurgeCount(this.#mediaItem.metadataId); }
 
     /** @returns Whether this media item has any purged markers. */
     hasPurgedMarkers() { return this.getPurgeCount() > 0; }
@@ -102,7 +102,7 @@ class ResultRow {
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {
         // No updates necessary if extended breakdown stats aren't enabled
-        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+        if (!ClientSettings.showExtendedMarkerInfo()) {
             return;
         }
 
@@ -167,7 +167,7 @@ class ResultRow {
     episodeDisplay() {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        if (!SettingsManager.Get().showExtendedMarkerInfo() || !mediaItem.markerBreakdown()) {
+        if (!ClientSettings.showExtendedMarkerInfo() || !mediaItem.markerBreakdown()) {
             // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
             // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
             return baseText;
@@ -176,7 +176,7 @@ class ResultRow {
         let atLeastOne = 0;
         // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
         // for slightly larger text than the default.
-        let tooltipText = `<span class="largerTooltip">${baseText}<hr>`;
+        let tooltipText = `<span class="largerTooltip noBreak">${baseText}<hr>`;
         const breakdown = mediaItem.markerBreakdown();
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
@@ -202,7 +202,7 @@ class ResultRow {
             innerText.appendChild(purgeIcon());
             const purgeCount = this.getPurgeCount();
             const markerText = purgeCount == 1 ? 'marker' : 'markers';
-            tooltipText += `Found ${purgeCount} purged ${markerText}.<br>Click for details.</span>`;
+            tooltipText += `<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
         }
 
         let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
@@ -285,7 +285,7 @@ class SectionOptionsResultRow extends ResultRow {
             return this.html();
         }
 
-        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+        if (!ClientSettings.showExtendedMarkerInfo()) {
             Log.error(`SectionOptionsResultRow requires extended marker info`);
             return buildNode('div');
         }
@@ -370,9 +370,9 @@ class ShowResultRow extends ResultRow {
         let row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to results', () => {
-                PlexUI.Get().clearSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.Get().hideSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.Get().showSections(UISection.MoviesOrShows);
+                PlexUI.clearSections(UISection.Seasons | UISection.Episodes);
+                PlexUI.hideSections(UISection.Seasons | UISection.Episodes);
+                PlexUI.showSections(UISection.MoviesOrShows);
             });
         }
 
@@ -389,7 +389,7 @@ class ShowResultRow extends ResultRow {
     /**
      * Launches the purge overlay for this show. */
     #onShowPurgeClick() {
-        PurgedMarkerManager.GetManager().showSingleShow(this.show().metadataId);
+        PurgedMarkers.showSingleShow(this.show().metadataId);
     }
 
     /**
@@ -407,7 +407,7 @@ class ShowResultRow extends ResultRow {
             needsUpdate.push(seasonRow);
         }
 
-        /*async*/ PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
+        /*async*/ PlexClientState.updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /**
@@ -422,7 +422,7 @@ class ShowResultRow extends ResultRow {
             }
         }
 
-        return PlexClientState.GetState().updateNonActiveBreakdown(this, needsUpdate);
+        return PlexClientState.updateNonActiveBreakdown(this, needsUpdate);
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
@@ -438,15 +438,15 @@ class ShowResultRow extends ResultRow {
             return;
         }
 
-        if (!PlexClientState.GetState().setActiveShow(this)) {
+        if (!PlexClientState.setActiveShow(this)) {
             Overlay.show('Unable to retrieve data for that show. Please try again later.');
             return;
         }
 
-        if (SettingsManager.Get().backupEnabled()) {
+        if (ClientSettings.backupEnabled()) {
             // Gather purge data before continuing
             try {
-                await PurgedMarkerManager.GetManager().getPurgedShowMarkers(this.show().metadataId);
+                await PurgedMarkers.getPurgedShowMarkers(this.show().metadataId);
             } catch (err) {
                 Log.warn(errorMessage(err), `Unable to get purged marker info for show ${this.show().title}`);
             }
@@ -469,12 +469,11 @@ class ShowResultRow extends ResultRow {
      * Takes the seasons retrieved for a show and creates and entry for each season.
      * @param {SerializedSeasonData[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
     #showSeasons(seasons) {
-        const plexUI = PlexUI.Get();
-        plexUI.clearAndShowSections(UISection.Seasons);
-        plexUI.hideSections(UISection.MoviesOrShows);
+        PlexUI.clearAndShowSections(UISection.Seasons);
+        PlexUI.hideSections(UISection.MoviesOrShows);
 
-        const addRow = row => plexUI.addRow(UISection.Seasons, row);
-        if (SettingsManager.Get().showExtendedMarkerInfo()) {
+        const addRow = row => PlexUI.addRow(UISection.Seasons, row);
+        if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
             addRow(this.#sectionTitle.buildRow())
         }
@@ -482,7 +481,7 @@ class ShowResultRow extends ResultRow {
         this.#showTitle = new ShowResultRow(this.show());
         addRow(this.#showTitle.buildRow(true /*selected*/));
         addRow(new BulkActionResultRow(this.show()).buildRow());
-        addRow(buildNode('hr'));
+        addRow(buildNode('hr', { style : 'margin-top: 0' }));
         this.#seasonsFiltered = 0;
         let anyShowing = false;
         for (const serializedSeason of seasons) {
@@ -496,7 +495,7 @@ class ShowResultRow extends ResultRow {
                 anyShowing = true;
             }
 
-            PlexClientState.GetState().addSeason(season);
+            PlexClientState.addSeason(season);
         }
 
         if (!anyShowing) {
@@ -509,13 +508,11 @@ class ShowResultRow extends ResultRow {
     /**
      * Update what rows are visible based on the new filter. */
     onFilterApplied() {
-        const plexUI = PlexUI.Get();
-        plexUI.clearSections(UISection.Seasons);
-        const addRow = row => plexUI.addRow(UISection.Seasons, row);
+        PlexUI.clearSections(UISection.Seasons);
+        const addRow = row => PlexUI.addRow(UISection.Seasons, row);
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
         addRow(new BulkActionResultRow(this.show()).buildRow()); // TODO: Make this a class var too?
-        addRow(buildNode('hr'));
         const seasons = Object.values(this.#seasons).sort((a, b) => a.season().index - b.season().index);
         this.#seasonsFiltered = 0;
         let anyShowing = false;
@@ -621,9 +618,9 @@ class SeasonResultRow extends ResultRow {
         let row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', () => {
-                PlexUI.Get().clearSections(UISection.Episodes);
-                PlexUI.Get().hideSections(UISection.Episodes)
-                PlexUI.Get().showSections(UISection.Seasons);
+                PlexUI.clearSections(UISection.Episodes);
+                PlexUI.hideSections(UISection.Episodes)
+                PlexUI.showSections(UISection.Seasons);
             });
         }
 
@@ -710,7 +707,7 @@ class SeasonResultRow extends ResultRow {
     /**
      * Show the purge overlay for this season. */
     #onSeasonPurgeClick() {
-        PurgedMarkerManager.GetManager().showSingleSeason(this.season().metadataId);
+        PurgedMarkers.showSingleSeason(this.season().metadataId);
     }
 
     /**
@@ -721,7 +718,7 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        if (!PlexClientState.GetState().setActiveSeason(this)) {
+        if (!PlexClientState.setActiveSeason(this)) {
             Overlay.show('Unable to retrieve data for that season. Please try again later.');
             return;
         }
@@ -745,7 +742,7 @@ class SeasonResultRow extends ResultRow {
     async #parseEpisodes(episodes) {
         let queryIds = [];
         for (const episode of episodes) {
-            PlexClientState.GetState().addEpisode(new ClientEpisodeData().setFromJson(episode));
+            PlexClientState.addEpisode(new ClientEpisodeData().setFromJson(episode));
             queryIds.push(episode.metadataId);
         }
 
@@ -761,28 +758,26 @@ class SeasonResultRow extends ResultRow {
      * @param {{[metadataId: number]: SerializedMarkerData[]}} data Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode. */
     #showEpisodesAndMarkers(data) {
-        const plexUI = PlexUI.Get();
-        plexUI.clearAndShowSections(UISection.Episodes);
-        plexUI.hideSections(UISection.Seasons);
-        const addRow = row => plexUI.addRow(UISection.Episodes, row);
-        const clientState = PlexClientState.GetState();
-        if (SettingsManager.Get().showExtendedMarkerInfo()) {
+        PlexUI.clearAndShowSections(UISection.Episodes);
+        PlexUI.hideSections(UISection.Seasons);
+        const addRow = row => PlexUI.addRow(UISection.Episodes, row);
+        if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
             addRow(this.#sectionTitle.buildRow())
         }
 
-        this.#showTitle = new ShowResultRow(clientState.getActiveShow());
+        this.#showTitle = new ShowResultRow(PlexClientState.getActiveShow());
         addRow(this.#showTitle.buildRow(true));
         addRow(buildNode('hr'));
-        this.#seasonTitle = new SeasonResultRow(clientState.getActiveSeason());
+        this.#seasonTitle = new SeasonResultRow(PlexClientState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow(true));
         addRow(new BulkActionResultRow(this.season()).buildRow());
-        addRow(buildNode('hr'));
+        addRow(buildNode('hr', { style : 'margin-top: 0' }));
 
         // Returned data doesn't guarantee order. Create the rows, then sort by index
         let episodeRows = [];
         for (const metadataId of Object.keys(data)) {
-            episodeRows.push(new EpisodeResultRow(clientState.getEpisode(parseInt(metadataId)), this));
+            episodeRows.push(new EpisodeResultRow(PlexClientState.getEpisode(parseInt(metadataId)), this));
         }
 
         this.#episodesFiltered = 0;
@@ -819,9 +814,8 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        const plexUI = PlexUI.Get();
-        plexUI.clearSections(UISection.Episodes);
-        const addRow = row => plexUI.addRow(UISection.Episodes, row);
+        PlexUI.clearSections(UISection.Episodes);
+        const addRow = row => PlexUI.addRow(UISection.Episodes, row);
 
         // Recreate headers
         addRow(this.#sectionTitle.html());
@@ -829,7 +823,7 @@ class SeasonResultRow extends ResultRow {
         addRow(buildNode('hr'));
         addRow(this.#seasonTitle.html());
         addRow(new BulkActionResultRow(this.season()).buildRow());
-        addRow(buildNode('hr'));
+        addRow(buildNode('hr', { style : 'margin-top: 0' }));
         this.#episodesFiltered = 0;
         let anyShowing = false;
         const episodes = Object.values(this.#episodes).sort((a, b) => a.episode().index - b.episode().index);
@@ -993,7 +987,7 @@ class EpisodeResultRow extends BaseItemResultRow {
 
     /** Launches the purge table overlay. */
     #onEpisodePurgeClick() {
-        PurgedMarkerManager.GetManager().showSingleEpisode(this.episode().metadataId);
+        PurgedMarkers.showSingleEpisode(this.episode().metadataId);
     }
 
     /**
@@ -1044,8 +1038,8 @@ class EpisodeResultRow extends BaseItemResultRow {
 
         const newKey = this.episode().markerTable().markerKey();
         const delta = newKey - this.currentKey();
-        if (SettingsManager.Get().showExtendedMarkerInfo()) {
-            PlexClientState.GetState().updateBreakdownCache(this.episode(), delta);
+        if (ClientSettings.showExtendedMarkerInfo()) {
+            PlexClientState.updateBreakdownCache(this.episode(), delta);
         }
 
         this.setCurrentKey(newKey);
@@ -1119,12 +1113,12 @@ class MovieResultRow extends BaseItemResultRow {
         // realMarkerCount == -1: we don't know how many markers we have, add '?' with a title
         // Extended stats disabled and no markers grabbed, but we have a realMarkerCount - use it
         // All other scenarios: use the actual marker table count.
-        if (!SettingsManager.Get().showExtendedMarkerInfo() && this.movie().realMarkerCount == -1) {
+        if (!ClientSettings.showExtendedMarkerInfo() && this.movie().realMarkerCount == -1) {
             text = buildNode('span', {}, '? Marker(s)');
             tooltipText = 'Click on the row to load marker counts.';
         } else {
             let markerCount = 0;;
-            if (!SettingsManager.Get().showExtendedMarkerInfo() && !this.#markersGrabbed) {
+            if (!ClientSettings.showExtendedMarkerInfo() && !this.#markersGrabbed) {
                 markerCount = movie.realMarkerCount;
             } else {
                 markerCount = movie.markerTable().markerCount();
@@ -1157,7 +1151,7 @@ class MovieResultRow extends BaseItemResultRow {
 
     /** Launches the purge table overlay. */
     #onMoviePurgeClick() {
-        PurgedMarkerManager.GetManager().showSingleMovie(this.movie().metadataId);
+        PurgedMarkers.showSingleMovie(this.movie().metadataId);
     }
 
     /**
@@ -1200,10 +1194,10 @@ class MovieResultRow extends BaseItemResultRow {
                     mov.realMarkerCount = markerData[mov.metadataId].length;
                 }
 
-                if (SettingsManager.Get().backupEnabled()) {
+                if (ClientSettings.backupEnabled()) {
                     // Gather purge data before continuing
                     try {
-                        await PurgedMarkerManager.GetManager().getPurgedMovieMarkers(this.movie().metadataId);
+                        await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
                     } catch (err) {
                         Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
                     }

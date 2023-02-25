@@ -5,7 +5,7 @@ import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
 import Overlay from "./inc/Overlay.js";
 
 import ButtonCreator from "./ButtonCreator.js";
-import SettingsManager from "./ClientSettings.js";
+import { ClientSettings } from "./ClientSettings.js";
 import { MarkerEdit, ThumbnailMarkerEdit } from "./MarkerEdit.js";
 import TableElements from "./TableElements.js";
 import { EpisodeResultRow, MovieResultRow, ResultRow } from "./ResultRow.js";
@@ -34,7 +34,7 @@ class MarkerRow {
      * @param {boolean} isMovie Whether this marker is for a movie. */
     constructor(parent) {
         this.#parentRow = parent;
-        const useThumbs = SettingsManager.Get().useThumbnails();
+        const useThumbs = ClientSettings.useThumbnails();
         let hasThumbs = false;
         if (useThumbs) {
             if (parent instanceof MovieResultRow) {

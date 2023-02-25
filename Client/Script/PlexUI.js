@@ -2,12 +2,12 @@ import { $, buildNode, clearEle } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 
-import SettingsManager from './ClientSettings.js';
-import PlexClientState from './PlexClientState.js';
+import { ClientSettings } from './ClientSettings.js';
+import { PlexClientState } from './PlexClientState.js';
 import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
-import PurgedMarkerManager from './PurgedMarkerManager.js';
+import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { FilterDialog, FilterSettings } from './FilterDialog.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 
@@ -26,12 +26,16 @@ const UISection = {
 };
 
 /**
+ * The singleton UI instance
+ * @type {PlexUIManager}
+ * @readonly */ // Externally readonly
+let Instance;
+
+/**
  * Handles UI interactions of the application, including
  * setting up search/dropdown listeners, and building show/season/episode result rows.
  */
-class PlexUI {
-    /** @type {PlexUI} */
-    static #plexUI;
+class PlexUIManager {
 
     /** The library selection dropdown.
      * @type {HTMLSelectElement} */
@@ -72,28 +76,18 @@ class PlexUI {
     #activeSearch = [];
 
     /** Creates the singleton PlexUI for this session. */
-    static Initialize() {
-        if (PlexUI.#plexUI) {
-            Log.error('We should only have a single SettingsManager instance!');
+    static CreateInstance() {
+        if (Instance) {
+            Log.error('We should only have a single PlexUI instance!');
             return;
         }
 
-        PlexUI.#plexUI = new PlexUI();
-    }
-
-    /** @returns {PlexUI} */
-    static Get() {
-        if (!PlexUI.#plexUI) {
-            Log.error(`Accessing settings before it's been initialized'! Initializing now...`);
-            PlexUI.Initialize();
-        }
-
-        return this.#plexUI;
+        Instance = new PlexUIManager();
     }
 
     /** Constructs a new PlexUI and begins listening for change events. */
     constructor() {
-        if (PlexUI.#plexUI) {
+        if (Instance) {
             throw new Error(`Don't create a new PlexUI when the singleton already exists!`);
         }
 
@@ -113,7 +107,7 @@ class PlexUI {
         }
 
         this.#dropdown.appendChild(buildNode('option', { value : '-1', libtype : '-1' }, 'Select a library to parse'));
-        const savedSection = SettingsManager.Get().lastSection();
+        const savedSection = ClientSettings.lastSection();
 
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
@@ -161,7 +155,7 @@ class PlexUI {
     /** Clears data from the show, season, and episode lists. */
     clearAllSections() {
         this.clearAndShowSections(UISection.MoviesOrShows | UISection.Seasons | UISection.Episodes)
-        PlexClientState.GetState().clearActiveShow();
+        PlexClientState.clearActiveShow();
     }
 
     /**
@@ -217,17 +211,17 @@ class PlexUI {
                 break;
         }
 
-        await PlexClientState.GetState().setSection(section, libType);
+        await PlexClientState.setSection(section, libType);
         this.clearAllSections();
         if (!isNaN(section) && section != -1) {
-            SettingsManager.Get().setLastSection(section);
+            ClientSettings.setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
         }
 
-        if (SettingsManager.Get().backupEnabled() && SettingsManager.Get().showExtendedMarkerInfo()) {
+        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
             // In this case, we should have pre-built our purge cache, so grab everything now so that
             // we don't have to 'Find Purged Markers' to hydrate the warning icons at the movie/show/season/episode level
-            PurgedMarkerManager.GetManager().findPurgedMarkers(true /*dryRun*/);
+            PurgedMarkers.findPurgedMarkers(true /*dryRun*/);
         }
 
         if (this.#searchBox.value.length > 0) {
@@ -238,7 +232,7 @@ class PlexUI {
     /**
      * Handle search box input. Invoke a search immediately if 'Enter' is pressed, otherwise
      * set a timeout to invoke a search after a quarter of a second has passed.
-     * @this {PlexUI}
+     * @this {PlexUIManager}
      * @param {KeyboardEvent} e */
     async #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
@@ -279,7 +273,7 @@ class PlexUI {
             // Remove any existing show/season/marker data
             this.clearAllSections();
 
-            PlexClientState.GetState().search(this.#searchBox.value);
+            PlexClientState.search(this.#searchBox.value);
 
             this.clearAndShowSections(UISection.MoviesOrShows);
         } else {
@@ -287,7 +281,7 @@ class PlexUI {
             this.clearSections(UISection.MoviesOrShows);
         }
 
-        switch (PlexClientState.GetState().activeSectionType()) {
+        switch (PlexClientState.activeSectionType()) {
             case SectionType.Movie:
                 this.#searchMovies();
                 break;
@@ -302,13 +296,12 @@ class PlexUI {
 
     #searchMovies() {
         let movieList = this.#uiSections[UISection.MoviesOrShows];
-        const config = SettingsManager.Get();
-        if (config.backupEnabled() && config.showExtendedMarkerInfo()) {
+        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
             movieList.appendChild(new SectionOptionsResultRow().buildRow());
         }
 
         /** @type {ClientMovieData[]} */
-        const searchResults = PlexClientState.GetState().getUnfilteredSearchResults();
+        const searchResults = PlexClientState.getUnfilteredSearchResults();
         if (searchResults.length == 0) {
             movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
             return;
@@ -333,7 +326,7 @@ class PlexUI {
         }
 
         if (nonFiltered === 0) {
-            movieList.appendChild(PlexUI.noResultsBecauseOfFilterRow());
+            movieList.appendChild(this.noResultsBecauseOfFilterRow());
         }
 
         if (searchResults.length > nextFilterIndex) {
@@ -364,16 +357,15 @@ class PlexUI {
         if (!forFilterReapply) {
             // "Background" update, we don't want to wipe out the
             // current view if the user is viewing a show/season
-            PlexClientState.GetState().clearActiveShow();
+            PlexClientState.clearActiveShow();
         }
 
         let showList = this.#uiSections[UISection.MoviesOrShows];
-        const config = SettingsManager.Get();
-        if (config.backupEnabled() && config.showExtendedMarkerInfo()) {
+        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
             showList.appendChild(new SectionOptionsResultRow().buildRow());
         }
         /** @type {ShowData[]} */
-        const searchResults = PlexClientState.GetState().getUnfilteredSearchResults();
+        const searchResults = PlexClientState.getUnfilteredSearchResults();
         if (searchResults.length == 0) {
             showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));
             return;
@@ -389,7 +381,7 @@ class PlexUI {
         }
 
         if (this.#activeSearch.length === 0) {
-            showList.appendChild(PlexUI.noResultsBecauseOfFilterRow());
+            showList.appendChild(this.noResultsBecauseOfFilterRow());
         }
     }
 
@@ -397,7 +389,7 @@ class PlexUI {
      * Return a row indicating that there are no rows to show because
      * the active filter is hiding all of them. Clicking the row displays the filter UI.
      * @returns {HTMLElement} */
-    static noResultsBecauseOfFilterRow() {
+    noResultsBecauseOfFilterRow() {
         return buildNode(
             'div',
             { class : 'topLevelResult ' },
@@ -418,15 +410,15 @@ class PlexUI {
      * Callback invoked when a new filter is applied. */
     onFilterApplied() {
         // Don't initialize a search if we don't have any existing items
-        if (PlexClientState.GetState().getUnfilteredSearchResults().length !== 0) {
+        if (PlexClientState.getUnfilteredSearchResults().length !== 0) {
             this.#search(true /*forFilterReapply*/);
         }
 
         // onFilterApplied should probably live completely within PlexClientState,
         // or I need to set stricter boundaries on what goes there versus here, since
         // they both are UI-related.
-        PlexClientState.GetState().onFilterApplied();
+        PlexClientState.onFilterApplied();
     }
 }
 
-export { PlexUI, UISection }
+export { PlexUIManager, UISection, Instance as PlexUI }

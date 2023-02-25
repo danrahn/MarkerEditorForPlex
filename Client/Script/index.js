@@ -1,11 +1,11 @@
 import { $, errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
-import SettingsManager from './ClientSettings.js';
+import { SettingsManager, ClientSettings } from './ClientSettings.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
-import PlexClientState from './PlexClientState.js';
-import { PlexUI } from './PlexUI.js';
-import PurgedMarkerManager from './PurgedMarkerManager.js';
+import { PlexClientStateManager } from './PlexClientState.js';
+import { PlexUI, PlexUIManager } from './PlexUI.js';
+import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import ShowHelpOverlay from './HelpOverlay.js';
 import VersionManager from './VersionManager.js';
 
@@ -17,9 +17,9 @@ window.addEventListener('load', setup);
 function setup()
 {
     $('#helpBtn').addEventListener('click', ShowHelpOverlay);
-    SettingsManager.Initialize();
-    PlexClientState.Initialize();
-    PlexUI.Initialize();
+    SettingsManager.CreateInstance();
+    PlexClientStateManager.CreateInstance();
+    PlexUIManager.CreateInstance();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
@@ -40,13 +40,12 @@ async function mainSetup() {
         Log.warn(errorMessage(err), 'Unable to get app config, assuming everything is disabled. Server responded with');
     }
 
-    const settings = SettingsManager.Get();
-    settings.parseServerConfig(config);
-    new PurgedMarkerManager(settings.backupEnabled() && settings.showExtendedMarkerInfo());
+    ClientSettings.parseServerConfig(config);
+    PurgedMarkerManager.CreateInstance(ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo());
     VersionManager.CheckForUpdates(config.version);
 
     try {
-        PlexUI.Get().init(await ServerCommand.getSections());
+        PlexUI.init(await ServerCommand.getSections());
     } catch (err) {
         errorResponseOverlay('Error getting libraries, please verify you have provided the correct database path and try again.', err);
         return;

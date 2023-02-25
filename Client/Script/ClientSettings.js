@@ -644,7 +644,7 @@ class ClientSettingsUI {
 
         this.#settingsManager.save();
         Overlay.dismiss();
-        PlexUI.Get().onSettingsApplied(shouldResetView);
+        PlexUI.onSettingsApplied(shouldResetView);
     }
 
     /**
@@ -666,13 +666,15 @@ class ClientSettingsUI {
 }
 
 /**
+ * Singleton settings instance
+ * @type {SettingsManager}
+ * @readonly */ // Externally readonly
+ let Instance;
+
+/**
  * Main manager that keeps track of client-side settings.
  */
 class SettingsManager {
-    /**
-     * The singleton settings manager for the current session.
-     * @type {SettingsManager} */
-    static #settingsManager;
 
     /** `link` elements that are used to swap between light and dark themes.
      * @type {HTMLLinkElement[]} */
@@ -695,27 +697,17 @@ class SettingsManager {
     #uiManager;
 
     /** Creates the singleton SettingsManager for this session */
-    static Initialize() {
-        if (SettingsManager.#settingsManager) {
+    static CreateInstance() {
+        if (Instance) {
             Log.error('We should only have a single SettingsManager instance!');
             return;
         }
 
-        SettingsManager.#settingsManager = new SettingsManager();
-    }
-
-    /** @returns {SettingsManager} */
-    static Get() {
-        if (!SettingsManager.#settingsManager) {
-            Log.error(`Accessing settings before it's been initialized'! Initializing now...`);
-            SettingsManager.Initialize();
-        }
-
-        return this.#settingsManager;
+        Instance = new SettingsManager();
     }
 
     constructor() {
-        if (SettingsManager.#settingsManager) {
+        if (Instance) {
             throw new Error(`Don't create a new SettingsManager when the singleton already exists!`);
         }
 
@@ -921,4 +913,4 @@ class SettingsManager {
     }
 }
 
-export default SettingsManager;
+export { SettingsManager, Instance as ClientSettings };

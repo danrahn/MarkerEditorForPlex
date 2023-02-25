@@ -6,7 +6,7 @@ import { BulkActionType } from './BulkActionCommon.js';
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { PurgedMovieSection, PurgedSection } from './PurgedMarkerCache.js';
 import { MovieResultRow, SeasonResultRow, ShowResultRow } from './ResultRow.js';
-import SettingsManager from './ClientSettings.js';
+import { ClientSettings } from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
 
 /** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
@@ -15,11 +15,17 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
 /** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
 
+
+/**
+ * The Singleton client state.
+ * @type {PlexClientStateManager}
+ * @readonly */ // Externally readonly
+let Instance;
 /**
 * A class that keeps track of the current UI state of the Marker Editor,
 * including search results and the active show/season.
 */
-class PlexClientState {
+class PlexClientStateManager {
     /** @type {number} */
     #activeSection = -1;
     /** @type {number} */
@@ -32,33 +38,21 @@ class PlexClientState {
     #activeShow;
     /** @type {SeasonResultRow} */
     #activeSeason;
-    /**@type {PlexClientState} */
-    static #clientState;
 
     /** Create the singleton PlexClientState instance. */
-    static Initialize() {
-        if (PlexClientState.#clientState) {
+    static CreateInstance() {
+        if (Instance) {
             Log.error('We should only have a single PlexClientState instance!');
             return;
         }
 
-        PlexClientState.#clientState = new PlexClientState();
+        Instance = new PlexClientStateManager();
     }
 
     constructor() {
-        if (PlexClientState.#clientState) {
+        if (Instance) {
             throw new Error(`Don't create a new PlexClientState when the singleton already exists!`);
         }
-    }
-
-    /** @returns {PlexClientState} */
-    static GetState() {
-        if (!this.#clientState) {
-            Log.error(`Accessing client state before it's been initialized'! Initializing now...`);
-            PlexClientState.Initialize();
-        }
-
-        return this.#clientState;
     }
 
     /**
@@ -232,7 +226,7 @@ class PlexClientState {
      * @param {SeasonResultRow[]} seasons The list of seasons of the show that need to be updated. */
     async updateNonActiveBreakdown(show, seasons) {
         // Nothing to do at the season/show level if extended marker stats aren't enabled.
-        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+        if (!ClientSettings.showExtendedMarkerInfo()) {
             return;
         }
 
@@ -271,7 +265,7 @@ class PlexClientState {
      * TODO: Verify that this works with hidden items that do have HTML associated with them
      * @param {TopLevelData} topLevelItem */
     async #updateInactiveBreakdownCore(topLevelItem) {
-        if (!SettingsManager.Get().showExtendedMarkerInfo()) {
+        if (!ClientSettings.showExtendedMarkerInfo()) {
             return;
         }
 
@@ -396,7 +390,7 @@ class PlexClientState {
             // Update any visible movies
             /** @type {MovieResultRow} */
             let searchRow;
-            for (searchRow of PlexUI.Get().getActiveSearchRows()) {
+            for (searchRow of PlexUI.getActiveSearchRows()) {
                 const metadataId = searchRow.mediaItem().metadataId;
                 activeIds.add(metadataId);
                 let newItems = unpurged.get(metadataId);
@@ -415,7 +409,7 @@ class PlexClientState {
         // Update non-active shows (as they're all cached for quick search results)
         /** @type {ShowResultRow} */
         let searchRow;
-        for (searchRow of PlexUI.Get().getActiveSearchRows()) {
+        for (searchRow of PlexUI.getActiveSearchRows()) {
             activeIds.add(searchRow.mediaItem().metadataId);
             if (unpurged.get(searchRow.mediaItem().metadataId)) {
                 Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
@@ -508,7 +502,7 @@ class PlexClientState {
 
         const affectedShows = Object.keys(markers).length;
         Log.assert(affectedShows <= 1, `Bulk actions should target a single show, found ${affectedShows}`);
-        for (const searchRow of PlexUI.Get().getActiveSearchRows()) {
+        for (const searchRow of PlexUI.getActiveSearchRows()) {
             if (markers[searchRow.show().metadataId]) {
                 return this.updateNonActiveBreakdown(searchRow, []);
             }
@@ -560,4 +554,4 @@ class PlexClientState {
     }
 }
 
-export default PlexClientState;
+export { PlexClientStateManager, Instance as PlexClientState };

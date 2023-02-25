@@ -1,7 +1,7 @@
 import { appendChildren, buildNode, msToHms } from "./Common.js";
 import { MarkerData } from "../../Shared/PlexTypes.js"
 
-import SettingsManager from "./ClientSettings.js";
+import { ClientSettings } from "./ClientSettings.js";
 import DateUtil from "./inc/DateUtil.js";
 import Tooltip from "./inc/Tooltip.js";
 
@@ -52,7 +52,7 @@ class TableElements {
     static timeColumn(value) {
         // Avoid some of the jerkiness of the width used by thumbnails by making
         // time input fields wider across the board if thumbnails are enabled.
-        const className = SettingsManager.Get().useThumbnails() ? 'thumbnailEnabledTimeColumn' : 'timeColumn';
+        const className = ClientSettings.useThumbnails() ? 'thumbnailEnabledTimeColumn' : 'timeColumn';
         return TableElements.customClassColumn(value, className);
     }
 

@@ -5,7 +5,7 @@ import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponse
 import Animation from "./inc/Animate.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
-import PlexClientState from "./PlexClientState.js";
+import { PlexClientState } from "./PlexClientState.js";
 import { PlexUI } from "./PlexUI.js";
 import { PurgedServer, PurgedShow, PurgedSeason, PurgedEpisode, AgnosticPurgeCache, PurgeCacheStatus, PurgedSection, PurgedMovieSection, PurgedGroup, PurgedMovie, PurgedTVSection } from "./PurgedMarkerCache.js"
 import TableElements from "./TableElements.js";
@@ -170,7 +170,7 @@ class PurgeNonActionInfo {
 
         try {
             const restoreData = await ServerCommand.restorePurge(markers,
-                PlexClientState.GetState().activeSection(),
+                PlexClientState.activeSection(),
                 PurgeConflictControl.CurrentResolutionType());
             const newMarkers = {};
             Object.entries(restoreData.newMarkers).forEach(d => newMarkers[d[0]] = d[1].map(m => new MarkerData().setFromJson(m)));
@@ -211,7 +211,7 @@ class PurgeNonActionInfo {
         $$('.ignoreConfirm img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
 
         try {
-            await ServerCommand.ignorePurge(markers, PlexClientState.GetState().activeSection());
+            await ServerCommand.ignorePurge(markers, PlexClientState.activeSection());
             this.#resetConfirmImg('ignoreConfirm');
             this.#ignoreConfirmInfo.successFn();
         } catch (err) {
@@ -415,7 +415,7 @@ class PurgeNonActionInfo {
             parent_id : this.#markerAction.parent_id,
             season_id : this.#markerAction.season_id,
             show_id : this.#markerAction.show_id,
-            section_id : PlexClientState.GetState().activeSection(),
+            section_id : PlexClientState.activeSection(),
             marker_type : this.#markerAction.marker_type,
             final : this.#markerAction.final,
         };
@@ -457,7 +457,7 @@ class TVPurgeRow extends PurgeRow {
         dummyShow.addInternal(dummySeason.id, dummySeason);
         dummySeason.addInternal(dummyEpisode.id, dummyEpisode);
         dummyEpisode.addNewMarker(markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
+        PurgeManagerSingleton.onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 }
 
@@ -485,7 +485,7 @@ class MoviePurgeRow extends PurgeRow {
         let dummyMovie = new PurgedMovie(markerAction.parent_id, dummyLibrary);
         dummyLibrary.addInternal(dummyMovie.id, dummyMovie);
         dummyMovie.addNewMarker(markerAction);
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
+        PurgeManagerSingleton.onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 }
 
@@ -696,7 +696,7 @@ class PurgeTable {
         // Need a deep copy of purgedShow so we don't get confused between markers that are
         // still purged and those that were just cleared in onPurgedMarkerAction.
         dummyLibrary.addInternal(this.#purgedGroup.id, this.#purgedGroup.deepClone());
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
+        PurgeManagerSingleton.onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
 
     /**
@@ -910,7 +910,7 @@ class PurgeOverlay {
      * @param {MarkerData[]} modifiedMarkers Array of edited markers as a result of the restore (or null as above) */
     #onBulkActionSuccess(newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
         this.#onTableRemoved();
-        PurgedMarkerManager.GetManager().onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers, deletedMarkers, modifiedMarkers);
+        PurgeManagerSingleton.onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers, deletedMarkers, modifiedMarkers);
     }
 
     /**
@@ -943,13 +943,17 @@ class PurgeOverlay {
 }
 
 /**
+ * Singleton instance of the PurgedMarkerManager
+ * @type {PurgedMarkerManager}
+ * @readonly */
+let PurgeManagerSingleton;
+
+/**
  * Manages purged markers, i.e. markers that the user added/edited, but Plex removed for one reason
  * or another, most commonly because a new file was added to a season with modified markers.
  * TODO: Consolidate/integrate/reconcile with PurgeTable
  */
 class PurgedMarkerManager {
-    static #manager;
-
     /**
      * Hierarchical cache of known purged markers in the current server.
      * @type {PurgedServer} */
@@ -960,29 +964,36 @@ class PurgedMarkerManager {
      * @type {AgnosticPurgeCache} */
     #purgeCache = new AgnosticPurgeCache();
 
-    /** Create a new manager for the given client state.
+    static CreateInstance(findAllEnabled) {
+        if (PurgeManagerSingleton) {
+            Log.error('We should only have a single PlexUI instance!');
+            return;
+        }
+
+        PurgeManagerSingleton = new PurgedMarkerManager(findAllEnabled);
+    }
+
+    /**
+     * Create a new manager for the given client state.
      * @param {boolean} findAllEnabled Whether the user can search for all purged markers for a given section. */
     constructor(findAllEnabled) {
+        if (PurgeManagerSingleton) {
+            throw new Error(`Don't create a new PurgedMarkerManager when the singleton already exists!`);
+        }
+
         if (findAllEnabled) {
             $$('#findAllPurgedHolder').classList.remove('hidden');
             const button = $$('#purgedMarkers');
             $$('#purgedMarkers').addEventListener('click', this.findPurgedMarkers.bind(this, false));
             Tooltip.setTooltip(button, 'Search for user modified markers<br>that Plex purged from its database.');
         }
-
-        PurgedMarkerManager.#manager = this;
     }
-
-    /**
-     * Retrieve the singleton manager instance.
-     * @returns {PurgedMarkerManager} */
-    static GetManager() { return this.#manager; }
 
     /**
      * Find all purged markers for the current library section.
      * @param {boolean} [dryRun=false] Whether we just want to populate our purge data, not show it. */
     async findPurgedMarkers(dryRun=false) {
-        const section = PlexClientState.GetState().activeSection();
+        const section = PlexClientState.activeSection();
         const cachedSection = this.#serverPurgeInfo.get(section);
         if (cachedSection && cachedSection.status == PurgeCacheStatus.Complete) {
             // We have full cached data, used that.
@@ -1005,7 +1016,7 @@ class PurgedMarkerManager {
      * @param {number} showId
      * @throws {Error} if the purge_check fails */
     async getPurgedShowMarkers(showId) {
-        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection());
+        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.activeSection());
         const show = (await this.#getPurgedTopLevelMarkersShared(section, showId));
         if (show === false) {
             return; // We already cached things, no need to update season/episode map.
@@ -1025,7 +1036,7 @@ class PurgedMarkerManager {
      * Retrieve all purged markers for the movie with the given metadata id.
      * @param {number} movieId */
     async getPurgedMovieMarkers(movieId) {
-        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.GetState().activeSection(), true /*isMovie*/);
+        const section = this.#serverPurgeInfo.getOrAdd(PlexClientState.activeSection(), true /*isMovie*/);
         await this.#getPurgedTopLevelMarkersShared(section, movieId);
     }
 
@@ -1113,10 +1124,10 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
-        await PlexClientState.GetState().notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
+        await PlexClientState.notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
 
         // After everything's updated, reapply the current filter in case the new/removed items affected anything
-        PlexUI.Get().onFilterApplied();
+        PlexUI.onFilterApplied();
     }
 
     /**
@@ -1206,7 +1217,7 @@ class PurgedMarkerManager {
      * @param {PurgeSection} purgeSection Tree of purged markers in the current library section.
      * @param {boolean} dryRun Whether we just want to populate our cache data, not show the purges. */
     #onMarkersFound(purgeSection, dryRun) {
-        if (PlexClientState.GetState().activeSectionType() == SectionType.Movie) {
+        if (PlexClientState.activeSectionType() == SectionType.Movie) {
             for (const [movieId, movie] of Object.entries(purgeSection)) {
                 const movieCache = this.#purgeCache.get(movieId);
                 if (movieCache && movieCache.status == PurgeCacheStatus.Complete) {
@@ -1244,7 +1255,7 @@ class PurgedMarkerManager {
             }
         }
 
-        const activeSection = PlexClientState.GetState().activeSection();
+        const activeSection = PlexClientState.activeSection();
         this.#serverPurgeInfo.getOrAdd(activeSection).status = PurgeCacheStatus.Complete;
         if (dryRun) {
             return;
@@ -1254,4 +1265,4 @@ class PurgedMarkerManager {
     }
 }
 
-export default PurgedMarkerManager;
+export { PurgedMarkerManager, PurgeManagerSingleton as PurgedMarkers };

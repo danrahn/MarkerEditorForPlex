@@ -3,7 +3,7 @@ import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerComma
 import { Chart, PieChartOptions } from "./inc/Chart.js";
 import Overlay from "./inc/Overlay.js";
 import Tooltip from "./inc/Tooltip.js";
-import PlexClientState from "./PlexClientState.js";
+import { PlexClientState } from "./PlexClientState.js";
 
 /**
  * Available charts
@@ -58,7 +58,7 @@ class MarkerBreakdownManager {
             'Cancel');
 
         try {
-            const rawBreakdown = await ServerCommand.getMarkerStats(PlexClientState.GetState().activeSection());
+            const rawBreakdown = await ServerCommand.getMarkerStats(PlexClientState.activeSection());
             this.#currentBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
             this.#showMarkerBreakdown(BreakdownType.Combined);
         } catch (err) {

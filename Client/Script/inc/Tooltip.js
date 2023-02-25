@@ -147,6 +147,26 @@ let Tooltip = new function()
     };
 
     /**
+     * Cached border width of the tooltip. Assumes that it does not change over the course of the session
+     * @type {number?} */
+    let tooltipBorderAdjustment = undefined;
+
+    /**
+     * Retrieve the border width of the tooltip. If we have a cached value, return it,
+     * otherwise do the one-time calculation.
+     * @param {HTMLElement} tooltip
+     * @return {number} */
+    let borderWidth = function(tooltip) {
+        if (tooltipBorderAdjustment !== undefined) {
+            return tooltipBorderAdjustment;
+        }
+
+        const style = getComputedStyle(tooltip);
+        tooltipBorderAdjustment = parseInt(style.borderLeftWidth) + parseInt(style.borderRightWidth);
+        return tooltipBorderAdjustment;
+    };
+
+    /**
      * Core routine to show a tooltip and update its position.
      * Should not be called outside of this file.
      * @param {MouseEvent} e The MouseEvent that triggered this function.
@@ -182,7 +202,9 @@ let Tooltip = new function()
         tooltip.style.top = (Math.min(rawHeight, maxHeight) + 20) + "px";
 
         const avoidOverlay = rawHeight > maxHeight ? 10 : 0;
-        const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay;
+        // Border isn't included in clientWidth, which can cause us to slowly shrink a tooltip that's on the right edge.
+        const borderAdjust = borderWidth(tooltip);
+        const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
         const maxWidth = window.innerWidth + window.scrollX - widthAdjust;
         tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + "px";
     };

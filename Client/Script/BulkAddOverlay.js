@@ -4,7 +4,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
 import Overlay from './inc/Overlay.js';
-import PlexClientState from './PlexClientState.js';
+import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
 import Tooltip from './inc/Tooltip.js';
 
@@ -196,9 +196,9 @@ class BulkAddOverlay {
 
 
             // Need to do this more efficiently. We can duplicate lots of server calls by separating these three.
-            await PlexClientState.GetState().notifyBulkActionChange(deletes, BulkActionType.Delete);
-            await PlexClientState.GetState().notifyBulkActionChange(adds, BulkActionType.Add);
-            await PlexClientState.GetState().notifyBulkActionChange(edits, BulkActionType.Shift);
+            await PlexClientState.notifyBulkActionChange(deletes, BulkActionType.Delete);
+            await PlexClientState.notifyBulkActionChange(adds, BulkActionType.Add);
+            await PlexClientState.notifyBulkActionChange(edits, BulkActionType.Shift);
 
         } catch(err) {
             await BulkActionCommon.flashButton('bulkAddApply', 'red', 250);

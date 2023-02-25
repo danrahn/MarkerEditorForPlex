@@ -4,13 +4,11 @@ import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
 import Tooltip from "./inc/Tooltip.js";
 
 import ButtonCreator from "./ButtonCreator.js";
-import SettingsManager from "./ClientSettings.js";
+import { ClientSettings } from "./ClientSettings.js";
 import { MarkerRow } from "./MarkerTableRow.js";
-import PlexClientState from "./PlexClientState.js";
 import { Log } from "../../Shared/ConsoleLog.js";
-import { EpisodeResultRow } from "./ResultRow.js";
 import { MediaItemWithMarkerTable } from "./ClientDataExtensions.js";
-import MarkerTable from "./MarkerTable.js";
+
 /** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
 
 
@@ -278,7 +276,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * Whether we ran into an error when loading a thumbnail.
      * @type {boolean} */
     #thumbnailError = false;
-    #thumbnailsCollapsed = SettingsManager.Get().collapseThumbnails();
+    #thumbnailsCollapsed = ClientSettings.collapseThumbnails();
 
     /** @param {MarkerRow} markerRow The marker row to edit. */
     constructor(markerRow) {
@@ -311,7 +309,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             { thisArg : this }
         );
 
-        if (SettingsManager.Get().autoLoadThumbnails()) {
+        if (ClientSettings.autoLoadThumbnails()) {
             Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail.');
         }
 
@@ -328,7 +326,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             child.classList.add('hidden');
         }
 
-        const startCollapsed = SettingsManager.Get().collapseThumbnails();
+        const startCollapsed = ClientSettings.collapseThumbnails();
         const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
         const btn = ButtonCreator.fullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', this.#expandContractThumbnails.bind(this));
         btn.classList.add('thumbnailShowHide');
@@ -376,7 +374,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {HTMLElement} input
      * @param {KeyboardEvent} e */
     #handleThumbnailAutoLoad(input, e) {
-        if (!SettingsManager.Get().autoLoadThumbnails()) {
+        if (!ClientSettings.autoLoadThumbnails()) {
             return;
         }
 

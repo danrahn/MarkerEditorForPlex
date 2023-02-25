@@ -252,7 +252,7 @@ class FilterDialog {
         }
         
         FilterSettings.creditsCondition = creditsCondition;
-        PlexUI.Get().onFilterApplied();
+        PlexUI.onFilterApplied();
         Overlay.dismiss();
     }
 
@@ -260,7 +260,7 @@ class FilterDialog {
      * Clear any existing filter. */
     #resetFilter() {
         FilterSettings.resetFilter();
-        PlexUI.Get().onFilterApplied();
+        PlexUI.onFilterApplied();
         Overlay.dismiss();
     }
 }
