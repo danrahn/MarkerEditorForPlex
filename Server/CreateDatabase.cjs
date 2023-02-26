@@ -13,8 +13,9 @@ const Sqlite3 = require('sqlite3');
 async function CreateDatabase(path, allowCreate) {
     const openFlags = Sqlite3.OPEN_READWRITE | (allowCreate ? Sqlite3.OPEN_CREATE : 0);
     return new Promise((resolve, _) => {
-        let db = new Sqlite3.Database(path, openFlags, (err) => {
+        const db = new Sqlite3.Database(path, openFlags, (err) => {
             if (err) { err.code = 500; throw err; } // To avoid ServerError.js import from cjs module
+
             resolve(db);
         });
     });

@@ -1,28 +1,28 @@
 /** External dependencies */
+import { dirname, join } from 'path';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { createServer } from 'http';
-import Open from 'open';
-import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import Open from 'open';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 /** @typedef {!import('http').Server} httpServer */
 
+/** Server+Client shared dependencies */
+import { Log } from '../Shared/ConsoleLog.js';
+
 /** Server dependencies */
+import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
+import { Config, IntroEditorConfig } from './IntroEditorConfig.js';
+import { GetServerState, ServerState, SetServerState } from './ServerState.js';
+import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
-import { MarkerBackupManager, BackupManager } from './MarkerBackupManager.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
-import { IntroEditorConfig, Config } from './IntroEditorConfig.js';
 import { PlexQueryManager } from './PlexQueryManager.js';
 import ServerCommands from './ServerCommands.js';
 import ServerError from './ServerError.js';
-import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import { ServerState, GetServerState, SetServerState } from './ServerState.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
-
-/** Server+Client shared dependencies */
-import { Log } from '../Shared/ConsoleLog.js';
 
 /**
  * HTTP server instance.
@@ -112,14 +112,14 @@ function setupTerminateHandlers() {
 function writeErrorToFile(message) {
     try {
         // Early init failures won't have a valid Config, so grab the project root directly.
-        let logDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Logs');
+        const logDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Logs');
         if (!existsSync(logDir)) {
             mkdirSync(logDir);
         }
 
         const now = new Date();
-        let padLeft = (str, pad=2) => ("00" + str).substr(-pad);
-        let time = `${now.getFullYear()}.${padLeft(now.getMonth() + 1)}.${padLeft(now.getDate())}.` +
+        const padLeft = (str, pad=2) => ('00' + str).substr(-pad);
+        const time = `${now.getFullYear()}.${padLeft(now.getMonth() + 1)}.${padLeft(now.getDate())}.` +
             `${padLeft(now.getHours())}.${padLeft(now.getMinutes())}.${padLeft(now.getSeconds())}.` +
             `${padLeft(now.getMilliseconds(), 3)}`;
         const filename = `IntroEditor.${time}.err`;
@@ -215,7 +215,7 @@ function userRestart(res) {
 function userSuspend(res) {
     Log.verbose('Attempting to pause the server');
     if (GetServerState() != ServerState.Running) {
-        return sendJsonError(res, new ServerError('Server is either already suspended or shutting down.', 400))
+        return sendJsonError(res, new ServerError('Server is either already suspended or shutting down.', 400));
     }
 
     SetServerState(ServerState.Suspended);
@@ -263,8 +263,9 @@ async function launchServer() {
             const url = `http://${Config.host()}:${Config.port()}`;
             Log.info(`Server running at ${url} (Ctrl+C to exit)`);
             if (process.env.IS_DOCKER) {
-                Log.info(`NOTE: External port will be different when run in Docker, based on '-p' passed into docker run`)
+                Log.info(`NOTE: External port will be different when run in Docker, based on '-p' passed into docker run`);
             }
+
             if (Config.autoOpen() && GetServerState() == ServerState.FirstBoot) {
                 Log.info('Launching browser...');
                 Open(url);
@@ -380,8 +381,8 @@ async function handlePost(req, res) {
 /**
  * Returns test override data specified in the command line, if any.
  * @returns {{isTest: boolean, configOverride : string?}} */
- function checkTestData() {
-    let testData = {
+function checkTestData() {
+    const testData = {
         isTest : false,
         configOverride : null,
     };

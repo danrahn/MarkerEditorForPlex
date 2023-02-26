@@ -1,5 +1,6 @@
-import { errorResponseOverlay, ServerCommand } from "./Common.js";
-import Overlay from "./inc/Overlay.js";
+import { errorResponseOverlay, ServerCommand } from './Common.js';
+
+import Overlay from './inc/Overlay.js';
 
 /**
  * Static class that is responsible for displaying an undismissible overlay letting the user know

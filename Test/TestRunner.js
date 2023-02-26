@@ -3,17 +3,18 @@ import fetch from 'node-fetch';
 
 // Test dependencies
 import TestBase from './TestBase.js';
+
 import BasicCRUD from './TestClasses/BasicCRUDTest.js';
-import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
 import ImageTest from './TestClasses/ImageTest.js';
+import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
 
 // Server/Shared dependencies
-import { ServerState, GetServerState } from '../Server/ServerState.js';
+import { GetServerState, ServerState } from '../Server/ServerState.js';
+import BulkAddTest from './TestClasses/BulkAddTest.js';
+import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
-import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
-import BulkAddTest from './TestClasses/BulkAddTest.js';
 
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
@@ -44,9 +45,9 @@ class TestRunner {
      * Run all available test classes. */
     async runAll() {
         TestLog.info(`Running all tests`);
-        let totals = { success : 0, fail : 0 };
+        const totals = { success : 0, fail : 0 };
         for (const classDef of Object.values(TestRunner.TestClasses)) {
-            let testClass = new classDef();
+            const testClass = new classDef();
             const result = await testClass.runTests();
             totals.success += result.success;
             totals.fail += result.fail;
@@ -67,7 +68,7 @@ class TestRunner {
             throw new Error(`Test class ${className} not found. Make sure casing is correct.`);
         }
 
-        let testClass = new TestRunner.TestClasses[className]();
+        const testClass = new TestRunner.TestClasses[className]();
         const result = await testClass.runTests(testMethod);
         this.printResults(result);
         return this.#shutdown();
@@ -85,7 +86,13 @@ class TestRunner {
      * Shut down the test server if necessary. */
     async #shutdown() {
         if (GetServerState() == ServerState.Running || GetServerState() == ServerState.Suspended) {
-            return fetch(`http://localhost:3233/shutdown`, { method : 'POST', headers : { accept : 'application/json' } }).then(d => d.json()).then(_ => {
+            return fetch(
+                `http://localhost:3233/shutdown`,
+                {
+                    method : 'POST',
+                    headers : { accept : 'application/json' }
+                }
+            ).then(d => d.json()).then(_ => {
                 TestLog.info('Finished running tests, cleaning up and exiting process.');
                 TestBase.Cleanup();
             }).catch(err => {

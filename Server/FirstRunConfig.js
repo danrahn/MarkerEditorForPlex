@@ -1,9 +1,10 @@
 import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
 import { createInterface as createReadlineInterface } from 'readline';
+import { join } from 'path';
 /** @typedef {!import('readline').Interface} Interface */
 
 import { Log } from '../Shared/ConsoleLog.js';
+
 import { IntroEditorConfig } from './IntroEditorConfig.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
 
@@ -20,13 +21,13 @@ async function FirstRunConfig(dataRoot) {
     }
 
     const rl = createReadlineInterface({
-        input: process.stdin,
-        output: process.stdout });
+        input : process.stdin,
+        output : process.stdout });
     console.log();
     if (!await askUserYesNo('Welcome to Marker Editor for Plex! It looks like this is your first run, as config.json\n' +
                             'could not be found. Would you like to go through the first-time setup', true, rl)) {
         if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
-            writeFileSync(configPath, "{}\n");
+            writeFileSync(configPath, '{}\n');
             console.log('Wrote default configuration file to avoid subsequent checks.');
         } else {
             Log.warn('Not going through first-time setup, attempting to use defaults for everything.');
@@ -42,12 +43,13 @@ async function FirstRunConfig(dataRoot) {
     console.log();
     console.log('If you are asked to provide a path, provide it without quotes or other escaped characters.');
     console.log();
+    /* eslint-disable-next-line max-len */
     console.log('For more information about what these settings control, see https://github.com/danrahn/IntroEditorForPlex/wiki/Configuration');
     console.log();
     await askUserCore('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ', rl);
     console.log();
 
-    let config = {};
+    const config = {};
 
     const isDocker = process.env.IS_DOCKER;
     if (isDocker) {
@@ -59,7 +61,7 @@ async function FirstRunConfig(dataRoot) {
     } else {
         const defaultPath = IntroEditorConfig.getDefaultPlexDataPath();
         config.dataPath = await askUserPath('Plex data directory path', rl, defaultPath);
-        let defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
+        const defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
         config.database = await askUserPath('Plex database path', rl, defaultDb);
         config.host = await askUser('Editor host', 'localhost', rl);
         config.port = await askUser('Editor port', '3232', rl, validPort, 'Invalid port number');
@@ -76,26 +78,29 @@ async function FirstRunConfig(dataRoot) {
         console.log(`Preview thumbnails can use either Plex's generated thumbnails or generate them`);
         console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);
         console.log(`and use fewer resources, they are far less accurate, and are not available if`);
-        console.log(`they are disabled in your library.`)
-        config.features.preciseThumbnails = !await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
+        console.log(`they are disabled in your library.`);
+        config.features.preciseThumbnails =
+            !await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
     }
 
     config.features.pureMode = await askUserYesNo('Do you want to enable pureMode (see wiki)', false, rl);
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');
-    writeFileSync(configPath, JSON.stringify(config, null, 4) + "\n");
+    writeFileSync(configPath, JSON.stringify(config, null, 4) + '\n');
     rl.close();
 }
 
 /**
- * Asks the user to provide a path. If the default path provided exists, 
+ * Asks the user to provide a path. If the default path provided exists,
+ * return that if the users enters 'auto', otherwise continue asking until
+ * a valid path is provided.
  * @param {string} question
  * @param {Interface} rl
  * @param {string} defaultPath */
 async function askUserPath(question, rl, defaultPath) {
     const defaultExists = defaultPath.length != 0 && existsSync(defaultPath);
-    while (true) {
-        let answer = await askUser(question, 'auto', rl, existsSync, 'Path does not exist');
+    for (;;) {
+        const answer = await askUser(question, 'auto', rl, existsSync, 'Path does not exist');
         if (answer != 'auto') {
             return answer;
         }
@@ -117,9 +122,9 @@ async function askUserPath(question, rl, defaultPath) {
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
 async function askUser(question, defaultValue, rl, validateFunc=null, validateMsg=null) {
-    question = question + ` (default: ${defaultValue}): `;
-    while (true) {
-        let answer = await askUserCore(question, rl);
+    question += ` (default: ${defaultValue}): `;
+    for (;;) {
+        const answer = await askUserCore(question, rl);
         if (answer.length == 0 || !validateFunc || validateFunc(answer)) {
             return answer.length == 0 ? defaultValue : answer;
         }
@@ -137,14 +142,14 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
  * @param {Interface} rl The console interface.
  * @returns {Promise<boolean>} */
 async function askUserYesNo(question, defaultValue, rl) {
-    question = question + ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
-    while (true) {
-        let answer = await askUserCore(question, rl);
+    question += ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
+    for (;;) {
+        const answer = await askUserCore(question, rl);
         if (answer.length == 0) {
             return defaultValue;
         }
 
-        let firstLetter = answer[0].toLowerCase();
+        const firstLetter = answer[0].toLowerCase();
         if (firstLetter == 'y') {
             return true;
         }

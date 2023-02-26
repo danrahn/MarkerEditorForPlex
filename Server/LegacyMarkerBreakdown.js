@@ -1,4 +1,4 @@
-import { Log } from "../Shared/ConsoleLog.js";
+import { Log } from '../Shared/ConsoleLog.js';
 
 /**
  * Manages cached marker breakdown stats, used when extendedMarkerStats are disabled.

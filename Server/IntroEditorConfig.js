@@ -44,7 +44,7 @@ class ConfigBase {
      * @returns The retrieved property value.
      * @throws if `value` is not in the config and `defaultValue` is not set. */
     #getOrDefault(key, defaultValue=null) {
-        if (!this.#json.hasOwnProperty(key)) {
+        if (!Object.prototype.hasOwnProperty.call(this.#json, key)) {
             if (defaultValue == null) {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
             }
@@ -90,7 +90,7 @@ class PlexFeatures extends ConfigBase {
     /** Sets the application features based on the given json.
      * @param {object} json */
     constructor(json) {
-        let baseClass = {};
+        const baseClass = {};
         super(json, baseClass);
         this.#Base = baseClass;
         if (!json) {
@@ -148,12 +148,12 @@ class IntroEditorConfig extends ConfigBase {
 
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
-     #Base = {}
+    #Base = {};
 
-     /**
-      * The directory root of the project.
-      * @type {string} */
-     #root;
+    /**
+     * The directory root of the project.
+     * @type {string} */
+    #root;
 
     /** The path to the root of Plex's data directory.
      * https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/
@@ -183,7 +183,7 @@ class IntroEditorConfig extends ConfigBase {
     /** Creates a new IntroEditorConfig. */
     constructor(projectRoot, testData, dataRoot) {
         Log.info('Reading configuration...');
-        let baseClass = {};
+        const baseClass = {};
 
         let configFile = 'config.json';
         // If we're in a test environment, check for an override config file
@@ -213,10 +213,13 @@ class IntroEditorConfig extends ConfigBase {
             this.#port = 3232;
         } else {
             this.#dataPath = this.#getOrDefault('dataPath', IntroEditorConfig.getDefaultPlexDataPath());
-            this.#dbPath = this.#getOrDefault('database', join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+            this.#dbPath = this.#getOrDefault(
+                'database',
+                join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+
             this.#host = this.#getOrDefault('host', 'localhost');
             this.#port = this.#getOrDefault('port', 3232);
-            }
+        }
 
         this.#verifyPathExists(this.#dbPath, 'database');
         this.#features = new PlexFeatures(this.#Base.json.features);

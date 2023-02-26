@@ -1,13 +1,13 @@
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
-import { ShiftApplyType } from './Commands/CoreCommands.js';
-
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import QueryParser from './QueryParse.js';
 import ServerError from './ServerError.js';
+import { ShiftApplyType } from './Commands/CoreCommands.js';
 
 class ServerCommands {
+    /* eslint-disable indent, max-len */
     /**
     * Map endpoints to their corresponding functions. Also breaks out and validates expected query parameters.
     * @type {{[endpoint: string]: (params : QueryParser) => Promise<any>}} */
@@ -25,7 +25,7 @@ class ServerCommands {
 
 
         query         : async (params) => await QueryCommands.queryIds(params.ia('keys')),
-        get_sections  : async (_     ) => await QueryCommands.getLibraries(),
+        get_sections  : async (_)      => await QueryCommands.getLibraries(),
         get_section   : async (params) => await QueryCommands.getLibrary(params.i('id')),
         get_seasons   : async (params) => await QueryCommands.getSeasons(params.i('id')),
         get_episodes  : async (params) => await QueryCommands.getEpisodes(params.i('id')),
@@ -33,7 +33,7 @@ class ServerCommands {
         get_stats     : async (params) => await QueryCommands.allStats(params.i('id')),
         get_breakdown : async (params) => await QueryCommands.getMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
 
-        get_config    : async (_     ) => await GeneralCommands.getConfig(),
+        get_config    : async (_)      => await GeneralCommands.getConfig(),
         log_settings  : async (params) => await GeneralCommands.setLogSettings(...params.ints('level', 'dark', 'trace')),
 
         purge_check   : async (params) => await PurgeCommands.purgeCheck(params.i('id')),
@@ -41,6 +41,7 @@ class ServerCommands {
         restore_purge : async (params) => await PurgeCommands.restoreMarkers(params.ia('markerIds'), ...params.ints('sectionId', 'resolveType')),
         ignore_purge  : async (params) => await PurgeCommands.ignorePurgedMarkers(params.ia('markerIds'), params.i('sectionId')),
     };
+    /* eslint-enable */
 
     /**
      * Reset the state of the command controller. */

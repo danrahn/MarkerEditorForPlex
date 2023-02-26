@@ -1,6 +1,8 @@
 import { Log } from '../Shared/ConsoleLog.js';
+
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
-import DatabaseWrapper from './DatabaseWrapper.js';
+
+/** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
 /**
@@ -183,7 +185,8 @@ class MarkerCacheManager {
     /** The tag_id in the Plex database that corresponds to markers. */
     #tagId;
 
-    /** The connection to the Plex database. */
+    /** The connection to the Plex database.
+     * @type {DatabaseWrapper} */
     #database;
 
     /**
@@ -267,7 +270,7 @@ class MarkerCacheManager {
         try { // This _really_ shouldn't fail, but ¯\_(ツ)_/¯
             return this.#markerHierarchy[sectionId].markerBreakdown.data();
         } catch (ex) {
-            Log.error(ex.message,'Something went wrong when gathering the section overview');
+            Log.error(ex.message, 'Something went wrong when gathering the section overview');
             Log.error('Attempting to fall back to markerBreakdownCache data.');
             return false;
         }
@@ -277,7 +280,7 @@ class MarkerCacheManager {
      * Retrieve marker breakdown stats for a top-level library item (i.e. a movie or an entire show).
      * @param {number} metadataId The metadata id for the TV Show/movie */
     getTopLevelStats(metadataId) {
-        let item = this.#topLevelItemFromId(metadataId);
+        const item = this.#topLevelItemFromId(metadataId);
         if (!item) {
             Log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
             // Attempt to update the cache after the fact.
@@ -294,7 +297,7 @@ class MarkerCacheManager {
      * @param {number} seasonId The metadata id of the season. */
     getSeasonStats(showId, seasonId) {
         // Like topLevelItemFromId, just the show's metadataId is okay.
-        let show = this.#topLevelItemFromId(showId);
+        const show = this.#topLevelItemFromId(showId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
             this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, showId);
@@ -313,12 +316,12 @@ class MarkerCacheManager {
      * Retrieve marker breakdown stats for a given show, along with individual season stats.
      * @param {number} showId The metadata id of the show to retrieve data for. */
     getTreeStats(showId) {
-        let show = this.#topLevelItemFromId(showId);
+        const show = this.#topLevelItemFromId(showId);
         if (!show) { return null; }
 
-        let treeData = {
-            showData: show.markerBreakdown.data(),
-            seasonData: {}
+        const treeData = {
+            showData : show.markerBreakdown.data(),
+            seasonData : {}
         };
 
         for (const [seasonId, seasonData] of Object.entries(show.seasons)) {
@@ -409,14 +412,14 @@ class MarkerCacheManager {
     #addMarkerData(tag) {
         const isMarker = tag.tag_id == this.#tagId;
         const isMovie = tag.show_id == -1;
-        let thisSection = this.#markerHierarchy[tag.section_id] ??= new MarkerSectionNode();
+        const thisSection = this.#markerHierarchy[tag.section_id] ??= new MarkerSectionNode();
         /** @type {BaseItemNode} */
         let base;
         if (isMovie) {
             base = thisSection.items[tag.parent_id] ??= new MarkerMovieNode(thisSection);
         } else {
-            let show = thisSection.items[tag.show_id] ??= new MarkerShowNode(thisSection);
-            let season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
+            const show = thisSection.items[tag.show_id] ??= new MarkerShowNode(thisSection);
+            const season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
             base = season.episodes[tag.parent_id] ??= new MarkerEpisodeNode(season);
         }
 
@@ -442,13 +445,13 @@ class MarkerCacheManager {
      * @param {MediaItemQueryResult} mediaItem */
     #initializeHierarchy(mediaItem) {
         const isMovie = mediaItem.show_id == -1;
-        let thisSection = this.#markerHierarchy[mediaItem.section_id] ??= new MarkerSectionNode();
+        const thisSection = this.#markerHierarchy[mediaItem.section_id] ??= new MarkerSectionNode();
         /** @type {BaseItemNode} */
         if (isMovie) {
             thisSection.items[mediaItem.id] ??= new MarkerMovieNode(thisSection);
         } else {
-            let show = thisSection.items[mediaItem.show_id] ??= new MarkerShowNode(thisSection);
-            let season = show.seasons[mediaItem.season_id] ??= new MarkerSeasonNode(show);
+            const show = thisSection.items[mediaItem.show_id] ??= new MarkerShowNode(thisSection);
+            const season = show.seasons[mediaItem.season_id] ??= new MarkerSeasonNode(show);
             season.episodes[mediaItem.id] ??= new MarkerEpisodeNode(season);
         }
 

@@ -1,8 +1,9 @@
+import { $, $$, appendChildren, buildNode, plural } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
-import ButtonCreator from './ButtonCreator.js';
-import { $, $$, appendChildren, buildNode, plural } from './Common.js';
 import Animation from './inc/Animate.js';
+
+import ButtonCreator from './ButtonCreator.js';
 
 /** @typedef {{[version: string]: { ignoreType : number, ignoreDate : number}}} UpdateCheckSettings */
 
@@ -27,7 +28,7 @@ class VersionManager {
     /**
      * @param {string} currentVersionString The reported version of this app */
     constructor(currentVersionString) {
-        this.#currentVersion = new Version(currentVersionString)
+        this.#currentVersion = new Version(currentVersionString);
     }
 
     /**
@@ -95,8 +96,12 @@ class VersionManager {
             select.appendChild(buildNode('option', { value : value }, optionText));
         }
 
+        const newest = newer[0].version.toString();
+        const current = this.#currentVersion.toString();
         this.#updateBar = appendChildren(buildNode('div', { id : 'updateBar', }),
-            buildNode('span', { id : 'updateString' }, `New version (${newer[0].version.toString()}) available, ${plural(newer.length, 'version')} ahead of ${this.#currentVersion.toString()}`),
+            buildNode('span',
+                { id : 'updateString' },
+                `New version (${newest}) available, ${plural(newer.length, 'version')} ahead of ${current}`),
             ButtonCreator.textButton('Go to Release', this.#updateCallback.bind(this), { auxclick : true }),
             buildNode('br'),
             buildNode('label', { for : 'updateRemind', id : 'updateRemindLabel' }, 'Or, remind me: '),
@@ -140,7 +145,9 @@ class VersionManager {
 
         Log.verbose(`ShouldCheckForUpdates: Time since last check (ms): ${dateDiff}. Cutoff: ${cutoff}`);
         if (cutoff == -1) { return false; }
+
         if (cutoff == 0) { return true; }
+
         return dateDiff >= cutoff;
     }
 
@@ -187,7 +194,7 @@ const IgnoreOptions = {
     Day   : 2,
     Week  : 3,
     Never : 4,
-}
+};
 
 /**
  * Maps hour/day/week to milliseconds */
@@ -195,7 +202,7 @@ const IgnoreTimings = {
     Hour  : 60 * 60 * 1000,
     Day   : 60 * 60 * 24 * 1000,
     Week  : 60 * 60 * 24 * 7 * 1000,
-}
+};
 
 /**
  * Represents a semantic-ish version of Marker Editor
@@ -217,6 +224,7 @@ class Version {
      * @param {Version} versionB
      * @returns {number} Negative number if A is less than B, 0 if equal, positive of A is greater than B. */
     static Compare(versionA, versionB) {
+        /* eslint-disable padding-line-between-statements */
         let diff = versionA.major - versionB.major;
         if (diff != 0) { return diff; }
         diff = versionA.minor - versionB.minor;
@@ -228,6 +236,7 @@ class Version {
         if (versionA.releaseTypeInfo.type == PrereleaseType.ReleaseCandidate) {
             return versionA.releaseTypeInfo.rcVersion - versionB.releaseTypeInfo.rcVersion;
         }
+        /* eslint-enable */
 
         return 0;
     }
@@ -267,7 +276,7 @@ class Version {
         this.minor = parseInt(parts[2]);
         this.patch = parseInt(parts[3]);
         if (parts[4]) {
-            let partLower = parts[4].toLowerCase();
+            const partLower = parts[4].toLowerCase();
             switch (partLower) {
                 case 'alpha':
                     this.releaseTypeInfo.type = PrereleaseType.Alpha;
@@ -276,7 +285,10 @@ class Version {
                     this.releaseTypeInfo.type = PrereleaseType.Beta;
                     break;
                 default:
-                    Log.assert(partLower.startsWith('rc') && parts[5], `Version: Expected rc with a valid rc number if not alpha or beta, found ${partLower}.`);
+                    Log.assert(
+                        partLower.startsWith('rc') && parts[5],
+                        `Version: Expected rc with a valid rc number if not alpha or beta, found ${partLower}.`);
+
                     this.releaseTypeInfo.type = PrereleaseType.ReleaseCandidate;
                     this.releaseTypeInfo.rcVersion = parseInt(parts[5]);
                     break;
@@ -304,6 +316,6 @@ const PrereleaseType = {
     Beta : 1,
     ReleaseCandidate : 2,
     Released : 3,
-}
+};
 
 export default VersionManager;

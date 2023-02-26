@@ -1,16 +1,28 @@
+import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
+
+import Overlay from './inc/Overlay.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
-import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
-import Overlay from './inc/Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').EpisodeData} EpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+
+/** @typedef {!import('../../Shared/PlexTypes').EpisodeData} EpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+
+/**
+ * @typedef {Object} IgnoreInfo
+ * @property {number[]} ignored List of ignored marker ids
+ * @property {boolean} tableVisible Whether the customization table is visible
+ * @property {boolean} hasUnresolved Whether any markers are in an unresolved state
+ * @property {boolean} hasCutoff Whether any markers are partially cut off by the shift
+ * @property {boolean} hasError Whether any markers are completely cut off by the shift
+ */
 
 /**
  * UI for bulk shifting markers for a given show/season by a set amount of time.
@@ -52,8 +64,8 @@ class BulkShiftOverlay {
     /**
      * Launch the bulk shift overlay. */
     show() {
-        let container = buildNode('div', { id : 'bulkActionContainer' })
-        let title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
+        const container = buildNode('div', { id : 'bulkActionContainer' });
+        const title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
         this.#startTimeInput = buildNode(
             'input', {
                 type : 'text',
@@ -64,16 +76,14 @@ class BulkShiftOverlay {
             0,
             { keyup : this.#onTimeShiftChange.bind(this) });
 
-        this.#endTimeInput = buildNode(
-                'input', {
-                    type : 'text',
-                    placeholder : 'ms or mm:ss[.000]',
-                    name : 'shiftEndTime',
-                    id : 'shiftEndTime',
-                    class : 'hidden'
-                },
-                0,
-                { keyup : this.#onTimeShiftChange.bind(this) });
+        this.#endTimeInput = buildNode('input',
+            {   type : 'text',
+                placeholder : 'ms or mm:ss[.000]',
+                name : 'shiftEndTime',
+                id : 'shiftEndTime',
+                class : 'hidden' },
+            0,
+            { keyup : this.#onTimeShiftChange.bind(this) });
 
         const separateShiftCheck = buildNode(
             'input', {
@@ -95,14 +105,32 @@ class BulkShiftOverlay {
                 buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
                 separateShiftCheck),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
-                ButtonCreator.textButton('Apply', this.#tryApply.bind(this), { id : 'shiftApply', tooltip : 'Attempt to apply the given time shift. Brings up customization menu if any markers have multiple episodes.' }),
-                ButtonCreator.textButton('Force Apply', this.#forceApply.bind(this), { id : 'shiftForceApplyMain', class : 'shiftForceApply', tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'}),
-                ButtonCreator.textButton('Customize', this.#check.bind(this), { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
+                ButtonCreator.textButton('Apply',
+                    this.#tryApply.bind(this),
+                    {
+                        id : 'shiftApply',
+                        tooltip : 'Attempt to apply the given time shift. ' +
+                                  'Brings up customization menu if any markers have multiple episodes.'
+                    }),
+                ButtonCreator.textButton('Force Apply',
+                    this.#forceApply.bind(this),
+                    {
+                        id : 'shiftForceApplyMain',
+                        class : 'shiftForceApply',
+                        tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'
+                    }),
+                ButtonCreator.textButton('Customize',
+                    this.#check.bind(this),
+                    { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss)
             )
         );
 
-        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => this.#startTimeInput?.focus() } }, container);
+        Overlay.build({
+            dismissible : true,
+            closeButton : true,
+            forceFullscreen : true,
+            setup : { fn : () => this.#startTimeInput?.focus() } }, container);
     }
 
     /**
@@ -136,6 +164,7 @@ class BulkShiftOverlay {
             $('#shiftEndTimeLabel').classList.remove('hidden');
             this.#endTimeInput.classList.remove('hidden');
             if (!this.#endTimeInput.value) { this.#endTimeInput.value = this.#startTimeInput.value; }
+
             this.#checkShiftValue();
         }
 
@@ -165,7 +194,7 @@ class BulkShiftOverlay {
         cutoffPlus : 'The current shift will cut off some markers, and ignore markers beyond the bounds of the episode.<br>' +
                      'Are you sure you want to continue?',
         invalidOffset : `Couldn't parse time offset, make sure it's valid.`
-    }
+    };
 
     /**
      * Display a message in the bulk shift overlay.
@@ -183,7 +212,10 @@ class BulkShiftOverlay {
         if (addForceButton) {
             node = appendChildren(buildNode('div', attributes),
                 buildNode('h4', {}, message),
-                ButtonCreator.textButton('Force shift', this.#forceApply.bind(this), { id : 'shiftForceApplySub', class : 'shiftForceApply' })
+                ButtonCreator.textButton(
+                    'Force shift',
+                    this.#forceApply.bind(this),
+                    { id : 'shiftForceApplySub', class : 'shiftForceApply' })
             );
         } else {
             node = buildNode('h4', attributes, message);
@@ -221,8 +253,8 @@ class BulkShiftOverlay {
      * Attempts to apply the given shift to all markers under the given metadata id.
      * If any episode has multiple markers, shows the customization table. */
     async #tryApply() {
-        let startShift = this.shiftStartValue();
-        let endShift = this.shiftEndValue();
+        const startShift = this.shiftStartValue();
+        const endShift = this.shiftEndValue();
         if (isNaN(startShift) || isNaN(endShift) || (!startShift && !endShift)) {
             this.#checkShiftValue();
             this.#showMessage('invalidOffset');
@@ -231,29 +263,7 @@ class BulkShiftOverlay {
 
         const ignoreInfo = this.#getIgnored();
         if (ignoreInfo.hasUnresolved) {
-            Log.assert(this.#table, `How do we know we have unresolved markers if the table isn't showing?`);
-
-            // If we've already shown the warning
-            const existingMessage = this.#getMessageType();
-            if (existingMessage && existingMessage != 'unresolvedPlus' && (ignoreInfo.hasCutoff || ignoreInfo.hasCutoff)) {
-                return this.#showMessage('unresolvedPlus', true);
-            }
-
-            if (existingMessage && existingMessage != 'unresolvedAgain') {
-                return this.#showMessage('unresolvedAgain', true);
-            }
-
-            // If we are already showing the force shift subdialog, just flash the button
-            if (existingMessage == 'unresolvedAgain' || existingMessage == 'unresolvedPlus') {
-                return BulkActionCommon.flashButton('shiftApply', 'red');
-            }
-
-            this.#showMessage('unresolved');
-            if (!this.#table) {
-                this.#check();
-            }
-
-            return;
+            return this.#warnAboutUnresolvedMarkers(ignoreInfo);
         }
 
         if (ignoreInfo.hasCutoff) {
@@ -264,7 +274,12 @@ class BulkShiftOverlay {
             return this.#showMessage('error', true);
         }
 
-        const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, startShift, endShift, false /*force*/, ignoreInfo.ignored);
+        const shiftResult = await ServerCommand.shift(
+            this.#mediaItem.metadataId,
+            startShift, endShift,
+            false /*force*/,
+            ignoreInfo.ignored);
+
         if (shiftResult.applied) {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Shift);
@@ -274,9 +289,41 @@ class BulkShiftOverlay {
             return;
         }
 
-        Log.assert(shiftResult.conflict || shiftResult.overflow, `We should only have !applied && !conflict during check_shift, not shift. What happened?`);
+        Log.assert(
+            shiftResult.conflict || shiftResult.overflow,
+            `We should only have !applied && !conflict during check_shift, not shift. What happened?`);
+
         this.#showMessage(shiftResult.overflow ? 'error' : 'unresolved', shiftResult.overflow);
         this.#showCustomizeTable(shiftResult);
+    }
+
+    /**
+     * Indicate to the user that unresolved markers are preventing the operating from completing.
+     * @param {IgnoreInfo} ignoreInfo */
+    async #warnAboutUnresolvedMarkers(ignoreInfo) {
+        Log.assert(this.#table, `How do we know we have unresolved markers if the table isn't showing?`);
+
+        // If we've already shown the warning
+        const existingMessage = this.#getMessageType();
+        if (existingMessage && existingMessage != 'unresolvedPlus' && (ignoreInfo.hasCutoff || ignoreInfo.hasCutoff)) {
+            return this.#showMessage('unresolvedPlus', true);
+        }
+
+        if (existingMessage && existingMessage != 'unresolvedAgain') {
+            return this.#showMessage('unresolvedAgain', true);
+        }
+
+        // If we are already showing the force shift subdialog, just flash the button
+        if (existingMessage == 'unresolvedAgain' || existingMessage == 'unresolvedPlus') {
+            return BulkActionCommon.flashButton('shiftApply', 'red');
+        }
+
+        this.#showMessage('unresolved');
+        if (!this.#table) {
+            this.#check();
+        }
+
+        return;
     }
 
     /**
@@ -291,7 +338,13 @@ class BulkShiftOverlay {
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
         const ignoreInfo = this.#getIgnored();
         try {
-            const shiftResult = await ServerCommand.shift(this.#mediaItem.metadataId, startShift, endShift, true /*force*/, ignoreInfo.ignored);
+            const shiftResult = await ServerCommand.shift(
+                this.#mediaItem.metadataId,
+                startShift,
+                endShift,
+                true /*force*/,
+                ignoreInfo.ignored);
+
             if (!shiftResult.applied) {
                 Log.assert(shiftResult.overflow, `Force apply should only fail if overflow was found.`);
                 this.#showCustomizeTable(shiftResult);
@@ -338,7 +391,7 @@ class BulkShiftOverlay {
             } else {
                 input.classList.remove('badInput');
             }
-        }
+        };
 
         this.#startShiftMs = timeToMs(this.#startTimeInput.value, true /*allowNegative*/);
         checkTime(this.#startShiftMs, this.#startTimeInput);
@@ -366,7 +419,7 @@ class BulkShiftOverlay {
 
         const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
         for (let i = 0; i < sortedMarkers.length; ++i) {
-            let checkGroup = [];
+            const checkGroup = [];
             const eInfo = shiftResult.episodeData[sortedMarkers[i].parentId];
             checkGroup.push(sortedMarkers[i]);
             while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
@@ -392,7 +445,8 @@ class BulkShiftOverlay {
     }
 
     /**
-     * Return information about ignored markers in the shift table. */
+     * Return information about ignored markers in the shift table.
+     * @returns {IgnoreInfo} */
     #getIgnored() {
         if (!this.#table) {
             return { ignored : [], tableVisible : false, hasUnresolved : false, hasCutoff : false, hasError : false };
@@ -548,19 +602,19 @@ class BulkShiftRow extends BulkActionRow {
                 [newStartNode, newEndNode].forEach(n => {
                     BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
                 });
-    
+
                 this.#isError = true;
-    
+
                 return;
             }
-    
+
             if (start < 0) {
                 BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true);
                 this.#isWarn = true;
             } else {
                 BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.On, true);
             }
-    
+
             if (end > maxDuration) {
                 this.#isWarn = true;
                 BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true);
@@ -587,7 +641,10 @@ class BulkShiftRow extends BulkActionRow {
 
         for (const linkedRow of linkedRows) {
             if (anyChecked) {
-                BulkShiftClasses.set(linkedRow.row.children[1], linkedRow.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error, true);
+                BulkShiftClasses.set(
+                    linkedRow.row.children[1],
+                    linkedRow.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error,
+                    true);
             } else {
                 BulkShiftClasses.set(linkedRow.row.children[1], BulkShiftClasses.Type.Warn, true);
             }
@@ -627,6 +684,6 @@ const BulkShiftClasses = {
             }
         }
     }
-}
+};
 
 export default BulkShiftOverlay;

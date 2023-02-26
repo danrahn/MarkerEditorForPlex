@@ -1,6 +1,7 @@
+/* eslint-disable max-len */
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
+/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
 
 /**
  * Test the behavior of bulk shifting markers. */
@@ -24,7 +25,7 @@ class ShiftTest extends TestBase {
             this.tryShiftSeasonWithoutIgnoreTest,
             this.shiftShowWithIgnoreTest,
             this.splitShiftSeasonTest,
-        ]
+        ];
     }
 
     className() { return 'ShiftTest'; }
@@ -105,7 +106,7 @@ class ShiftTest extends TestBase {
 
     async #verifyBadShift(episode, startShift, endShift) {
         /** @type {ShiftResult} */
-        let result = await this.send('shift', {
+        const result = await this.send('shift', {
             id : episode.Id,
             startShift : startShift,
             endShift : endShift,
@@ -284,14 +285,14 @@ class ShiftTest extends TestBase {
         }
 
         /** @type {ShiftResult} */
-        let result = await this.send('shift', params);
+        const result = await this.send('shift', params);
 
         TestHelpers.verify(result, `Expected successful 'shift' to return an object, found nothing.`);
         TestHelpers.verify(result.applied === true, `Expected successful 'shift' to return applied=true, found ${result.applied}.`);
         TestHelpers.verify(result.conflict == expectConflict, `Expected shift.conflict to be ${expectConflict}, found ${result.conflict}.`);
         TestHelpers.verify(result.overflow === false, `Expected successful 'shift' to have overflow bit unset, found ${result.overflow}.`);
 
-        let newMarkers = result.allMarkers;
+        const newMarkers = result.allMarkers;
         TestHelpers.verify(newMarkers instanceof Array, `Expected successful 'shift' to have an allMarkers field with an array of shifted markers.`);
         TestHelpers.verify(newMarkers.length == expectedLength, `Expected ${expectedLength} shifted marker(s), found ${newMarkers.length}`);
         return result;

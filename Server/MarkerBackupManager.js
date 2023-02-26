@@ -1,22 +1,22 @@
 // External dependencies
-import { existsSync, mkdirSync } from "fs";
-import { join as joinPath } from "path";
+import { existsSync, mkdirSync } from 'fs';
+import { join as joinPath } from 'path';
 
 // Client/Server shared dependencies
-import { Log } from "../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData, MovieData } from "../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MovieData } from '../Shared/PlexTypes.js';
+import { Log } from '../Shared/ConsoleLog.js';
 
 // Server dependencies/typedefs
-import DatabaseWrapper from "./DatabaseWrapper.js";
-import { MarkerCache } from "./MarkerCacheManager.js";
-import { ExtraData, MetadataType, PlexQueries } from "./PlexQueryManager.js";
-import ServerError from "./ServerError.js";
-import TransactionBuilder from "./TransactionBuilder.js";
-/** @typedef {!import("./PlexQueryManager.js").RawMarkerData} RawMarkerData */
-/** @typedef {!import("./PlexQueryManager.js").MultipleMarkerQuery} MultipleMarkerQuery */
+import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
+import DatabaseWrapper from './DatabaseWrapper.js';
+import { MarkerCache } from './MarkerCacheManager.js';
+import ServerError from './ServerError.js';
+import TransactionBuilder from './TransactionBuilder.js';
 
-/** @typedef {!import('../Shared/PlexTypes.js').PurgeShow} PurgeShow */
-/** @typedef {!import('../Shared/PlexTypes.js').PurgeSection} PurgeSection */
+/** @typedef {!import('../Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('../Shared/PlexTypes').PurgeShow} PurgeShow */
+/** @typedef {!import('./PlexQueryManager').MultipleMarkerQuery} MultipleMarkerQuery */
+/** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
 
 /*
@@ -137,13 +137,14 @@ Backup table V5 modifications:
 
 With the introduction of credit markers, there's a more compelling reason to allow movies
 to also be marked. The schema itself is still okay, but rename some columns so episodes
-aren't explicitly referenced. It would be nice if , but 
+aren't explicitly referenced.
+*/
 
 
 /**
  * The accepted operation types
  * @enum */
- const MarkerOp = {
+const MarkerOp = {
     /** The user added a marker. */
     Add : 1,
     /** The user edited a marker. */
@@ -154,6 +155,7 @@ aren't explicitly referenced. It would be nice if , but
     Restore : 4
 };
 
+/* eslint-disable indent */
 /** The main table. See above for details. */
 const ActionsTable = `
 CREATE TABLE IF NOT EXISTS actions (
@@ -184,6 +186,7 @@ CREATE TABLE IF NOT EXISTS actions (
     user_created INTEGER      DEFAULT 0
 );
 `;
+/* eslint-enable*/
 
 /**
  * A map of purged markers
@@ -218,6 +221,7 @@ ${ciine('sectionid', 'section_id')};
 ${ciine('markertype', 'marker_type')};
 `;
 
+/* eslint-disable indent */
 // Queries to execute when upgrading from SchemaUpgrades[version] to SchemaUpgrades[version + 1]
 const SchemaUpgrades = [
     // New database. Create the full table and its indexes. (and drop the existing actions table as a precaution)
@@ -241,25 +245,29 @@ const SchemaUpgrades = [
     // * Add marker_type, final for Credits support
     // * Add user_created to avoid timestamp hacks (and properly transfer status)
     // * Move to epoch timestamps.
+    /* eslint-disable max-len */
     `ALTER TABLE actions ADD COLUMN marker_type  VARCHAR(255) DEFAULT 'intro';
-     ALTER TABLE actions ADD COLUMN final        INTEGER      DEFAULT 0;
-     ALTER TABLE actions ADD COLUMN user_created INTEGER      DEFAULT 0;
-	 UPDATE actions SET user_created=1 WHERE substr(modified_at, length(modified_at))='*';
-     ${ciine('markertype', 'marker_type')};
-     PRAGMA writable_schema = TRUE;
-     UPDATE sqlite_schema SET sql = replace(replace(replace(sql, 'modified_at  VARCHAR(255)', 'modified_at  INTEGER'), 'DATETIME', 'INTEGER'), 'CURRENT_TIMESTAMP', "(strftime('%s', 'now'))") WHERE name='actions' AND type='table';
-     PRAGMA writable_schema = RESET;
-     UPDATE actions SET modified_at = iif(typeof(modified_at) in ('datetime', 'text'), CAST(strftime('%s', modified_at) as INTEGER), modified_at);
-     UPDATE actions SET created_at  = iif(typeof(created_at)  in ('datetime', 'text'), CAST(strftime('%s', created_at)  as INTEGER), created_at );
-     UPDATE actions SET recorded_at = iif(typeof(recorded_at) in ('datetime', 'text'), CAST(strftime('%s', recorded_at) as INTEGER), recorded_at);
-     UPDATE schema_version SET version=4;`,
+    ALTER TABLE actions ADD COLUMN final        INTEGER      DEFAULT 0;
+    ALTER TABLE actions ADD COLUMN user_created INTEGER      DEFAULT 0;
+	UPDATE actions SET user_created=1 WHERE substr(modified_at, length(modified_at))='*';
+    ${ciine('markertype', 'marker_type')};
+    PRAGMA writable_schema = TRUE;
+    UPDATE sqlite_schema SET sql = replace(replace(replace(sql, 'modified_at  VARCHAR(255)', 'modified_at  INTEGER'), 'DATETIME', 'INTEGER'), 'CURRENT_TIMESTAMP', "(strftime('%s', 'now'))") WHERE name='actions' AND type='table';
+    PRAGMA writable_schema = RESET;
+    UPDATE actions SET modified_at = iif(typeof(modified_at) in ('datetime', 'text'), CAST(strftime('%s', modified_at) as INTEGER), modified_at);
+    UPDATE actions SET created_at  = iif(typeof(created_at)  in ('datetime', 'text'), CAST(strftime('%s', created_at)  as INTEGER), created_at );
+    UPDATE actions SET recorded_at = iif(typeof(recorded_at) in ('datetime', 'text'), CAST(strftime('%s', recorded_at) as INTEGER), recorded_at);
+    UPDATE schema_version SET version=4;`,
+    /* eslint-enable */
 
-     // 4 -> 5:
-     // Movie support. No major changes, but rename episode_id/guid to parent_id/guid so it more generically refers to the marker's owner (either an episode or a movie)
-     `ALTER TABLE actions RENAME COLUMN episode_id TO parent_id;
-      ALTER TABLE actions RENAME COLUMN episode_guid TO parent_guid;
-      UPDATE schema_version SET version=5;`,
+    // 4 -> 5:
+    // Movie support. No major changes, but rename episode_id/guid to parent_id/guid so it more generically
+    // refers to the marker's owner (either an episode or a movie)
+    `ALTER TABLE actions RENAME COLUMN episode_id TO parent_id;
+     ALTER TABLE actions RENAME COLUMN episode_guid TO parent_guid;
+     UPDATE schema_version SET version=5;`,
 ];
+/* eslint-enable */
 
 /**
  * Singleton backup manager instance
@@ -296,7 +304,8 @@ class MarkerBackupManager {
         async () => { },
         this.#updateSectionIdAfterUpgrade.bind(this),
         async () => { }, // addEpisodeGuidAfterUpgrade, but we do it outside the main update process
-        // New columns have default values that are guaranteed to be correct, but we need to update our hacked thumb_urls in the main database.
+        // New columns have default values that are guaranteed to be correct,
+        // but we need to update our hacked thumb_urls in the main database.
         this.#checkBadThumbUrls.bind(this),
         async () => { }, // 4 -> 5. Just renaming columns, nothing else to do.
     ];
@@ -321,8 +330,8 @@ class MarkerBackupManager {
             throw err;
         }
 
-        let sectionTypes = {};
-        let uuids = {};
+        const sectionTypes = {};
+        const uuids = {};
         for (const section of sections) {
             uuids[section.id] = section.uuid;
             sectionTypes[section.id] = section.section_type;
@@ -380,7 +389,8 @@ class MarkerBackupManager {
 
     /**
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
-     * @param {{[sectionId: number]: number}} sectionTypes A map of section ids to the type of library it is. Used to differentiate hierarchies in the purge map.
+     * @param {{[sectionId: number]: number}} sectionTypes A map of section ids to the type of library it is.
+     *                                                     Used to differentiate hierarchies in the purge map.
      * @param {DatabaseWrapper} actionsDatabase The connection to the backup database. */
     constructor(uuids, sectionTypes, actionsDatabase) {
         this.#uuids = uuids;
@@ -439,12 +449,14 @@ class MarkerBackupManager {
         const db = PlexQueries.database();
 
         // First, note which markers are user-created, as we need to switch from the '*' postfix to the negative number notation
-        const modifiedMarkersQuery = `SELECT id, thumb_url FROM taggings WHERE length(thumb_url) > 0 AND tag_id=${PlexQueries.markerTagId()};`;
+        const modifiedMarkersQuery =
+            `SELECT id, thumb_url FROM taggings WHERE length(thumb_url) > 0 AND tag_id=${PlexQueries.markerTagId()};`;
         const modifiedMarkers = await db.all(modifiedMarkersQuery);
         const txn = new TransactionBuilder(db);
         for (const marker of modifiedMarkers) {
-            let userCreated = marker.thumb_url.endsWith('*');
-            let date = (new Date(userCreated ? marker.thumb_url.substring(0, marker.thumb_url.length - 1) : marker.thumb_url).getTime() / 1000) * (userCreated ? -1 : 1);
+            const userCreated = marker.thumb_url.endsWith('*');
+            const dateParam = userCreated ? marker.thumb_url.substring(0, marker.thumb_url.length - 1) : marker.thumb_url;
+            let date = (new Date(dateParam).getTime() / 1000) * (userCreated ? -1 : 1);
             if (isNaN(date)) {
                 // Did another instance already switch to epoch?
                 const asEpoch = Math.abs(marker.thumb_url);
@@ -460,6 +472,7 @@ class MarkerBackupManager {
                     }
                 }
             }
+
             txn.addStatement(`UPDATE taggings SET thumb_url=? WHERE id=?`, [date, marker.id]);
         }
 
@@ -517,13 +530,18 @@ class MarkerBackupManager {
             for (const action of actions) {
                 const guid = items[action.parent_id];
                 if (!guid) {
-                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.parent_id}, marking it as ignored as it cannot be restored.`);
-                    transaction.addStatement('UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?', [action.marker_id, this.#uuids[sectionId]]);
+                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.parent_id}, ` +
+                        `marking it as ignored as it cannot be restored.`);
+                    transaction.addStatement(
+                        'UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?',
+                        [action.marker_id, this.#uuids[sectionId]]);
                     continue;
                 }
 
                 const parameters = [guid, action.marker_id, action.marker_id, this.#uuids[sectionId]];
-                transaction.addStatement('UPDATE actions SET parent_guid=? WHERE (marker_id=? OR restored_id=?) AND section_uuid=?', parameters);
+                transaction.addStatement(
+                    'UPDATE actions SET parent_guid=? WHERE (marker_id=? OR restored_id=?) AND section_uuid=?',
+                    parameters);
             }
         }
 
@@ -541,15 +559,31 @@ class MarkerBackupManager {
                 Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
                 return;
             }
-    
-            // I should probably use the real timestamps from the database, but I really don't think it matters if they're a few milliseconds apart.
+
+            // I should probably use the real timestamps from the database, but I really don't
+            // think it matters if they're a few milliseconds apart.
             const query = `
     INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
+        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), (strftime('%s','now')), ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Add, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, 
-                                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, 1 /*userCreated*/];
-    
+            const parameters = [
+                MarkerOp.Add,
+                marker.id,
+                marker.parentId,
+                marker.seasonId,
+                marker.showId,
+                marker.sectionId,
+                marker.start,
+                marker.end,
+                ExtraData.get(marker.markerType, marker.final),
+                this.#uuids[marker.sectionId],
+                marker.parentGuid,
+                marker.markerType,
+                marker.isFinal,
+                1 /*userCreated*/
+            ];
+
             transaction.addStatement(query, parameters);
         }
 
@@ -572,7 +606,7 @@ class MarkerBackupManager {
     async recordEdits(markers, oldMarkerTimings) {
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
-            if (!marker.sectionId in this.#uuids) {
+            if (!(marker.sectionId in this.#uuids)) {
                 Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record edited marker - unexpected section id');
                 continue;
             }
@@ -585,10 +619,28 @@ class MarkerBackupManager {
 
             const query = `
     INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at,
+        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Edit, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end, oldTimings.start, oldTimings.end, marker.createDate,
-                ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
+            const parameters = [
+                MarkerOp.Edit,
+                marker.id,
+                marker.parentId,
+                marker.seasonId,
+                marker.showId,
+                marker.sectionId,
+                marker.start,
+                marker.end,
+                oldTimings.start,
+                oldTimings.end,
+                marker.createDate,
+                ExtraData.get(marker.markerType, marker.final),
+                this.#uuids[marker.sectionId],
+                marker.parentGuid,
+                marker.markerType,
+                marker.isFinal,
+                marker.createdByUser ? 1 : 0
+            ];
             transaction.addStatement(query, parameters);
         }
 
@@ -617,10 +669,26 @@ class MarkerBackupManager {
 
             const query = `
     INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
+    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
+        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [MarkerOp.Delete, marker.id, marker.parentId, marker.seasonId, marker.showId, marker.sectionId, marker.start, marker.end,
-                marker.createDate, ExtraData.get(marker.markerType, marker.final), this.#uuids[marker.sectionId], marker.parentGuid, marker.markerType, marker.isFinal, marker.createdByUser ? 1 : 0];
+            const parameters = [
+                MarkerOp.Delete,
+                marker.id,
+                marker.parentId,
+                marker.seasonId,
+                marker.showId,
+                marker.sectionId,
+                marker.start,
+                marker.end,
+                marker.createDate,
+                ExtraData.get(marker.markerType, marker.final),
+                this.#uuids[marker.sectionId],
+                marker.parentGuid,
+                marker.markerType,
+                marker.isFinal,
+                marker.createdByUser ? 1 : 0
+            ];
             transaction.addStatement(query, parameters);
         }
 
@@ -646,12 +714,30 @@ class MarkerBackupManager {
         for (const restore of restores) {
             const query = `
                 INSERT INTO actions
-                (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at, created_at, extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES
+                (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
+                    created_at, extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
 
             const m = new MarkerData(restore.marker);
-            const parameters = [MarkerOp.Restore, m.id, m.parentId, m.seasonId, m.showId, m.sectionId, m.start, m.end, m.modifiedDate, m.createDate,
-                ExtraData.get(m.markerType, m.final), this.#uuids[m.sectionId], restore.oldMarkerId, m.parentGuid, m.markerType, m.isFinal, m.createdByUser ? 1 : 0];
+            const parameters = [
+                MarkerOp.Restore,
+                m.id,
+                m.parentId,
+                m.seasonId,
+                m.showId,
+                m.sectionId,
+                m.start,
+                m.end,
+                m.modifiedDate,
+                m.createDate,
+                ExtraData.get(m.markerType, m.final),
+                this.#uuids[m.sectionId],
+                restore.oldMarkerId,
+                m.parentGuid,
+                m.markerType,
+                m.isFinal,
+                m.createdByUser ? 1 : 0
+            ];
             transaction.addStatement(query, parameters);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
@@ -677,14 +763,14 @@ class MarkerBackupManager {
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
 
-        let markerMap = {};
+        const markerMap = {};
         for (const marker of existingMarkers) {
             markerMap[marker.id] = marker;
         }
 
         const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
         /** @type {{[parentId: number]: MarkerAction[]}} */
-        let baseItemMap = {};
+        const baseItemMap = {};
         const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
@@ -777,7 +863,7 @@ class MarkerBackupManager {
      * @param {boolean} guidCheck `true` if we're checking for episode guids, in which case we don't care about ignored actions. */
     #allActionsQuery(guidCheck=false) {
         let uuidString = '';
-        let parameters = [];
+        const parameters = [];
         for (const uuid of Object.values(this.#uuids)) {
             parameters.push(uuid);
             uuidString += `section_uuid=? OR `;
@@ -789,12 +875,12 @@ class MarkerBackupManager {
 SELECT *, MAX(id) FROM actions
 WHERE (${uuidString}) AND restored_id IS NULL ${guidCheck ? 'AND parent_guid IS NULL' : ''}
 GROUP BY marker_id, section_uuid
-ORDER BY id DESC;`
+ORDER BY id DESC;`;
 
         return {
             query : query,
             parameters : parameters
-        }
+        };
     }
 
     /**
@@ -812,7 +898,7 @@ ORDER BY id DESC;`
             return this.buildAllPurges();
         }
 
-        let disconnected = {};
+        const disconnected = {};
         for (const action of actions) {
             if (action.op == MarkerOp.Delete) {
                 continue; // Last action was a user delete, ignore it.
@@ -829,9 +915,12 @@ ORDER BY id DESC;`
                     continue;
                 }
 
-                const fromGuid = await (action.show_id != -1 ? PlexQueries.getEpisodeFromGuid(action.parent_guid) : PlexQueries.getMovieFromGuid(action.parent_guid));
+                const fromGuid = await (action.show_id != -1 ?
+                    PlexQueries.getEpisodeFromGuid(action.parent_guid) :
+                    PlexQueries.getMovieFromGuid(action.parent_guid));
                 if (!fromGuid) {
-                    Log.verbose(`No episode found for marker id ${action.id}, but keeping around in case the episode guid is added in the future.`);
+                    Log.verbose(`No episode found for marker id ${action.id}, ` +
+                        `but keeping around in case the episode guid is added in the future.`);
                     continue;
                 }
 
@@ -880,12 +969,12 @@ ORDER BY id DESC;`
 
         // Each instance of this application is tied to a single server's database,
         // so it's okay to use the section_id instead of the globally unique section_uuid.
-        let section = this.#purgeCache[action.section_id] ??= {};
+        const section = this.#purgeCache[action.section_id] ??= {};
         if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
             (section[action.parent_id] ??= {})[action.marker_id] = action;
         } else {
-            let show = section[action.show_id] ??= {};
-            let season = show[action.season_id] ??= {};
+            const show = section[action.show_id] ??= {};
+            const season = show[action.season_id] ??= {};
             (season[action.parent_id] ??= {})[action.marker_id] = action;
         }
     }
@@ -894,32 +983,34 @@ ORDER BY id DESC;`
      * Remove the given marker action from the purge cache.
      * @param {MarkerAction} action */
     #removeFromPurgeMap(action) {
+        /* eslint-disable padding-line-between-statements */
         if (!this.#purgeCache) { return; }
         if (!this.#purgeCache[action.section_id]) { return; }
-        let section = this.#purgeCache[action.section_id];
+        const section = this.#purgeCache[action.section_id];
         if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
             if (!section[action.parent_id]) { return; }
-            let movie = section[action.parent_id];
+            const movie = section[action.parent_id];
             if (!movie[action.marker_id]) { return; }
             delete movie[action.marker_id];
             if (Object.keys(movie).length == 0) { delete section[action.parent_id]; }
         } else {
             if (!section[action.show_id]) { return; }
-            let show = section[action.show_id];
+            const show = section[action.show_id];
             if (!show[action.season_id]) { return; }
-            let season = show[action.season_id];
+            const season = show[action.season_id];
             if (!season[action.parent_id]) { return; }
-            let episode = season[action.parent_id];
+            const episode = season[action.parent_id];
             if (!episode[action.marker_id]) { return; }
-    
+
             if (episode[action.marker_id]) { delete episode[action.marker_id]; }
-    
+
             if (Object.keys(episode).length == 0) { delete season[action.parent_id]; }
             if (Object.keys(season).length == 0) { delete show[action.season_id]; }
             if (Object.keys(show).length == 0) { delete section[action.show_id]; }
         }
 
         if (Object.keys(section).length == 0) { delete this.#purgeCache[action.section_id]; }
+        /* eslint-enable */
     }
 
     /** @returns The number of purged markers found for the entire server. */
@@ -974,7 +1065,7 @@ ORDER BY id DESC;`
     }
 
     async #purgesForTVSection(sectionId) {
-        let needsEpisodeData = {};
+        const needsEpisodeData = {};
         for (const show of Object.values(this.#purgeCache[sectionId])) {
             for (const season of Object.values(show)) {
                 for (const episode of Object.values(season)) {
@@ -995,7 +1086,7 @@ ORDER BY id DESC;`
      * Retrieve all purged markers associated with the given movie library
      * @param {number} sectionId */
     async #purgesForMovieSection(sectionId) {
-        let needsMovieData = {};
+        const needsMovieData = {};
         for (const movie of Object.values(this.#purgeCache[sectionId])) {
             for (const markerAction of Object.values(movie)) {
                 if (!markerAction.movieData) {
@@ -1036,7 +1127,7 @@ ORDER BY id DESC;`
 SELECT *, MAX(id) FROM actions
 WHERE ${mediaType}_id=? AND section_uuid=? AND restored_id IS NULL
 GROUP BY marker_id, ${mediaType}_id, section_uuid
-ORDER BY id DESC;`
+ORDER BY id DESC;`;
         const parameters = [metadataId, this.#uuids[sectionId]];
 
         /**@type {MarkerAction[]}*/
@@ -1060,7 +1151,7 @@ ORDER BY id DESC;`
 
         Log.verbose(`MarkerBackupManager: Attempting to restore ${oldMarkerIds.length} marker(s).`);
         let query = 'SELECT * FROM actions WHERE (';
-        let parameters = [];
+        const parameters = [];
         for (const oldMarkerId of oldMarkerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {
@@ -1081,10 +1172,10 @@ ORDER BY id DESC;`
             throw new ServerError(`No markers found with ids ${oldMarkerIds} to restore.`, 400);
         }
 
-        let foundMarkers = {};
+        const foundMarkers = {};
 
         /** @type {{ [parent_id: number] : MarkerAction[] }} */
-        let toRestore = {};
+        const toRestore = {};
         for (const markerAction of rows) {
             if (foundMarkers[markerAction.marker_id]) {
                 continue;
@@ -1189,13 +1280,13 @@ ORDER BY id DESC;`
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }
 
-        let idSet = {};
+        const idSet = {};
         Log.verbose(`MarkerBackupManager: Attempting to ignore ${oldMarkerIds} marker(s).`);
 
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
         // while also letting us know that there isn't a real marker that
         let query = 'UPDATE actions SET restored_id=-1 WHERE (';
-        let parameters = [];
+        const parameters = [];
         for (const oldMarkerId of oldMarkerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {

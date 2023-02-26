@@ -1,4 +1,5 @@
 import { Log } from '../Shared/ConsoleLog.js';
+
 import DatabaseWrapper from './DatabaseWrapper.js';
 
 class TransactionBuilder {

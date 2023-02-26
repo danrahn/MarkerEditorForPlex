@@ -1,10 +1,10 @@
+import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
-import ButtonCreator from './ButtonCreator.js';
-import { $, $$, buildNode, appendChildren, errorMessage, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
+import ButtonCreator from './ButtonCreator.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
@@ -38,7 +38,7 @@ class SettingBase {
      * @param {string} key
      * @param {*} defaultValue */
     fieldOrDefault(data, key, defaultValue) {
-        if (!data.hasOwnProperty(key)) {
+        if (!Object.prototype.hasOwnProperty.call(data, key)) {
             Log.verbose(data, `Client settings: Didn't find '${key}', defaulting to '${defaultValue}'`);
             SettingBase.needsSave = true;
             return defaultValue;
@@ -70,7 +70,7 @@ class ThemeSetting extends SettingBase {
      * @param {boolean} userSet Whether the current theme was set by the user. */
     constructor(settings) {
         super('theme');
-        let themeData = this.fieldOrDefault(settings, this.settingsKey, {});
+        const themeData = this.fieldOrDefault(settings, this.settingsKey, {});
         this.dark = this.fieldOrDefault(themeData, 'dark', false);
         this.userSet = this.fieldOrDefault(themeData, 'userSet', false);
     }
@@ -146,7 +146,7 @@ class PreviewThumbnailsSetting extends BlockableSetting {
 
     constructor(settings) {
         super('useThumbnails', settings, null /*defaultValue*/, true /*customData*/);
-        let thumbnails = this.fieldOrDefault(settings, this.settingsKey, {});
+        const thumbnails = this.fieldOrDefault(settings, this.settingsKey, {});
         this.enable(this.fieldOrDefault(thumbnails, 'enabled', true));
         this.collapsed = this.fieldOrDefault(thumbnails, 'collapsed', false);
         this.autoload = this.fieldOrDefault(thumbnails, 'autoload', false);
@@ -188,7 +188,7 @@ class RememberLastSectionSetting extends SettingBase {
      * @param {object} settings The existing settings found in localStorage */
     constructor(settings) {
         super('rememberLastSection');
-        let rememberData = this.fieldOrDefault(settings, this.settingsKey, {});
+        const rememberData = this.fieldOrDefault(settings, this.settingsKey, {});
         this.remember = this.fieldOrDefault(rememberData, 'remember', true);
         this.sectionId = this.fieldOrDefault(rememberData, 'sectionId', -1);
     }
@@ -198,7 +198,7 @@ class RememberLastSectionSetting extends SettingBase {
      * @param {{string : any}} object The settings object to attach ourselves to. */
     serialize(object) {
         object[this.settingsKey] = {
-            remember: this.remember,
+            remember : this.remember,
             sectionId : this.sectionId
         };
     }
@@ -262,7 +262,7 @@ class ClientSettings {
 
     /** Returns a stringified version of the current client settings. */
     #serialize() {
-        let json = {};
+        const json = {};
         this.theme.serialize(json);
         this.previewThumbnails.serialize(json);
         this.extendedMarkerStats.serialize(json);
@@ -300,7 +300,7 @@ class ClientSettingsUI {
      */
     showSettings() {
         Overlay.build(
-            { dismissible : true, centered : false, noborder: true, setup : this.#focusOnShow('darkModeSetting') },
+            { dismissible : true, centered : false, noborder : true, setup : this.#focusOnShow('darkModeSetting') },
             this.#optionsUI());
     }
 
@@ -315,7 +315,7 @@ class ClientSettingsUI {
      * Retrieve the overlay UI container
      * @returns {HTMLElement} */
     #optionsUI() {
-        let options = [];
+        const options = [];
         options.push(this.#buildSettingCheckbox('Dark Mode', 'darkModeSetting', this.#settingsManager.isDarkTheme()));
         options.push(
             this.#buildSettingCheckbox(
@@ -332,13 +332,13 @@ class ClientSettingsUI {
                 this.#settingsManager.useThumbnails(),
                 'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)');
             options.push(showThumbs);
-            let collapsed = this.#buildSettingCheckbox(
+            const collapsed = this.#buildSettingCheckbox(
                 'Collapse Thumbnails',
                 'collapseThumbnailsSetting',
                 this.#settingsManager.collapseThumbnails(),
                 'Keep thumbnails collapsed by default, with the option to<br>expand them when adding/editing a marker.'
             );
-            let autoload = this.#buildSettingCheckbox(
+            const autoload = this.#buildSettingCheckbox(
                 'Auto Load Thumbnails',
                 'autoloadThumbnailSetting',
                 this.#settingsManager.autoLoadThumbnails(),
@@ -372,8 +372,9 @@ class ClientSettingsUI {
 
         // Log level setting. This isn't a setting that's serialized via ClientSettings,
         // instead using ConsoleLog's own storage mechanism.
-        let logLevelOptions = {};
+        const logLevelOptions = {};
         for (const [level, value] of Object.entries(ConsoleLog.Level)) { if (value >= 0) { logLevelOptions[level] = value; } }
+
         options.push(this.#buildSettingDropdown(
             'Log Level',
             'logLevelSetting',
@@ -383,12 +384,12 @@ class ClientSettingsUI {
 
         const icon = (icon, text, fn) => {
             const id = text.toLowerCase() + 'Server';
-            text = text + ' Server';
+            text += ' Server';
             return ButtonCreator.iconButton(icon, text, 'standard', fn, { id : id, class : 'serverStateButton' });
-        }
+        };
 
         options.push(buildNode('hr'));
-        let container = appendChildren(buildNode('div', { id : 'settingsContainer'}),
+        const container = appendChildren(buildNode('div', { id : 'settingsContainer' }),
             icon('pause', 'Pause', this.#pauseServer.bind(this)),
             icon('restart', 'Restart', this.#restartServer.bind(this)),
             icon('cancel', 'Shutdown', this.#shutdownServer.bind(this)),
@@ -400,8 +401,8 @@ class ClientSettingsUI {
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-            ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'confirmSetting' }),
-            ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'cancelSetting' })
+                ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'confirmSetting' }),
+                ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'cancelSetting' })
             )
         );
 
@@ -415,16 +416,16 @@ class ClientSettingsUI {
      * @param {Function} confirmCallback Callback invoked when shutdown/restart is confirmed. */
     serverStateCommon(message, confirmText, confirmCallback) {
         Log.tmi(`Transitioning to ${confirmText} confirmation`);
-        let container = buildNode('div', { id : 'shutdownRestartOverlay' });
+        const container = buildNode('div', { id : 'shutdownRestartOverlay' });
         appendChildren(container,
             buildNode('div', { id : 'serverStateMessage' }, message),
             buildNode('hr'),
             appendChildren(
                 buildNode('div', { class : 'formInput' }),
-                    appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                        ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
-                        ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
-            );
+                appendChildren(buildNode('div', { class : 'settingsButtons' }),
+                    ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
+                    ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
+        );
 
         this.#transitionOverlay(container, { setup : this.#focusOnShow('srCancel') });
     }
@@ -463,7 +464,9 @@ class ClientSettingsUI {
     /** Switch back to the settings UI if the user cancelled a restart/shutdown. */
     #onServerStateCancel() {
         Log.tmi('Shutdown/restart cancelled.');
-        this.#transitionOverlay(this.#optionsUI(), { dismissible : true, centered : false, noborder: true, setup : this.#focusOnShow('darkModeSetting') });
+        this.#transitionOverlay(
+            this.#optionsUI(),
+            { dismissible : true, centered : false, noborder : true, setup : this.#focusOnShow('darkModeSetting') });
     }
 
     /**
@@ -475,7 +478,7 @@ class ClientSettingsUI {
         try {
             await ServerCommand.restart();
         } catch (err) {
-            $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(response)}`;
+            $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
             return;
         }
@@ -506,7 +509,7 @@ class ClientSettingsUI {
 
         let confirmBtn = $('#srConfirm');
         btnContainer.removeChild(confirmBtn);
-        confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload() }, { id : 'srConfirm' });
+        confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload(); }, { id : 'srConfirm' });
         btnContainer.appendChild(confirmBtn);
     }
 
@@ -568,15 +571,16 @@ class ClientSettingsUI {
      * @returns A new checkbox setting for the settings dialog.
      */
     #buildSettingCheckbox(label, name, checked, tooltip='') {
-        let labelNode = buildNode('label', { for : name }, label + ': ');
+        const labelNode = buildNode('label', { for : name }, label + ': ');
         if (tooltip) {
             Tooltip.setTooltip(labelNode, tooltip);
         }
 
-        let checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
+        const checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
         if (checked) {
             checkbox.setAttribute('checked', 'checked');
         }
+
         return appendChildren(buildNode('div', { class : 'formInput' }),
             labelNode,
             checkbox
@@ -592,11 +596,12 @@ class ClientSettingsUI {
      * @param {string} [tooltip] The tooltip text, if any.
      */
     #buildSettingDropdown(title, name, options, selectedValue=null, tooltip='') {
-        let labelNode = buildNode('label', { for : name }, title + ':');
+        const labelNode = buildNode('label', { for : name }, title + ':');
         if (tooltip) {
             Tooltip.setTooltip(labelNode, tooltip);
         }
-        let select = buildNode('select', { name : name, id : name });
+
+        const select = buildNode('select', { name : name, id : name });
         for (const [label, value] of Object.entries(options)) {
             select.appendChild(buildNode('option', { value : value }, label));
         }
@@ -669,7 +674,7 @@ class ClientSettingsUI {
  * Singleton settings instance
  * @type {SettingsManager}
  * @readonly */ // Externally readonly
- let Instance;
+let Instance;
 
 /**
  * Main manager that keeps track of client-side settings.
@@ -714,7 +719,7 @@ class SettingsManager {
         $('#settings').addEventListener('click', this.#showSettings.bind(this));
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
-        this.#themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        this.#themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
         if (!this.isThemeUserSet()) {
             // Theme wasn't set by the user, make sure it matches the system theme if possible.
             this.#settings.theme.dark = this.#themeQuery != 'not all' && this.#themeQuery.matches;
@@ -724,12 +729,14 @@ class SettingsManager {
             const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
             return buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
         };
+
         this.#themeStyles = [
             styleNode('theme'),
             styleNode('Overlay'),
             styleNode('Settings'),
             styleNode('BulkActionOverlay'),
         ];
+
         for (const style of this.#themeStyles) {
             $$('head').appendChild(style);
         }
@@ -859,8 +866,8 @@ class SettingsManager {
             return false;
         }
 
-        let cssFind = isDark ? 'Light.css' : 'Dark.css';
-        let cssRep = isDark ? 'Dark.css' : 'Light.css';
+        const cssFind = isDark ? 'Light.css' : 'Dark.css';
+        const cssRep = isDark ? 'Dark.css' : 'Light.css';
         for (const style of this.#themeStyles) {
             style.href = style.href.replace(cssFind, cssRep);
         }

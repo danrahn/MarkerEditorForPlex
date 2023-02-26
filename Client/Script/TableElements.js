@@ -1,9 +1,11 @@
-import { appendChildren, buildNode, msToHms } from "./Common.js";
-import { MarkerData } from "../../Shared/PlexTypes.js"
+import { appendChildren, buildNode, msToHms } from './Common.js';
 
-import { ClientSettings } from "./ClientSettings.js";
-import DateUtil from "./inc/DateUtil.js";
-import Tooltip from "./inc/Tooltip.js";
+import DateUtil from './inc/DateUtil.js';
+import Tooltip from './inc/Tooltip.js';
+
+import { ClientSettings } from './ClientSettings.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 
 /** A custom object for {@linkcode TableElements.rawTableRow} to parse that will attach the given properties to the column. */
 class CustomClassColumn {
@@ -27,7 +29,7 @@ class TableElements {
      * @param {...[string|HTMLElement|CustomClassColumn]} tds The list of columns to add to the table row.
      */
     static rawTableRow(...tds) {
-        let tr = buildNode('tr');
+        const tr = buildNode('tr');
         for (const td of tds) {
             if (td instanceof CustomClassColumn) {
                 tr.appendChild(buildNode('td', td.properties, td.value));
@@ -92,7 +94,7 @@ class TableElements {
      * @param {MarkerData} marker The marker being displayed. */
     static friendlyDate(marker) {
         const createDate = DateUtil.getDisplayDate(marker.createDate * 1000); // Seconds to ms
-        let node = buildNode('span', { class : marker.modifiedDate ? 'userModifiedMarker' : '' }, createDate);
+        const node = buildNode('span', { class : marker.modifiedDate ? 'userModifiedMarker' : '' }, createDate);
         Tooltip.setTooltip(node, TableElements.#dateTooltip(marker));
         return node;
     }

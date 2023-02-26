@@ -1,7 +1,9 @@
+/* eslint-disable max-len */
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * Tests functionality of the bulk_delete endpoint.
@@ -190,6 +192,7 @@ class BulkDeleteTest extends TestBase {
         for (const testMarker of [season.Episode1.Marker1, season.Episode2.Marker1, season.Episode2.Marker3]) {
             await TestHelpers.validateMarker({ id : testMarker.Id }, null, null, null, null, null, null, null, null, this.testDb, true /*isDeleted*/);
         }
+
         await TestHelpers.validateMarker({ id : season.Episode2.Marker2.Id }, null, null, null, null, null, null, null, null, this.testDb, false /*isDeleted*/);
     }
 

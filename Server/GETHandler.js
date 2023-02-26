@@ -1,15 +1,15 @@
-import { readFileSync } from 'fs';
 import { contentType, lookup } from 'mime-types';
 import { join } from 'path';
+import { readFileSync } from 'fs';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { Config } from './IntroEditorConfig.js'
-import ServerError from './ServerError.js';
+import { GetServerState, ServerState } from './ServerState.js';
+import { Config } from './IntroEditorConfig.js';
 import { sendCompressedData } from './ServerHelpers.js';
-import { ServerState, GetServerState } from './ServerState.js';
+import ServerError from './ServerError.js';
 import { Thumbnails } from './ThumbnailManager.js';
 
 class GETHandler {
@@ -62,9 +62,9 @@ class ImageHandler {
         const badRequest = (msg, code=400) => {
             Log.error(msg, `[${url}] Unable to retrieve icon`);
             res.writeHead(code).end(msg);
-        }
+        };
 
-        let parts = url.split('/');
+        const parts = url.split('/');
         if (parts.length !== 4) {
             return badRequest('Invalid icon request format');
         }
@@ -88,7 +88,7 @@ class ImageHandler {
             contents = contents.replace(/FILL_COLOR/g, `#${color}`);
             res.writeHead(200, {
                 'Content-Type' : contentType('image/svg+xml'),
-                'x-content-type-options': 'nosniff'
+                'x-content-type-options' : 'nosniff'
             }).end(Buffer.from(contents, 'utf-8'));
         } catch (err) {
             return badRequest(err.message, err.code && err.code == 'ENOENT' ? 404 : 500);
@@ -103,7 +103,7 @@ class ImageHandler {
         const badRequest = (msg) => {
             Log.error(msg, `Unable to retrieve thumbnail`);
             res.writeHead(400).end(msg);
-        }
+        };
 
         if (!Config.useThumbnails()) {
             return badRequest('Preview thumbnails are not enabled');

@@ -1,13 +1,15 @@
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
-import ButtonCreator from './ButtonCreator.js';
 import { $$, appendChildren, buildNode } from './Common.js';
+
 import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
+
+import ButtonCreator from './ButtonCreator.js';
+import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { PlexUI } from './PlexUI.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerData} MarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 
 /**
  * @enum */
@@ -24,7 +26,7 @@ const FilterConditionText = {
     [FilterConditions.LessThan] : ' is less than ',
     [FilterConditions.Equals] : ' is ',
     [FilterConditions.GreaterThan] : ' is greater than ',
-}
+};
 
 /**
  * Static class that holds the current global filter state, as well as helper methods
@@ -41,9 +43,10 @@ class FilterSettings {
     /**
      * @param {MarkerBreakdown} breakdown */
     static shouldFilter(breakdown) {
-        return FilterSettings.hasFilter() &&
-            (FilterSettings.#shouldFilterCore(breakdown.introBuckets(), FilterSettings.introLimit, FilterSettings.introCondition)
-            || FilterSettings.#shouldFilterCore(breakdown.creditsBuckets(), FilterSettings.creditsLimit, FilterSettings.creditsCondition));
+        return FilterSettings.hasFilter()
+            && (FilterSettings.#shouldFilterCore(breakdown.introBuckets(), FilterSettings.introLimit, FilterSettings.introCondition)
+                || FilterSettings.#shouldFilterCore(
+                    breakdown.creditsBuckets(), FilterSettings.creditsLimit, FilterSettings.creditsCondition));
     }
 
     /**
@@ -92,6 +95,7 @@ class FilterSettings {
 
         if (FilterSettings.creditsLimit !== -1) {
             if (text.length !== 0) { text += '<br>'; }
+
             text += `Credits count ${FilterConditionText[FilterSettings.creditsCondition]} ${FilterSettings.creditsLimit}`;
         }
 
@@ -99,7 +103,7 @@ class FilterSettings {
     }
 
     /**
-     * @param {MarkerBreakdownMap} markerCounts 
+     * @param {MarkerBreakdownMap} markerCounts
      * @param {number} markerLimit
      * @param {number} markerCondition */
     static #shouldFilterCore(markerCounts, markerLimit, markerCondition) {
@@ -107,6 +111,7 @@ class FilterSettings {
             return false;
         }
 
+        /* eslint-disable padding-line-between-statements */
         switch (markerCondition) {
             case FilterConditions.LessThan:
                 for (const bucket of Object.keys(markerCounts)) { if (bucket < markerLimit) { return false; } }
@@ -120,6 +125,7 @@ class FilterSettings {
             default:
                 return false; // Default to not filtering it
         }
+        /* eslint-enable */
     }
 }
 
@@ -145,9 +151,10 @@ class FilterDialog {
                 buildNode('option', { value : FilterConditions.GreaterThan }, '>'));
             sel.value = selected;
             return sel;
-        }
-        const filterRow = (text, selected, inputValue) => {
-            return appendChildren(buildNode('div', { class : 'formInput' }),
+        };
+
+        const filterRow = (text, selected, inputValue) =>
+            appendChildren(buildNode('div', { class : 'formInput' }),
                 buildNode('label', { for : `${text}MarkerFilterType` }, `${text} markers `),
                 buildNode('input', {
                     type : 'text',
@@ -157,13 +164,11 @@ class FilterDialog {
                     value : inputValue
                 }, 0, { keydown : this.#onTextInput.bind(this) }),
                 buildSelect(text, selected));
-        };
 
         const introLimit = FilterSettings.introLimit == -1 ? '' : FilterSettings.introLimit;
         const introCondition = introLimit === '' ? FilterConditions.Equals : FilterSettings.introCondition;
         this.#introFilter = filterRow('Intro', introCondition, introLimit);
 
-        
         const creditsLimit = FilterSettings.creditsLimit == -1 ? '' : FilterSettings.creditsLimit;
         const creditsCondition = creditsLimit === '' ? FilterConditions.Equals : FilterSettings.creditsCondition;
         this.#creditsFilter = filterRow('Credits', creditsCondition, creditsLimit);
@@ -173,8 +178,8 @@ class FilterDialog {
             buildNode('hr'),
             this.#introFilter,
             this.#creditsFilter,
-            buildNode('hr'))
-        
+            buildNode('hr'));
+
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 ButtonCreator.textButton('Apply', this.#applyFilter.bind(this), { class : 'confirmSetting' }),
@@ -185,12 +190,12 @@ class FilterDialog {
 
         this.#html = container;
     }
-    
+
     /**
      * Show the filter dialog. */
     show() {
         // Copy from settings.
-        Overlay.build({ dismissible: true, centered: false, noborder: true }, this.#html);
+        Overlay.build({ dismissible : true, centered : false, noborder : true }, this.#html);
     }
 
     /**
@@ -211,7 +216,7 @@ class FilterDialog {
      * Flash the background of the given element.
      * @param {HTMLElement} input */
     #flashInput(input) {
-        Animation.queue({ backgroundColor: `#${ThemeColors.get('red')}8` }, input, 500);
+        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}8` }, input, 500);
         return new Promise((resolve, _) => {
             Animation.queueDelayed({ backgroundColor : 'transparent' }, input, 500, 500, true, resolve);
         });
@@ -250,7 +255,7 @@ class FilterDialog {
 
             FilterSettings.creditsLimit = creditsCount;
         }
-        
+
         FilterSettings.creditsCondition = creditsCondition;
         PlexUI.onFilterApplied();
         Overlay.dismiss();

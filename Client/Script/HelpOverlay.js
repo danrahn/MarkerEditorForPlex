@@ -1,5 +1,6 @@
-import { appendChildren, buildNode } from "./Common.js";
-import Overlay from "./inc/Overlay.js";
+import { appendChildren, buildNode } from './Common.js';
+
+import Overlay from './inc/Overlay.js';
 
 /**
  * The text to display in the help overlay

@@ -13,7 +13,7 @@ const PurgeCacheStatus = {
     /**@readonly*/ Uninitialized : 0,
     /**@readonly*/ PartiallyInitialized : 1,
     /**@readonly*/ Complete : 2,
-}
+};
 
 /** A glorified dictionary that maps metadata ids (show/season/episode) to their corresponding PurgedShow/Season/Episode */
 class AgnosticPurgeCache {
@@ -76,7 +76,7 @@ class PurgedGroup {
     /**
      * Retrieve any MarkerAction in this group, or null if there aren't any
      * @returns {MarkerAction} */
-    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0].getAny() : null }
+    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0].getAny() : null; }
 
     /**
      * Applies the given function to all MarkerActions in this group.
@@ -130,6 +130,7 @@ class PurgedGroup {
 
         this.count += delta;
         if (this.status == PurgeCacheStatus.Uninitialized) { this.status = PurgeCacheStatus.PartiallyInitialized; }
+
         if (this.parent) {
             this.parent.updateCount(delta);
             // Sections are special-cased, but we want to delete other entries
@@ -157,13 +158,19 @@ class PurgedGroup {
 /** A PurgedGroup representing an entire server. */
 class PurgedServer extends PurgedGroup {
     /** @returns {PurgedSection} */
-    addNewGroup(key, isMovie) { return this.addInternal(key, isMovie ? new PurgedMovieSection(key, this) : new PurgedTVSection(key, this)); }
+    addNewGroup(key, isMovie) {
+        return this.addInternal(key, isMovie ? new PurgedMovieSection(key, this) : new PurgedTVSection(key, this));
+    }
+
     /** @returns {PurgedServer} */
     deepClone() { return this.deepCloneInternal(new PurgedServer(this.id)); }
 
     // The following only exist for intellisense/"TypeScript" safety.
     /** @returns {PurgedSection} */ get(/**@type {number} */id) { return this.data[id]; }
-    /** @returns {PurgedSection} */ getOrAdd(/**@type {number} */id, /**@type {boolean} */isMovie) { return this.data[id] || this.addNewGroup(id, isMovie); }
+
+    /** @returns {PurgedSection} */ getOrAdd(/**@type {number} */id, /**@type {boolean} */isMovie) {
+        return this.data[id] || this.addNewGroup(id, isMovie);
+    }
 }
 
 /**
@@ -224,7 +231,7 @@ class PurgedBaseItem extends PurgedGroup {
     getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a base media type (purgedMovie/purgedEpisode).`); }
     deepClone() {
         // Special handling for base item types since data values are not a PurgeGroup, but MarkerActions
-        let newItem = this._getNewObjectForClone();
+        const newItem = this._getNewObjectForClone();
         for (const [key, value] of Object.entries(this.data)) {
             newItem.data[key] = value;
         }
@@ -242,7 +249,7 @@ class PurgedBaseItem extends PurgedGroup {
     /**
      * Retrieve any MarkerAction in this group, or null if there aren't any
      * @returns {MarkerAction} */
-    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0] : null }
+    getAny() { return Object.keys(this.data).length > 0 ? Object.values(this.data)[0] : null; }
 
     /**
      * Applies the given function to all MarkerActions in this group.
@@ -301,4 +308,17 @@ class PurgedMovie extends PurgedBaseItem {
     _getNewObjectForClone() { return new PurgedMovie(this.id); }
 }
 
-export { PurgedGroup, PurgedServer, PurgedSection, PurgedTVSection, PurgedMovieSection, PurgedShow, PurgedSeason, PurgedBaseItem, PurgedEpisode, PurgedMovie, AgnosticPurgeCache, PurgeCacheStatus }
+export {
+    PurgedGroup,
+    PurgedServer,
+    PurgedSection,
+    PurgedTVSection,
+    PurgedMovieSection,
+    PurgedShow,
+    PurgedSeason,
+    PurgedBaseItem,
+    PurgedEpisode,
+    PurgedMovie,
+    AgnosticPurgeCache,
+    PurgeCacheStatus
+};

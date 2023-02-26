@@ -1,22 +1,25 @@
 import { Log } from '../../Shared/ConsoleLog.js';
-import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
+
 import Overlay from './inc/Overlay.js';
+
+import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').BulkRestoreResponse} BulkRestoreResponse */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMovieData} SerializedMovieData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedShowData} SerializedShowData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedSeasonData} SerializedSeasonData */
-/** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
-/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
+
+/** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
+/** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMovieData} SerializedMovieData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedShowData} SerializedShowData */
+/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
 
 /**
  * Removes all children from the given element.
  * @param {HTMLElement} ele The element to clear.
  */
- function clearEle(ele) {
+function clearEle(ele) {
     while (ele.firstChild) {
         ele.removeChild(ele.firstChild);
     }
@@ -37,6 +40,7 @@ class FetchError extends Error {
     }
 }
 
+/* eslint-disable max-len */
 /**
  * Map of all available server endpoints.
  * Keep in sync with ServerCommands.#commandMap
@@ -50,14 +54,14 @@ const ServerCommand = {
      * @param {number} end
      * @param {boolean} [final=false]
      * @returns {Promise<SerializedMarkerData>} */
-    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId: metadataId, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
+    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId : metadataId, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
 
     /**
      * Edit an existing marker with the given id.
      * @param {string} markerType
-     * @param {number} id 
+     * @param {number} id
      * @param {number} start
-     * @param {number} end 
+     * @param {number} end
      * @param {boolean} userCreated true if user created, false if Plex generated
      * @param {boolean} [final=false]
      * @returns {Promise<SerializedMarkerData>} */
@@ -114,7 +118,7 @@ const ServerCommand = {
      * @param {boolean} [final=false] Whether this is the last marker of the episode (credits only)
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : async (markerType, id, start, end, resolveType, final=false, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0, resolveType : resolveType, ignored : ignored.join(',')}),
+    bulkAdd : async (markerType, id, start, end, resolveType, final=false, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0, resolveType : resolveType, ignored : ignored.join(',') }),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.
@@ -197,7 +201,7 @@ const ServerCommand = {
      * @param {number} sectionId
      * @param {number} resolveType
      * @returns {Promise<BulkRestoreResponse>} */
-    restorePurge : async (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType: resolveType }),
+    restorePurge : async (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
 
     /**
      * Ignore the given purged markers associated with the given section.
@@ -223,19 +227,20 @@ const ServerCommand = {
      * @returns {Promise<void>} */
     resume : async () => jsonRequest('resume'),
 };
+/* eslint-enable */
 
 /**
  * Generic method to make a request to the given endpoint that expects a JSON response.
  * @param {string} endpoint The URL to query.
  * @param {{[parameter: string]: any}} parameters URL parameters. */
 async function jsonRequest(endpoint, parameters={}) {
-    let url = new URL(endpoint, window.location.href);
+    const url = new URL(endpoint, window.location.href);
     for (const [key, value] of Object.entries(parameters)) {
         url.searchParams.append(key, value);
     }
 
     try {
-        const response = await (await fetch(url, { method : 'POST', headers : { accept : 'application/json' }})).json();
+        const response = await (await fetch(url, { method : 'POST', headers : { accept : 'application/json' } })).json();
         Log.verbose(response, `Response from ${url}`);
         if (!response || response.Error) {
 
@@ -265,7 +270,7 @@ async function jsonRequest(endpoint, parameters={}) {
  * @param {HTMLElement} ele The scope of the query. Defaults to `document`.
  */
 function $(selector, ele=document) {
-    if (selector.indexOf("#") === 0 && selector.indexOf(" ") === -1) {
+    if (selector.indexOf('#') === 0 && selector.indexOf(' ') === -1) {
         return $$(selector, ele);
     }
 
@@ -290,7 +295,7 @@ function $$(selector, ele=document) {
  * @param {object} [options={}] Additional options
  */
 function buildNode(type, attrs, content, events, options={}) {
-    let ele = document.createElement(type);
+    const ele = document.createElement(type);
     return _buildNode(ele, attrs, content, events, options);
 }
 
@@ -303,7 +308,7 @@ function buildNode(type, attrs, content, events, options={}) {
  * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function buildNodeNS(ns, type, attrs, content, events, options={}) {
-    let ele = document.createElementNS(ns, type);
+    const ele = document.createElementNS(ns, type);
     return _buildNode(ele, attrs, content, events, options);
 }
 
@@ -317,13 +322,13 @@ function buildNodeNS(ns, type, attrs, content, events, options={}) {
  */
 function _buildNode(ele, attrs, content, events, options) {
     if (attrs) {
-        for (let [key, value] of Object.entries(attrs)) {
+        for (const [key, value] of Object.entries(attrs)) {
             ele.setAttribute(key, value);
         }
     }
 
     if (events) {
-        for (let [event, func] of Object.entries(events)) {
+        for (const [event, func] of Object.entries(events)) {
             if (options.thisArg) {
                 ele.addEventListener(event, func.bind(options.thisArg, ele));
             } else {
@@ -349,15 +354,15 @@ function _buildNode(ele, attrs, content, events, options) {
  * @param {...HTMLElement} elements Elements to append this this `HTMLElement`
  * @returns {HTMLElement} `parent`
  */
- function appendChildren(parent, ...elements) {
-    for (let element of elements) {
+function appendChildren(parent, ...elements) {
+    for (const element of elements) {
         if (element) {
             parent.appendChild(element);
         }
     }
 
     return parent;
-};
+}
 
 
 /**
@@ -365,13 +370,13 @@ function _buildNode(ele, attrs, content, events, options) {
  * In almost all cases, `error` will be either a JSON object with a single `Error` field,
  * or an exception of type {@link Error}. Handle both of those cases, otherwise return a
  * generic error message.
- * 
+ *
  * NOTE: It's expected that all API requests call this on failure, as it's the main console
  *       logging method.
  * @param {string|Error} error
  * @returns {string}
  */
- function errorMessage(error) {
+function errorMessage(error) {
     if (error.Error) {
         Log.error(error);
         return error.Error;
@@ -419,10 +424,9 @@ function msToHms(ms) {
     const minutes = Math.floor(seconds / 60) % 60;
     seconds = Math.floor(seconds) % 60;
     const thousandths = ms % 1000;
-    let time = pad0(minutes, 2) + ":" + pad0(seconds, 2) + "." + pad0(thousandths, 3);
-    if (hours > 0)
-    {
-        time = hours + ":" + time;
+    let time = pad0(minutes, 2) + ':' + pad0(seconds, 2) + '.' + pad0(thousandths, 3);
+    if (hours > 0) {
+        time = hours + ':' + time;
     }
 
     return time;
@@ -440,7 +444,7 @@ function timeToMs(value, allowNegative=false) {
     }
 
     // I'm sure this can be improved on.
-    let result = /^(-)?(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
+    const result = /^(-)?(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
     if (!result || (!allowNegative && result[1])) {
         return NaN;
     }
@@ -487,8 +491,22 @@ function timeToMs(value, allowNegative=false) {
  * @param {Error|string} err
  * @param {() => void} [onDismiss=Overlay.dismiss] */
 function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
-    let errType = err instanceof FetchError ? 'Server Message' : 'Error';
+    const errType = err instanceof FetchError ? 'Server Message' : 'Error';
     Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`, 'OK', onDismiss);
 }
 
-export { $, $$, appendChildren, buildNode, buildNodeNS, clearEle, errorMessage, errorResponseOverlay, msToHms, pad0, plural, ServerCommand, timeToMs };
+export {
+    $,
+    $$,
+    appendChildren,
+    buildNode,
+    buildNodeNS,
+    clearEle,
+    errorMessage,
+    errorResponseOverlay,
+    msToHms,
+    pad0,
+    plural,
+    ServerCommand,
+    timeToMs
+};

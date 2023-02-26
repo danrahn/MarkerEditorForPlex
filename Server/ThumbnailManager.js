@@ -3,9 +3,11 @@ import { join, join as joinPath } from 'path';
 import { execFileSync } from 'child_process';
 
 import { Log } from '../Shared/ConsoleLog.js';
-import DatabaseWrapper from './DatabaseWrapper.js';
-import ServerError from './ServerError.js';
+
 import { Config } from './IntroEditorConfig.js';
+import ServerError from './ServerError.js';
+
+/** @typedef {!import('./DatabaseWrapper'.default) DatabaseWrapper} */
 
 
 /**
@@ -20,7 +22,7 @@ let Instance;
 class ThumbnailManager {
     /** The Plex database connection.
      * @type {DatabaseWrapper} */
-     database;
+    database;
 
     /**
      * Create the singleton ThumbnailManager instance
@@ -64,7 +66,9 @@ class ThumbnailManager {
      * Determine if an episode has thumbnails available.
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
-    async hasThumbnails(metadataId) { Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}`); }
+    async hasThumbnails(metadataId) {
+        Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}`);
+    }
 
     /**
      * Retrieve a thumbnail for an episode at a specific timestamp.
@@ -76,7 +80,9 @@ class ThumbnailManager {
      * @returns A `Promise` that will resolve to the thumbnail `Buffer` if the thumbnail
      * retrieval was successful, and `reject`ed if the thumbnail doesn't exist or we were
      * otherwise unable to retrieve it. */
-    async getThumbnail(metadataId, timestamp) { Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`); }
+    async getThumbnail(metadataId, timestamp) {
+        Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
+    }
 
     close() {}
 }
@@ -89,19 +95,19 @@ class ThumbnailManager {
  * need to be re-read from disk. */
 class BifThumbnailManager extends ThumbnailManager {
 
-     /** The path the Plex's data directory.
-      * @type {string} */
-     #metadataPath;
+    /** The path the Plex's data directory.
+     * @type {string} */
+    #metadataPath;
 
     /** A map of episode metadataIds to the cached thumbnails of the episode.
      * @type {BifCacheMap} */
-     #cache;
+    #cache;
 
-     /**
-      * Database query to retrieve the media hash for an episode,
-      * used for finding the path to the generated index-sd.bif files.
+    /**
+     * Database query to retrieve the media hash for an episode,
+     * used for finding the path to the generated index-sd.bif files.
      */
-     static #hashQuery = `
+    static #hashQuery = `
          SELECT media_parts.id, media_parts.hash AS hash FROM media_parts
          INNER JOIN media_items ON media_parts.media_item_id=media_items.id
          INNER JOIN metadata_items ON media_items.metadata_item_id=metadata_items.id
@@ -112,7 +118,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * Create a new ThumbnailManager
      * @param {DatabaseWrapper} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory */
-     constructor(db, metadataPath) {
+    constructor(db, metadataPath) {
         super(db);
         this.#metadataPath = metadataPath;
         this.#cache = new BifCacheMap(200 /*maxCache*/);
@@ -131,9 +137,18 @@ class BifThumbnailManager extends ThumbnailManager {
         const rows = await this.database.all(BifThumbnailManager.#hashQuery, [metadataId]);
 
         // Episodes with multiple versions may have multiple BIF files. Grab the newest one.
-        let newest = { path : '', mtime : 0, found : 0 };
+        const newest = { path : '', mtime : 0, found : 0 };
         for (const row of rows) {
-            const bifPath = joinPath(this.#metadataPath, 'Media', 'localhost', row.hash[0], row.hash.substring(1) + '.bundle', 'Contents', 'Indexes', 'index-sd.bif');
+            const bifPath = joinPath(
+                this.#metadataPath,
+                'Media',
+                'localhost',
+                row.hash[0],
+                row.hash.substring(1) + '.bundle',
+                'Contents',
+                'Indexes',
+                'index-sd.bif');
+
             const stats = statSync(bifPath, { throwIfNoEntry : false });
             if (stats !== undefined) {
                 if (stats.mtimeMs > newest.mtime) {
@@ -189,7 +204,7 @@ class BifThumbnailManager extends ThumbnailManager {
         let index;
         if (thumbCache.interval != 0) {
             index = Math.floor(timestamp / thumbCache.interval);
-            let cachedData = this.#cache.tryGet(metadataId, index);
+            const cachedData = this.#cache.tryGet(metadataId, index);
             if (cachedData) {
                 Log.verbose(`Found cached thumbnail for ${metadataId}:${timestamp}.`);
                 return cachedData;
@@ -296,7 +311,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId The episode metadata id. */
     async hasThumbnails(metadataId) {
         // Check whether the file exists/we have access to it.
-        let cached = this.#cache.getItem(metadataId);
+        const cached = this.#cache.getItem(metadataId);
         if (cached) {
             return cached.hasThumbs;
         }
@@ -370,18 +385,18 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         }
 
         mkdirSync(savePath, { recursive : true });
-        let episodeCache = this.#cache.getItem(metadataId);
+        const episodeCache = this.#cache.getItem(metadataId);
         const execStart = performance.now();
-        execFileSync('ffmpeg', [
-            '-loglevel', 'error',         // We don't care about the output
-            '-noaccurate_seek',           // Seek quickly, it's okay if we're slightly off
-            '-ss', `${timestamp}ms`,      // NOTE: 000ms syntax requires a somewhat modern version of ffmpeg (>=4?)
-            `-i`, episodeCache.filePath,
-            '-vf', 'scale=240:-1',        // Thumbnails are displayed with a width of 240, no need to go over that.
-            '-vframes', '1',              // Grab a single frame
-            '-y',                         // Force overwrite (though we shouldn't get here if that's the case)
-            saveFile],
-            { timeout : 10000 });         // Give up if it takes more than 10 seconds.
+        execFileSync('ffmpeg',
+            [   '-loglevel', 'error',        // We don't care about the output
+                '-noaccurate_seek',          // Seek quickly, it's okay if we're slightly off
+                '-ss', `${timestamp}ms`,     // NOTE: 000ms syntax requires a somewhat modern version of ffmpeg (>=4?)
+                `-i`, episodeCache.filePath, // Input file
+                '-vf', 'scale=240:-1',       // Thumbnails are displayed with a width of 240, no need to go over that.
+                '-vframes', '1',             // Grab a single frame
+                '-y',                        // Force overwrite (though we shouldn't get here if that's the case)
+                saveFile],
+            { timeout : 10000 });            // Give up if it takes more than 10 seconds.
         // It better exist now. Just throw if we fail and it will be caught by the caller.
         const data = readFileSync(saveFile);
         this.#cache.add(metadataId, timestamp, data);
@@ -497,7 +512,7 @@ class CacheMap {
             return;
         }
 
-        Log.tmi(`Updating thumbnail LRU cache`)
+        Log.tmi(`Updating thumbnail LRU cache`);
         this.#tick = 0;
         for (const cacheItem of Object.values(this.#cacheMap)) {
             for (const thumb of Object.keys(cacheItem.cachedThumbnails)) {
@@ -524,7 +539,7 @@ class BifCacheMap extends CacheMap {
     /**
      * @param {number} metadataId
      * @returns {BifMediaItemCache} */
-    getItem(metadataId) { return super.getItem(metadataId) } // Just for intellisense
+    getItem(metadataId) { return super.getItem(metadataId); } // Just for intellisense
 }
 
 /**
@@ -540,9 +555,9 @@ class FfmpegCacheMap extends CacheMap {
     }
 
     /**
-     * @param {number} metadataId 
+     * @param {number} metadataId
      * @returns {FfmpegMediaItemCache} */
-    getItem(metadataId) { return super.getItem(metadataId) } // Just for intellisense
+    getItem(metadataId) { return super.getItem(metadataId); } // Just for intellisense
 }
 
 /** @typedef {{[timestamp: number]: CachedThumbnail}} ThumbnailMap */

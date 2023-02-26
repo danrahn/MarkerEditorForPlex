@@ -1,4 +1,5 @@
 import { parse } from 'url';
+
 import ServerError from './ServerError.js';
 
 /**
@@ -39,7 +40,7 @@ class QueryParser {
      * @throws {QueryParameterException} if any string in `keys` is not an integer.
      */
     ints(...keys) {
-        let result = [];
+        const result = [];
         for (const key of keys) {
             result.push(this.i(key));
         }

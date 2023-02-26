@@ -1,3 +1,5 @@
+import { Log } from './ConsoleLog.js';
+
 import { MarkerType } from './PlexTypes.js';
 
 const IntroMask =   0x0000FFFF;
@@ -109,7 +111,7 @@ class MarkerBreakdown {
     /**
      * Return the total count of markers in this breakdown. */
     totalMarkers() {
-        return Object.entries(this.#counts).reduce((acc, kv) => acc + ((this.#cc(kv[0]) + this.#ic(kv[0])) * kv[1]), 0)
+        return Object.entries(this.#counts).reduce((acc, kv) => acc + ((this.#cc(kv[0]) + this.#ic(kv[0])) * kv[1]), 0);
     }
 
     /**

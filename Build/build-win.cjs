@@ -1,12 +1,12 @@
 const fs = require('fs');
 const { copySync } = require('fs-extra');
-const { compile: exeCompile } = require('nexe');
+const { compile : exeCompile } = require('nexe');
 const { resolve } = require('path');
 const rcedit = require('rcedit');
 const { rollup } = require('rollup');
 const { exec } = require('child_process');
 
-let { version } = require('../package.json');
+const { version } = require('../package.json');
 const iconPath = resolve(__dirname, 'app.ico');
 
 const appName = 'Marker Editor for Plex';
@@ -16,8 +16,8 @@ const rc = {
     FileDescription : appName,
     FileVersion : version,
     ProductVersion : version,
-    InternalappName: appName + 'exe',
-    LegalCopyright: "MarkerEditorForPlex.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license."
+    InternalappName : appName + 'exe',
+    LegalCopyright : 'MarkerEditorForPlex.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
 };
 
 /**
@@ -35,8 +35,8 @@ async function transpile() {
         }
     }).then((bundle) => {
         bundle.write({
-            file: resolve(__dirname, '../dist/built.js'),
-            format: 'cjs',
+            file : resolve(__dirname, '../dist/built.js'),
+            format : 'cjs',
         });
     });
 }
@@ -45,15 +45,15 @@ async function transpile() {
  * Takes rollup's cjs output and writes the exe. */
 async function toExe() {
     await exeCompile({
-        input: resolve(__dirname, '../dist/built.js'),
-        output: resolve(__dirname, '../dist/MarkerEditorForPlex.exe'),
-        build: true,
-        ico: iconPath,
-        rc: Object.assign({
-            'PRODUCTVERSION' : version,
-            'FILEVERSION' : version
+        input : resolve(__dirname, '../dist/built.js'),
+        output : resolve(__dirname, '../dist/MarkerEditorForPlex.exe'),
+        build : true,
+        ico : iconPath,
+        rc : Object.assign({
+            PRODUCTVERSION : version,
+            FILEVERSION : version
         }, rc),
-        resources: [
+        resources : [
             resolve(__dirname, '../package.json'),
             resolve(__dirname, '../index.html'),
             resolve(__dirname, '../SVG/*svg'),
@@ -61,7 +61,7 @@ async function toExe() {
             resolve(__dirname, '../Client/**'),
             resolve(__dirname, '../dist/built.js'),
         ],
-        patches: [
+        patches : [
             async (compiler, next) => {
                 const exePath = compiler.getNodeExecutableLocation();
                 try {
@@ -69,13 +69,16 @@ async function toExe() {
                     // hack around it by using rcedit on the binary to ensure they're added.
                     if (fs.statSync(exePath).size > 0) {
                         await rcedit(exePath, {
-                            'version-string': rc,
-                            'file-version': version,
-                            'product-version': version,
-                            icon: iconPath,
+                            'version-string' : rc,
+                            'file-version' : version,
+                            'product-version' : version,
+                            icon : iconPath,
                         });
                     }
-                } catch {}
+                } catch {
+                    console.log('Unable to modify exe resources with rcedit.');
+                }
+
                 return next();
             }
         ]
@@ -87,7 +90,7 @@ async function toExe() {
 async function buildWin() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous dist folder');
-    fs.rmSync(resolve(__dirname, '../dist'), { recursive: true, force : true });
+    fs.rmSync(resolve(__dirname, '../dist'), { recursive : true, force : true });
 
     msg('Transpiling to cjs');
     await transpile();
@@ -99,14 +102,15 @@ async function buildWin() {
     copySync(
         resolve(__dirname, '../node_modules/sqlite3'),
         resolve(__dirname, '../dist/node_modules/sqlite3'),
-        { overwrite: true, recursive: true });
-    
+        { overwrite : true, recursive : true });
+
     msg('Removing transpiled output');
     fs.unlinkSync(resolve(__dirname, '../dist/built.js'));
 
     if (process.argv.indexOf('--zip') != -1) {
         msg('Zipping everything up');
-        exec(`powershell Compress-Archive ${resolve(__dirname, '../dist')}/* ${resolve(__dirname, '../dist')}/MarkerEditorForPlex.v${version}-win64.zip`, (err) => {
+        const dist = resolve(__dirname, '../dist');
+        exec(`powershell Compress-Archive ${dist}/* ${dist}/MarkerEditorForPlex.v${version}-win64.zip`, (err) => {
             if (err) { console.error(err.message); } else { console.log('Done!'); }
         });
     } else {

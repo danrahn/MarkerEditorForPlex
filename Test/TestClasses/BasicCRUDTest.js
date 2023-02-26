@@ -119,7 +119,7 @@ class BasicCRUD extends TestBase {
     async testNegativeStart() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.addMarkerRaw(show.Season1.Episode1.Id, -1, 10000);
+        const response = await this.addMarkerRaw(show.Season1.Episode1.Id, -1, 10000);
 
         return TestHelpers.verifyBadRequest(response, 'add with negative startMs');
     }
@@ -129,7 +129,7 @@ class BasicCRUD extends TestBase {
     async testEqualStartAndEnd() {
         this.expectFailure();
         const show = TestBase.DefaultMetadata.Show1;
-        let response = await this.addMarkerRaw(show.Season1.Episode1.Id, 10000, 10000);
+        const response = await this.addMarkerRaw(show.Season1.Episode1.Id, 10000, 10000);
 
         return TestHelpers.verifyBadRequest(response, 'add with equal startMs and endMs');
     }
@@ -159,7 +159,7 @@ class BasicCRUD extends TestBase {
      * which isn't an episode. */
     async #addToWrongMetadataType(metadataId) {
         this.expectFailure();
-        let response = await this.addMarkerRaw(metadataId, 0, 10000);
+        const response = await this.addMarkerRaw(metadataId, 0, 10000);
 
         return TestHelpers.verifyBadRequest(response);
     }
@@ -188,7 +188,7 @@ class BasicCRUD extends TestBase {
         const episode = show.Season1.Episode2;
         return this.#testSingleEdit(episode.Marker1.Id, 45000, 60000, episode.Id, show.Season1.Id, show.Id, 'credits', true /*final*/);
     }
-    
+
     /**
      * Test editing an existing marker for a single movie. */
     async testSingleMovieEdit() {
@@ -231,7 +231,17 @@ class BasicCRUD extends TestBase {
      * @param {boolean} final */
     async #testSingleEdit(markerId, start, end, parentId, seasonId, showId, markerType='intro', final=false) {
         const marker = await this.editMarker(markerId, start, end, markerType, final);
-        return TestHelpers.validateMarker(marker, markerType, parentId, seasonId, showId, start, end, 0 /*expectedIndex*/, final, this.testDb);
+        return TestHelpers.validateMarker(
+            marker,
+            markerType,
+            parentId,
+            seasonId,
+            showId,
+            start,
+            end,
+            0 /*expectedIndex*/,
+            final,
+            this.testDb);
     }
 
     /**
@@ -240,7 +250,7 @@ class BasicCRUD extends TestBase {
         // Don't surface expected errors from the main application log
         this.expectFailure();
         /* MarkerId of 100 = arbitrary bad value */
-        let response = await this.editMarkerRaw(100, 0, 10000, 'intro', false /*final*/);
+        const response = await this.editMarkerRaw(100, 0, 10000, 'intro', false /*final*/);
 
         return TestHelpers.verifyBadRequest(response, 'edit of nonexistent marker');
     }
@@ -251,7 +261,7 @@ class BasicCRUD extends TestBase {
         // With default config, taggings id 1 is a marker from 15 to 45 seconds.
         const show = TestBase.DefaultMetadata.Show1;
         this.expectFailure(); // We get warned about doing this, as we should.
-        let marker = await this.editMarker(show.Season1.Episode2.Marker1.Id, 14000, 46000, 'intro', true /*final*/);
+        const marker = await this.editMarker(show.Season1.Episode2.Marker1.Id, 14000, 46000, 'intro', true /*final*/);
 
         return TestHelpers.validateMarker(marker,
             'intro' /*expectedType*/,
@@ -335,7 +345,7 @@ class BasicCRUD extends TestBase {
     async testDeleteOfNonexistentMarker() {
         // Don't surface expected errors from the main application log
         this.expectFailure();
-        let response = await this.send('delete', {
+        const response = await this.send('delete', {
             id : 100, /* arbitrary bad value */
         }, true /*raw*/);
 
@@ -345,7 +355,7 @@ class BasicCRUD extends TestBase {
     /** Small helper that tests start > end requests for adding and editing markers. */
     async #flippedTestHelper(endpoint, parameters) {
         this.expectFailure();
-        let response = await this.send(endpoint, parameters, true /*raw*/);
+        const response = await this.send(endpoint, parameters, true /*raw*/);
 
         return TestHelpers.verifyBadRequest(response, `${endpoint} with startMs greater than endMs`);
     }

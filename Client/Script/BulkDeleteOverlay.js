@@ -1,13 +1,15 @@
-import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
+
+import Overlay from './inc/Overlay.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
-import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
-import Overlay from './inc/Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * UI for bulk deleting markers for a given show/season.
@@ -29,20 +31,30 @@ class BulkDeleteOverlay {
     /**
      * Launch the bulk delete overlay. */
     show() {
-        let container = buildNode('div', { id : 'bulkActionContainer' })
-        let title = buildNode('h1', {}, `Delete All Markers`);
+        const container = buildNode('div', { id : 'bulkActionContainer' });
+        const title = buildNode('h1', {}, `Delete All Markers`);
         appendChildren(container,
             title,
             buildNode('hr'),
             buildNode('h4', {}, `Are you sure you want to delete all markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Delete All', this.#deleteAll.bind(this), { id : 'deleteApply', class : 'cancelSetting' }),
-                ButtonCreator.textButton('Customize', this.#showCustomizationTable.bind(this), { id : 'deleteCustomize', tooltip : 'Bring up a table of all markers that will be deleted, with the option to keep some.'}),
+                ButtonCreator.textButton(
+                    'Customize',
+                    this.#showCustomizationTable.bind(this),
+                    {
+                        id : 'deleteCustomize',
+                        tooltip : 'Bring up a table of all markers that will be deleted, with the option to keep some.'
+                    }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss, { id : 'bulkDeleteCancel' })
             )
         );
 
-        Overlay.build({ dismissible : true, closeButton: true, forceFullscreen : true, setup : { fn : () => $('#bulkDeleteCancel').focus() } }, container);
+        Overlay.build({
+            dismissible : true,
+            closeButton : true,
+            forceFullscreen : true,
+            setup : { fn : () => $('#bulkDeleteCancel').focus() } }, container);
     }
 
     /**

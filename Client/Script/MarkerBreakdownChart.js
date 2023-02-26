@@ -1,9 +1,12 @@
-import MarkerBreakdown from "../../Shared/MarkerBreakdown.js";
-import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from "./Common.js";
-import { Chart, PieChartOptions } from "./inc/Chart.js";
-import Overlay from "./inc/Overlay.js";
-import Tooltip from "./inc/Tooltip.js";
-import { PlexClientState } from "./PlexClientState.js";
+import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
+
+import { Chart, PieChartOptions } from './inc/Chart.js';
+import Overlay from './inc/Overlay.js';
+import Tooltip from './inc/Tooltip.js';
+
+import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import { PlexClientState } from './PlexClientState.js';
 
 /**
  * Available charts
@@ -28,7 +31,7 @@ const DataLabels = {
     [BreakdownType.Combined] : 'Marker',
     [BreakdownType.Intros]   : 'Intro Marker',
     [BreakdownType.Credits]  : 'Credits Marker',
-}
+};
 
 class MarkerBreakdownManager {
 
@@ -77,7 +80,7 @@ class MarkerBreakdownManager {
         }
 
         /** @type {import("./inc/Chart").ChartDataPoint[]} */
-        let dataPoints = [];
+        const dataPoints = [];
         let chartData;
         switch (breakdownType) {
             case BreakdownType.Combined:
@@ -98,7 +101,7 @@ class MarkerBreakdownManager {
         }
 
         const radius = Math.min(Math.min(400, window.innerWidth / 2 - 40), window.innerHeight / 2 - 200);
-        let options = new PieChartOptions(dataPoints, radius);
+        const options = new PieChartOptions(dataPoints, radius);
         const chartSelect = this.#buildOptions(breakdownType);
         options.colorMap = { // Set colors for 0 and 1, use defaults for everything else
             [`0 ${DataLabels[breakdownType]}s`] : '#a33e3e',
@@ -116,15 +119,20 @@ class MarkerBreakdownManager {
         const delay = (1 - opacity) * 250;
         Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
             appendChildren(buildNode('div', { style : 'text-align: center' }),
-            appendChildren(buildNode('div', { style : 'padding-bottom: 20px' }), chartSelect),
-            chart));
+                appendChildren(buildNode('div', { style : 'padding-bottom: 20px' }), chartSelect),
+                chart)
+        );
     }
 
     /**
      * Build the dropdown that controls what specific chart is displayed.
      * @param {number} breakdownType */
     #buildOptions(breakdownType) {
-        const sel = buildNode('select', { id : 'chartBreakdownType', class : 'fancySelect' }, 0, { change : this.#onChartTypeChange.bind(this) });
+        const sel = buildNode('select',
+            { id : 'chartBreakdownType', class : 'fancySelect' },
+            0,
+            { change : this.#onChartTypeChange.bind(this) });
+
         for (const option of Object.values(BreakdownType)) {
             const optNode = buildNode('option', { value : option }, BreakdownTitles[option]);
             if (option == breakdownType) {

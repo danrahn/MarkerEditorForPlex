@@ -1,11 +1,11 @@
-import { Log } from '../../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 
 /**
  * Test the behavior of bulk adding markers.
@@ -41,7 +41,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0},
+            [   { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0 },
                 { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 1 }
             ],
             {}
@@ -52,7 +52,7 @@ class BulkAddTest extends TestBase {
      * Basic scenario - add a marker to a season that has no conflicts. */
     async easyBulkAddSeasonTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
-        let expectedMarkers = [
+        const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0 },
             { id : TestBase.NextMarkerIndex + 1, start : 0, end : 10000, index : 0 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 1),
@@ -79,7 +79,7 @@ class BulkAddTest extends TestBase {
         const show = TestBase.DefaultMetadata.Show3;
         const newStart = 50000;
         const newEnd = 70000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             { id : TestBase.NextMarkerIndex + 1, start : newStart, end : newEnd, index : 1 },
             { id : TestBase.NextMarkerIndex + 2, start : newStart, end : newEnd, index : 1 },
@@ -107,7 +107,7 @@ class BulkAddTest extends TestBase {
      * the resolve type is Fail */
     async bulkAddOverlapResolveTypeFailFailsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
-        let expectedMarkers = [
+        const expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker2, 1),
@@ -133,7 +133,7 @@ class BulkAddTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 300000;
         const newEnd = 350000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
@@ -160,7 +160,7 @@ class BulkAddTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 330000;
         const newEnd = 350000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
@@ -187,7 +187,7 @@ class BulkAddTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 16000;
         const newEnd = 350000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0, 15000, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0, 15000, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker3, 1),
@@ -201,7 +201,7 @@ class BulkAddTest extends TestBase {
             true,
             false,
             expectedMarkers,
-            {[season.Episode2.Id] : [{ id : season.Episode2.Marker2.Id, deleted : true }]}
+            { [season.Episode2.Id] : [{ id : season.Episode2.Marker2.Id, deleted : true }] }
         );
     }
 
@@ -212,7 +212,7 @@ class BulkAddTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 0;
         const newEnd = 350000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0, newStart, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0, newStart, newEnd),
             this.#testMarkerFromTestData(season.Episode2.Marker3, 1),
@@ -226,7 +226,7 @@ class BulkAddTest extends TestBase {
             true,
             false,
             expectedMarkers,
-            {[season.Episode2.Id] : [{ id : season.Episode2.Marker2.Id, deleted : true }]}
+            { [season.Episode2.Id] : [{ id : season.Episode2.Marker2.Id, deleted : true }] }
         );
     }
 
@@ -238,7 +238,7 @@ class BulkAddTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 330000;
         const newEnd = 350000;
-        let expectedMarkers = [
+        const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
             this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
@@ -271,7 +271,7 @@ class BulkAddTest extends TestBase {
             [],
             true,
             false,
-            [   { id : TestBase.NextMarkerIndex, start : 50000, end : 600000, index : 1},
+            [   { id : TestBase.NextMarkerIndex, start : 50000, end : 600000, index : 1 },
                 this.#testMarkerFromTestData(episode.Marker1, 0)
             ],
             {}
@@ -286,7 +286,11 @@ class BulkAddTest extends TestBase {
      * @param {number} [endOverride=-1]
      * @returns {{id : number, start : number, end : number, index : number}} */
     #testMarkerFromTestData(marker, newIndex, startOverride=-1, endOverride=-1) {
-        return { id : marker.Id, start : startOverride == -1 ? marker.Start : startOverride, end : endOverride == -1 ? marker.End : endOverride, index : newIndex };
+        return {
+            id : marker.Id,
+            start : startOverride == -1 ? marker.Start : startOverride,
+            end : endOverride == -1 ? marker.End : endOverride,
+            index : newIndex };
     }
 
     /**
@@ -301,6 +305,7 @@ class BulkAddTest extends TestBase {
      * @param {any[]} markersToCheck
      * @param {{[episodeId: number]: any[]}} expectedDeletes */
     async #verifyBulkAdd(metadataId, start, end, resolveType, ignored, expectApply, expectConflict, markersToCheck, expectedDeletes={}) {
+        /* eslint-disable max-len */
         let totalMarkerCount = 0;
         const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         /** @type {SerializedBulkAddResult} // TODO: credits */
@@ -309,7 +314,7 @@ class BulkAddTest extends TestBase {
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
         TestHelpers.verify(result.applied === true || result.applied === false, `Expected result.applied to be true or false, found ${result.applied}`);
         const c = result.conflict;
-        TestHelpers.verify(expectConflict ? c === true : (c === false || !result.hasOwnProperty('conflict')), `Expected result.conflict to be true, false, or not present, found ${result.conflict}`);
+        TestHelpers.verify(expectConflict ? c === true : (c === false || !Object.prototype.hasOwnProperty.call(result, 'conflict')), `Expected result.conflict to be true, false, or not present, found ${result.conflict}`);
         TestHelpers.verify(result.episodeMap, `Expected episodeMap in bulk_add response, found nothing.`);
         const episodeMap = result.episodeMap;
         for (const episodeApplyInfo of Object.values(episodeMap)) {
@@ -333,6 +338,7 @@ class BulkAddTest extends TestBase {
         for (const marker of markersToCheck) {
             await TestHelpers.validateMarker(marker, null, null, null, null, marker.start, marker.end, marker.index, null, this.testDb, marker.deleted);
         }
+        /* eslint-enable */
     }
 }
 

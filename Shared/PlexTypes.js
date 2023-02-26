@@ -14,21 +14,28 @@ import MarkerBreakdown from './MarkerBreakdown.js';
  * @typedef {{metadataId : number, markerBreakdown? : MarkerBreakdownMap}} PlexDataBaseData
  * @typedef {{start: number, end: number, index: number, id: number, parentId: number,
  *            seasonId: number?, showId: number?, sectionId: number, markerType: string, isFinal: boolean}} SerializedMarkerData
+ *
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, normalizedTitle: string,
  *            sortTitle: string, normalizedSortTitle: string, originalTitle: string, normalizedOriginalTitle: string,
  *            year: number, hasThumbnails: boolean? }} SerializedMovieData
+ *
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, normalizedTitle: string,
  *            sortTitle: string, normalizedSortTitle: string, originalTitle: string, normalizedOriginalTitle: string,
  *            seasonCount: number, episodeCount: number }} SerializedShowData
- * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number, title: string, episodeCount: number }} SerializedSeasonData
+ *
+ * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, index: number,
+ *            title: string, episodeCount: number }} SerializedSeasonData
+ *
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, index: number,
  *            seasonName: string, seasonIndex: number, showName: string, duration: number}} SerializedEpisodeData
- * @typedef {{applied: boolean, conflict: boolean, overflow: boolean, allMarkers: SerializedMarkerData[], episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
+ *
+ * @typedef {{applied: boolean, conflict: boolean, overflow: boolean, allMarkers: SerializedMarkerData[],
+ *            episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
- * 
+ *
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
  * @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection
- * 
+ *
  * @typedef {{
  *          episodeData: EpisodeData,
  *          existingMarkers: MarkerData[],
@@ -36,14 +43,14 @@ import MarkerBreakdown from './MarkerBreakdown.js';
  *          isAdd: boolean?,
  *          deletedMarkers: MarkerData[]?
  *      }} BulkAddResultEntry
- * 
+ *
  * @typedef {{
  *      applied: boolean,
  *      conflict: boolean?,
  *      episodeMap: {[episodeId: number]: BulkAddResultEntry},
  *      ignoredEpisodes: number[]?
  * }} BulkAddResult
- * 
+ *
  * @typedef {{
  *          episodeData: SerializedEpisodeData,
  *          existingMarkers: SerializedMarkerData[],
@@ -51,14 +58,14 @@ import MarkerBreakdown from './MarkerBreakdown.js';
  *          isAdd: boolean?,
  *          deletedMarkers: SerializedMarkerData[]?
  *      }} SerializedBulkAddResultEntry
- * 
+ *
  * @typedef {{
  *      applied: boolean,
  *      conflict: boolean?,
  *      episodeMap: {[episodeId: number]: SerializedBulkAddResultEntry},
  *      ignoredEpisodes: number[]?
  * }} SerializedBulkAddResult
- * 
+ *
  * @typedef {{[metadataId: number]: MarkerData[] }} MarkerDataMap
  * @typedef {{[metadataId: number]: SerializedMarkerData[] }} SerializedMarkerDataMap
  */
@@ -118,8 +125,7 @@ class PlexData {
     /**
      * @param {PlexDataBaseData} [data]
      */
-    constructor(data)
-    {
+    constructor(data) {
         if (data) {
             this.metadataId = data.metadataId;
             this.rawMarkerBreakdown = data.markerBreakdown;
@@ -130,7 +136,7 @@ class PlexData {
      * Restores a serialized version of this class by importing its properties into this instance.
      * @param {Object} json The serialized instance of a PlexData derivative.
      * @returns itself. */
-     setFromJson(json) {
+    setFromJson(json) {
         Object.assign(this, json);
         if (this.rawMarkerBreakdown) {
             this.#markerBreakdown = new MarkerBreakdown().initFromRawBreakdown(this.rawMarkerBreakdown);
@@ -203,7 +209,9 @@ class TopLevelData extends PlexData {
         this.title = mediaItem.title;
         this.normalizedTitle = TopLevelData.#transformTitle(mediaItem.title);
         this.sortTitle = mediaItem.title_sort && mediaItem.title_sort != this.title ? mediaItem.title_sort : '';
-        this.normalizedSortTitle = (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ? TopLevelData.#transformTitle(mediaItem.title_sort) : '';
+        this.normalizedSortTitle =
+            (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ?
+                TopLevelData.#transformTitle(mediaItem.title_sort) : '';
         this.originalTitle = mediaItem.original_title || '';
         this.normalizedOriginalTitle = mediaItem.original_title ? TopLevelData.#transformTitle(mediaItem.original_title) : '';
     }
@@ -219,7 +227,7 @@ class TopLevelData extends PlexData {
 /**
  * Information about a TV show in the Plex database.
  */
- class ShowData extends TopLevelData {
+class ShowData extends TopLevelData {
     // Note: It'd be nice for these fields (and those in the classes below) to be private
     // and accessed via getters only, but as these are stringified when sent from server
     // to client, JSON.stringify needs access to them.
@@ -428,7 +436,6 @@ class MovieData extends TopLevelData {
     realMarkerCount = -1;
 
     /**
-     * 
      * @param {RawMovieData} movie */
     constructor(movie) {
         super(movie);
@@ -451,7 +458,7 @@ const MarkerType = {
     Intro   : 'intro',
     /** @readonly */
     Credits : 'credits',
-}
+};
 
 /**
  * Information about a single marker for an episode of a TV show in the Plex database.
@@ -584,7 +591,7 @@ const BulkMarkerResolveType = {
 };
 
 /**
- * Supported library types 
+ * Supported library types
  * @enum */
 const SectionType = {
     /** @readonly */
@@ -603,6 +610,17 @@ const PurgeConflictResolution = {
     Merge : 2,
     /** Keep the existing marker and mark the purged marker as ignored. */
     Ignore : 3,
-}
+};
 
-export { BulkMarkerResolveType, PlexData, TopLevelData, ShowData, SeasonData, EpisodeData, MovieData, MarkerData, MarkerType, SectionType, PurgeConflictResolution }
+export {
+    BulkMarkerResolveType,
+    PlexData,
+    TopLevelData,
+    ShowData,
+    SeasonData,
+    EpisodeData,
+    MovieData,
+    MarkerData,
+    MarkerType,
+    SectionType,
+    PurgeConflictResolution };

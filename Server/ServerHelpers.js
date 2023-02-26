@@ -3,6 +3,7 @@ import { gzip } from 'zlib';
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
 import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
+
 import ServerError from './ServerError.js';
 
 /**
@@ -42,7 +43,7 @@ function sendJsonSuccess(res, data) {
     if (Log.getLevel() <= ConsoleLog.Level.Tmi) {
         Log.tmi(data ? JSON.parse(JSON.stringify(data)) : 'true', 'Success');
     } else {
-        Log.verbose(true, 'Success')
+        Log.verbose(true, 'Success');
     }
 
     sendCompressedData(res, 200, JSON.stringify(data || { success : true }), contentType('application/json'));
@@ -54,7 +55,7 @@ function sendJsonSuccess(res, data) {
  * @param {number} status HTTP status code.
  * @param {*} data The data to compress and return.
  * @param {string} contentType The MIME type of `data`. */
- function sendCompressedData(res, status, data, contentType) {
+function sendCompressedData(res, status, data, contentType) {
     gzip(data, (err, buffer) => {
         if (err) {
             Log.warn('Failed to compress data, sending uncompressed');
@@ -70,7 +71,7 @@ function sendJsonSuccess(res, data) {
         });
 
         res.end(buffer);
-    })
+    });
 }
 
 export { sendJsonSuccess, sendJsonError, sendCompressedData };

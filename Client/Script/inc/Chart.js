@@ -1,5 +1,7 @@
 import { Log } from '../../../Shared/ConsoleLog.js';
+
 import { buildNodeNS } from './../Common.js';
+
 import Tooltip from './Tooltip.js';
 
 /**
@@ -53,30 +55,30 @@ class PieChartOptions extends ChartOptions {
     /**
      * Optional: An array of colors to override the default choices.
      * @type {string[]} */
-     colors;
+    colors;
 
-     /**
-      * Optional: A dictionary mapping labels to colors. Takes precedences over {@linkcode colors}.
-      * @type {{ [label : DataLabel] : string }} */
-     colorMap;
+    /**
+     * Optional: A dictionary mapping labels to colors. Takes precedences over {@linkcode colors}.
+     * @type {{ [label : DataLabel] : string }} */
+    colorMap;
 
-     /**
-      * Optional: Determines the information to include in chart labels.
-      * @type {ChartLabelOptions} */
-     labelOptions;
+    /**
+     * Optional: Determines the information to include in chart labels.
+     * @type {ChartLabelOptions} */
+    labelOptions;
 
-     /** Initialize PieChartOptions with the two required fields, `points` and `radius`
-      * @param {ChartDataPoint[]} points
-      * @param {number} radius */
-     constructor(points, radius) {
-         super(points);
-         if (!radius) {
-             Log.error('Attempting to create a pie chart without a radius! Defaulting to 100.');
-             radius = 100;
-         }
+    /** Initialize PieChartOptions with the two required fields, `points` and `radius`
+     * @param {ChartDataPoint[]} points
+     * @param {number} radius */
+    constructor(points, radius) {
+        super(points);
+        if (!radius) {
+            Log.error('Attempting to create a pie chart without a radius! Defaulting to 100.');
+            radius = 100;
+        }
 
-         this.radius = radius;
-     }
+        this.radius = radius;
+    }
 }
 
 class BarChartOptions extends ChartOptions {
@@ -113,62 +115,54 @@ class BarChartOptions extends ChartOptions {
  * Taken from PlexWeb/script/chart.js
  * @class
  */
-let Chart = new function()
-{
+const Chart = new function() {
     /**
      * Create an SVG pie chart.
      * @param {PieChartOptions} data The pie chart definition
      * @returns An SVG element of the pie chart specified by `data`.
      */
-    this.pie = function(data)
-    {
+    this.pie = function(data) {
         sortData(data);
 
-        let total = data.points.reduce((acc, cur) => acc + cur.value, 0);
+        const total = data.points.reduce((acc, cur) => acc + cur.value, 0);
         const singlePoint = data.points.length === 1;
 
         let r = data.radius;
-        let hasTitle = data.title && !data.noTitle;
-        let titleOffset = hasTitle ? 40 : 0;
-        let svg = makeSvg(r * 2, r * 2 + titleOffset);
+        const hasTitle = data.title && !data.noTitle;
+        const titleOffset = hasTitle ? 40 : 0;
+        const svg = makeSvg(r * 2, r * 2 + titleOffset);
         --r; // Need space for border
         let cumulative = 0;
-        let colors = data.colors ? data.colors : ["#FFC000", "#5B9BD5", "#A5A5A5", "#70AD47", "#4472C4", "#ED7D31"];
+        const colors = data.colors ? data.colors : ['#FFC000', '#5B9BD5', '#A5A5A5', '#70AD47', '#4472C4', '#ED7D31'];
         let colorIndex = 0;
-        for (let point of data.points)
-        {
-            let startPoint = getPoint(r, cumulative, total);
+        for (const point of data.points) {
+            const startPoint = getPoint(r, cumulative, total);
             let d = `M ${r} ${r + titleOffset} L ${startPoint.x} ${startPoint.y + titleOffset} `;
 
             cumulative += point.value;
 
-            let endPoint = getPoint(r, cumulative, total);
-            let sweep = (point.value > total / 2) ? "1" : "0";
+            const endPoint = getPoint(r, cumulative, total);
+            const sweep = (point.value > total / 2) ? '1' : '0';
             d += `A ${r} ${r} ${sweep} ${sweep} 0 ${endPoint.x} ${endPoint.y + titleOffset} `;
             d += `L ${endPoint.x} ${endPoint.y + titleOffset} ${r} ${r + titleOffset}`;
-            let sliceColor = "";
-            if (data.colorMap && data.colorMap[point.label])
-            {
+            let sliceColor = '';
+            if (data.colorMap && data.colorMap[point.label]) {
                 sliceColor = data.colorMap[point.label];
-            }
-            else
-            {
+            } else {
                 sliceColor = colors[colorIndex++ % colors.length];
             }
 
             // For a single point, ignore the whole path we created above and just make a circle
-            let slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
-            let label = buildPieTooltip(point, total, data.labelOptions);
-            if (label.length != 0)
-            {
+            const slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
+            const label = buildPieTooltip(point, total, data.labelOptions);
+            if (label.length != 0) {
                 addTooltip(slice, label);
             }
 
             svg.appendChild(slice);
         }
 
-        if (hasTitle)
-        {
+        if (hasTitle) {
             svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
         }
 
@@ -180,61 +174,58 @@ let Chart = new function()
      * @param {BarChartOptions} data Object defining the bar graph.
      * @returns An SVG of the bar graph defined by `data`.
      */
-    this.bar = function(data)
-    {
+    this.bar = function(data) {
         // For now, don't bother with negative values and assume all charts start at 0
-        let max = data.points.reduce((acc, cur) => acc < cur.value ? cur.value : acc, 0);
+        const max = data.points.reduce((acc, cur) => acc < cur.value ? cur.value : acc, 0);
         sortData(data);
 
-        let hasTitle = data.title && !data.noTitle;
-        let titleOffset = hasTitle ? 40 : 0;
-        let svg = makeSvg(data.width, data.height + titleOffset);
+        const hasTitle = data.title && !data.noTitle;
+        const titleOffset = hasTitle ? 40 : 0;
+        const svg = makeSvg(data.width, data.height + titleOffset);
 
         // Give 5% for the left/bottom labels (even though they aren't implemented yet, and 5% probably isn't enough)
-        let fp = { x : data.width * 0.05, y : data.height * 0.05 };
-        let axisWidth = Math.max(1, Math.round(data.height / 100));
-        let axis = buildNodeNS(
-            "http://www.w3.org/2000/svg",
-            "polyline",
+        const fp = { x : data.width * 0.05, y : data.height * 0.05 };
+        const axisWidth = Math.max(1, Math.round(data.height / 100));
+        const axis = buildNodeNS(
+            'http://www.w3.org/2000/svg',
+            'polyline',
             {
+                /* eslint-disable-next-line max-len */
                 points : `${fp.x},${titleOffset} ${fp.x},${data.height - fp.y + titleOffset} ${data.width},${data.height - fp.y + titleOffset} `,
-                stroke : "#616161",
-                "stroke-width" : axisWidth,
-                fill : "none"
+                stroke : '#616161',
+                'stroke-width' : axisWidth,
+                fill : 'none'
             }
         );
 
         svg.appendChild(axis);
 
-        let gridWidth = data.width - axisWidth - fp.x;
-        let gridHeight = data.height - axisWidth - fp.y;
-        let per = gridWidth / data.points.length;
-        let barWidth = per >= 4 ? parseInt(per / 4 * 3) : per;
+        const gridWidth = data.width - axisWidth - fp.x;
+        const gridHeight = data.height - axisWidth - fp.y;
+        const per = gridWidth / data.points.length;
+        const barWidth = per >= 4 ? parseInt(per / 4 * 3) : per;
 
         let offsetX = axisWidth + fp.x;
 
-        for (let point of data.points)
-        {
-            let height = gridHeight * (point.value / max);
-            let bar = buildRect(offsetX, gridHeight - height + titleOffset, barWidth, height, "#4472C4");
+        for (const point of data.points) {
+            const height = gridHeight * (point.value / max);
+            const bar = buildRect(offsetX, gridHeight - height + titleOffset, barWidth, height, '#4472C4');
             addTooltip(bar, `${point.label}: ${point.value}`);
             svg.appendChild(bar);
 
             // Also build a ghost bar for better tooltips, especially with small bars
-            if (gridHeight - height > 1)
-            {
-                let ghostBar = buildRect(offsetX, titleOffset, barWidth, gridHeight, "none", { "pointer-events" : "all" });
+            if (gridHeight - height > 1) {
+                const ghostBar = buildRect(offsetX, titleOffset, barWidth, gridHeight, 'none', { 'pointer-events' : 'all' });
                 addTooltip(ghostBar, `${point.label}: ${point.value}`);
-                ghostBar.addEventListener("mouseenter", function() { this.setAttribute("stroke", "#616161"); });
-                ghostBar.addEventListener("mouseleave", function() { this.setAttribute("stroke", "none"); });
+                ghostBar.addEventListener('mouseenter', function() { this.setAttribute('stroke', '#616161'); });
+                ghostBar.addEventListener('mouseleave', function() { this.setAttribute('stroke', 'none'); });
                 svg.appendChild(ghostBar);
             }
 
             offsetX += per;
         }
 
-        if (hasTitle)
-        {
+        if (hasTitle) {
             svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
         }
 
@@ -246,36 +237,30 @@ let Chart = new function()
      * If `data.sortFn` is set, sort on that function. Otherwise di a default smallest-to-largest sort.
      * @param {Object} data The graph data.
      */
-    let sortData = function(data)
-    {
-        if (data.noSort)
-        {
+    const sortData = function(data) {
+        if (data.noSort) {
             return;
         }
 
-        if (data.sortFn)
-        {
+        if (data.sortFn) {
             data.points.sort(data.sortFn);
-        }
-        else
-        {
+        } else {
             data.points.sort((a, b) => a.value - b.value);
         }
     };
 
     /** Adds a horizontally centered text node at the given y offset */
-    let buildCenteredText = function(y, text, size)
-    {
+    const buildCenteredText = function(y, text, size) {
         return buildNodeNS(
-            "http://www.w3.org/2000/svg",
-            "text",
+            'http://www.w3.org/2000/svg',
+            'text',
             {
-                x : "50%",
+                x : '50%',
                 y : y,
-                fill : "#c1c1c1",
-                "text-anchor" : "middle",
-                "font-weight" : "bold",
-                "font-size" : size + "pt"
+                fill : '#c1c1c1',
+                'text-anchor' : 'middle',
+                'font-weight' : 'bold',
+                'font-size' : size + 'pt'
             },
             text
         );
@@ -291,11 +276,10 @@ let Chart = new function()
      * @param {Object} [extra] Extra attributes to append to the SVG node.
      * @returns An SVG rectangle.
      */
-    let buildRect = function(x, y, width, height, fill, extra)
-    {
-        let rect = buildNodeNS(
-            "http://www.w3.org/2000/svg",
-            "rect",
+    const buildRect = function(x, y, width, height, fill, extra) {
+        const rect = buildNodeNS(
+            'http://www.w3.org/2000/svg',
+            'rect',
             {
                 x : x,
                 y : y,
@@ -305,10 +289,8 @@ let Chart = new function()
             }
         );
 
-        if (extra)
-        {
-            for (let [key, value] of Object.entries(extra))
-            {
+        if (extra) {
+            for (const [key, value] of Object.entries(extra)) {
                 rect.setAttribute(key, value);
             }
         }
@@ -322,21 +304,20 @@ let Chart = new function()
      * @param {string} fill The fill color as a hex string.
      * @returns An SVG sector of a pie chart.
      */
-    let buildPieSlice = function(definition, fill)
-    {
-        return buildNodeNS("http://www.w3.org/2000/svg",
-            "path",
+    const buildPieSlice = function(definition, fill) {
+        return buildNodeNS('http://www.w3.org/2000/svg',
+            'path',
             {
                 d : definition,
                 fill : fill,
-                stroke : "#616161",
-                "pointer-events" : "all",
-                xmlns : "http://www.w3.org/2000/svg"
+                stroke : '#616161',
+                'pointer-events' : 'all',
+                xmlns : 'http://www.w3.org/2000/svg'
             },
             0,
             {
                 mouseenter : highlightPieSlice,
-                mouseleave : function() { this.setAttribute("stroke", "#616161"); }
+                mouseleave : function() { this.setAttribute('stroke', '#616161'); }
             });
     };
 
@@ -347,25 +328,24 @@ let Chart = new function()
      * @param {string} fill The fill color as a hex string
      * @returns A SVG Circle for a pie chart with a single data point.
      */
-    let buildPieCircle = function(radius, yOffset, fill)
-    {
-        return buildNodeNS("http://www.w3.org/2000/svg",
-            "circle",
+    const buildPieCircle = function(radius, yOffset, fill) {
+        return buildNodeNS('http://www.w3.org/2000/svg',
+            'circle',
             {
                 r : radius,
                 cx : radius,
                 cy : radius + yOffset,
                 fill : fill,
-                stroke : "#616161",
-                "pointer-events" : "all",
-                xmlns : "http://www.w3.org/2000/svg"
+                stroke : '#616161',
+                'pointer-events' : 'all',
+                xmlns : 'http://www.w3.org/2000/svg'
             },
             0,
             {
                 mouseenter : highlightPieSlice,
-                mouseleave : function() { this.setAttribute("stroke", "#616161"); }
-            })
-    }
+                mouseleave : function() { this.setAttribute('stroke', '#616161'); }
+            });
+    };
 
     /**
      * Builds tooltip text for a point on the chart.
@@ -374,27 +354,22 @@ let Chart = new function()
      * @param {ChartLabelOptions} labelOptions Label options.
      * @returns Tooltip text for the given point.
      */
-    let buildPieTooltip = function(point, total, labelOptions)
-    {
-        let label = "";
-        let percentage = (point.value / total * 100).toFixed(2);
-        if (!labelOptions)
-        {
+    const buildPieTooltip = function(point, total, labelOptions) {
+        let label = '';
+        const percentage = (point.value / total * 100).toFixed(2);
+        if (!labelOptions) {
             return `${point.label} (${percentage}%)`;
         }
 
-        if (labelOptions.name === undefined || labelOptions.name)
-        {
+        if (labelOptions.name === undefined || labelOptions.name) {
             label += point.label;
         }
 
-        if (labelOptions.count)
-        {
+        if (labelOptions.count) {
             label += ` - ${point.value}`;
         }
 
-        if (labelOptions.percentage === undefined || labelOptions.percentage)
-        {
+        if (labelOptions.percentage === undefined || labelOptions.percentage) {
             label += ` (${percentage}%)`;
         }
 
@@ -402,14 +377,13 @@ let Chart = new function()
     };
 
     /** Highlights the edges of the hovered pie slice */
-    let highlightPieSlice = function()
-    {
+    const highlightPieSlice = function() {
         // Setting this element to be the last will ensure that
         // the full outline is drawn (i.e. not covered by another slice)
-        let parent = this.parentNode;
+        const parent = this.parentNode;
         parent.removeChild(this);
         parent.appendChild(this);
-        this.setAttribute("stroke", "#c1c1c1");
+        this.setAttribute('stroke', '#c1c1c1');
     };
 
     /**
@@ -417,8 +391,7 @@ let Chart = new function()
      * @param {HTMLElement} element The element to add the tooltip to.
      * @param {string} label The hover text.
      */
-    let addTooltip = function(element, label)
-    {
+    const addTooltip = function(element, label) {
         Tooltip.setTooltip(element, label, 50);
     };
 
@@ -430,12 +403,11 @@ let Chart = new function()
      * @param {number} total The sum of values for the entire pie chart.
      * @returns `x, y` coordinates of the point on the circle.
      */
-    let getPoint = function(radius, value, total)
-    {
+    const getPoint = function(radius, value, total) {
         // Need to translate coordinate systems
-        let angle = (value / total) * Math.PI * 2;
-        let x = radius * Math.cos(angle) + radius + 1; // + 1 to account for stroke border
-        let y = radius - radius * Math.sin(angle) + 1;
+        const angle = (value / total) * Math.PI * 2;
+        const x = radius * Math.cos(angle) + radius + 1; // + 1 to account for stroke border
+        const y = radius - radius * Math.sin(angle) + 1;
         return { x : x, y : y };
     };
 
@@ -445,19 +417,18 @@ let Chart = new function()
      * @param {number} height The height of the container
      * @returns {HTMLElement} An SVG `Element`
      */
-    let makeSvg = function(width, height)
-    {
+    const makeSvg = function(width, height) {
         return buildNodeNS(
-            "http://www.w3.org/2000/svg",
-            "svg",
+            'http://www.w3.org/2000/svg',
+            'svg',
             {
                 width : width,
                 height : height,
                 viewBox : `0 0 ${width} ${height}`,
-                xmlns : "http://www.w3.org/2000/svg",
+                xmlns : 'http://www.w3.org/2000/svg',
                 x : 0,
                 y : 0
-        });
+            });
     };
 }();
 

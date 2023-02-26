@@ -1,6 +1,8 @@
-import { SeasonData, ShowData } from '../../Shared/PlexTypes.js';
-import TestBase from '../TestBase.js'
+import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * Tests various query endpoints
@@ -32,7 +34,7 @@ class QueryTest extends TestBase {
     className() { return 'QueryTest'; }
 
 
-     /////////////////////
+    //////////////////////
     /// get_sections
 
     /**
@@ -54,7 +56,7 @@ class QueryTest extends TestBase {
         TestHelpers.verify(movieLib.name == 'M', `Expected library name to be 'M', found ${movieLib.name}.`);
     }
 
-     /////////////////////
+    //////////////////////
     /// get_section
 
     /**
@@ -69,11 +71,17 @@ class QueryTest extends TestBase {
         for (const showResult of result) {
             const expectedShow = shows[showResult.title];
             TestHelpers.verify(expectedShow, `get_section returned unknown show "${showResult.title}"`);
-            TestHelpers.verify(showResult.metadataId == expectedShow.Id, `Found metadata id ${showResult.metadataId} for ${showResult.title}, expected ${expectedShow.Id}.`);
+            TestHelpers.verify(
+                showResult.metadataId == expectedShow.Id,
+                `Found metadata id ${showResult.metadataId} for ${showResult.title}, expected ${expectedShow.Id}.`);
             const expectedSeasons = this.#expectedCount(expectedShow); // -1 for ID field
-            TestHelpers.verify(showResult.seasonCount == expectedSeasons, `Expected ${showResult.title} to have ${expectedSeasons} season(s), found ${showResult.seasonCount}`);
+            TestHelpers.verify(
+                showResult.seasonCount == expectedSeasons,
+                `Expected ${showResult.title} to have ${expectedSeasons} season(s), found ${showResult.seasonCount}`);
             const expectedEpisodes = this.#expectedEpisodeCount(expectedShow);
-            TestHelpers.verify(showResult.episodeCount == expectedEpisodes, `Expected ${showResult.title} to have ${expectedEpisodes} episode(s), found ${expectedEpisodes}`);
+            TestHelpers.verify(
+                showResult.episodeCount == expectedEpisodes,
+                `Expected ${showResult.title} to have ${expectedEpisodes} episode(s), found ${expectedEpisodes}`);
         }
     }
 
@@ -98,7 +106,9 @@ class QueryTest extends TestBase {
         for (const movieResult of result) {
             const expectedMovie = movies[movieResult.title];
             TestHelpers.verify(expectedMovie, `get_section returned unknown movie "${movieResult.title}"`);
-            TestHelpers.verify(movieResult.metadataId == expectedMovie.Id, `Found metadata id ${movieResult.metadataId} for ${movieResult.title}, expected ${expectedMovie.Id}.`);
+            TestHelpers.verify(
+                movieResult.metadataId == expectedMovie.Id,
+                `Found metadata id ${movieResult.metadataId} for ${movieResult.title}, expected ${expectedMovie.Id}.`);
         }
     }
 
@@ -117,7 +127,7 @@ class QueryTest extends TestBase {
     }
 
 
-     /////////////////////
+    //////////////////////
     /// get_seasons
 
     /**
@@ -132,7 +142,9 @@ class QueryTest extends TestBase {
             for (const season of seasons) {
                 TestHelpers.verify(testShow[season.title], `Got unexpected season "${season.title}" from get_seasons.`);
                 const expectedEpisodes = this.#expectedCount(testShow[season.title]);
-                TestHelpers.verify(season.episodeCount == expectedEpisodes, `Expected season ${season.title} to have ${expectedEpisodes} episodes, found ${season.episodeCount}.`);
+                TestHelpers.verify(
+                    season.episodeCount == expectedEpisodes,
+                    `Expected season ${season.title} to have ${expectedEpisodes} episodes, found ${season.episodeCount}.`);
             }
         }
     }
@@ -174,7 +186,7 @@ class QueryTest extends TestBase {
     }
 
 
-     /////////////////////
+    //////////////////////
     /// get_episodes
 
     async getEpisodesTest() {
@@ -235,6 +247,7 @@ class QueryTest extends TestBase {
         let count = 0;
         for (const [season, data] of Object.entries(showData)) {
             if (season == 'Id') { continue; }
+
             count += this.#expectedCount(data);
         }
 

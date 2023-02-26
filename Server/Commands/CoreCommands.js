@@ -1,17 +1,18 @@
-import { Log } from '../../Shared/ConsoleLog.js';
 import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
-/** @typedef {!import('../../Shared/PlexTypes.js').BulkAddResult} BulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').ShiftResult} ShiftResult */
+import { Log } from '../../Shared/ConsoleLog.js';
 
-import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MetadataType, PlexQueries } from '../PlexQueryManager.js';
 import { BackupManager } from '../MarkerBackupManager.js';
+import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
 import ServerError from '../ServerError.js';
-/** @typedef {!import('../PlexQueryManager.js').RawMarkerData} RawMarkerData */
-/** @typedef {!import('../PlexQueryManager.js').RawEpisodeData} RawEpisodeData */
+
+/** @typedef {!import('../../Shared/PlexTypes').BulkAddResult} BulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
+/** @typedef {!import('../PlexQueryManager').RawEpisodeData} RawEpisodeData */
+/** @typedef {!import('../PlexQueryManager').RawMarkerData} RawMarkerData */
 
 /**
  * Core add/edit/delete commands
@@ -54,7 +55,7 @@ class CoreCommands {
      * @param {number} userCreated Whether the original marker was user created.
      * @param {number} final Whether this Credits marker goes until the end of the episode
      * @throws {ServerError} */
-     static async editMarker(markerType, markerId, startMs, endMs, userCreated, final) {
+    static async editMarker(markerType, markerId, startMs, endMs, userCreated, final) {
         CoreCommands.#checkMarkerBounds(startMs, endMs, markerType);
         if (markerType !== MarkerType.Credits && final) {
             Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
@@ -77,7 +78,7 @@ class CoreCommands {
         let newIndex = 0;
 
         for (let index = 0; index < allMarkers.length; ++index) {
-            let marker = allMarkers[index];
+            const marker = allMarkers[index];
             if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
                 // Overlap, this should be handled client-side
                 const message = `Marker edit (${startMs}-${endMs}) overlaps with existing marker ${marker.start}-${marker.end}`;
@@ -98,7 +99,7 @@ class CoreCommands {
         const newMarker = new MarkerData(newMarkerRaw);
         const oldStart = currentMarker.start;
         const oldEnd = currentMarker.end;
-        await BackupManager?.recordEdits([newMarker], { [newMarker.id]: { start : oldStart, end : oldEnd } });
+        await BackupManager?.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
         return newMarker;
     }
 
@@ -108,7 +109,7 @@ class CoreCommands {
     static async deleteMarker(markerId) {
         const markerToDelete = await PlexQueries.getSingleMarker(markerId);
         if (!markerToDelete) {
-            throw new ServerError("Could not find marker", 400);
+            throw new ServerError('Could not find marker', 400);
         }
 
         const allMarkers = await PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);
@@ -147,6 +148,7 @@ class CoreCommands {
         if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
         }
+
         /** @type {{ [episodeId: number]: RawMarkerData[] }} */
         const seen = {};
 
@@ -243,6 +245,7 @@ class CoreCommands {
         if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
         }
+
         const ignoreSet = new Set();
         for (const markerId of ignoredMarkerIds) {
             ignoreSet.add(markerId);
@@ -288,7 +291,10 @@ class CoreCommands {
         // value is any remaining markers associated with the id. Should line up with ignoredMarkerIds.
         const newMarkerInfo = await PlexQueries.reindex(metadataId);
 
-        Log.assert(newMarkerInfo.markers.length == ignoredMarkerIds.length, `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
+        Log.assert(
+            newMarkerInfo.markers.length == ignoredMarkerIds.length,
+            `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
+
         const serializedMarkers = [];
         newMarkerInfo.markers.forEach(m => serializedMarkers.push(new MarkerData(m)));
         const deleted = [];
@@ -303,7 +309,7 @@ class CoreCommands {
         return {
             markers : serializedMarkers,
             deletedMarkers : deleted
-        }
+        };
     }
 
     /**
@@ -338,13 +344,21 @@ class CoreCommands {
             const episodes = Object.values(addResult.episodeMap);
             /** @type {MarkerData[]} */
             const adds = [];
-             episodes.forEach(episodeData => { if (episodeData.changedMarker && episodeData.isAdd) adds.push(episodeData.changedMarker); });
+            episodes.forEach(episodeData => {
+                if (episodeData.changedMarker && episodeData.isAdd) adds.push(episodeData.changedMarker);
+            });
+
             /** @type {MarkerData[]} */
             const edits = [];
-            episodes.forEach(episodeData => { if (episodeData.changedMarker && !episodeData.isAdd) edits.push(episodeData.changedMarker); });
+            episodes.forEach(episodeData => {
+                if (episodeData.changedMarker && !episodeData.isAdd) edits.push(episodeData.changedMarker);
+            });
+
             /** @type {MarkerData[]} */
             const deletes = [];
-            episodes.forEach(episodeData => { if (episodeData.deletedMarkers) deletes.push(...episodeData.deletedMarkers); });
+            episodes.forEach(episodeData => {
+                if (episodeData.deletedMarkers) deletes.push(...episodeData.deletedMarkers);
+            });
 
             /** @type {{[episodeId: number]: RawMarkerData[]}} */
             const markerCounts = {};

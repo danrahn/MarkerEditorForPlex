@@ -1,0 +1,52 @@
+{
+    "env": {
+        "browser": true,
+        "es2021": true,
+        "node": true
+    },
+    "extends": "eslint:recommended",
+    "overrides": [
+    ],
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "rules": {
+        "array-callback-return" : "error",
+        "arrow-body-style" : ["error", "as-needed"],
+        "arrow-spacing" : ["error", { "before": true, "after": true }],
+        "brace-style" : ["error", "1tbs", { "allowSingleLine" : true }],
+        "comma-spacing" : ["error", { "before": false, "after": true }],
+        "complexity" : "error",
+        "eol-last": ["error", "always"],
+        "indent": ["error", 4, { "SwitchCase": 1, "ObjectExpression" : "first" }],
+        "key-spacing" : ["error", { "beforeColon" : true, "mode" : "minimum" }],
+        "keyword-spacing" : "error",
+        "linebreak-style": ["error", "windows"],
+        "max-len": ["error", { "code" : 140 }],
+        "no-implicit-globals" : "error",
+        "no-trailing-spaces": ["error"],
+        "no-unused-vars": ["error", { "argsIgnorePattern": "^_.*" }],
+        "object-curly-spacing" : ["error", "always"],
+        "operator-assignment" : "error",
+        "operator-linebreak" : ["error", "after",
+            { "overrides" : { "||" : "before", "&&" : "before" } }],
+        "padding-line-between-statements" : ["error",
+            { "blankLine": "always", "prev": "block-like", "next": "*" },
+            { "blankLine": "any", "prev": "*", "next": "break" },
+            { "blankLine": "any", "prev": "*", "next": "case" },
+            { "blankLine": "any", "prev": "*", "next": "default" }],
+        "prefer-const" : "error",
+        "prefer-regex-literals" : "error",
+        "quote-props" : ["error", "as-needed"],
+        "quotes": ["error", "single", { "avoidEscape" : true, "allowTemplateLiterals" : true }],
+        "require-jsdoc": "error",
+        "rest-spread-spacing" : ["error", "never"],
+        "semi": ["error", "always"],
+        "semi-spacing" : ["error", { "before" : false, "after" : true }],
+        "semi-style" : ["error", "last"],
+        "sort-imports": ["error", { "ignoreCase": true, "allowSeparatedGroups": true }],
+        "space-in-parens" : ["error", "never"],
+        "yoda" : ["error", "never"]
+    }
+}

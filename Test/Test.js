@@ -1,10 +1,10 @@
 import { createInterface as createReadlineInterface } from 'readline';
 /** @typedef {!import('readline').Interface} Interface */
 
-import { TestLog, TestRunner } from './TestRunner.js'
+import { TestLog, TestRunner } from './TestRunner.js';
 
 const testRunner = new TestRunner();
-let testClass = getParam('--test_class', '-tc');
+const testClass = getParam('--test_class', '-tc');
 try {
     if (testClass) {
         await testRunner.runSpecific(testClass, getParam('--test_method', '-tm'));
@@ -23,8 +23,8 @@ try {
  * Gets user input to determine the test class/method to run. */
 async function askForTests() {
     const rl = createReadlineInterface({
-        input: process.stdin,
-        output: process.stdout });
+        input : process.stdin,
+        output : process.stdout });
     const testClass = await askUser('Test Class Name: ', rl);
     const testMethod = await askUser('Test Method (Enter to run all class tests): ', rl);
     rl.close();

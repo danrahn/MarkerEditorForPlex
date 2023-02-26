@@ -16,29 +16,29 @@ class ConsoleLog {
      * @readonly
      * @enum {number} */
     static Level = {
-        Invalid: -1,
-        Extreme: 0,
-        Tmi: 1,
-        Verbose: 2,
-        Info: 3,
-        Warn: 4,
-        Error: 5,
-        Critical: 6
-    }
+        Invalid  : -1,
+        Extreme  : 0,
+        Tmi      : 1,
+        Verbose  : 2,
+        Info     : 3,
+        Warn     : 4,
+        Error    : 5,
+        Critical : 6
+    };
 
     /** Display strings for each log {@linkcode Level} */
-    static #logStrings = ["EXTREME", "TMI", "VERBOSE", "INFO", "WARN", "ERROR", "CRITICAL"];
+    static #logStrings = ['EXTREME', 'TMI', 'VERBOSE', 'INFO', 'WARN', 'ERROR', 'CRITICAL'];
 
     /** Console color definitions for each log {@linkcode Level} */
     static #consoleColors = [
         // Light Title, Dark Title, Light Text, Dark Text
-        ["#009900", "#006600", "#AAA", "#888"],
-        ["#00CC00", "#00AA00", "#AAA", "#888"],
-        ["#c661e8", "#c661e8", "inherit", "inherit"],
-        ["blue", "#88C", "inherit", "inherit"],
-        ["E50", "#C40", "inherit", "inherit"],
-        ["inherit", "inherit", "inherit", "inherit"],
-        ["inherit; font-size: 2em", "inherit; font-size: 2em", "#800; font-size: 2em", "#C33; font-size: 2em"],
+        ['#009900', '#006600', '#AAA', '#888'],
+        ['#00CC00', '#00AA00', '#AAA', '#888'],
+        ['#c661e8', '#c661e8', 'inherit', 'inherit'],
+        ['blue', '#88C', 'inherit', 'inherit'],
+        ['E50', '#C40', 'inherit', 'inherit'],
+        ['inherit', 'inherit', 'inherit', 'inherit'],
+        ['inherit; font-size: 2em', 'inherit; font-size: 2em', '#800; font-size: 2em', '#C33; font-size: 2em'],
     ];
 
     /** Trace color definitions for each log level. */
@@ -48,22 +48,22 @@ class ConsoleLog {
         ConsoleLog.#consoleColors[2],
         ConsoleLog.#consoleColors[3],
         [
-            "#E50; background: #FFFBE5",
-            "#C40; background: #332B00",
-            "inherit; background: #FFFBE5",
-            "#DFC185; background: #332B00"
+            '#E50; background: #FFFBE5',
+            '#C40; background: #332B00',
+            'inherit; background: #FFFBE5',
+            '#DFC185; background: #332B00'
         ],
         [
-            "red; background: #FEF0EF",
-            "#D76868; background: #290000",
-            "red; background: #FEF0EF",
-            "#D76868; background: #290000"
+            'red; background: #FEF0EF',
+            '#D76868; background: #290000',
+            'red; background: #FEF0EF',
+            '#D76868; background: #290000'
         ],
         [
-            "red; font-size: 2em",
-            "red; font-size: 2em",
-            "#800; font-size: 2em",
-            "#C33; font-size: 2em"
+            'red; font-size: 2em',
+            'red; font-size: 2em',
+            '#800; font-size: 2em',
+            '#C33; font-size: 2em'
         ],
     ];
 
@@ -102,23 +102,23 @@ class ConsoleLog {
         }
 
         /** The current log level. Anything below this will not be logged. */
-        this.#currentLogLevel = parseInt(this.window.localStorage.getItem("loglevel"));
+        this.#currentLogLevel = parseInt(this.window.localStorage.getItem('loglevel'));
         if (isNaN(this.#currentLogLevel)) {
             this.#currentLogLevel = ConsoleLog.Level.Info;
         }
 
         /** Determine whether we should add a trace to every log event, not just errors. */
-        this.#traceLogging = parseInt(this.window.localStorage.getItem("logtrace"));
+        this.#traceLogging = parseInt(this.window.localStorage.getItem('logtrace'));
         if (isNaN(this.#traceLogging)) {
             this.#traceLogging = 0;
         }
 
         /** Tweak colors a bit based on whether the user is using a dark console theme */
-        this.#darkConsole = parseInt(this.window.localStorage.getItem("darkconsole"));
+        this.#darkConsole = parseInt(this.window.localStorage.getItem('darkconsole'));
         if (isNaN(this.#darkConsole)) {
             // Default to system browser theme (if available)
-            let mediaMatch = this.window.matchMedia("(prefers-color-scheme: dark)");
-            mediaMatch = mediaMatch != "not all" && mediaMatch.matches;
+            let mediaMatch = this.window.matchMedia('(prefers-color-scheme: dark)');
+            mediaMatch = mediaMatch != 'not all' && mediaMatch.matches;
             this.#darkConsole = mediaMatch ? 1 : 0;
         }
     }
@@ -127,22 +127,24 @@ class ConsoleLog {
     testConsolelog() {
         const old = this.#currentLogLevel;
         this.setLevel(-1);
-        this.tmi("TMI!");
+        this.tmi('TMI!');
         this.setLevel(0);
-        this.verbose("Verbose!");
-        this.info("Info!");
-        this.warn("Warn!");
-        this.error("Error!");
-        this.critical("Crit!");
-        this.formattedText(ConsoleLog.Level.Info, "%cFormatted%c,%c Text!%c", "color: green", "color: red", "color: orange", "color: inherit");
+        this.verbose('Verbose!');
+        this.info('Info!');
+        this.warn('Warn!');
+        this.error('Error!');
+        this.critical('Crit!');
+        this.formattedText(
+            ConsoleLog.Level.Info,
+            '%cFormatted%c,%c Text!%c', 'color: green', 'color: red', 'color: orange', 'color: inherit');
         this.setLevel(old);
-    };
+    }
 
     /**
      * Sets the new minimum logging severity.
      * @param {Level} level The new log level. */
     setLevel(level) {
-        this.window.localStorage.setItem("loglevel", level);
+        this.window.localStorage.setItem('loglevel', level);
         this.#currentLogLevel = level;
     }
 
@@ -156,8 +158,8 @@ class ConsoleLog {
      * Set text to be better suited for dark versus light backgrounds.
      * @param {number} dark `1` to adjust colors for dark consoles, `0` for light. */
     setDarkConsole(dark) {
-        this.window.localStorage.setItem("darkconsole", dark);
-        this.#darkConsole = !!dark ? 1 : 0;
+        this.window.localStorage.setItem('darkconsole', dark);
+        this.#darkConsole = dark ? 1 : 0;
     }
 
     /** @returns Whether the current color scheme is best suited for dark consoles. */
@@ -169,8 +171,8 @@ class ConsoleLog {
      * Set whether to print stack traces for each log. Helpful when debugging.
      * @param {number} trace `1` to enable trace logging, `0` otherwise. */
     setTrace(trace) {
-        this.window.localStorage.setItem("logtrace", trace);
-        this.#traceLogging = !!trace ? 1 : 0;
+        this.window.localStorage.setItem('logtrace', trace);
+        this.#traceLogging = trace ? 1 : 0;
     }
 
     /** @returns Whether stack traces are printed for each log. */
@@ -184,12 +186,15 @@ class ConsoleLog {
      * @param {string} logString
      * @param {number} levelDefault The default level if we are unable to parse the logString. */
     setFromString(logString, levelDefault=ConsoleLog.Level.Info) {
-        let match = /(trace)?(dark)?(extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
+        const match = /(trace)?(dark)?(extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
         this.setTrace(match[1] ? 1 : 0);
         this.setDarkConsole(match[2] ? 1 : 0);
         let level = match[3] ? ConsoleLog.#logStrings.indexOf(match[3].toUpperCase()) : ConsoleLog.Level.Invalid;
         if (level == ConsoleLog.Level.Invalid) {
-            console.warn(`[WARN][${ConsoleLog.#getTimestring()}] ConsoleLog.setFromString: Got invalid level "${match[3]}". Defaulting to "${ConsoleLog.#logStrings[levelDefault]}".`);
+            console.warn(
+                `[WARN][${ConsoleLog.#getTimestring()}] ` +
+                `ConsoleLog.setFromString: Got invalid level "${match[3]}". ` +
+                `Defaulting to "${ConsoleLog.#logStrings[levelDefault]}".`);
             level = levelDefault;
         }
 
@@ -221,7 +226,7 @@ class ConsoleLog {
      * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
     info = function (obj, description, freeze) {
         this.log(obj, description, freeze, ConsoleLog.Level.Info);
-    }
+    };
 
     /**
      * Log a warning using `console.warn`.
@@ -256,7 +261,7 @@ class ConsoleLog {
      * @param {string} text The formatted text string.
      * @param {...any} format The arguments for {@linkcode text} */
     formattedText(level, text, ...format) {
-        this.log("", text, false /*freeze*/, level, true /*textOnly*/, ...format);
+        this.log('', text, false /*freeze*/, level, true /*textOnly*/, ...format);
     }
 
     /**
@@ -287,14 +292,14 @@ class ConsoleLog {
             return;
         }
 
-        let timestring = ConsoleLog.#getTimestring();
-        let colors = this.#traceLogging ? ConsoleLog.#traceColors : ConsoleLog.#consoleColors;
-        let type = (object) => typeof (object) == "string" ? "%s" : "%o";
+        const timestring = ConsoleLog.#getTimestring();
+        const colors = this.#traceLogging ? ConsoleLog.#traceColors : ConsoleLog.#consoleColors;
+        const type = (object) => typeof (object) == 'string' ? '%s' : '%o';
 
         if (this.#currentLogLevel == ConsoleLog.Level.Extreme) {
             this.#write(
                 console.debug,
-                `%c[%cEXTREME%c][%c${timestring}%c] Called log with '${description ? description + ": " : ""}${type(obj)},${level}'`,
+                `%c[%cEXTREME%c][%c${timestring}%c] Called log with '${description ? description + ': ' : ''}${type(obj)},${level}'`,
                 ConsoleLog.#currentState(obj, freeze),
                 ConsoleLog.Level.Extreme,
                 colors,
@@ -302,13 +307,12 @@ class ConsoleLog {
             );
         }
 
-        let desc = "";
+        let desc = '';
         if (description) {
             desc = textOnly ? description : `${description}: ${type(obj)}`;
-        }
-        else if (typeof (obj) == "string") {
+        } else if (typeof (obj) == 'string') {
             desc = obj;
-            obj = "";
+            obj = '';
         }
 
         this.#write(
@@ -330,16 +334,16 @@ class ConsoleLog {
      * This will be `traceColors` if trace logging is enabled, otherwise `consoleColors`.
      * @param {...any} [more] Any additional formatting properties that will be applied to `text`. */
     #write(outputStream, text, object, logLevel, colors, ...more) {
-        let textColor = `color: ${colors[logLevel][2 + this.#darkConsole]}`;
-        let titleColor = `color: ${colors[logLevel][this.#darkConsole]}`;
+        const textColor = `color: ${colors[logLevel][2 + this.#darkConsole]}`;
+        const titleColor = `color: ${colors[logLevel][this.#darkConsole]}`;
         outputStream(text, textColor, titleColor, textColor, titleColor, textColor, ...more, object);
     }
 
     /** @returns The log timestamp in the form YYYY.MM.DD HH:MM:SS.000 */
     static #getTimestring() {
-        let padLeft = (str, pad = 2) => ("00" + str).substr(-pad);
+        const padLeft = (str, pad = 2) => ('00' + str).substr(-pad);
 
-        let time = new Date();
+        const time = new Date();
         return `${time.getFullYear()}.${padLeft(time.getMonth() + 1)}.${padLeft(time.getDate())} ` +
             `${padLeft(time.getHours())}:${padLeft(time.getMinutes())}:${padLeft(time.getSeconds())}.${padLeft(time.getMilliseconds(), 3)}`;
     }
@@ -351,7 +355,7 @@ class ConsoleLog {
      * This prevents subsequent code from modifying the console output.
      * @param {boolean} [str=false] Whether to convert `object` to a string regardless of its actual type. */
     static #currentState(object, freeze, str = false) {
-        if (typeof (object) == "string") {
+        if (typeof (object) == 'string') {
             return object;
         }
 
@@ -376,21 +380,21 @@ class ConsoleLog {
         // After initializing everything we need, print a message to the user to give some basic tips
         const logLevelSav = this.#currentLogLevel;
         this.#currentLogLevel = 2;
-        this.info(" ");
-        console.log("Welcome to the console!\n" +
+        this.info(' ');
+        console.log('Welcome to the console!\n' +
             "If you're debugging an issue, here are some tips:\n" +
-            "  1. Set dark/light mode for the console via Log.setDarkConsole(isDark), where isDark is 1 or 0.\n" +
-            "  2. Set the log level via Log.setLevel(level), where level is a value from the ConsoleLog.Level dictionary " +
-            "(e.g. Log.setLevel(ConsoleLog.Level.Verbose);)\n" +
-            "  3. To view the stack trace for every logged event, call Log.setTrace(1). To revert, Log.setTrace(0)\n\n");
-            this.#currentLogLevel = logLevelSav;
+            '  1. Set dark/light mode for the console via Log.setDarkConsole(isDark), where isDark is 1 or 0.\n' +
+            '  2. Set the log level via Log.setLevel(level), where level is a value from the ConsoleLog.Level dictionary ' +
+            '(e.g. Log.setLevel(ConsoleLog.Level.Verbose);)\n' +
+            '  3. To view the stack trace for every logged event, call Log.setTrace(1). To revert, Log.setTrace(0)\n\n');
+        this.#currentLogLevel = logLevelSav;
     }
 }
 
-let w = typeof window == 'undefined' ? null : window;
+const w = typeof window == 'undefined' ? null : window;
 const Log = new ConsoleLog(w);
 if (w) {
-    Log.info("Welcome to the console! For debugging help, call Log.consoleHelp()");
+    Log.info('Welcome to the console! For debugging help, call Log.consoleHelp()');
 }
 
 export { Log, ConsoleLog };

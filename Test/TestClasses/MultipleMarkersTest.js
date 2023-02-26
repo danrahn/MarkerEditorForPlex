@@ -1,6 +1,7 @@
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 
 /**
  * Integration test that verifies correct behavior when performing operations that involve multiple markers
@@ -25,7 +26,7 @@ class MultipleMarkers extends TestBase {
     async testAddAfterExisting() {
         const show = TestBase.DefaultMetadata.Show1;
         const eid = show.Season1.Episode2.Id;
-        let marker = await this.addMarker(eid, 50000, 60000);
+        const marker = await this.addMarker(eid, 50000, 60000);
 
         await TestHelpers.validateMarker(
             marker,
@@ -45,7 +46,10 @@ class MultipleMarkers extends TestBase {
         TestHelpers.checkError(newMarkers);
 
         // Single entry for the one episode queried
-        TestHelpers.verify(Object.keys(newMarkers).length == 1, `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
+        TestHelpers.verify(
+            Object.keys(newMarkers).length == 1,
+            `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
+
         TestHelpers.verify(newMarkers[eid], `Expected an entry for Episode2 (${eid}), found ${Object.keys(newMarkers)[0]}`);
 
         newMarkers = newMarkers[eid];
@@ -64,7 +68,7 @@ class MultipleMarkers extends TestBase {
         // Essentially copy+paste from above, with order swapped
         const show = TestBase.DefaultMetadata.Show1;
         const eid = show.Season1.Episode2.Id;
-        let marker = await this.addMarker(eid, 0, 10000);
+        const marker = await this.addMarker(eid, 0, 10000);
 
         await TestHelpers.validateMarker(
             marker,
@@ -84,7 +88,10 @@ class MultipleMarkers extends TestBase {
         TestHelpers.checkError(newMarkers);
 
         // Single entry for the one episode queried
-        TestHelpers.verify(Object.keys(newMarkers).length == 1, `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
+        TestHelpers.verify(
+            Object.keys(newMarkers).length == 1,
+            `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
+
         TestHelpers.verify(newMarkers[eid], `Expected an entry for Episode2 (${eid}), found ${Object.keys(newMarkers)[0]}`);
 
         newMarkers = newMarkers[eid];
@@ -99,7 +106,7 @@ class MultipleMarkers extends TestBase {
 
     /**
      * Ensure that attempting to add a marker that overlaps with an existing one fails */
-     async testAddOverlapFails() {
+    async testAddOverlapFails() {
         // We know this will error out, don't pollute the console
         this.expectFailure();
 
@@ -125,8 +132,12 @@ class MultipleMarkers extends TestBase {
      * Ensure that marker indexes are resolved correctly after one is deleted. */
     async testReindexAfterDelete() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : episode.Marker2.Index }, null, null, null, null, null, null, 1, null, this.testDb);
-        let response = await this.send('delete', { id : episode.Marker1.Id });
+        await TestHelpers.validateMarker(
+            {
+                id : episode.Marker2.Id,
+                index : episode.Marker2.Index
+            }, null, null, null, null, null, null, 1, null, this.testDb);
+        const response = await this.send('delete', { id : episode.Marker1.Id });
         TestHelpers.verify(response && response.id == episode.Marker1.Id, `Expected marker delete to return the marker we deleted.`);
 
         // Verify the index of the second marker is now 0
@@ -139,7 +150,7 @@ class MultipleMarkers extends TestBase {
      * @param {number} end */
     async #failOverlap(start, end) {
         const show = TestBase.DefaultMetadata.Show1;
-        let error = await this.addMarkerRaw(show.Season1.Episode2.Id, start, end);
+        const error = await this.addMarkerRaw(show.Season1.Episode2.Id, start, end);
 
         TestHelpers.verifyBadRequest(error, `overlapping marker ${start}-${end}`);
     }
@@ -153,4 +164,4 @@ class MultipleMarkers extends TestBase {
     }
 }
 
-export default MultipleMarkers
+export default MultipleMarkers;

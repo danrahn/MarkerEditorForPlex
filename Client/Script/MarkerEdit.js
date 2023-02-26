@@ -1,15 +1,15 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from "./Common.js";
-import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from "./inc/Tooltip.js";
+import Tooltip from './inc/Tooltip.js';
 
-import ButtonCreator from "./ButtonCreator.js";
-import { ClientSettings } from "./ClientSettings.js";
-import { MarkerRow } from "./MarkerTableRow.js";
-import { Log } from "../../Shared/ConsoleLog.js";
-import { MediaItemWithMarkerTable } from "./ClientDataExtensions.js";
+import { MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
+import ButtonCreator from './ButtonCreator.js';
+import { ClientSettings } from './ClientSettings.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
+/** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 
 
 /**
@@ -51,7 +51,7 @@ class MarkerEdit {
      * @param {boolean} [isEnd=false] Whether the time input is for the end of a marker.
      * @returns {HTMLElement} A text input for a marker. */
     getTimeInput(isEnd) {
-        let events = {};
+        const events = {};
         if (isEnd) {
             events.keydown = this.#onEndTimeInput;
         }
@@ -63,7 +63,7 @@ class MarkerEdit {
             initialValue = msToHms(isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         }
 
-        let input = buildNode('input',
+        const input = buildNode('input',
             {
                 type : 'text',
                 maxlength : 12,
@@ -87,7 +87,7 @@ class MarkerEdit {
         // validation before attempting to submit a timestamp, but it's better to
         // prevent the user from doing something bad as early as possible.
         input.addEventListener('paste', function(e) {
-            let text = e.clipboardData.getData('text/plain');
+            const text = e.clipboardData.getData('text/plain');
             if (!/^[\d:.]*$/.test(text)) {
                 const newText = text.replace(/[^\d:.]/g, '');
                 e.preventDefault();
@@ -129,11 +129,11 @@ class MarkerEdit {
     /**
      * Replace the static marker start/end times with editable text fields. */
     #buildTimeEdit() {
-        let start = this.markerRow.row().children[1];
+        const start = this.markerRow.row().children[1];
         clearEle(start);
         start.appendChild(this.getTimeInput(false));
 
-        let end = this.markerRow.row().children[2];
+        const end = this.markerRow.row().children[2];
         clearEle(end);
         end.appendChild(this.getTimeInput(true));
         $$('input', start).focus();
@@ -156,7 +156,7 @@ class MarkerEdit {
             operation = 'Edit';
         }
 
-        let destination = this.markerRow.row().children[3];
+        const destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
             ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback.bind(this)),
@@ -294,11 +294,11 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {boolean} isEnd Whether we're getting time input for the end of the marker.
      */
     getTimeInput(isEnd) {
-        let input = super.getTimeInput(isEnd);
+        const input = super.getTimeInput(isEnd);
         const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
         const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
-        let img = buildNode(
+        const img = buildNode(
             'img',
             { src : src, class : 'inputThumb loading', alt : 'Timestamp Thumbnail', width : '240px', style : 'height: 0' },
             0,
@@ -321,20 +321,26 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        let options = this.markerRow.row().children[4];
+        const options = this.markerRow.row().children[4];
         for (const child of options.children) {
             child.classList.add('hidden');
         }
 
         const startCollapsed = ClientSettings.collapseThumbnails();
         const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
-        const btn = ButtonCreator.fullButton(startText, 'imgIcon', 'Show/Hide Thumbnails', 'standard', this.#expandContractThumbnails.bind(this));
+        const btn = ButtonCreator.fullButton(
+            startText,
+            'imgIcon',
+            'Show/Hide Thumbnails',
+            'standard',
+            this.#expandContractThumbnails.bind(this));
+
         btn.classList.add('thumbnailShowHide');
         options.appendChild(btn);
     }
 
     resetAfterEdit() {
-        let span = $$('.thumbnailShowHide', this.markerRow.row());
+        const span = $$('.thumbnailShowHide', this.markerRow.row());
         if (!span) {
             return;
         }
@@ -394,7 +400,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         if (isNaN(timestamp)) {
             return; // Don't ask for a thumbnail if the input isn't valid.
         }
-        let img = $$('.inputThumb', editGroup);
+
+        const img = $$('.inputThumb', editGroup);
         if (!img) {
             // We shouldn't get here
             Log.warn('Unable to retrieve marker thumbnail image, no img element found!');
@@ -438,8 +445,9 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {HTMLElement} button */
     #expandContractThumbnails(_, button) {
         if (this.#thumbnailError) {
-            return // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
+            return; // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
         }
+
         this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
         const hidden = button.innerText.startsWith('Show');
         $('.inputThumb', this.markerRow.row()).forEach(thumb => {
@@ -454,4 +462,4 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     }
 }
 
-export { MarkerEdit, ThumbnailMarkerEdit }
+export { MarkerEdit, ThumbnailMarkerEdit };

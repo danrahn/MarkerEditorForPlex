@@ -13,7 +13,7 @@ class ThemeColors {
             red : 'A22',
             orange : 'A22', // Just red, looks better than orange/brown
         }
-    }
+    };
 
     static #isDark = false;
 

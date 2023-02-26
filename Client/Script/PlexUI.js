@@ -1,17 +1,18 @@
 import { $, buildNode, clearEle } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
+import { FilterDialog, FilterSettings } from './FilterDialog.js';
+import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexClientState } from './PlexClientState.js';
-import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
-import { Log } from '../../Shared/ConsoleLog.js';
-import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
-import { FilterDialog, FilterSettings } from './FilterDialog.js';
-import { ClientMovieData } from './ClientDataExtensions.js';
+import { SectionType } from '../../Shared/PlexTypes.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').LibrarySection} LibrarySection */
+/** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('./ClientDataExtensions').ClientMovieData} ClientMovieData */
 
 
 /**
@@ -122,7 +123,7 @@ class PlexUIManager {
 
         // Select a library automatically if there's only one TV show library
         // or we have an existing cached library section.
-        let preSelect = libraries.length == 1 ? libraries[0].id : lastSectionExists ? savedSection : -1;
+        const preSelect = libraries.length == 1 ? libraries[0].id : lastSectionExists ? savedSection : -1;
         if (preSelect != -1) {
             this.#dropdown.value = preSelect;
             this.#libraryChanged();
@@ -154,7 +155,7 @@ class PlexUIManager {
 
     /** Clears data from the show, season, and episode lists. */
     clearAllSections() {
-        this.clearAndShowSections(UISection.MoviesOrShows | UISection.Seasons | UISection.Episodes)
+        this.clearAndShowSections(UISection.MoviesOrShows | UISection.Seasons | UISection.Episodes);
         PlexClientState.clearActiveShow();
     }
 
@@ -176,7 +177,7 @@ class PlexUIManager {
     hideSections(uiSection) {
         this.#sectionOperation(uiSection, ele => {
             ele.classList.add('hidden');
-        })
+        });
     }
 
     /**
@@ -244,13 +245,14 @@ class PlexUIManager {
         // List of modifiers to ignore as input, take from
         // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values.
         const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta',
-                           'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
+            'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
         if (this.#searchBox.value.length == 0 && modifiers.indexOf(e.key) === -1) {
             // Only show all series if the user explicitly presses 'Enter'
             // on a blank query, otherwise clear the results.
             if (this.#lastSearch.length != 0) {
                 this.clearAllSections();
             }
+
             return;
         }
 
@@ -295,7 +297,7 @@ class PlexUIManager {
     }
 
     #searchMovies() {
-        let movieList = this.#uiSections[UISection.MoviesOrShows];
+        const movieList = this.#uiSections[UISection.MoviesOrShows];
         if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
             movieList.appendChild(new SectionOptionsResultRow().buildRow());
         }
@@ -342,14 +344,14 @@ class PlexUIManager {
                 }
             };
 
-            const text = `Results are limited to the top ${rowsLimit} items, ` + 
+            const text = `Results are limited to the top ${rowsLimit} items, ` +
             `click here to load up to ${searchResults.length - nextFilterIndex} more.<br><br>` +
             `WARNING: loading too many rows might hang your browser page.<br>`;
             movieList.appendChild(
                 buildNode('div',
                     { class : 'topLevelResult movieResult', style : 'text-align: center' },
                     text,
-                    { click: loadTheRest }));
+                    { click : loadTheRest }));
         }
     }
 
@@ -360,10 +362,11 @@ class PlexUIManager {
             PlexClientState.clearActiveShow();
         }
 
-        let showList = this.#uiSections[UISection.MoviesOrShows];
+        const showList = this.#uiSections[UISection.MoviesOrShows];
         if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
             showList.appendChild(new SectionOptionsResultRow().buildRow());
         }
+
         /** @type {ShowData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
         if (searchResults.length == 0) {
@@ -394,7 +397,7 @@ class PlexUIManager {
             'div',
             { class : 'topLevelResult ' },
             'No results with the current filter.',
-            { click : () => new FilterDialog().show() })
+            { click : () => new FilterDialog().show() });
     }
 
     /** Apply the given function to all UI sections specified in uiSections. */
@@ -421,4 +424,4 @@ class PlexUIManager {
     }
 }
 
-export { PlexUIManager, UISection, Instance as PlexUI }
+export { PlexUIManager, UISection, Instance as PlexUI };

@@ -1,14 +1,16 @@
 import { appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
 
 import Overlay from './inc/Overlay.js';
 
+import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ExistingMarkerRow, MarkerRow, NewMarkerRow } from './MarkerTableRow.js';
-import TableElements from './TableElements.js';
-import { BaseItemResultRow } from './ResultRow.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import TableElements from './TableElements.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
+/** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */
 
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.
@@ -44,7 +46,8 @@ class MarkerTable {
      * @param {MarkerData[]} markers The markers to add to this table.
      * @param {BaseItemResultRow} parentRow The episode/movie UI that this table is attached to.
      * @param {boolean} [lazyLoad=false] Whether we expect our marker data to come in later, so don't populate the table yet.
-     * @param {number} [cachedMarkerCountKey] If we're lazy loading, this captures the number of credits and intros that we expect the table to have. */
+     * @param {number} [cachedMarkerCountKey] If we're lazy loading, this captures the number of credits and intros that
+     *                                        we expect the table to have. */
     constructor(markers, parentRow, lazyLoad=false, cachedMarkerCountKey=0) {
         this.#parentRow = parentRow;
         if (lazyLoad) {
@@ -59,8 +62,8 @@ class MarkerTable {
      * @param {MarkerData[]} markers */
     #initCore(markers) {
         this.#markers = markers.sort((a, b) => a.start - b.start);
-        let container = buildNode('div', { class : 'tableHolder' });
-        let table = buildNode('table', { class : 'hidden markerTable' });
+        const container = buildNode('div', { class : 'tableHolder' });
+        const table = buildNode('table', { class : 'hidden markerTable' });
         table.appendChild(
             appendChildren(buildNode('thead'),
                 TableElements.rawTableRow(
@@ -73,7 +76,7 @@ class MarkerTable {
             )
         );
 
-        let rows = buildNode('tbody');
+        const rows = buildNode('tbody');
         if (markers.length == 0) {
             rows.appendChild(TableElements.noMarkerRow());
         }
@@ -165,7 +168,9 @@ class MarkerTable {
      * @param {number} endTime The end time of the marker, in milliseconds. */
     checkValues(markerId, startTime, endTime) {
         if (isNaN(startTime) || isNaN(endTime)) {
-            Overlay.show(`Could not parse start and/or end times. Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`);
+            Overlay.show(
+                `Could not parse start and/or end times. ` +
+                `Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`);
             return false;
         }
 
@@ -211,7 +216,7 @@ class MarkerTable {
             this.removeTemporaryMarkerRow(oldRow);
         }
 
-        let tableBody = this.#tbody();
+        const tableBody = this.#tbody();
         if (this.#markers.length == 0) {
             // This is the first marker for the episode, which means we also have
             // to remove the placeholder 'No markers found' row.
@@ -268,7 +273,7 @@ class MarkerTable {
             return; // Same position, no rearranging needed.
         }
 
-        let tableBody = this.#tbody();
+        const tableBody = this.#tbody();
         tableBody.removeChild(this.#rows[oldIndex].row());
         tableBody.insertBefore(this.#rows[oldIndex].row(), tableBody.children[newIndex]);
 
@@ -295,8 +300,9 @@ class MarkerTable {
             this.#parentRow.updateMarkerBreakdown();
             return;
         }
+
         const oldIndex = this.#markers.findIndex(x => x.id == deletedMarker.id);
-        let tableBody = this.#tbody();
+        const tableBody = this.#tbody();
         if (this.#markers.length == 1) {
             tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
         }

@@ -1,12 +1,12 @@
-import { Log } from "../../Shared/ConsoleLog.js";
-import { EpisodeData, MarkerData, MarkerType, MovieData, SeasonData, SectionType, ShowData } from "../../Shared/PlexTypes.js";
+import { EpisodeData, MarkerData, MarkerType, MovieData, SeasonData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
-import LegacyMarkerBreakdown from "../LegacyMarkerBreakdown.js";
-import { MarkerCache } from "../MarkerCacheManager.js";
-import { Config } from "../IntroEditorConfig.js";
-import { PlexQueries } from "../PlexQueryManager.js";
-import ServerError from "../ServerError.js";
-import { Thumbnails } from "../ThumbnailManager.js";
+import { Config } from '../IntroEditorConfig.js';
+import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
+import { MarkerCache } from '../MarkerCacheManager.js';
+import { PlexQueries } from '../PlexQueryManager.js';
+import ServerError from '../ServerError.js';
+import { Thumbnails } from '../ThumbnailManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
 
@@ -27,7 +27,7 @@ class QueryCommands {
             throw new ServerError(`Marker query must have at least one metadata id to search for,`, 400);
         }
 
-        let markers = {};
+        const markers = {};
         for (const key of keys) {
             markers[key] = [];
         }
@@ -73,7 +73,7 @@ class QueryCommands {
      * @param {number} sectionId The section id of the library. */
     static async #getShows(sectionId) {
         const rows = await PlexQueries.getShows(sectionId);
-        let shows = [];
+        const shows = [];
         for (const show of rows) {
             show.markerBreakdown = MarkerCache?.getTopLevelStats(show.id);
             shows.push(new ShowData(show));
@@ -88,7 +88,7 @@ class QueryCommands {
      * @returns {Promise<MovieData[]>} */
     static async #getMovies(sectionId) {
         const rows = await PlexQueries.getMovies(sectionId);
-        let movies = [];
+        const movies = [];
         for (const movie of rows) {
             movie.markerBreakdown = MarkerCache?.getTopLevelStats(movie.id);
             movies.push(new MovieData(movie));
@@ -103,7 +103,7 @@ class QueryCommands {
     static async getSeasons(metadataId) {
         const rows = await PlexQueries.getSeasons(metadataId);
 
-        let seasons = [];
+        const seasons = [];
         for (const season of rows) {
             season.markerBreakdown = MarkerCache?.getSeasonStats(metadataId, season.id);
             seasons.push(new SeasonData(season));
@@ -124,7 +124,7 @@ class QueryCommands {
         // come in, and only return once we've processed all rows.
         let waitingFor = rows.length;
         /** @type {EpisodeData[]} */
-        let episodes = [];
+        const episodes = [];
         return new Promise((resolve, _) => {
             const useThumbnails = Config.useThumbnails();
             rows.forEach((episode, index) => {
@@ -190,7 +190,7 @@ class QueryCommands {
 
         const rows = await PlexQueries.markerStatsForSection(sectionId);
 
-        let buckets = {};
+        const buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
         let idCur = rows.length > 0 ? rows[0].parent_id : -1;
         let countCur = 0;
@@ -232,7 +232,7 @@ class QueryCommands {
             data = MarkerCache.getTreeStats(metadataId);
         } else {
             data = MarkerCache.getTopLevelStats(metadataId);
-            data = { mainData: data, seasonData : {} };
+            data = { mainData : data, seasonData : {} };
         }
 
         if (!data) {

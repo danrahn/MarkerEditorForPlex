@@ -1,10 +1,10 @@
 import { $, errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
-import { SettingsManager, ClientSettings } from './ClientSettings.js';
+import { ClientSettings, SettingsManager } from './ClientSettings.js';
+import { PlexUI, PlexUIManager } from './PlexUI.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
-import { PlexUI, PlexUIManager } from './PlexUI.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import ShowHelpOverlay from './HelpOverlay.js';
 import VersionManager from './VersionManager.js';
@@ -14,8 +14,7 @@ window.Log = Log; // Let the user interact with the class to tweak verbosity/oth
 window.addEventListener('load', setup);
 
 /** Initial setup on page load. */
-function setup()
-{
+function setup() {
     $('#helpBtn').addEventListener('click', ShowHelpOverlay);
     SettingsManager.CreateInstance();
     PlexClientStateManager.CreateInstance();

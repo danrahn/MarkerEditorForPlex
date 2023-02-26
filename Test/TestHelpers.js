@@ -1,5 +1,6 @@
-import DatabaseWrapper from '../Server/DatabaseWrapper.js';
-/** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */;
+/* eslint-disable max-len */
+/** @typedef {!import('../Server/DatabaseWrapper').default} DatabaseWrapper */
+/** @typedef {!import('../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * Class that contains helper methods used by various tests.
@@ -24,17 +25,18 @@ class TestHelpers {
      * TODO: indexRemove: replace index with order for all callers.
      */
     static async validateMarker(
-            markerData,
-            expectedType=null,
-            expectedEpisodeId=null,
-            expectedSeasonId=null,
-            expectedShowId=null,
-            expectedStart=null,
-            expectedEnd=null,
-            expectedIndex=null,
-            expectedFinal=null,
-            database=null,
-            isDeleted=false) {
+        markerData,
+        expectedType=null,
+        expectedEpisodeId=null,
+        expectedSeasonId=null,
+        expectedShowId=null,
+        expectedStart=null,
+        expectedEnd=null,
+        expectedIndex=null,
+        expectedFinal=null,
+        database=null,
+        isDeleted=false) {
+
         if (!markerData) {
             throw Error('MarkerData not returned!');
         }
@@ -44,14 +46,15 @@ class TestHelpers {
         let allIssues = '';
         const addIssue = (issue) => {
             if (allIssues.length != 0) { allIssues += '\n'; }
+
             allIssues += issue;
-        }
+        };
 
         const checkField = (field, expectedField, message) => {
             if (expectedField != null && field != expectedField) {
                 addIssue(`${message} does not match! Expected ${expectedField}, found ${field}.`);
             }
-        }
+        };
 
         checkField(markerData.markerType, expectedType, 'Marker type');
         checkField(markerData.parentId, expectedEpisodeId, 'Episode id');
@@ -137,7 +140,7 @@ class TestHelpers {
     static verifyHeader(headers, header, expected, endpoint) {
         let value = headers.get(header);
         if (value === null) {
-            value = "null";
+            value = 'null';
         } else {
             value = `"${value}"`;
         }

@@ -1,13 +1,14 @@
+import { $, $$, appendChildren, buildNode } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
 
 import Animation from './inc/Animate.js';
-import { $, $$, appendChildren, buildNode } from './Common.js';
+
+import { MarkerData } from '../../Shared/PlexTypes.js';
 import TableElements from './TableElements.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import("../../Shared/PlexTypes").SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import("../../Shared/PlexTypes").SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 
 /** @typedef {{ [showId: number] : { [seasonId: number]: MarkerData[] } }} BulkMarkerResult */
@@ -108,7 +109,7 @@ class BulkActionRow {
      * @param {number} mid Marker id
      * @param {number} eid Episode id
      * @param {*} attributes Dictionary of extra attributes to apply to the checkbox. */
-     createCheckbox(checked, mid, eid, attributes={}) {
+    createCheckbox(checked, mid, eid, attributes={}) {
         this.enabled = checked;
         const checkboxName = `mid_check_${mid}`;
         const checkbox = buildNode('input', {
@@ -142,7 +143,7 @@ class BulkActionTable {
      * A map of row ids to both the row itself and the row's index in the table.
      * @type {{[id: number]: { rowIndex : number, row : BulkActionRow }}} */
     #rowMap = {};
-    
+
     /** @type {BulkActionRow[]} */
     #rows = [];
     /**
@@ -202,7 +203,10 @@ class BulkActionTable {
      * Begin creating the table, adding a header row with the given columns.
      * @param  {...HTMLElement} columns */
     buildTableHead(...columns) {
-        Log.assert(!this.#html, `BulkActionTable.buildTableHead: We should only be building a table header if the table doesn't already exist!`);
+        Log.assert(
+            !this.#html,
+            `BulkActionTable.buildTableHead: We should only be building a table header if the table doesn't already exist!`);
+
         this.#html = buildNode('table', { class : 'markerTable', id : 'bulkActionCustomizeTable' });
         const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all', checked : 'checked' });
         mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkActionCustomizeTable'));
@@ -228,7 +232,7 @@ class BulkActionTable {
      * Retrieve the list of row ids that are not checked.
      * @returns {number[]} */
     getIgnored() {
-        const ignored = []
+        const ignored = [];
         for (const row of this.#rows) {
             if (!row.enabled) {
                 ignored.push(row.id);
@@ -268,7 +272,11 @@ class BulkActionTable {
         if (this.#multiSelectChecks.length == 0) {
             let checked = true;
             for (const id of ['multiSelectSelect', 'multiSelectDeselect']) {
-                const checkbox = buildNode('input', { type : 'checkbox', id : id, class : 'multiSelectCheck hidden', title : id.substring(11) + ' Selected' });
+                const checkbox = buildNode('input', {
+                    type : 'checkbox', id : id,
+                    class : 'multiSelectCheck hidden',
+                    title : id.substring(11) + ' Selected' });
+
                 checkbox.addEventListener('click', this.#onMultiSelectClick.bind(this, checkbox));
                 if (checked) {
                     checkbox.checked = 'checked';
@@ -309,7 +317,7 @@ class BulkActionTable {
      * based on what modifier keys were used.
      * @param {MouseEvent} e
      * @param {BulkActionRow} toggledRow */
-     onRowClicked(e, toggledRow) {
+    onRowClicked(e, toggledRow) {
         // The following should match the behavior of Windows Explorer bulk-selection
         if (!e.ctrlKey && !e.shiftKey) {
             // Regular click. Clear out any existing selection and select
@@ -324,7 +332,7 @@ class BulkActionTable {
             // If we previously weren't selecting anything, this
             // just sets last selected without selecting this row.
             if (!this.#lastSelected) {
-                this.#setSelectState(toggledRow, false)
+                this.#setSelectState(toggledRow, false);
             } else {
 
                 // Iterate from the last selected row to this row. If the last
@@ -365,7 +373,7 @@ class BulkActionTable {
             this.#lastSelectedWasDeselect = false;
         } else {
             Log.assert(e.ctrlKey, `BulkActionTable.onRowToggled - How did we get here if alt isn't pressed?`);
-    
+
             // Select or deselect based on the row's current selection state.
             this.#setSelectState(toggledRow, !this.#selected.has(toggledRow));
         }
@@ -390,7 +398,9 @@ class BulkActionCommon {
             /** @type {SerializedEpisodeData} */
             const bEd = episodeData[b.parentId];
             if (aEd.seasonIndex != bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
+
             if (aEd.index != bEd.index) { return aEd.index - bEd.index; }
+
             return a.start - b.start;
         });
     }
@@ -460,6 +470,7 @@ class BulkActionCommon {
     static async flashButton(buttonId, color, duration=500) {
         const button = typeof buttonId === 'string' ? $(`#${buttonId}`) : buttonId;
         if (!button) { Log.warn(`BulkActionCommon::flashButton - Didn't find button`); return; }
+
         Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, duration);
         return new Promise((resolve, _) => {
             Animation.queueDelayed({ backgroundColor : 'transparent' }, button, duration, duration, true, resolve);
@@ -472,6 +483,6 @@ const BulkActionType = {
     Shift  : 0,
     Add    : 1,
     Delete : 2,
-}
+};
 
 export { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType };

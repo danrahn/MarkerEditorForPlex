@@ -1,12 +1,12 @@
-import { Log } from "../../Shared/ConsoleLog.js";
-import { MarkerData, PurgeConflictResolution } from "../../Shared/PlexTypes.js";
+import { MarkerData, PurgeConflictResolution } from '../../Shared/PlexTypes.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
-import { BackupManager } from "../MarkerBackupManager.js";
-import { MarkerCache } from "../MarkerCacheManager.js";
-import { Config } from "../IntroEditorConfig.js";
-import ServerError from "../ServerError.js";
+import { BackupManager } from '../MarkerBackupManager.js';
+import { Config } from '../IntroEditorConfig.js';
+import { MarkerCache } from '../MarkerCacheManager.js';
+import ServerError from '../ServerError.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 
 class PurgeCommands {
 
@@ -75,6 +75,7 @@ class PurgeCommands {
         for (const modMarker of modifiedMarkers) {
             (modMarkerMap[modMarker.parentId] ??= []).push(modMarker);
         }
+
         return {
             newMarkers : newMarkerMap,
             deletedMarkers : delMarkerMap,

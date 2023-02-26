@@ -1,7 +1,7 @@
-import { ConsoleLog, Log } from "../../Shared/ConsoleLog.js";
+import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 
-import { Config } from "../IntroEditorConfig.js";
-import ServerError from "../ServerError.js";
+import { Config } from '../IntroEditorConfig.js';
+import ServerError from '../ServerError.js';
 
 /**
  * Classification of commands that don't fit in any of the other buckets

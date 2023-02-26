@@ -1,9 +1,9 @@
-import { readdirSync } from 'fs';
 import { join } from 'path';
+import { readdirSync } from 'fs';
 
 import { Config } from '../../Server/IntroEditorConfig.js';
 
-import TestBase from "../TestBase.js";
+import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
 class ImageTest extends TestBase {
@@ -25,7 +25,7 @@ class ImageTest extends TestBase {
     /**
      * Ensure all SVG icons in the SVG directory are returned successfully. */
     async test200OnAllSVGs() {
-        let files = readdirSync(join(Config.projectRoot(), 'SVG'));
+        const files = readdirSync(join(Config.projectRoot(), 'SVG'));
         for (const file of files) {
             // Shouldn't happen, but maybe non-SVGs snuck in here
             if (!file.toLowerCase().endsWith('.svg')) {

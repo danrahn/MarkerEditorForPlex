@@ -1,29 +1,34 @@
 import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { MarkerData, PlexData, SeasonData, ShowData } from '../../Shared/PlexTypes.js';
 
-import Tooltip from './inc/Tooltip.js';
 import Overlay from './inc/Overlay.js';
+import Tooltip from './inc/Tooltip.js';
 
+import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
+import { FilterDialog, FilterSettings } from './FilterDialog.js';
+import { PlexUI, UISection } from './PlexUI.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ClientEpisodeData, ClientMovieData, MediaItemWithMarkerTable } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
-import { PlexClientState } from './PlexClientState.js';
-import { PlexUI, UISection } from './PlexUI.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
-import { PurgedSeason, PurgedShow } from './PurgedMarkerCache.js';
-import ThemeColors from './ThemeColors.js';
-import { FilterDialog, FilterSettings } from './FilterDialog.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import { PlexClientState } from './PlexClientState.js';
+import { PurgedMarkers } from './PurgedMarkerManager.js';
+import { SeasonData } from '../../Shared/PlexTypes.js';
+import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerAction} MarkerAction */
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedSeasonData} SerializedSeasonData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
+/** @typedef {!import('./PurgedMarkerCache').PurgedSeason} PurgedSeason */
+/** @typedef {!import('./PurgedMarkerCache').PurgedShow} PurgedShow */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -36,8 +41,8 @@ function purgeIcon() {
             class : 'purgedIcon',
             alt   : 'Purged marker warning',
             theme : 'orange'
-        })
-    ;
+        }
+    );
 }
 
 /**
@@ -50,8 +55,8 @@ function filteredListIcon() {
         class : 'filteredGroupIndicator',
         theme : 'orange',
         alt : 'Filter Icon',
-        width: 16,
-        height: 16 })
+        width : 16,
+        height : 16 });
 }
 
 /** Represents a single row of a show/season/episode in the results page. */
@@ -97,7 +102,7 @@ class ResultRow {
     hasPurgedMarkers() { return this.getPurgeCount() > 0; }
 
     /** @returns {() => void} An event callback that will invoke the purge overlay if purged markers are present. */
-    getPurgeEventListener() { Log.error(`ResultRow: Classes must override getPurgeEventListener.`); return () => {} }
+    getPurgeEventListener() { Log.error(`ResultRow: Classes must override getPurgeEventListener.`); return () => {}; }
 
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {
@@ -122,9 +127,9 @@ class ResultRow {
      * @param {MouseEvent} e */
     ignoreRowClick(e) {
         if (this.hasPurgedMarkers() && (
-            e.target.classList.contains('episodeDisplayText') ||
-            (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText')) ||
-            e.target.tagName.toLowerCase() == 'img')) {
+            e.target.classList.contains('episodeDisplayText')
+            || (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText'))
+            || e.target.tagName.toLowerCase() == 'img')) {
             return true; // Don't show/hide if we're repurposing the marker display.
         }
 
@@ -137,7 +142,7 @@ class ResultRow {
      * @param {HTMLElement} customColumn The second row, which is implementation specific.
      * @param {() => void} [clickCallback=null] The callback to invoke, if any, when the row is clicked. */
     buildRowColumns(titleColumn, customColumn, clickCallback=null) {
-        let events = {};
+        const events = {};
         if (clickCallback) {
             events.click = clickCallback;
         }
@@ -196,7 +201,7 @@ class ResultRow {
         }
 
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);
-        let innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
+        const innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
 
         if (this.hasPurgedMarkers()) {
             innerText.appendChild(purgeIcon());
@@ -205,7 +210,7 @@ class ResultRow {
             tooltipText += `<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
         }
 
-        let mainText = buildNode('span', { class : 'episodeDisplayText'}, innerText);
+        const mainText = buildNode('span', { class : 'episodeDisplayText' }, innerText);
         Tooltip.setTooltip(mainText, tooltipText);
         if (this.hasPurgedMarkers()) {
             mainText.addEventListener('click', this.getPurgeEventListener());
@@ -231,13 +236,13 @@ class BulkActionResultRow extends ResultRow {
             return this.html();
         }
 
-        let titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
-        let row = buildNode('div', { class : 'bulkResultRow' });
+        const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
+        const row = buildNode('div', { class : 'bulkResultRow' });
         appendChildren(row,
             titleNode,
             appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-                ButtonCreator.textButton('Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px'}),
-                ButtonCreator.textButton('Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px'}),
+                ButtonCreator.textButton('Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px' }),
+                ButtonCreator.textButton('Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px' }),
                 ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this))));
 
         this.setHtml(row);
@@ -290,9 +295,14 @@ class SectionOptionsResultRow extends ResultRow {
             return buildNode('div');
         }
 
-        let titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
-        let row = buildNode('div', { class : 'sectionOptionsResultRow' });
-        this.#filterButton = ButtonCreator.fullButton('Filter', 'filter', 'Filter results', 'standard', () => new FilterDialog().show(), { style : 'margin-right: 10px'});
+        const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
+        const row = buildNode('div', { class : 'sectionOptionsResultRow' });
+        this.#filterButton = ButtonCreator.fullButton('Filter',
+            'filter',
+            'Filter results',
+            'standard',
+            () => new FilterDialog().show(),
+            { style : 'margin-right: 10px' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
 
@@ -361,13 +371,13 @@ class ShowResultRow extends ResultRow {
         }
 
         const show = this.show();
-        let titleNode = buildNode('div', {}, show.title);
+        const titleNode = buildNode('div', {}, show.title);
         if (show.originalTitle) {
             titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${show.originalTitle})`));
         }
 
-        let customColumn = buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
-        let row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
+        const customColumn = buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
+        const row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to results', () => {
                 PlexUI.clearSections(UISection.Seasons | UISection.Episodes);
@@ -396,7 +406,7 @@ class ShowResultRow extends ResultRow {
      * Updates various UI states after purged markers are restored/ignored.
      * @param {PurgedShow} unpurged */
     notifyPurgeChange(unpurged) {
-        let needsUpdate = [];
+        const needsUpdate = [];
         for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
             // Only need to update if the season was affected
             const unpurgedSeason = unpurged.get(seasonId);
@@ -414,7 +424,7 @@ class ShowResultRow extends ResultRow {
      * Update marker breakdown data after a bulk update.
      * @param {{[seasonId: number]: MarkerData[]}} changedMarkers */
     async notifyBulkAction(changedMarkers) {
-        let needsUpdate = [];
+        const needsUpdate = [];
         for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
             // Only need to update if the season was affected
             if (changedMarkers[seasonId]) {
@@ -428,6 +438,7 @@ class ShowResultRow extends ResultRow {
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
     updateMarkerBreakdown() {
         if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
+
         super.updateMarkerBreakdown();
     }
 
@@ -461,7 +472,7 @@ class ShowResultRow extends ResultRow {
         try {
             this.#showSeasons(await ServerCommand.getSeasons(show.metadataId));
         } catch (err) {
-            errorResponseOverlay(`Something went wrong when retrieving the seasons for ${show.title}`,err);
+            errorResponseOverlay(`Something went wrong when retrieving the seasons for ${show.title}`, err);
         }
     }
 
@@ -475,7 +486,7 @@ class ShowResultRow extends ResultRow {
         const addRow = row => PlexUI.addRow(UISection.Seasons, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
-            addRow(this.#sectionTitle.buildRow())
+            addRow(this.#sectionTitle.buildRow());
         }
 
         this.#showTitle = new ShowResultRow(this.show());
@@ -610,16 +621,16 @@ class SeasonResultRow extends ResultRow {
         }
 
         const season = this.season();
-        let title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
+        const title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
         if (season.title.toLowerCase() != `season ${season.index}`) {
             title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
         }
 
-        let row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
+        const row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', () => {
                 PlexUI.clearSections(UISection.Episodes);
-                PlexUI.hideSections(UISection.Episodes)
+                PlexUI.hideSections(UISection.Episodes);
                 PlexUI.showSections(UISection.Seasons);
             });
         }
@@ -635,7 +646,7 @@ class SeasonResultRow extends ResultRow {
      * @param {MarkerDataMap} deletedMarkers
      * @param {MarkerDataMap} modifiedMarkers */
     notifyPurgeChange(unpurged, newMarkers, deletedMarkers, modifiedMarkers) {
-        let updated = {};
+        const updated = {};
         for (const row of Object.values(this.#episodes)) {
             const episode = row.episode();
             const metadataId = episode.metadataId;
@@ -643,10 +654,12 @@ class SeasonResultRow extends ResultRow {
                 updated[metadataId] = true;
                 episode.markerTable().addMarker(marker, null /*oldRow*/);
             }
+
             for (const marker of (deletedMarkers[metadataId] || [])) {
                 updated[metadataId] = true;
                 episode.markerTable().deleteMarker(marker, null /*oldRow*/);
             }
+
             for (const marker of (modifiedMarkers[metadataId] || [])) {
                 updated[metadataId] = true;
                 episode.markerTable().editMarker(marker, true /*forceReset*/);
@@ -740,7 +753,7 @@ class SeasonResultRow extends ResultRow {
      * Takes the given list of episodes and makes a request for marker details for each episode.
      * @param {Object[]} episodes Array of episodes in a particular season of a show. */
     async #parseEpisodes(episodes) {
-        let queryIds = [];
+        const queryIds = [];
         for (const episode of episodes) {
             PlexClientState.addEpisode(new ClientEpisodeData().setFromJson(episode));
             queryIds.push(episode.metadataId);
@@ -763,7 +776,7 @@ class SeasonResultRow extends ResultRow {
         const addRow = row => PlexUI.addRow(UISection.Episodes, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
-            addRow(this.#sectionTitle.buildRow())
+            addRow(this.#sectionTitle.buildRow());
         }
 
         this.#showTitle = new ShowResultRow(PlexClientState.getActiveShow());
@@ -775,7 +788,7 @@ class SeasonResultRow extends ResultRow {
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
 
         // Returned data doesn't guarantee order. Create the rows, then sort by index
-        let episodeRows = [];
+        const episodeRows = [];
         for (const metadataId of Object.keys(data)) {
             episodeRows.push(new EpisodeResultRow(PlexClientState.getEpisode(parseInt(metadataId)), this));
         }
@@ -883,7 +896,9 @@ class SeasonResultRow extends ResultRow {
         // If this is the "real" active row, it's currently hiding behind
         // the dummy entries, which also need to be updated.
         if (this.#seasonTitle) { this.#seasonTitle.updateMarkerBreakdown(); }
+
         if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
+
         super.updateMarkerBreakdown();
     }
 }
@@ -896,7 +911,7 @@ class BaseItemResultRow extends ResultRow {
     #markerCountKey = 0;
 
     /**
-     * @param {MediaItemWithMarkerTable} mediaItem 
+     * @param {MediaItemWithMarkerTable} mediaItem
      * @param {string} [className] */
     constructor(mediaItem, className) {
         super(mediaItem, className);
@@ -904,7 +919,9 @@ class BaseItemResultRow extends ResultRow {
             // Episodes are loaded differently from movies. It's only expected that movies have a valid value
             // here. Episodes set this when creating the marker table for the first time.
             Log.assert(mediaItem instanceof ClientMovieData, 'mediaItem instanceof ClientMovieData');
-            this.#markerCountKey = MarkerBreakdown.keyFromMarkerCount(mediaItem.markerBreakdown().totalIntros(), mediaItem.markerBreakdown().totalCredits());
+            this.#markerCountKey = MarkerBreakdown.keyFromMarkerCount(
+                mediaItem.markerBreakdown().totalIntros(),
+                mediaItem.markerBreakdown().totalCredits());
         }
     }
 
@@ -943,9 +960,10 @@ class EpisodeResultRow extends BaseItemResultRow {
         const titleText = 'Click to expand/contract. Control+Click to expand/contract all';
         const sXeY = `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`;
         const episodeTitle = `${ep.showName} - ${sXeY} - ${ep.title || 'Episode ' + ep.index}`;
-        let row = buildNode('div');
+        const row = buildNode('div');
         appendChildren(row,
-            appendChildren(buildNode('div', { class : 'episodeResult', title : titleText, }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }),
+            appendChildren(
+                buildNode('div', { class : 'episodeResult', title : titleText, }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
                     buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                     buildNode('span', {}, episodeTitle)
@@ -966,12 +984,12 @@ class EpisodeResultRow extends BaseItemResultRow {
     #buildMarkerText() {
         const episode = this.episode();
         const hasPurges = this.hasPurgedMarkers();
-        let text = buildNode('span', {}, plural(episode.markerTable().markerCount(), 'Marker'));
+        const text = buildNode('span', {}, plural(episode.markerTable().markerCount(), 'Marker'));
         if (hasPurges) {
             text.appendChild(purgeIcon());
         }
 
-        let main = buildNode('div', { class : 'episodeDisplayText' }, text);
+        const main = buildNode('div', { class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
             return main;
         }
@@ -981,7 +999,7 @@ class EpisodeResultRow extends BaseItemResultRow {
         Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
-        main.title = "";
+        main.title = '';
         return main;
     }
 
@@ -1082,9 +1100,13 @@ class MovieResultRow extends BaseItemResultRow {
             titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` [${mov.edition}]`));
         }
 
-        let row = buildNode('div');
+        const row = buildNode('div');
         appendChildren(row,
-            appendChildren(buildNode('div', { class : 'episodeResult' }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
+            appendChildren(
+                buildNode('div',
+                    { class : 'episodeResult' },
+                    0,
+                    { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
                 appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
                     titleNode
                 ),
@@ -1117,13 +1139,13 @@ class MovieResultRow extends BaseItemResultRow {
             text = buildNode('span', {}, '? Marker(s)');
             tooltipText = 'Click on the row to load marker counts.';
         } else {
-            let markerCount = 0;;
+            let markerCount = 0;
             if (!ClientSettings.showExtendedMarkerInfo() && !this.#markersGrabbed) {
                 markerCount = movie.realMarkerCount;
             } else {
                 markerCount = movie.markerTable().markerCount();
             }
-    
+
             text = buildNode('span', {}, plural(markerCount, 'Marker'));
         }
 
@@ -1131,11 +1153,12 @@ class MovieResultRow extends BaseItemResultRow {
             text.appendChild(purgeIcon());
         }
 
-        let main = buildNode('div', { class : 'episodeDisplayText' }, text);
+        const main = buildNode('div', { class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
             if (tooltipText) {
                 Tooltip.setTooltip(main, tooltipText);
             }
+
             return main;
         }
 
@@ -1145,7 +1168,7 @@ class MovieResultRow extends BaseItemResultRow {
         Tooltip.setTooltip(main, `${tooltipText}Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onMoviePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
-        main.title = "";
+        main.title = '';
         return main;
     }
 
@@ -1163,9 +1186,11 @@ class MovieResultRow extends BaseItemResultRow {
         for (const marker of (newMarkers || [])) {
             this.movie().markerTable().addMarker(marker, null /*oldRow*/);
         }
+
         for (const marker of (deletedMarkers || [])) {
             this.movie().markerTable().deleteMarker(marker);
         }
+
         for (const marker of (modifiedMarkers || [])) {
             this.movie().markerTable().editMarker(marker, true /*forceReset*/);
         }
@@ -1188,7 +1213,7 @@ class MovieResultRow extends BaseItemResultRow {
                 if (mov.hasThumbnails === undefined) {
                     mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
                 }
-    
+
                 markerData[mov.metadataId].sort((a, b) => a.start - b.start);
                 if (mov.realMarkerCount == -1) {
                     mov.realMarkerCount = markerData[mov.metadataId].length;
@@ -1262,4 +1287,4 @@ class MovieResultRow extends BaseItemResultRow {
     }
 }
 
-export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow, BaseItemResultRow, SectionOptionsResultRow }
+export { ResultRow, ShowResultRow, SeasonResultRow, EpisodeResultRow, MovieResultRow, BaseItemResultRow, SectionOptionsResultRow };

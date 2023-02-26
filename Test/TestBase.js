@@ -1,20 +1,21 @@
 // External dependencies
-import fetch from 'node-fetch';
-import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
+import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 
 // Client/Server shared dependencies
-import { ConsoleLog, Log } from "../Shared/ConsoleLog.js";
+import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
 
 // Server/test dependencies/typedefs
-import TestHelpers from "./TestHelpers.js";
-import { run as mainRun } from "../Server/IntroEditor.js";
-import { TestLog } from './TestRunner.js';
+import { GetServerState, ServerState } from '../Server/ServerState.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
-import { ServerState, GetServerState } from '../Server/ServerState.js';
 import { ExtraData } from '../Server/PlexQueryManager.js';
-/** @typedef {!import('../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
+import { run as mainRun } from '../Server/IntroEditor.js';
+import TestHelpers from './TestHelpers.js';
+import { TestLog } from './TestRunner.js';
+
+/** @typedef {!import('../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * Base class for integration tests, containing common test configuration logic.
@@ -54,7 +55,7 @@ class TestBase {
         }
 
         if (existsSync(TestBase.testConfig)) {
-            TestLog.tmi(`TestBase::Cleanup - Deleting old config`)
+            TestLog.tmi(`TestBase::Cleanup - Deleting old config`);
             unlinkSync(TestBase.testConfig);
         }
     }
@@ -86,7 +87,7 @@ class TestBase {
         let methodFn = null;
         if (methodName) {
             const availableMethods = {};
-            this.testMethods.map(fn => { availableMethods[fn.name] = fn });
+            this.testMethods.map(fn => availableMethods[fn.name] = fn);
             if (!availableMethods[methodName]) {
                 throw new Error(`Test method ${methodName} not found. Make sure the test exists, and casing is correct.`);
             }
@@ -105,7 +106,9 @@ class TestBase {
 
         this.setupConfig();
         await this.startService();
-        await this.connectToBackupDatabase(); // Wait until after the service starts, as it will populate the empty backup database if necessary.
+
+        // Wait until after the service starts, as it will populate the empty backup database if necessary.
+        await this.connectToBackupDatabase();
         if (methodFn) {
             return this.runSingle(methodFn);
         }
@@ -117,22 +120,28 @@ class TestBase {
      * Writes the test configuration to disk.
      * @param {{}} overrides Dictionary of custom configuration values to set, if any. */
     createConfig(overrides) {
-        const td = (field, value, force=false) => { if (!overrides.hasOwnProperty(field) || force) { overrides[field] = value; } };
-        const tf = (feature, value) => { overrides.features ??= {}; if (!overrides.features.hasOwnProperty(feature)) { overrides.features[feature] = value; }};
+        const testDefault = (field, value, force=false) => {
+            if (!Object.prototype.hasOwnProperty.call(overrides, field) || force) { overrides[field] = value; }
+        };
+
+        const testFeature = (feature, value) => {
+            overrides.features ??= {};
+            if (!Object.prototype.hasOwnProperty.call(overrides.features, feature)) { overrides.features[feature] = value; }
+        };
 
         // Test defaults
-        td('host', 'localhost', true);
-        td('port', 3233, true);
-        td('database', TestBase.testDbPath, true);
-        td('logLevel', 'DarkWarn');
+        testDefault('host', 'localhost', true);
+        testDefault('port', 3233, true);
+        testDefault('database', TestBase.testDbPath, true);
+        testDefault('logLevel', 'DarkWarn');
 
         // Good testing of preview thumbnails would require actual bif files and proper test db
         // entries that I don't want to deal with right now.
-        tf('previewThumbnails', false);
-        tf('autoOpen', false);
+        testFeature('previewThumbnails', false);
+        testFeature('autoOpen', false);
 
         // TODO: Actually test this
-        tf('backupActions', true);
+        testFeature('backupActions', true);
 
         writeFileSync(TestBase.testConfig, JSON.stringify(overrides));
     }
@@ -239,7 +248,7 @@ class TestBase {
      * @param {*} params Dictionary of query parameters to pass into the test server.
      * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON data. */
     async send(endpoint, params={}, raw=false) {
-        return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' } , raw);
+        return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' }, raw);
     }
 
     /**
@@ -264,7 +273,7 @@ class TestBase {
             return;
         }
 
-        let url = new URL(`http://localhost:3233/${endpoint}`);
+        const url = new URL(`http://localhost:3233/${endpoint}`);
         for (const [key, value] of Object.entries(params)) {
             url.searchParams.append(key, value);
         }
@@ -277,6 +286,7 @@ class TestBase {
         }
     }
 
+    /* eslint-disable indent */
     /**
      * Map of default metadata items to their metadata/marker ids.
      * TODO: indexRemove: Replace Index with Order? Still want to test reordering, but via our calculated values. */
@@ -284,7 +294,7 @@ class TestBase {
         Show1 : { Id : 1,
             Season1 : { Id : 2,
                 Episode1 : { Id : 3, },
-                Episode2 : { Id : 4, 
+                Episode2 : { Id : 4,
                     Marker1 : { Id : 1, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false }, },
                 Episode3 : { Id : 5, }, },
             Season2 : { Id : 6,
@@ -299,25 +309,26 @@ class TestBase {
                 Episode1 : { Id : 13,
                     Marker1 : { Id : 2, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false }, },
                 Episode2 : { Id : 14,
-                    Marker1: { Id : 3, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
-                    Marker2: { Id : 4, Start : 300000, End : 345000, Index : 1, Type : 'credits', Final : false },
-                    Marker3: { Id : 5, Start : 360000, End : 370000, Index : 2, Type : 'credits', Final : true }, },
+                    Marker1 : { Id : 3, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
+                    Marker2 : { Id : 4, Start : 300000, End : 345000, Index : 1, Type : 'credits', Final : false },
+                    Marker3 : { Id : 5, Start : 360000, End : 370000, Index : 2, Type : 'credits', Final : true }, },
             },
             Season2 : { Id : 15,
                 Episode1 : { Id : 16,
-                    Marker1: { Id : 6, Start : 13000, End : 47000, Index : 0, Type : 'intro', Final : false }, },
+                    Marker1 : { Id : 6, Start : 13000, End : 47000, Index : 0, Type : 'intro', Final : false }, },
             },
         },
         Movie1 : { Id : 100, },
         Movie2 : { Id : 101,
-            Marker1: { Id : 7, Start : 10000, End : 30000, Index : 0, Type : 'intro', Final : false },
-            Marker2: { Id : 8, Start : 40000, End : 45000, Index : 1, Type : 'credits', Final : false },
-            Marker3: { Id : 9, Start : 55000, End : 60000, Index : 2, Type : 'credits', Final : true },
+            Marker1 : { Id : 7, Start : 10000, End : 30000, Index : 0, Type : 'intro', Final : false },
+            Marker2 : { Id : 8, Start : 40000, End : 45000, Index : 1, Type : 'credits', Final : false },
+            Marker3 : { Id : 9, Start : 55000, End : 60000, Index : 2, Type : 'credits', Final : true },
         },
         Movie3 : { Id : 102,
-            Marker1: { Id: 10, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
+            Marker1 : { Id : 10, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
         }
-    }
+    };
+    /* eslint-enable */
 
     static NextMarkerIndex = 11;
 
@@ -406,6 +417,7 @@ class TestBase {
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
     defaultMarkers() {
+        /* eslint-disable max-len */
         const dbMarkerInsert = (metadataId, index, start, end, markerType, isFinal) => `
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
@@ -433,6 +445,7 @@ class TestBase {
         movie = TestBase.DefaultMetadata.Movie3;
         insertString += dbMarkerInsert(movie.Id, movie.Marker1.Index, movie.Marker1.Start, movie.Marker1.End, movie.Marker1.Type, movie.Marker1.Final);
         return insertString;
+        /* eslint-enable */
     }
 
     /**
@@ -486,7 +499,9 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async editMarker(markerId, startMs, endMs, markerType='intro', final=false) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, false /*raw*/); }
+    async editMarker(markerId, startMs, endMs, markerType='intro', final=false) {
+        return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, false /*raw*/);
+    }
 
     /**
      * Edit a marker with the given id via the 'edit' endpoint, returning the raw Response.
@@ -496,7 +511,10 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<Response>} */
-    async editMarkerRaw(markerId, startMs, endMs, markerType, final) { return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, true /*raw*/); }
+    async editMarkerRaw(markerId, startMs, endMs, markerType, final) {
+        return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, true /*raw*/);
+    }
+
     /**
      * Edit a marker with the given id via the 'edit' endpoint.
      * @param {number} markerId

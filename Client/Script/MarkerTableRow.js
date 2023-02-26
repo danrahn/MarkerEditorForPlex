@@ -1,16 +1,19 @@
 
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from "./Common.js";
-import { MarkerData, MarkerType } from "../../Shared/PlexTypes.js";
+import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
+import { Log } from '../../Shared/ConsoleLog.js';
 
-import Overlay from "./inc/Overlay.js";
+import Overlay from './inc/Overlay.js';
 
-import ButtonCreator from "./ButtonCreator.js";
-import { ClientSettings } from "./ClientSettings.js";
-import { MarkerEdit, ThumbnailMarkerEdit } from "./MarkerEdit.js";
-import TableElements from "./TableElements.js";
-import { EpisodeResultRow, MovieResultRow, ResultRow } from "./ResultRow.js";
-import { Log } from "../../Shared/ConsoleLog.js";
-import { MediaItemWithMarkerTable } from "./ClientDataExtensions.js";
+import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
+import { MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
+import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
+import ButtonCreator from './ButtonCreator.js';
+import { ClientSettings } from './ClientSettings.js';
+import TableElements from './TableElements.js';
+
+
+/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
+/** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */
 
 class MarkerRow {
     /**
@@ -48,6 +51,7 @@ class MarkerRow {
                 }
             }
         }
+
         if (hasThumbs) {
             this.#editor = new ThumbnailMarkerEdit(this);
         } else {
@@ -103,7 +107,7 @@ class ExistingMarkerRow extends MarkerRow {
 
     /**
      * @param {MarkerData} marker The marker to base this row off of.
-     * @param {ResultRow} parent The parent media item that owns this marker. */
+     * @param {BaseItemResultRow} parent The parent media item that owns this marker. */
     constructor(marker, parent) {
         super(parent);
         this.#markerData = marker;
@@ -130,11 +134,9 @@ class ExistingMarkerRow extends MarkerRow {
     /**
      * Builds the marker row based on the existing marker values. */
     buildRow() {
-        let tr = buildNode('tr');
+        const tr = buildNode('tr');
 
-        const td = (data, properties={}) => {
-            return buildNode('td', properties, data);
-        };
+        const td = (data, properties={}) => buildNode('td', properties, data);
 
         const tableData = this.#tableData(true);
         appendChildren(tr,
@@ -153,7 +155,7 @@ class ExistingMarkerRow extends MarkerRow {
      * This will be false if invoking an edit operation didn't need to overwrite the original options. */
     #tableData(includeOptions) {
 
-        let data = [
+        const data = [
             Object.keys(MarkerType).find(k => MarkerType[k] == this.#markerData.markerType),
             TableElements.timeData(this.#markerData.start),
             TableElements.timeData(this.#markerData.end),
@@ -180,26 +182,26 @@ class ExistingMarkerRow extends MarkerRow {
     /** Prompts the user before deleting a marker. */
     #confirmMarkerDelete() {
         // Build confirmation dialog
-        let container = buildNode('div', { class : 'overlayDiv' });
-        let header = buildNode('h2', {}, 'Are you sure?');
-        let subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this marker?');
+        const container = buildNode('div', { class : 'overlayDiv' });
+        const header = buildNode('h2', {}, 'Are you sure?');
+        const subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this marker?');
 
-        let okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
-        let okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
+        const okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
+        const okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
 
-        let cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
-        let cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
+        const cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
+        const cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
 
-        let outerButtonContainer = buildNode("div", { class : "formInput", style : "text-align: center" });
-        let buttonContainer = buildNode("div", { style : "float: right; overflow: auto; width: 100%; margin: auto" });
+        const outerButtonContainer = buildNode('div', { class : 'formInput', style : 'text-align: center' });
+        const buttonContainer = buildNode('div', { style : 'float: right; overflow: auto; width: 100%; margin: auto' });
         outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
         appendChildren(container, header, subtext, outerButtonContainer);
-        Overlay.build({ dismissible: true, centered: false, setup: { fn : () => $('#deleteMarkerCancel').focus() } }, container);
+        Overlay.build({ dismissible : true, centered : false, setup : { fn : () => $('#deleteMarkerCancel').focus() } }, container);
     }
 
     /** Makes a request to delete a marker, removing it from the marker table on success. */
     async #onMarkerDelete() {
-        let thisButton = $('#overlayDeleteMarker');
+        const thisButton = $('#overlayDeleteMarker');
         if (thisButton) {
             thisButton.value = 'Deleting...';
         }
@@ -222,7 +224,7 @@ class ExistingMarkerRow extends MarkerRow {
 class NewMarkerRow extends MarkerRow {
 
     /**
-     * @param {ResultRow} parent The parent metadata item that owns this row. */
+     * @param {BaseItemResultRow} parent The parent metadata item that owns this row. */
     constructor(parent) {
         super(parent);
         this.buildRow();
@@ -232,9 +234,8 @@ class NewMarkerRow extends MarkerRow {
      * Builds an empty row for a new marker. The creator should immediately invoke `editor().onEdit()`
      * after creating this row. */
     buildRow() {
-        const td = (data, properties={}) => {
-            return buildNode('td', properties, data);
-        };
+        const td = (data, properties={}) => buildNode('td', properties, data);
+
         this.html = appendChildren(buildNode('tr'),
             td('-', { class : 'topAlignedPlainText' }),
             td('-'),
@@ -246,4 +247,4 @@ class NewMarkerRow extends MarkerRow {
     forAdd() { return true; }
 }
 
-export { MarkerRow, ExistingMarkerRow, NewMarkerRow }
+export { MarkerRow, ExistingMarkerRow, NewMarkerRow };

@@ -1,19 +1,24 @@
 import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
-import { ShowData, SeasonData, SectionType, TopLevelData, MovieData } from '../../Shared/PlexTypes.js';
 
+import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
+import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
 import { BulkActionType } from './BulkActionCommon.js';
-import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
-import { PurgedMovieSection, PurgedSection } from './PurgedMarkerCache.js';
-import { MovieResultRow, SeasonResultRow, ShowResultRow } from './ResultRow.js';
+import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').ShowMap} ShowMap */
-/** @typedef {!import('../../Shared/PlexTypes.js').MovieMap} MovieMap */
-/** @typedef {!import('../../Shared/PlexTypes.js').PurgeSection} PurgeSection */
-/** @typedef {!import('./BulkActionCommon.js').BulkActionCommon} BulkMarkerResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes').MovieMap} MovieMap */
+/** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
+/** @typedef {!import('../../Shared/PlexTypes').TopLevelData} TopLevelData */
+/** @typedef {!import('./BulkActionCommon').BulkActionCommon} BulkMarkerResult */
+/** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
+/** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
+/** @typedef {!import('./ResultRow').SeasonResultRow} SeasonResultRow */
+/** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
 
 
 /**
@@ -241,7 +246,8 @@ class PlexClientStateManager {
         for (const seasonRow of seasons) {
             const newBreakdown = response.seasonData[seasonRow.season().metadataId];
             if (!newBreakdown) {
-                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
+                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: ` +
+                    `Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
                 continue;
             }
 
@@ -297,8 +303,7 @@ class PlexClientStateManager {
     /**
       * Search for top-level items (movies/shows) that match the given query.
       * @param {string} query The show to search for. */
-    async search(query)
-    {
+    async search(query) {
         let regexp = undefined;
         // Not a perfect test, but close enough
         const match = /^\/(.+)\/(g?i?d?y?)$/.exec(query);
@@ -309,15 +314,18 @@ class PlexClientStateManager {
         // For movies, also try matching any year that's present.
         let queryYear = /\b(1[8-9]\d{2}|20\d{2})\b/.exec(query);
         if (queryYear) { queryYear = queryYear[1]; }
-        // Ignore non-word characters to improve matching if there are spacing or quote mismatches. Don't use \W though, since that also clears out unicode characters.
-        // Rather than import some heavy package that's aware of unicode word characters, just clear out the most common characters we want to ignore.
-        // I could probably figure out how to utilize Plex's spellfix tables, but substring search on display, sort, and original titles should be good enough here.
+
+        // Ignore non-word characters to improve matching if there are spacing or quote mismatches.
+        // Don't use \W though, since that also clears out unicode characters. Rather than import
+        // some heavy package that's aware of unicode word characters, just clear out the most common
+        // characters we want to ignore. I could probably figure out how to utilize Plex's spellfix
+        // tables, but substring search on display, sort, and original titles should be good enough here.
         query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
 
         /** @type {TopLevelData[]} */
         const itemList = Object.values(this.#sections[this.#activeSection]);
 
-        let result = [];
+        const result = [];
         for (const item of itemList) {
             // If we have a regular expression, it takes precedence over our plain query string
             if (regexp) {
@@ -335,7 +343,8 @@ class PlexClientStateManager {
             }
         }
 
-        // Sort the results. Title prefix matches are first, then sort title prefix matches, the original title prefix matches, and alphabetical sort title after that.
+        // Sort the results. Title prefix matches are first, then sort title prefix matches,
+        // then original title prefix matches, and alphabetical sort title after that.
         result.sort((a, b) => {
             if (query.length == 0) {
                 // Blank query should return all shows, and in that case we just care about sort title order
@@ -363,7 +372,7 @@ class PlexClientStateManager {
      * @param {Set<number>} activeIds
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged. */
     async #updateInactiveBreakdown(activeIds, unpurged) {
-        let promises = [];
+        const promises = [];
         for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection])) {
             if (activeIds.has(metadataId) || !unpurged.get(metadataId)) {
                 continue;
@@ -393,7 +402,7 @@ class PlexClientStateManager {
             for (searchRow of PlexUI.getActiveSearchRows()) {
                 const metadataId = searchRow.mediaItem().metadataId;
                 activeIds.add(metadataId);
-                let newItems = unpurged.get(metadataId);
+                const newItems = unpurged.get(metadataId);
                 if (newItems) {
                     Log.verbose(`Updating search result movie row ${searchRow.movie().title} after purge update.`);
                     // Movies don't have the active/inactive/hierarchy issues, so we can get away with the single notification.
@@ -403,6 +412,11 @@ class PlexClientStateManager {
 
             // We want to (a)wait here, since it may affect our current filter
             await this.#updateInactiveBreakdown(activeIds, unpurged);
+            return;
+        }
+
+        if (!(unpurged instanceof PurgedTVSection)) {
+            Log.warn(`We shouldn't be calling notifyPurgeChange with anything other than a PurgedMovieSection or PurgedTVSection`);
             return;
         }
 
@@ -450,7 +464,7 @@ class PlexClientStateManager {
     /**
      * Ensure all the right UI bits are updated after a bulk marker action.
      * TODO: Very similar to notifyPurgeChange. Can anything be shared?
-     * @param {BulkMarkerResult} markers 
+     * @param {BulkMarkerResult} markers
      * @param {number} bulkActionType */
     async notifyBulkActionChange(markers, bulkActionType) {
         // Shifts/edits don't result in different marker breakdowns,
@@ -477,6 +491,7 @@ class PlexClientStateManager {
             if (!isShift) {
                 await this.#activeShow.notifyBulkAction(showData);
             }
+
             return this.#updateBulkActionSearchRow(markers, bulkActionType);
         }
 
@@ -527,7 +542,7 @@ class PlexClientStateManager {
 
         try {
             const items = await ServerCommand.getSection(this.#activeSection);
-            let allItems = {};
+            const allItems = {};
             this.#sections[this.#activeSection] = allItems;
             for (const movieOrShow of items) {
                 let itemData;

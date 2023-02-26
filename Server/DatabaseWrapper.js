@@ -1,5 +1,5 @@
-import CreateDatabase from "./CreateDatabase.cjs";
-import ServerError from "./ServerError.js"
+import CreateDatabase from './CreateDatabase.cjs';
+import ServerError from './ServerError.js';
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
@@ -68,6 +68,7 @@ class DatabaseWrapper {
         return new Promise((resolve, _) => {
             this.#db.close((err) => {
                 if (err) { throw ServerError.FromDbError(err); }
+
                 resolve();
             });
         });
@@ -76,7 +77,7 @@ class DatabaseWrapper {
     /**
      * Perform a database action and return a Promise
      * instead of dealing with callbacks.
-     * @param {(sql : string, ...args : any) => Database} fn 
+     * @param {(sql : string, ...args : any) => Database} fn
      * @param {string} query
      * @param {*} parameters
      * @returns {Promise<any>} */
@@ -84,8 +85,10 @@ class DatabaseWrapper {
         return new Promise((resolve, _) => {
             const callback = (err, result) => {
                 if (err) { throw ServerError.FromDbError(err); }
+
                 resolve(result);
-            }
+            };
+
             parameters === null ? fn(query, callback) : fn(query, parameters, callback);
         });
     }

@@ -3,8 +3,9 @@ import { Log } from '../../../Shared/ConsoleLog.js';
 
 import Animation from './Animate.js';
 import Tooltip from './Tooltip.js';
-import ThemeColors from '../ThemeColors.js';
+
 import ButtonCreator from '../ButtonCreator.js';
+import ThemeColors from '../ThemeColors.js';
 
 /**
  * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number, forceFullscreen?: number
@@ -18,8 +19,7 @@ import ButtonCreator from '../ButtonCreator.js';
  * CSS animations should probably be used instead of my home-grown Animate.js,
  * but I'm too lazy to change things right now.
  */
-let Overlay = new function()
-{
+const Overlay = new function() {
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
      * @param {string|HTMLElement} message The message to display.
@@ -28,16 +28,15 @@ let Overlay = new function()
      * Defaults to dismissing the overlay.
      * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
      */
-    this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true)
-    {
+    this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
         // Set focus to the button on start
         const focusOnLaunch = { fn : () => $('#overlayBtn').focus() };
         this.build({ dismissible : dismissible, centered : false, setup : focusOnLaunch },
-            buildNode("div", { id : "overlayMessage", class : "overlayDiv" }, message),
+            buildNode('div', { id : 'overlayMessage', class : 'overlayDiv' }, message),
             ButtonCreator.textButton(
                 buttonText,
                 buttonFunc,
-                { id : 'overlayBtn', class : 'overlayInput overlayButton', style : 'width: 100px'})
+                { id : 'overlayBtn', class : 'overlayInput overlayButton', style : 'width: 100px' })
         );
     };
 
@@ -57,28 +56,26 @@ let Overlay = new function()
         } else {
             div.innerHTML = message;
         }
-    }
+    };
 
     /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist.
      */
-    this.dismiss = function()
-    {
-        Animation.queue({ opacity : 0 }, $("#mainOverlay"), 250, true /*deleteAfterTransition*/);
+    this.dismiss = function() {
+        Animation.queue({ opacity : 0 }, $('#mainOverlay'), 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
     };
 
     /** Immediately remove the overlay from the screen without animation. */
-    let destroyExistingOverlay = function()
-    {
+    const destroyExistingOverlay = function() {
         const overlay = $('#mainOverlay');
         if (overlay) {
             Log.verbose('Destroying existing overlay to display a new one.');
             overlay.parentNode.removeChild(overlay);
             Tooltip.dismiss();
         }
-    }
+    };
 
     /**
      * Generic overlay builder.
@@ -91,52 +88,43 @@ let Overlay = new function()
      *  * `setup` : A function to run after attaching the children to the DOM, but before triggering the show animation.
      * @param {...HTMLElement} children A list of elements to append to the overlay.
      */
-    this.build = function(options, ...children)
-    {
+    this.build = function(options, ...children) {
         // Immediately remove any existing overlays
         destroyExistingOverlay();
-        let overlayNode = _overlayNode(options);
+        const overlayNode = _overlayNode(options);
 
-        let container = buildNode("div", { id : "overlayContainer", class : options.centered ? "centeredOverlay" : "defaultOverlay" });
-        if (!options.noborder)
-        {
-            container.classList.add("darkerOverlay");
+        const container = buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' });
+        if (!options.noborder) {
+            container.classList.add('darkerOverlay');
         }
 
-        children.forEach(function(element)
-        {
+        children.forEach(function(element) {
             container.appendChild(element);
         });
 
         overlayNode.appendChild(container);
         document.body.appendChild(overlayNode);
-        if ($("#tooltip"))
-        {
+        if ($('#tooltip')) {
             Tooltip.dismiss();
         }
 
-        if (options.setup)
-        {
+        if (options.setup) {
             const args = options.setup.args || [];
             options.setup.fn(...args);
         }
 
-        let delay = options.delay || 250;
-        if (delay != 0)
-        {
+        const delay = options.delay || 250;
+        if (delay != 0) {
             Animation.fireNow({ opacity : 1 }, overlayNode, delay);
         }
 
-        if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7)
-        {
+        if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7) {
             addFullscreenOverlayElements(container);
-        }
-        else if (options.closeButton)
-        {
+        } else if (options.closeButton) {
             addCloseButton();
         }
 
-        window.addEventListener("keydown", overlayKeyListener, false);
+        window.addEventListener('keydown', overlayKeyListener, false);
     };
 
     /**
@@ -144,24 +132,21 @@ let Overlay = new function()
      * @param {*} options The options for the overlay. See `build` for details.
      * @returns The main overlay Element.
      */
-    let _overlayNode = function(options)
-    {
-        return buildNode("div",
+    const _overlayNode = function(options) {
+        return buildNode('div',
             {
-                id : "mainOverlay",
+                id : 'mainOverlay',
                 style : `opacity: ${options.delay == 0 ? '1' : '0'}`,
-                dismissible : options.dismissible ? "1" : "0"
+                dismissible : options.dismissible ? '1' : '0'
             },
             0,
             {
-                click : function(e)
-                {
-                    let overlayElement = $("#mainOverlay");
-                    if (overlayElement &&
-                        overlayElement.getAttribute("dismissible") == "1" &&
-                        (e.target.id == "mainOverlay" || (options.noborder && e.target.id == "overlayContainer")) &&
-                        overlayElement.style.opacity == 1)
-                    {
+                click : function(e) {
+                    const overlayElement = $('#mainOverlay');
+                    if (overlayElement
+                        && overlayElement.getAttribute('dismissible') == '1'
+                        && (e.target.id == 'mainOverlay' || (options.noborder && e.target.id == 'overlayContainer'))
+                        && overlayElement.style.opacity == 1) {
                         Overlay.dismiss();
                     }
                 }
@@ -174,17 +159,16 @@ let Overlay = new function()
      * that are set to 'fullscreen'.
      * @param {HTMLElement} container The main overlay container.
      */
-    let addFullscreenOverlayElements = function(container)
-    {
-        container.classList.remove("defaultOverlay");
-        container.classList.remove("centeredOverlay");
-        container.classList.add("fullOverlay");
+    const addFullscreenOverlayElements = function(container) {
+        container.classList.remove('defaultOverlay');
+        container.classList.remove('centeredOverlay');
+        container.classList.add('fullOverlay');
         addCloseButton();
     };
 
-    let addCloseButton = function() {
-        let close = buildNode(
-            "img",
+    const addCloseButton = function() {
+        const close = buildNode(
+            'img',
             {
                 src : ThemeColors.getIcon('cancel', 'standard'),
                 class : 'overlayCloseButton'
@@ -193,23 +177,20 @@ let Overlay = new function()
             {
                 click : Overlay.dismiss
             });
-        Tooltip.setTooltip(close, "Close");
-        $("#mainOverlay").appendChild(close);
-    }
+        Tooltip.setTooltip(close, 'Close');
+        $('#mainOverlay').appendChild(close);
+    };
 
     /**
      * Internal helper that dismisses an overlay when escape is pressed,
      * but only if the overlay is set to be dismissible.
      * @param {KeyboardEvent} e The Event.
      */
-    let overlayKeyListener = function(e)
-    {
-        if (e.keyCode == 27 /*esc*/)
-        {
-            let overlayNode = $("#mainOverlay");
-            if (overlayNode && !!overlayNode.getAttribute("dismissible") && overlayNode.style.opacity == "1")
-            {
-                window.removeEventListener("keydown", overlayKeyListener, false);
+    const overlayKeyListener = function(e) {
+        if (e.keyCode == 27 /*esc*/) {
+            const overlayNode = $('#mainOverlay');
+            if (overlayNode && !!overlayNode.getAttribute('dismissible') && overlayNode.style.opacity == '1') {
+                window.removeEventListener('keydown', overlayKeyListener, false);
                 Overlay.dismiss();
             }
         }

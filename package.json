@@ -7,9 +7,13 @@
   "scripts": {
     "test": "node Test/Test.js --test",
     "build-win": "node Build/build-win.cjs",
-    "build-win-pack": "node Build/build-win.cjs --zip"
+    "build-win-pack": "node Build/build-win.cjs --zip",
+    "lint": "eslint .",
+    "lint-fix": "eslint . --fix"
   },
-  "engines" : { "node" : ">=15.0" },
+  "engines": {
+    "node": ">=15.0"
+  },
   "author": "Daniel Rahn",
   "license": "MIT",
   "dependencies": {
@@ -18,6 +22,7 @@
     "sqlite3": "^5.0.11"
   },
   "devDependencies": {
+    "eslint": "^8.34.0",
     "fs-extra": "^10.1.0",
     "nexe": "^4.0.0-rc.1",
     "rcedit": "^3.0.1",

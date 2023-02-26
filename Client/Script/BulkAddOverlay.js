@@ -1,20 +1,21 @@
-import { BulkMarkerResolveType, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
-
-import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
-import ButtonCreator from './ButtonCreator.js';
 import { $, appendChildren, buildNode, errorResponseOverlay, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+
 import Overlay from './inc/Overlay.js';
-import { PlexClientState } from './PlexClientState.js';
-import TableElements from './TableElements.js';
 import Tooltip from './inc/Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes.js').MarkerData} MarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SeasonData} SeasonData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResult} SerializedBulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedBulkAddResultEntry} SerializedBulkAddResultEntry */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes.js').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes.js').ShowData} ShowData */
+import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
+import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+import ButtonCreator from './ButtonCreator.js';
+import { PlexClientState } from './PlexClientState.js';
+import TableElements from './TableElements.js';
+
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResultEntry} SerializedBulkAddResultEntry */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * UI for bulk adding markers to a given show/season
@@ -61,27 +62,27 @@ class BulkAddOverlay {
     /**
      * Launch the bulk add overlay. */
     show() {
-        let container = buildNode('div', { id : 'bulkActionContainer' });
-        let title = buildNode('h1', {}, 'Bulk Add Markers');
+        const container = buildNode('div', { id : 'bulkActionContainer' });
+        const title = buildNode('h1', {}, 'Bulk Add Markers');
         appendChildren(container,
             title,
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'timeZone' }),
                 buildNode('label', { for : 'addStart' }, 'Start: '),
-                buildNode('input', {
-                    type : 'text',
-                    placeholder : 'ms or ms:ss[.000]',
-                    name : 'addStart',
-                    id : 'addStart' },
+                buildNode('input',
+                    {   type : 'text',
+                        placeholder : 'ms or ms:ss[.000]',
+                        name : 'addStart',
+                        id : 'addStart' },
                     0,
                     { keyup : this.#onBulkAddInputChange.bind(this) }
                 ),
                 buildNode('label', { for : 'addEnd' }, 'End: '),
-                buildNode('input', {
-                    type : 'text',
-                    placeholder : 'ms or ms:ss[.000]',
-                    name : 'addEnd',
-                    id : 'addEnd' },
+                buildNode('input',
+                    {   type : 'text',
+                        placeholder : 'ms or ms:ss[.000]',
+                        name : 'addEnd',
+                        id : 'addEnd' },
                     0,
                     { keyup : this.#onBulkAddInputChange.bind(this) }
                 )),
@@ -109,7 +110,11 @@ class BulkAddOverlay {
             )
         );
 
-        Overlay.build({ dismissible : true, closeButton : true, forceFullscreen : true, setup : { fn : () => $('#addStart').focus() } }, container);
+        Overlay.build({
+            dismissible : true,
+            closeButton : true,
+            forceFullscreen : true,
+            setup : { fn : () => $('#addStart').focus() } }, container);
     }
 
     /**
@@ -135,6 +140,7 @@ class BulkAddOverlay {
     #onApplyTypeChange() {
         const sel = $('#applyTypeSelect');
         if (!sel) { return; }
+
         const val = parseInt(sel.value);
         this.#cachedApplyType = val;
         $('#applyTypeDescription').innerText = BulkAddOverlay.#descriptions[val];
@@ -153,7 +159,15 @@ class BulkAddOverlay {
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(markerType, this.#mediaItem.metadataId, startTime, endTime, resolveType, false /*final*/, this.#table?.getIgnored());
+            const result = await ServerCommand.bulkAdd(
+                markerType,
+                this.#mediaItem.metadataId,
+                startTime,
+                endTime,
+                resolveType,
+                false /*final*/,
+                this.#table?.getIgnored());
+
             if (!result.applied) {
                 BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
                 return;
@@ -180,6 +194,7 @@ class BulkAddOverlay {
 
                 const marker = episodeInfo.changedMarker;
                 if (!marker) { continue; }
+
                 const mapToUse = episodeInfo.isAdd ? adds : edits;
                 mapToUse[marker.showId] ??= {};
                 (mapToUse[marker.showId][marker.seasonId] ??= []).push(new MarkerData().setFromJson(marker));
@@ -200,7 +215,7 @@ class BulkAddOverlay {
             await PlexClientState.notifyBulkActionChange(adds, BulkActionType.Add);
             await PlexClientState.notifyBulkActionChange(edits, BulkActionType.Shift);
 
-        } catch(err) {
+        } catch (err) {
             await BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
@@ -246,6 +261,7 @@ class BulkAddOverlay {
     startTime() { return this.#cachedStart; }
     endTime() { return this.#cachedEnd; }
     resolveType() { return this.#cachedApplyType; }
+    /** @returns {string} */
     markerType() { return $('#markerTypeSelect').value; } // TODO: store main container and scope to that.
 
     /** Update all items in the customization table, if present. */
@@ -297,13 +313,14 @@ class BulkAddRow extends BulkActionRow {
 
     /**
      * Update the text/colors of this row. */
+    /* eslint-disable-next-line complexity */ // TODO: eslint is right, this needs to be broken up
     update() {
         if (!this.enabled) {
             this.row.classList.add('bulkActionInactive');
             this.#clear(true /*clearText*/);
             return;
         }
-        
+
         this.row.classList.remove('bulkActionInactive');
 
         const startTimeBase = this.#parent.startTime();
@@ -334,7 +351,7 @@ class BulkAddRow extends BulkActionRow {
                 }
 
                 tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
-                
+
                 if (resolveType == BulkMarkerResolveType.Merge) {
                     start = existingMarker.start;
                     end = Math.max(end, existingMarker.end);
@@ -360,7 +377,7 @@ class BulkAddRow extends BulkActionRow {
                 this.#startTd.classList.add(warnClass);
             }
         }
-        
+
         if (end > this.#episodeInfo.duration) {
             isWarn = true;
             if (!this.#endTd.classList.contains('bulkActionOff')) {
