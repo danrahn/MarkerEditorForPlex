@@ -1,4 +1,15 @@
-import { $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, plural, ServerCommand } from './Common.js';
+import {
+    $,
+    $$,
+    appendChildren,
+    buildNode,
+    clearEle,
+    clickOnEnterCallback,
+    errorMessage,
+    errorResponseOverlay,
+    pad0,
+    plural,
+    ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
@@ -40,8 +51,11 @@ function purgeIcon() {
             src : ThemeColors.getIcon('warn', 'orange'),
             class : 'purgedIcon',
             alt   : 'Purged marker warning',
-            theme : 'orange'
-        }
+            theme : 'orange',
+            tabindex : 0
+        },
+        0,
+        { keyup : clickOnEnterCallback }
     );
 }
 
@@ -142,15 +156,49 @@ class ResultRow {
      * @param {HTMLElement} customColumn The second row, which is implementation specific.
      * @param {() => void} [clickCallback=null] The callback to invoke, if any, when the row is clicked. */
     buildRowColumns(titleColumn, customColumn, clickCallback=null) {
-        const events = {};
+        const events = { keydown : this.onRowKeydown.bind(this) };
+        const properties = {};
+        let className = this.#className;
         if (clickCallback) {
             events.click = clickCallback;
+            className += ' tabbableRow';
+            properties.tabindex = 0;
         }
 
-        return appendChildren(buildNode('div', { class : this.#className }, 0, events),
+        properties.class = className;
+
+        return appendChildren(buildNode('div', properties, 0, events),
             titleColumn,
             customColumn,
             buildNode('div', { class : 'showResultEpisodes' }, this.episodeDisplay()));
+    }
+
+    /**
+     * Handles basic arrow navigation for a show/episode (i.e. non-"base" item) result row.
+     * @param {KeyboardEvent} e */
+    onRowKeydown(e) {
+        if (this.ignoreRowClick(e)) {
+            return;
+        }
+
+        if (e.ctrlKey || e.altKey || e.shiftKey) {
+            return;
+        }
+
+        switch (e.key) {
+            case 'Enter':
+                return e.target.click();
+            case 'ArrowUp':
+            case 'ArrowDown':
+            {
+                const sibling = e.key == 'ArrowUp' ? e.target.previousSibling : e.target.nextSibling;
+                if (sibling) {
+                    e.preventDefault();
+                    sibling.focus();
+                }
+                break;
+            }
+        }
     }
 
     /**
@@ -224,6 +272,12 @@ class ResultRow {
  * A result row that offers bulk marker actions, like shifting everything X milliseconds.
  */
 class BulkActionResultRow extends ResultRow {
+    /** @type {HTMLElement} */
+    #bulkAddButton;
+    /** @type {HTMLElement} */
+    #bulkShiftButton;
+    /** @type {HTMLElement} */
+    #bulkDeleteButton;
     constructor(mediaItem) {
         super(mediaItem, 'bulkResultRow');
     }
@@ -238,12 +292,15 @@ class BulkActionResultRow extends ResultRow {
 
         const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
         const row = buildNode('div', { class : 'bulkResultRow' });
+        this.#bulkAddButton = ButtonCreator.textButton('Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px' });
+        this.#bulkShiftButton = ButtonCreator.textButton('Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px' });
+        this.#bulkDeleteButton = ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this));
         appendChildren(row,
             titleNode,
             appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-                ButtonCreator.textButton('Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px' }),
-                ButtonCreator.textButton('Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px' }),
-                ButtonCreator.textButton('Bulk Delete', this.#bulkDelete.bind(this))));
+                this.#bulkAddButton,
+                this.#bulkShiftButton,
+                this.#bulkDeleteButton));
 
         this.setHtml(row);
         return row;
@@ -255,19 +312,19 @@ class BulkActionResultRow extends ResultRow {
     /**
      * Launch the bulk add overlay for the current media item (show/season). */
     #bulkAdd() {
-        new BulkAddOverlay(this.mediaItem()).show();
+        new BulkAddOverlay(this.mediaItem()).show(this.#bulkAddButton);
     }
 
     /**
      * Launch the bulk shift overlay for the current media item (show/season). */
     #bulkShift() {
-        new BulkShiftOverlay(this.mediaItem()).show();
+        new BulkShiftOverlay(this.mediaItem()).show(this.#bulkShiftButton);
     }
 
     /**
      * Launch the bulk delete overlay for the current media item (show/season). */
     #bulkDelete() {
-        new BulkDeleteOverlay(this.mediaItem()).show();
+        new BulkDeleteOverlay(this.mediaItem()).show(this.#bulkDeleteButton);
     }
 }
 
@@ -301,7 +358,7 @@ class SectionOptionsResultRow extends ResultRow {
             'filter',
             'Filter results',
             'standard',
-            () => new FilterDialog().show(),
+            function(_e, self) { new FilterDialog().show(self); },
             { style : 'margin-right: 10px' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
@@ -349,6 +406,11 @@ class ShowResultRow extends ResultRow {
      * @type {ShowResultRow} */
     #showTitle;
 
+    /**
+     * Whether this is a "dummy" row when displaying seasons/episodes
+     * @type {boolean} */
+    #selected;
+
     /** @param {ShowData} show */
     constructor(show) {
         super(show, 'topLevelResult showResult');
@@ -365,6 +427,7 @@ class ShowResultRow extends ResultRow {
      * @param {boolean} [selected=false] True if this row is selected and should be treated like
      * a header opposed to a clickable entry. */
     buildRow(selected=false) {
+        this.#selected = selected;
         if (this.html()) {
             Log.warn('buildRow has already been called for this SeasonResultRow, that shouldn\'t happen');
             return this.html();
@@ -399,7 +462,9 @@ class ShowResultRow extends ResultRow {
     /**
      * Launches the purge overlay for this show. */
     #onShowPurgeClick() {
-        PurgedMarkers.showSingleShow(this.show().metadataId);
+        // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
+        const focusBack = this.#selected ? $$('.tabbableRow', this.html().parentElement) : this.html();
+        PurgedMarkers.showSingleShow(this.show().metadataId, focusBack);
     }
 
     /**
@@ -494,7 +559,8 @@ class ShowResultRow extends ResultRow {
         addRow(new BulkActionResultRow(this.show()).buildRow());
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
         this.#seasonsFiltered = 0;
-        let anyShowing = false;
+        /** @type {HTMLElement?} */
+        let firstRow = undefined;
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
             const seasonRow = new SeasonResultRow(season, this);
@@ -502,16 +568,20 @@ class ShowResultRow extends ResultRow {
             if (FilterSettings.shouldFilter(season.markerBreakdown())) {
                 ++this.#seasonsFiltered;
             } else {
-                addRow(seasonRow.buildRow());
-                anyShowing = true;
+                const rowHtml = seasonRow.buildRow();
+                firstRow ??= rowHtml;
+                addRow(rowHtml);
             }
 
             PlexClientState.addSeason(season);
         }
 
-        if (!anyShowing) {
-            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        if (!firstRow) {
+            firstRow = PlexUI.noResultsBecauseOfFilterRow();
+            addRow(firstRow);
         }
+
+        firstRow.focus();
 
         this.#onFilterStatusChanged();
     }
@@ -600,6 +670,11 @@ class SeasonResultRow extends ResultRow {
      * @type {number} */
     #episodesFiltered = 0;
 
+    /**
+     * Whether this is a "dummy" row used to navigate back to the season list.
+     * @type {boolean} */
+    #selected;
+
     constructor(season) {
         super(season, 'seasonResult');
     }
@@ -615,6 +690,7 @@ class SeasonResultRow extends ResultRow {
      * @param {boolean} [selected=false] `true` if this row is selected and should be treated like a header
      * header opposed to a clickable entry. */
     buildRow(selected=false) {
+        this.#selected = selected;
         if (this.html()) {
             Log.warn('buildRow has already been called for this SeasonResultRow, that shouldn\'t happen');
             return this.html();
@@ -720,7 +796,9 @@ class SeasonResultRow extends ResultRow {
     /**
      * Show the purge overlay for this season. */
     #onSeasonPurgeClick() {
-        PurgedMarkers.showSingleSeason(this.season().metadataId);
+        // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
+        const focusBack = this.#selected ? $$('.tabbableRow', this.html().parentElement) : this.html();
+        PurgedMarkers.showSingleSeason(this.season().metadataId, focusBack);
     }
 
     /**
@@ -794,7 +872,8 @@ class SeasonResultRow extends ResultRow {
         }
 
         this.#episodesFiltered = 0;
-        let anyShowing = false;
+        /** @type {HTMLElement} */
+        let firstRow = undefined;
         episodeRows.sort((a, b) => a.episode().index - b.episode().index);
         for (const resultRow of episodeRows) {
             const markers = data[resultRow.episode().metadataId];
@@ -805,15 +884,21 @@ class SeasonResultRow extends ResultRow {
                 // TODO: find a better place to expose markers
                 resultRow.buildRow(markers);
             } else {
-                addRow(resultRow.buildRow(markers));
-                anyShowing = true;
+                const rowHtml = resultRow.buildRow(markers);
+                firstRow ??= rowHtml;
+                addRow(rowHtml);
             }
 
             this.#episodes[resultRow.episode().metadataId] = resultRow;
         }
 
-        if (!anyShowing) {
-            addRow(PlexUI.noResultsBecauseOfFilterRow());
+        if (!firstRow) {
+            firstRow = PlexUI.noResultsBecauseOfFilterRow();
+            addRow(firstRow);
+            firstRow.focus();
+        } else {
+            // Episode rows are tabbed a bit differently because of its marker table
+            $$('.tabbableRow', firstRow)?.focus();
         }
 
         this.#onFilterStatusChanged();
@@ -925,9 +1010,72 @@ class BaseItemResultRow extends ResultRow {
         }
     }
 
+    /** @returns {MediaItemWithMarkerTable} */
+    baseItem() { return this.mediaItem(); }
+
     currentKey() { return this.#markerCountKey; }
     /** @param {number} key */
     setCurrentKey(key) { this.#markerCountKey = key; }
+
+    /**
+     * Handles common keyboard input on rows with marker tables.
+     * @param {KeyboardEvent} e */
+    onBaseItemResultRowKeydown(e) {
+        if (this.ignoreRowClick(e)) {
+            return;
+        }
+
+        if (e.altKey || e.shiftKey || e.ctrlKey) {
+            return;
+        }
+
+        switch (e.key) {
+            case 'Enter':
+            {
+                // '?' because movie marker tables might not exist yet. In that case we want to show the table
+                // singe we're guaranteed to be hidden anyway, and showHideMarkerTable takes care of ensuring
+                // we have all the data we need.
+                const shouldHide = $$('table', this.baseItem().markerTable()?.table())?.classList.contains('hidden');
+                return this.showHideMarkerTable(shouldHide);
+            }
+            case 'ArrowRight':
+                // Note: this is async for movies. If this ever changes to have additional
+                // logic, make sure that's accounted for.
+                return this.showHideMarkerTable(false /*hide*/);
+            case 'ArrowLeft':
+                return this.showHideMarkerTable(true /*hide*/);
+            case 'ArrowUp':
+            case 'ArrowDown':
+            {
+                const parentSibling = e.key == 'ArrowUp' ?
+                    e.target.parentElement.previousSibling :
+                    e.target.parentElement.nextSibling;
+                const sibling = $$('.tabbableRow', parentSibling);
+                if (sibling) {
+                    e.preventDefault();
+                    sibling.focus();
+                }
+                break;
+            }
+            case 'h':
+            {
+                /** @type {HTMLElement} */
+                const child = $$('.tabbableRow', e.target.parentElement.parentElement);
+                child?.scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+                return child?.focus({ preventScroll : true });
+            }
+            case 'e':
+            {
+                /** @type {HTMLElement} */
+                const rows = $('.tabbableRow', e.target.parentElement.parentElement);
+                if (rows) {
+                    rows[rows.length - 1].scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+                    rows[rows.length - 1].focus({ preventScroll : true });
+                }
+                break;
+            }
+        }
+    }
 }
 
 /**
@@ -963,7 +1111,16 @@ class EpisodeResultRow extends BaseItemResultRow {
         const row = buildNode('div');
         appendChildren(row,
             appendChildren(
-                buildNode('div', { class : 'episodeResult', title : titleText, }, 0, { click : this.#showHideMarkerTableEvent.bind(this) }),
+                buildNode('div',
+                    { class : 'episodeResult tabbableRow',
+                      title : titleText,
+                      tabindex : 0 },
+                    0,
+                    { click : this.#showHideMarkerTableEvent.bind(this),
+                      // TODO: worth sharing with ResultRow.onKeydown, with a separate event for table actions?
+                      keydown :  [
+                          this.onBaseItemResultRowKeydown.bind(this),
+                          this.#onEpisodeRowKeydown.bind(this) ] }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
                     buildNode('span', { class : 'markerExpand' }, '&#9205; '),
                     buildNode('span', {}, episodeTitle)
@@ -976,6 +1133,18 @@ class EpisodeResultRow extends BaseItemResultRow {
 
         this.setHtml(row);
         return row;
+    }
+
+    /**
+     * @param {MouseEvent} e */
+    #onEpisodeRowKeydown(e) {
+        // Only difference between the base event is that Ctrl+Enter shows/hides all tables
+        if (!e.ctrlKey || e.key != 'Enter') {
+            return;
+        }
+
+        const shouldHide = !$$('table', this.episode().markerTable().table()).classList.contains('hidden');
+        this.#seasonRow.showHideMarkerTables(shouldHide);
     }
 
     /**
@@ -1005,7 +1174,7 @@ class EpisodeResultRow extends BaseItemResultRow {
 
     /** Launches the purge table overlay. */
     #onEpisodePurgeClick() {
-        PurgedMarkers.showSingleEpisode(this.episode().metadataId);
+        PurgedMarkers.showSingleEpisode(this.episode().metadataId, $$('.tabbableRow', this.html()));
     }
 
     /**
@@ -1104,9 +1273,10 @@ class MovieResultRow extends BaseItemResultRow {
         appendChildren(row,
             appendChildren(
                 buildNode('div',
-                    { class : 'episodeResult' },
+                    { class : 'episodeResult tabbableRow', tabindex : 0 }, // TODO: generalized class name
                     0,
-                    { click : this.#showHideMarkerTableEvent.bind(this) }), // TODO: generalized class name
+                    { click : this.#showHideMarkerTableEvent.bind(this),
+                      keydown : this.onBaseItemResultRowKeydown.bind(this) }),
                 appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
                     titleNode
                 ),
@@ -1174,7 +1344,7 @@ class MovieResultRow extends BaseItemResultRow {
 
     /** Launches the purge table overlay. */
     #onMoviePurgeClick() {
-        PurgedMarkers.showSingleMovie(this.movie().metadataId);
+        PurgedMarkers.showSingleMovie(this.movie().metadataId, $$('.tabbableRow', this.html()));
     }
 
     /**
@@ -1205,38 +1375,8 @@ class MovieResultRow extends BaseItemResultRow {
             return;
         }
 
-        const mov = this.movie();
-        if (!this.#markersGrabbed) {
-            this.#markersGrabbed = true;
-            try {
-                const markerData = await ServerCommand.query([mov.metadataId]);
-                if (mov.hasThumbnails === undefined) {
-                    mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
-                }
-
-                markerData[mov.metadataId].sort((a, b) => a.start - b.start);
-                if (mov.realMarkerCount == -1) {
-                    mov.realMarkerCount = markerData[mov.metadataId].length;
-                }
-
-                if (ClientSettings.backupEnabled()) {
-                    // Gather purge data before continuing
-                    try {
-                        await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
-                    } catch (err) {
-                        Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
-                    }
-                }
-
-                mov.initializeMarkerTable(markerData[mov.metadataId]);
-                this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
-            } catch (ex) {
-                this.#markersGrabbed = false;
-                throw ex;
-            }
-        }
-
-        const expanded = !$$('table', mov.markerTable().table()).classList.contains('hidden');
+        await this.#verifyMarkerTableInitialized();
+        const expanded = !$$('table', this.movie().markerTable().table()).classList.contains('hidden');
         this.showHideMarkerTable(expanded);
 
         // Only want to scroll into view if we're expanding the table
@@ -1246,9 +1386,48 @@ class MovieResultRow extends BaseItemResultRow {
     }
 
     /**
+     * Ensures we have the right marker data (and a marker table) before attempting
+     * to show the marker table. */
+    async #verifyMarkerTableInitialized() {
+        if (this.#markersGrabbed) {
+            return;
+        }
+
+        const mov = this.movie();
+        this.#markersGrabbed = true;
+        try {
+            const markerData = await ServerCommand.query([mov.metadataId]);
+            if (mov.hasThumbnails === undefined) {
+                mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
+            }
+
+            markerData[mov.metadataId].sort((a, b) => a.start - b.start);
+            if (mov.realMarkerCount == -1) {
+                mov.realMarkerCount = markerData[mov.metadataId].length;
+            }
+
+            if (ClientSettings.backupEnabled()) {
+                // Gather purge data before continuing
+                try {
+                    await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
+                } catch (err) {
+                    Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
+                }
+            }
+
+            mov.initializeMarkerTable(markerData[mov.metadataId]);
+            this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
+        } catch (ex) {
+            this.#markersGrabbed = false;
+            throw ex;
+        }
+    }
+
+    /**
      * Expands or contracts the marker table for this row.
      * @param {boolean} hide */
-    showHideMarkerTable(hide) {
+    async showHideMarkerTable(hide) {
+        await this.#verifyMarkerTableInitialized();
         $$('table', this.movie().markerTable().table()).classList[hide ? 'add' : 'remove']('hidden');
         $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
 

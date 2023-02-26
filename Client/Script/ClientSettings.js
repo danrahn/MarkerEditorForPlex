@@ -1,4 +1,13 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
+import {
+    $,
+    $$,
+    appendChildren,
+    buildNode,
+    clearEle,
+    clickOnEnterCallback,
+    errorMessage,
+    errorResponseOverlay,
+    ServerCommand } from './Common.js';
 import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
@@ -8,6 +17,8 @@ import ButtonCreator from './ButtonCreator.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
+
+/** @typedef {!import('./inc/Overlay').OverlayOptions} OverlayOptions */
 
 /**
  * Base class for implementing a client-side setting.
@@ -253,6 +264,11 @@ class ClientSettings {
         } else {
             Log.verbose(json, 'Got client settings');
         }
+
+        const toggle = $('#toggleContainer');
+        toggle.addEventListener('keydown', clickOnEnterCallback);
+        toggle.addEventListener('keydown', this.#toggleKeydown.bind(this));
+        $('#settings').addEventListener('keydown', clickOnEnterCallback);
     }
 
     /** Save the current settings to {@linkcode localStorage}. */
@@ -269,6 +285,32 @@ class ClientSettings {
         this.lastSection.serialize(json);
         Log.verbose(json, 'Settings to be serialized');
         return JSON.stringify(json);
+    }
+
+    /**
+     * Overkill, but also allow arrow keys to adjust the theme, based on the current slider state.
+     * @param {KeyboardEvent} e */
+    #toggleKeydown(e) {
+        if (e.ctrlKey || e.shiftKey || e.altKey) {
+            return;
+        }
+
+        /** @type {HTMLInputElement} */
+        const check = $('#darkModeCheckbox');
+        switch (e.key) {
+            case ' ':
+                return check.click(); // Enter is handled by clickOnEnterCallback
+            case 'ArrowLeft':
+                if (check.checked) {
+                    check.click();
+                }
+                break;
+            case 'ArrowRight':
+                if (!check.checked) {
+                    check.click();
+                }
+                break;
+        }
     }
 }
 
@@ -300,7 +342,11 @@ class ClientSettingsUI {
      */
     showSettings() {
         Overlay.build(
-            { dismissible : true, centered : false, noborder : true, setup : this.#focusOnShow('darkModeSetting') },
+            {   dismissible : true,
+                centered : false,
+                noborder : true,
+                setup : this.#focusOnShow('darkModeSetting'),
+                focusBack : $('#settings') },
             this.#optionsUI());
     }
 
@@ -427,7 +473,7 @@ class ClientSettingsUI {
                     ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
         );
 
-        this.#transitionOverlay(container, { setup : this.#focusOnShow('srCancel') });
+        this.#transitionOverlay(container);
     }
 
     /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */
@@ -544,7 +590,9 @@ class ClientSettingsUI {
      * @param {HTMLElement} newOverlayContainer The new overlay to display.
      * @param {OverlayOptions?} [options={}] The new overlay's options, if any. */
     #transitionOverlay(newOverlayContainer, options={}) {
-        Overlay.dismiss();
+        // Don't mess with focusBack. null == don't overwrite, undefined == reset.
+        options.focusBack = null;
+        Overlay.dismiss(true /*forReshow*/);
         setTimeout(() => Overlay.build(options, newOverlayContainer), 250);
     }
 

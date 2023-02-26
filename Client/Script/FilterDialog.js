@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode } from './Common.js';
+import { $, $$, appendChildren, buildNode } from './Common.js';
 
 import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
@@ -156,14 +156,15 @@ class FilterDialog {
         const filterRow = (text, selected, inputValue) =>
             appendChildren(buildNode('div', { class : 'formInput' }),
                 buildNode('label', { for : `${text}MarkerFilterType` }, `${text} markers `),
-                buildNode('input', {
-                    type : 'text',
-                    placeholder : '#',
-                    id : `${text}MarkerFilterValue`,
-                    class : 'filterNumberInput',
-                    value : inputValue
-                }, 0, { keydown : this.#onTextInput.bind(this) }),
-                buildSelect(text, selected));
+                appendChildren(buildNode('div', { class : 'filterMultiInput' }),
+                    buildSelect(text, selected),
+                    buildNode('input', {
+                        type : 'text',
+                        placeholder : '#',
+                        id : `${text}MarkerFilterValue`,
+                        class : 'filterNumberInput',
+                        value : inputValue
+                    }, 0, { keydown : this.#onTextInput.bind(this) })));
 
         const introLimit = FilterSettings.introLimit == -1 ? '' : FilterSettings.introLimit;
         const introCondition = introLimit === '' ? FilterConditions.Equals : FilterSettings.introCondition;
@@ -192,10 +193,17 @@ class FilterDialog {
     }
 
     /**
-     * Show the filter dialog. */
-    show() {
+     * Show the filter dialog.
+     * @param {HTMLElement} owner */
+    show(owner) {
         // Copy from settings.
-        Overlay.build({ dismissible : true, centered : false, noborder : true }, this.#html);
+        Overlay.build({
+            dismissible : true,
+            centered : false,
+            noborder : true,
+            setup : { fn : () => $('#IntroMarkerFilterValue').focus() },
+            focusBack : owner
+        }, this.#html);
     }
 
     /**

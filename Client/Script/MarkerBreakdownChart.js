@@ -60,6 +60,8 @@ class MarkerBreakdownManager {
                 buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
             'Cancel');
 
+        Overlay.setFocusBackElement($('#markerBreakdown'));
+
         try {
             const rawBreakdown = await ServerCommand.getMarkerStats(PlexClientState.activeSection());
             this.#currentBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
@@ -117,7 +119,14 @@ class MarkerBreakdownManager {
         // so we want to include a fade in.
         const opacity = parseFloat(getComputedStyle(overlay).opacity);
         const delay = (1 - opacity) * 250;
-        Overlay.build({ dismissible : true, centered : true, delay : delay, noborder : true, closeButton : true },
+        Overlay.build(
+            {   dismissible : true,
+                centered : true,
+                delay : delay,
+                noborder : true,
+                closeButton : true,
+                focusBack : $('#markerBreakdown')
+            },
             appendChildren(buildNode('div', { style : 'text-align: center' }),
                 appendChildren(buildNode('div', { style : 'padding-bottom: 20px' }), chartSelect),
                 chart)

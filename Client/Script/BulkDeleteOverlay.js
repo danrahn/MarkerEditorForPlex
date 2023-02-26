@@ -29,8 +29,9 @@ class BulkDeleteOverlay {
     }
 
     /**
-     * Launch the bulk delete overlay. */
-    show() {
+     * Launch the bulk delete overlay.
+     * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
+    show(focusBack) {
         const container = buildNode('div', { id : 'bulkActionContainer' });
         const title = buildNode('h1', {}, `Delete All Markers`);
         appendChildren(container,
@@ -54,7 +55,8 @@ class BulkDeleteOverlay {
             dismissible : true,
             closeButton : true,
             forceFullscreen : true,
-            setup : { fn : () => $('#bulkDeleteCancel').focus() } }, container);
+            setup : { fn : () => $('#bulkDeleteCancel').focus() },
+            focusBack : focusBack }, container);
     }
 
     /**

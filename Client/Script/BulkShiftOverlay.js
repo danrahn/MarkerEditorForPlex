@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeInputShortcutHandler, timeToMs } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
@@ -62,8 +62,9 @@ class BulkShiftOverlay {
     }
 
     /**
-     * Launch the bulk shift overlay. */
-    show() {
+     * Launch the bulk shift overlay.
+     * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
+    show(focusBack) {
         const container = buildNode('div', { id : 'bulkActionContainer' });
         const title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
         this.#startTimeInput = buildNode(
@@ -74,7 +75,8 @@ class BulkShiftOverlay {
                 id : 'shiftStartTime'
             },
             0,
-            { keyup : this.#onTimeShiftChange.bind(this) });
+            { keyup : this.#onTimeShiftChange.bind(this),
+              keydown : timeInputShortcutHandler });
 
         this.#endTimeInput = buildNode('input',
             {   type : 'text',
@@ -83,7 +85,8 @@ class BulkShiftOverlay {
                 id : 'shiftEndTime',
                 class : 'hidden' },
             0,
-            { keyup : this.#onTimeShiftChange.bind(this) });
+            { keyup : this.#onTimeShiftChange.bind(this),
+              keydown : timeInputShortcutHandler });
 
         const separateShiftCheck = buildNode(
             'input', {
@@ -130,7 +133,7 @@ class BulkShiftOverlay {
             dismissible : true,
             closeButton : true,
             forceFullscreen : true,
-            setup : { fn : () => this.#startTimeInput?.focus() } }, container);
+            focusBack : focusBack }, container);
     }
 
     /**

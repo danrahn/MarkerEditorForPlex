@@ -1,6 +1,17 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, msToHms, ServerCommand, timeToMs } from './Common.js';
+import {
+    $,
+    $$,
+    appendChildren,
+    buildNode,
+    clearEle,
+    errorResponseOverlay,
+    msToHms,
+    ServerCommand,
+    timeInputShortcutHandler,
+    timeToMs } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
+import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
@@ -51,9 +62,11 @@ class MarkerEdit {
      * @param {boolean} [isEnd=false] Whether the time input is for the end of a marker.
      * @returns {HTMLElement} A text input for a marker. */
     getTimeInput(isEnd) {
-        const events = {};
+        const events = {
+            keydown : [ function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); } ]
+        };
         if (isEnd) {
-            events.keydown = this.#onEndTimeInput;
+            events.keydown.push(this.#onEndTimeInput);
         }
 
         let initialValue;
@@ -75,12 +88,6 @@ class MarkerEdit {
             0,
             events,
             { thisArg : this });
-
-        input.addEventListener('keydown', (e) => {
-            if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
-                e.preventDefault();
-            }
-        });
 
         // The above keydown should catch most bad inputs, but the user can still
         // paste something invalid in. This is overkill considering there's already
@@ -166,8 +173,9 @@ class MarkerEdit {
 
     /**
      * Attempts to add a marker to the database, first validating that the marker is valid.
-     * On success, make the temporary row permanent and rearrange the markers based on their start time. */
-    async onMarkerAddConfirm() {
+     * On success, make the temporary row permanent and rearrange the markers based on their start time.
+     * @param {Event} event */
+    async onMarkerAddConfirm(event) {
         const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
@@ -177,6 +185,7 @@ class MarkerEdit {
         const metadataId = mediaItem.metadataId;
         const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
         if (!mediaItem.markerTable().checkValues(this.markerRow.markerId(), startTime, endTime)) {
+            Overlay.setFocusBackElement(event.target);
             return;
         }
 
@@ -198,8 +207,9 @@ class MarkerEdit {
         mediaItem.markerTable().removeTemporaryMarkerRow(this.markerRow.row());
     }
 
-    /** Commits a marker edit, assuming it passes marker validation. */
-    async onMarkerEditConfirm() {
+    /** Commits a marker edit, assuming it passes marker validation.
+     * @param {Event} event */
+    async onMarkerEditConfirm(event) {
         const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
@@ -210,6 +220,7 @@ class MarkerEdit {
         const markerId = this.markerRow.markerId();
         const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
         if (!mediaItem.markerTable().checkValues(markerId, startTime, endTime)) {
+            Overlay.setFocusBackElement(event.target);
             return;
         }
 

@@ -1,4 +1,4 @@
-import { $, buildNode, clearEle } from './Common.js';
+import { $, $$, buildNode, clearEle } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
@@ -24,6 +24,16 @@ const UISection = {
     MoviesOrShows : 0x1, // TODO: is there any value in a separate movie vs show hierarchy?
     Seasons       : 0x2,
     Episodes      : 0x4
+};
+
+/**
+ * OR-able modifier states
+ * @enum */
+const Modifiers = {
+    /**@readonly*/ None  : 0,
+    /**@readonly*/ Ctrl  : 1,
+    /**@readonly*/ Alt   : 2,
+    /**@readonly*/ Shift : 4,
 };
 
 /**
@@ -94,6 +104,48 @@ class PlexUIManager {
 
         this.#dropdown.addEventListener('change', this.#libraryChanged.bind(this));
         this.#searchBox.addEventListener('keyup', this.#onSearchInput.bind(this));
+        window.addEventListener('keyup', this.#globalShortcutHandler.bind(this));
+    }
+
+    /**
+     * Determines whether the event target is input-like and should
+     * be ignored by any global handlers.
+     * @param {KeyboardEvent} e */
+    #inInput(e) {
+        const tag = e.target.tagName.toLowerCase();
+        return tag == 'textarea' || tag == 'input' && e.target.type == 'text';
+    }
+
+    /**
+     * @param {HTMLElement} element */
+    #isHidden(element) {
+        return element.offsetParent === null;
+    }
+
+    /**
+     * @param {KeyboardEvent} e */
+    #modifiers(e) {
+        return (e.altKey << 2 | e.shiftKey << 1 | e.ctrlKey);
+    }
+
+    /**
+     * Sets up some global shortcuts to help with navigation.
+     * @param {KeyboardEvent} e */
+    #globalShortcutHandler(e) {
+        if (this.#inInput(e)) {
+            return;
+        }
+
+        const modifiers = this.#modifiers(e);
+        switch (e.key) {
+            case '/':
+                if (modifiers === Modifiers.None && !this.#isHidden(this.#searchBox)) {
+                    this.#searchBox.focus();
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     /**
@@ -171,6 +223,7 @@ class PlexUIManager {
     showSections(uiSection) {
         this.#sectionOperation(uiSection, ele => {
             ele.classList.remove('hidden');
+            $$('.tabbableRow', ele)?.focus();
         });
     }
 
@@ -205,6 +258,9 @@ class PlexUIManager {
                 break;
             case SectionType.TV:
                 this.#searchBox.placeholder = 'Search for a Show...';
+                break;
+            case -1:
+                // "Select a library"
                 break;
             default:
                 Log.warn(`Unexpected library type ${libType}`);
@@ -246,10 +302,14 @@ class PlexUIManager {
         // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values.
         const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta',
             'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
-        if (this.#searchBox.value.length == 0 && modifiers.indexOf(e.key) === -1) {
+        if (modifiers.indexOf(e.key) !== -1) {
+            return;
+        }
+
+        if (this.#searchBox.value.length == 0) {
             // Only show all series if the user explicitly presses 'Enter'
             // on a blank query, otherwise clear the results.
-            if (this.#lastSearch.length != 0) {
+            if (this.#lastSearch?.length != 0) {
                 this.clearAllSections();
             }
 

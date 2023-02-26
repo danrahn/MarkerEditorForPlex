@@ -137,7 +137,7 @@ function writeErrorToFile(message) {
 function handleClose(signal, restart=false) {
     SetServerState(ServerState.ShuttingDown);
     if (restart) {
-        Log.info(`${signal} detected, attempting shut down a reboot...`);
+        Log.info(`${signal} detected, attempting shut down for a reboot...`);
     } else {
         Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
     }

@@ -898,8 +898,9 @@ class PurgeOverlay {
         this.#purgedSection = purgedSection;
     }
 
-    /** Display the main overlay. */
-    show() {
+    /** Display the main overlay.
+     * @param {HTMLElement} focusBack The element to set focus back to after this overlay is dismissed. */
+    show(focusBack) {
         // Main header + restore/ignore all buttons
         const container = buildNode('div', { id : 'purgeContainer' });
         appendChildren(container,
@@ -931,7 +932,7 @@ class PurgeOverlay {
             this.#clearOverlayAfterPurge(true /*emptyOnInit*/);
         }
 
-        Overlay.build({ dismissible : true, closeButton : true }, container);
+        Overlay.build({ dismissible : true, closeButton : true, focusBack : focusBack }, container);
     }
 
     /** Callback invoked when an entire table is removed from the overlay. */
@@ -1040,7 +1041,7 @@ class PurgedMarkerManager {
             // We have full cached data, used that.
             Log.tmi(`PurgedMarkerManager::findPurgedMarkers: Found cached data, bypassing all_purges call to server.`);
             if (!dryRun) {
-                new PurgeOverlay(cachedSection, section).show();
+                new PurgeOverlay(cachedSection, section).show($('#purgedMarkers'));
             }
 
             return;
@@ -1176,8 +1177,9 @@ class PurgedMarkerManager {
 
     /**
      * Invoke the purge overlay for a single show's purged marker(s).
-     * @param {number} showId The show of purged markers to display. */
-    showSingleShow(showId) {
+     * @param {number} showId The show of purged markers to display.
+     * @param {HTMLElement} caller The source of this request. Focus will be set back to this element when the overlay is dismissed. */
+    showSingleShow(showId, caller) {
         const showMarkers = this.#purgeCache.get(showId);
         if (!showMarkers) {
             // Ignore invalid requests
@@ -1186,13 +1188,14 @@ class PurgedMarkerManager {
             return;
         }
 
-        this.#showSingle(showMarkers, DisplayType.SingleTopLevel);
+        this.#showSingle(showMarkers, DisplayType.SingleTopLevel, caller);
     }
 
     /**
      * Invoke the purge overlay for a single season's purged marker(s).
-     * @param {number} seasonId The season of purged markers to display. */
-    showSingleSeason(seasonId) {
+     * @param {number} seasonId The season of purged markers to display.
+     * @param {HTMLElement} caller The source of this request. Focus will be set back to this element when the overlay is dismissed. */
+    showSingleSeason(seasonId, caller) {
         const seasonMarkers = this.#purgeCache.get(seasonId);
         if (!seasonMarkers) {
             // Ignore invalid requests
@@ -1206,13 +1209,14 @@ class PurgedMarkerManager {
         const dummyShow = new PurgedShow(seasonMarkers.parent.id);
         dummyShow.addInternal(seasonId, seasonMarkers);
 
-        this.#showSingle(dummyShow, DisplayType.SingleSeason);
+        this.#showSingle(dummyShow, DisplayType.SingleSeason, caller);
     }
 
     /**
      * Invoke the purge overlay for a singe episode's purged marker(s).
-     * @param {number} episodeId The episode of purged markers to display. */
-    showSingleEpisode(episodeId) {
+     * @param {number} episodeId The episode of purged markers to display.
+     * @param {HTMLElement} caller The source of this request. Focus will be set back to this element when the overlay is dismissed. */
+    showSingleEpisode(episodeId, caller) {
         const episodeMarkers = this.#purgeCache.get(episodeId);
         if (!episodeMarkers) {
             // Ignore invalid requests
@@ -1228,15 +1232,16 @@ class PurgedMarkerManager {
         dummySeason.addInternal(episodeId, episodeMarkers);
         dummyShow.addInternal(dummySeason.id, dummySeason);
 
-        this.#showSingle(dummyShow, DisplayType.SingleEpisode);
+        this.#showSingle(dummyShow, DisplayType.SingleEpisode, caller);
     }
 
     /**
      * Show purged markers for a single movie, initiated through its entry in the search results table.
      *
      * Identical to showSingleShow, but it's clearer than bundling them together.
-     * @param {number} movieId */
-    showSingleMovie(movieId) {
+     * @param {number} movieId
+     * @param {HTMLElement} caller The source of this request. Focus will be set back to this element when the overlay is dismissed. */
+    showSingleMovie(movieId, caller) {
         const movieMarkers = this.#purgeCache.get(movieId);
         if (!movieMarkers) {
             // Ignore invalid requests
@@ -1246,14 +1251,15 @@ class PurgedMarkerManager {
             return;
         }
 
-        this.#showSingle(movieMarkers, DisplayType.SingleTopLevel);
+        this.#showSingle(movieMarkers, DisplayType.SingleTopLevel, caller);
     }
 
     /**
      * Core routine that invokes the right overlay.
      * @param {PurgedShow} purgedItem The purged markers to display.
-     * @param {DisplayType} displayType The group of purged markers being displayed. */
-    #showSingle(purgedItem, displayType) {
+     * @param {DisplayType} displayType The group of purged markers being displayed.
+     * @param {HTMLElement?} focusBack The element to focus back on after the overlay is dismissed. */
+    #showSingle(purgedItem, displayType, focusBack) {
         if (purgedItem.count == 0) {
             return;
         }
@@ -1261,7 +1267,7 @@ class PurgedMarkerManager {
         const args = [purgedItem, Overlay.dismiss, displayType, true /*showResolutionControl*/];
         const table = purgedItem instanceof PurgedMovie ? new MoviePurgeTable(...args) : new TVPurgeTable(...args);
         const html = appendChildren(buildNode('div', { id : 'purgeContainer' }), table.html());
-        Overlay.build({ dismissible : true, closeButton : true }, html);
+        Overlay.build({ dismissible : true, closeButton : true, focusBack : focusBack }, html);
     }
 
     /**

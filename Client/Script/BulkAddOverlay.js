@@ -1,4 +1,13 @@
-import { $, appendChildren, buildNode, errorResponseOverlay, msToHms, pad0, ServerCommand, timeToMs } from './Common.js';
+import {
+    $,
+    appendChildren,
+    buildNode,
+    errorResponseOverlay,
+    msToHms,
+    pad0,
+    ServerCommand,
+    timeInputShortcutHandler,
+    timeToMs } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -60,8 +69,9 @@ class BulkAddOverlay {
     table() { return this.#table; }
 
     /**
-     * Launch the bulk add overlay. */
-    show() {
+     * Launch the bulk add overlay.
+     * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
+    show(focusBack) {
         const container = buildNode('div', { id : 'bulkActionContainer' });
         const title = buildNode('h1', {}, 'Bulk Add Markers');
         appendChildren(container,
@@ -75,7 +85,8 @@ class BulkAddOverlay {
                         name : 'addStart',
                         id : 'addStart' },
                     0,
-                    { keyup : this.#onBulkAddInputChange.bind(this) }
+                    {   keyup : this.#onBulkAddInputChange.bind(this),
+                        keydown : timeInputShortcutHandler }
                 ),
                 buildNode('label', { for : 'addEnd' }, 'End: '),
                 buildNode('input',
@@ -84,7 +95,8 @@ class BulkAddOverlay {
                         name : 'addEnd',
                         id : 'addEnd' },
                     0,
-                    { keyup : this.#onBulkAddInputChange.bind(this) }
+                    { keyup : this.#onBulkAddInputChange.bind(this),
+                      keydown : timeInputShortcutHandler }
                 )),
             appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
                 buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
@@ -114,7 +126,7 @@ class BulkAddOverlay {
             dismissible : true,
             closeButton : true,
             forceFullscreen : true,
-            setup : { fn : () => $('#addStart').focus() } }, container);
+            focusBack : focusBack }, container);
     }
 
     /**

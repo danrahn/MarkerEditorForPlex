@@ -451,6 +451,15 @@ input:focus-visible {
   vertical-align: text-top;
 }
 
+.filterMultiInput {
+  float: right;
+}
+
+/* TODO: Not this. Need better separation from settings dialog/a shared base class */
+.filterSelect, .filterNumberInput {
+  float: unset !important;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

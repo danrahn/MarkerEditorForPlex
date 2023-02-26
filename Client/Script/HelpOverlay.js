@@ -1,4 +1,4 @@
-import { appendChildren, buildNode } from './Common.js';
+import { $, appendChildren, buildNode, clickOnEnterCallback } from './Common.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -17,9 +17,22 @@ be safe to perform various create/update/delete actions, there are no guarantees
 the future. The author is not responsible for any database corruption that may occur; use at your own risk.`),
 );
 
-/** Invokes the help overlay */
-function ShowHelpOverlay() {
-    Overlay.show(helpText);
+class HelpOverlay {
+    static #setup = false;
+    static #btn = $('#helpContainer');
+    static ShowHelpOverlay() {
+        Overlay.show(helpText);
+        Overlay.setFocusBackElement(HelpOverlay.#btn);
+    }
+
+    static SetupHelperListeners() {
+        if (HelpOverlay.#setup) {
+            return;
+        }
+
+        HelpOverlay.#btn.addEventListener('click', HelpOverlay.ShowHelpOverlay);
+        HelpOverlay.#btn.addEventListener('keydown', clickOnEnterCallback);
+    }
 }
 
-export default ShowHelpOverlay;
+export default HelpOverlay;

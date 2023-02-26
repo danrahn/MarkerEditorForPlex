@@ -8,9 +8,17 @@ import ButtonCreator from '../ButtonCreator.js';
 import ThemeColors from '../ThemeColors.js';
 
 /**
- * @typedef {{ dismissible?: boolean, centered?: boolean, noborder?: boolean, delay?: number, forceFullscreen?: number
- *              closeButton?: boolean, setup?: {args?: any[], fn: (...any) => void}}} OverlayOptions
- * */
+ * @typedef {Object} OverlayOptions
+ * @property {boolean?} dismissible Whether the overlay can be dismissed. Default true
+ * @property {boolean?} centered Determines whether the overlay is centered in the screen versus near the. Default false
+ * @property {boolean?} noborder Don't surround the overlay's children with a border. Default false
+ * @property {number?}  delay The visibility transition time in ms. Default 250
+ * @property {boolean?} forceFullscreen Whether to force fullscreen elements
+ * @property {boolean?} closeButton Whether to add a close button, even if we're not a full screen overlay.
+ * @property {{args?: any[], fn (...any) => void}} setup Setup function to call once the overlay has been attached to the DOM.
+ * @property {HTMLElement?} focusBack The element to set focus back to after the overlay is dismissed. If this is undefined
+ *                                    no element will be focused. If it's null, set focus to whatever this was last set to.
+ */
 
 /**
  * Class to display overlays on top of a webpage.
@@ -29,9 +37,7 @@ const Overlay = new function() {
      * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
      */
     this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
-        // Set focus to the button on start
-        const focusOnLaunch = { fn : () => $('#overlayBtn').focus() };
-        this.build({ dismissible : dismissible, centered : false, setup : focusOnLaunch },
+        this.build({ dismissible : dismissible, centered : false, focusBack : null },
             buildNode('div', { id : 'overlayMessage', class : 'overlayDiv' }, message),
             ButtonCreator.textButton(
                 buttonText,
@@ -61,10 +67,26 @@ const Overlay = new function() {
     /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist.
+     * @param {...any} args Function parameters. Ignored unless a boolean is found, in which case it's used to determine whether
+     *                      we should reset our focusBack element. We don't want to in overlay chains.
      */
-    this.dismiss = function() {
+    this.dismiss = function(...args) {
         Animation.queue({ opacity : 0 }, $('#mainOverlay'), 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
+        let forReshow = false;
+        for (const arg of args) {
+            // Gross, obviously. This function is called from many different contexts though,
+            // so sometimes the first and second arguments aren't what we expect.
+            if (typeof arg == 'boolean') {
+                forReshow = arg;
+                break;
+            }
+        }
+
+        if (!forReshow) {
+            focusBack?.focus();
+            focusBack = null;
+        }
     };
 
     /** Immediately remove the overlay from the screen without animation. */
@@ -78,14 +100,19 @@ const Overlay = new function() {
     };
 
     /**
+     * The element to set focus back to when the overlay is dismissed.
+     * @type {HTMLElement?} */
+    let focusBack = null;
+
+    /**
+     * @param {HTMLElement} element */
+    this.setFocusBackElement = function(element) {
+        focusBack = element;
+    };
+
+    /**
      * Generic overlay builder.
-     * @param {OverlayOptions} options Options that define how the overlay is shown:
-     *  * `dismissible` : Determines whether the overlay can be dismissed.
-     *  * `centered` : Determines whether the overlay is centered in the screen (versus closer to the top).
-     *  * `noborder` : Determine whether to surround the overlay's children with a dark border (defaults to false).
-     *  * `delay` : Fade-in duration (defaults to 250ms).
-     *  * `closeButton` : Whether to add a close button in the top-right (defaults to false).
-     *  * `setup` : A function to run after attaching the children to the DOM, but before triggering the show animation.
+     * @param {OverlayOptions} options Options that define how the overlay is shown.
      * @param {...HTMLElement} children A list of elements to append to the overlay.
      */
     this.build = function(options, ...children) {
@@ -108,11 +135,6 @@ const Overlay = new function() {
             Tooltip.dismiss();
         }
 
-        if (options.setup) {
-            const args = options.setup.args || [];
-            options.setup.fn(...args);
-        }
-
         const delay = options.delay || 250;
         if (delay != 0) {
             Animation.fireNow({ opacity : 1 }, overlayNode, delay);
@@ -122,6 +144,18 @@ const Overlay = new function() {
             addFullscreenOverlayElements(container);
         } else if (options.closeButton) {
             addCloseButton();
+        }
+
+        setupTabInputs(overlayNode); // Potentially sets focus, so make sure this is before options.setup
+        if (options.setup) {
+            // TODO: This is currently just used to set a non-default focus. If there's no other
+            // use for this, should it be collapsed into an 'initial focus' field?
+            const args = options.setup.args || [];
+            options.setup.fn(...args);
+        }
+
+        if (options.focusBack !== null) {
+            focusBack = options.focusBack;
         }
 
         window.addEventListener('keydown', overlayKeyListener, false);
@@ -155,6 +189,35 @@ const Overlay = new function() {
     };
 
     /**
+     * Ensures that tab navigation doesn't "escape" the overlay by forcing the first/last tabbable element to
+     * cycle to the last/first instead of anything outside of #mainOverlay.
+     *
+     * TODO: This could break if anyone reaches into the overlay manually and adjusts the elements.
+     * @param {HTMLElement} overlayNode */
+    const setupTabInputs = function(overlayNode) {
+        const focusable = $('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', overlayNode);
+        if (focusable) {
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            first.addEventListener('keydown', (/**@type {KeyboardEvent}*/e) => {
+                if (e.key == 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            });
+
+            last.addEventListener('keydown', (/**@type {KeyboardEvent}*/e) => {
+                if (e.key == 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            });
+
+            first.focus();
+        }
+    };
+
+    /**
      * Sets different classes and adds a close button for overlays
      * that are set to 'fullscreen'.
      * @param {HTMLElement} container The main overlay container.
@@ -171,11 +234,13 @@ const Overlay = new function() {
             'img',
             {
                 src : ThemeColors.getIcon('cancel', 'standard'),
-                class : 'overlayCloseButton'
+                class : 'overlayCloseButton',
+                tabindex : 0,
             },
             0,
             {
-                click : Overlay.dismiss
+                click : Overlay.dismiss,
+                keydown : (e) => { if (e.key == 'Enter') Overlay.dismiss(); },
             });
         Tooltip.setTooltip(close, 'Close');
         $('#mainOverlay').appendChild(close);

@@ -274,7 +274,7 @@ function $(selector, ele=document) {
         return $$(selector, ele);
     }
 
-    return ele.querySelectorAll(selector);
+    return ele?.querySelectorAll(selector);
 }
 
 /**
@@ -283,7 +283,7 @@ function $(selector, ele=document) {
  * @param {HTMLElement} [ele=document] The scope of the query. Defaults to `document`.
  */
 function $$(selector, ele=document) {
-    return ele.querySelector(selector);
+    return ele?.querySelector(selector);
 }
 
 /**
@@ -291,7 +291,7 @@ function $$(selector, ele=document) {
  * @param {string} type The TAG to create.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  * @param {object} [options={}] Additional options
  */
 function buildNode(type, attrs, content, events, options={}) {
@@ -305,7 +305,7 @@ function buildNode(type, attrs, content, events, options={}) {
  * @param {string} type The type of element to create.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function buildNodeNS(ns, type, attrs, content, events, options={}) {
     const ele = document.createElementNS(ns, type);
@@ -317,7 +317,7 @@ function buildNodeNS(ns, type, attrs, content, events, options={}) {
  * @param {HTMLElement} ele The HTMLElement to attach the given properties to.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  * @param {object} [options]
  */
 function _buildNode(ele, attrs, content, events, options) {
@@ -329,10 +329,18 @@ function _buildNode(ele, attrs, content, events, options) {
 
     if (events) {
         for (const [event, func] of Object.entries(events)) {
-            if (options.thisArg) {
-                ele.addEventListener(event, func.bind(options.thisArg, ele));
-            } else {
-                ele.addEventListener(event, func);
+            /** @type {EventListener[]} */
+            let handlers = func;
+            if (!(func instanceof Array)) {
+                handlers = [func];
+            }
+
+            for (const handler of handlers) {
+                if (options.thisArg) {
+                    ele.addEventListener(event, handler.bind(options.thisArg, ele));
+                } else {
+                    ele.addEventListener(event, handler);
+                }
             }
         }
     }
@@ -432,6 +440,23 @@ function msToHms(ms) {
     return time;
 }
 
+/**
+ * Regex capturing a valid [hh:]mm:ss.000 input. */
+const hmsRegex = new RegExp('' +
+    /^(?<negative>-)?/.source +
+    /(?:(?<hours>\d{1,3}):)?/.source +
+    /(?:(?<minutes>0\d|[1-5]\d):)?/.source +
+    /(?<seconds>0\d|[1-5]\d)/.source +
+    /\.?(?<milliseconds>\d+)?$/.source);
+
+/**
+ * @typedef {Object} HmsGroups
+ * @property {string?} negative Whether the value is negative (valid for e.g. bulk shift)
+ * @property {string?} hours The number of hours. Note that this group will actually hold minutes if hours are not present.
+ * @property {string?} minutes The number of minutes. Note that this group is only populated if hours are not present.
+ * @property {string}  seconds The number of seconds.
+ * @property {string?} milliseconds The decimal value, if any.
+*/
 
 /**
  * Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
@@ -439,19 +464,27 @@ function msToHms(ms) {
  * @returns The number of milliseconds indicated by `value`. */
 function timeToMs(value, allowNegative=false) {
     let ms = 0;
-    if (value.indexOf(':') == -1 && value.indexOf('.') == -1) {
-        return parseInt(value);
+    if (value.indexOf(':') == -1) {
+        if (value.indexOf('.') === -1) {
+            // Raw milliseconds
+            return parseInt(value);
+        } else {
+            // Assume sections.milliseconds
+            return parseInt(parseFloat(value) * 1000);
+        }
     }
 
-    // I'm sure this can be improved on.
-    const result = /^(-)?(?:(\d?\d):)?(?:(\d?\d):)?(\d?\d)\.?(\d{1,3})?$/.exec(value);
-    if (!result || (!allowNegative && result[1])) {
+    const result = hmsRegex.exec(value);
+    if (!result || (!allowNegative && result.groups.negative)) {
         return NaN;
     }
 
-    if (result[5]) {
-        ms = parseInt(result[5]);
-        switch (result[5].length) {
+    /** @type {HmsGroups} */
+    const groups = result.groups;
+
+    if (groups.milliseconds) {
+        ms = parseInt(groups.milliseconds.substring(0, 3)); // Allow extra digits, but ignore them
+        switch (groups.milliseconds.length) {
             case 1:
                 ms *= 100;
                 break;
@@ -463,26 +496,107 @@ function timeToMs(value, allowNegative=false) {
         }
     }
 
-    if (result[4]) {
-        ms += parseInt(result[4]) * 1000;
+    if (groups.seconds) {
+        ms += parseInt(groups.seconds) * 1000;
     }
 
-    if (result[3]) {
-        ms += parseInt(result[3]) * 60 * 1000;
+    if (groups.minutes) {
+        // Be stricter than the regex itself and force two digits
+        // if we have an hours value.
+        if (groups.hours && groups.minutes.length != 2) {
+            return NaN;
+        }
+
+        ms += parseInt(groups.minutes) * 60 * 1000;
     }
 
-    // Because the above regex isn't great, if we have mm:ss.000, result[2]
-    // will be populated but result[3] won't. This catches that and adds
-    // result[2] as minutes instead of as hours like we do below.
-    if (result[2] && !result[3]) {
-        ms += parseInt(result[2]) * 60 * 1000;
+    if (groups.hours) {
+        // Because the above regex isn't great, if we have mm:ss.000, hours
+        // will be populated but minutes won't. This catches that and adds
+        // hours as minutes instead.
+        if (!groups.minutes) {
+            ms += parseInt(groups.hours) * 60 * 1000;
+        } else {
+            // Normal hh:mm
+            ms += parseInt(groups.hours) * 60 * 60 * 1000;
+        }
     }
 
-    if (result[2] && result[3]) {
-        ms += parseInt(result[2]) * 60 * 60 * 1000;
+    return ms * (groups.negative ? -1 : 1);
+}
+
+/* eslint-disable quote-props */ // Quotes are cleaner here
+/**
+ * Map of time input shortcut keys that will increase/decrease the time by specific values.
+ *
+ * Values are functions, as there are also two 'special' keys, '\' and '|' (Shift+\), which
+ * rounds the current value to the nearest second/tenth of a second.
+ *
+ * The logic behind the values is that '-' and '=' are the "big" changes, and shift ('_', '+')
+ * makes it even bigger, while '[' and ']' are the "small" changes, so shift ('{',  '}')
+ * makes it even smaller. Combined with Alt, this gives us the ability to change the timings
+ * by 5m, 1m, 50s, 10s, 5s, 1s, 0.5s, or .1s without manually typing specific numbers. */
+const adjustKeys = {
+    '_'  : () => -60000, // Shift+-
+    '+'  : () =>  60000, // Shift+=
+    '-'  : () => -10000, // -
+    '='  : () =>  10000, // +
+    '['  : () =>  -1000, // [
+    ']'  : () =>   1000,
+    '{'  : () =>   -100,
+    '}'  : () =>    100,
+    '\\' : (c) => -(c % 1000) + (c % 1000 < 500 ? 0 : 1000), // Truncate to nearest second
+    '|'  : (c) => -(c % 100) + (c % 100 < 50 ? 0 : 100),     // Truncate to nearest tenth
+};
+/* eslint-enable */
+
+/**
+ * A common input handler that allows incremental
+ * time changes with keyboard shortcuts.
+ * @param {MouseEvent} e */
+function timeInputShortcutHandler(e, maxDuration=NaN) {
+    if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
+        e.preventDefault();
+        if (!adjustKeys[e.key]) {
+            return;
+        }
+
+        const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
+        const currentValue = e.target.value;
+
+        // Default to HMS, but keep ms if that's what's currently being used
+        const needsHms = currentValue.length == 0 || /[.:]/.test(currentValue);
+
+        // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
+        const currentValueMs = timeToMs(currentValue || '0');
+        if (isNaN(currentValueMs)) {
+            return; // Don't try to do anything with invalid input
+        }
+
+        const timeDiff = adjustKeys[e.key](currentValueMs) * (e.altKey ? 5 : 1);
+        const newTime = Math.min(max, Math.max(0, currentValueMs + timeDiff));
+        const newValue = needsHms ? msToHms(newTime) : newTime;
+
+        // execCommand will make this undo-able, but is deprecated.
+        // Fall back to direct substitution if necessary.
+        try {
+            e.target.select();
+            document.execCommand('insertText', false, newValue);
+        } catch (ex) {
+            e.target.value = needsHms ? msToHms(newTime) : newTime;
+        }
+    }
+}
+
+/**
+ * General callback to treat 'Enter' on a given element as a click.
+ * @param {KeyboardEvent} e */
+function clickOnEnterCallback(e) {
+    if (e.ctrlKey || e.shiftKey || e.altKey || e.key != 'Enter') {
+        return;
     }
 
-    return ms * (result[1] ? -1 : 1);
+    e.target.click();
 }
 
 /**
@@ -502,11 +616,13 @@ export {
     buildNode,
     buildNodeNS,
     clearEle,
+    clickOnEnterCallback,
     errorMessage,
     errorResponseOverlay,
     msToHms,
     pad0,
     plural,
     ServerCommand,
+    timeInputShortcutHandler,
     timeToMs
 };
