@@ -776,7 +776,7 @@ ORDER BY e.\`index\` ASC;`;
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `(?, ?, ?, ?, ?, ?,  ${thumbUrl}, (strftime('%s','now')), ?);`;
+                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, (strftime('%s','now')), ?);`;
         const parameters = [
             metadataId,
             this.#markerTagId,
@@ -808,13 +808,19 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} modifiedAt What to set as the 'modified at' time. Used by bulkRestore to restore original timestamps.
      * @param {number} [createdAt] What to set as the 'created at' time. Used by bulkRestore to restore original timestamps. */
     #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, modifiedAt=undefined, createdAt=undefined) {
-        const thumbUrl = this.#pureMode ? '""' : (modifiedAt || `(strftime('%s','now')) * -1`); // negative == user created
-        const created_at = createdAt || `(strftime('%s','now'))`;
+        let thumbUrl;
+        if (this.#pureMode) {
+            thumbUrl = '""';
+        } else {
+            thumbUrl = isNaN(modifiedAt) ? `(strftime('%s','now')) * -1` : modifiedAt;// negative == user created
+        }
+
+        const created_at = isNaN(createdAt) ? `(strftime('%s','now'))` : createdAt;
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `(?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, ${created_at}, ?);`;
         const parameters = [
             episodeId,
             this.#markerTagId,
@@ -822,8 +828,6 @@ ORDER BY e.\`index\` ASC;`;
             markerType,
             startMs.toString(),
             endMs,
-            thumbUrl,
-            created_at,
             ExtraData.get(markerType, final)];
         transaction.addStatement(addQuery, parameters);
     }
