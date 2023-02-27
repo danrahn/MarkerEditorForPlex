@@ -545,8 +545,8 @@ const adjustKeys = {
     ']'  : () =>   1000,
     '{'  : () =>   -100,
     '}'  : () =>    100,
-    '\\' : (c) => -(c % 1000) + (c % 1000 < 500 ? 0 : 1000), // Truncate to nearest second
-    '|'  : (c) => -(c % 100) + (c % 100 < 50 ? 0 : 100),     // Truncate to nearest tenth
+    '\\' : (c, m) => -(c % 1000) + ((m - c < 1000 - (c % 1000)) || (c % 1000 < 500) ? 0 : 1000), // Truncate to nearest second
+    '|'  : (c, m) => -(c %  100) + ((m - c <  100 - (c %  100)) || (c %  100 <  50) ? 0 :  100), // Truncate to nearest tenth
 };
 /* eslint-enable */
 
@@ -573,7 +573,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
             return; // Don't try to do anything with invalid input
         }
 
-        const timeDiff = adjustKeys[e.key](currentValueMs) * (e.altKey ? 5 : 1);
+        const timeDiff = adjustKeys[e.key](currentValueMs, max) * (e.altKey ? 5 : 1);
         const newTime = Math.min(max, Math.max(0, currentValueMs + timeDiff));
         const newValue = needsHms ? msToHms(newTime) : newTime;
 

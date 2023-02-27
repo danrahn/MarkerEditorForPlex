@@ -594,6 +594,7 @@ class ShowResultRow extends ResultRow {
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
         addRow(new BulkActionResultRow(this.show()).buildRow()); // TODO: Make this a class var too?
+        addRow(buildNode('hr', { style : 'margin-top: 0' }));
         const seasons = Object.values(this.#seasons).sort((a, b) => a.season().index - b.season().index);
         this.#seasonsFiltered = 0;
         let anyShowing = false;
@@ -954,7 +955,7 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        if ((seasonName.childNodes[0].tagName == 'IMG') == this.#episodesFiltered) {
+        if ((seasonName.childNodes[0].tagName == 'IMG') == !!this.#episodesFiltered) {
             return;
         }
 
