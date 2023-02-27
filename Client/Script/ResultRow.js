@@ -1030,13 +1030,17 @@ class BaseItemResultRow extends ResultRow {
         }
 
         switch (e.key) {
+            case ' ':
+                e.preventDefault();
+                // fallthrough
             case 'Enter':
             {
-                // '?' because movie marker tables might not exist yet. In that case we want to show the table
-                // singe we're guaranteed to be hidden anyway, and showHideMarkerTable takes care of ensuring
-                // we have all the data we need.
-                const shouldHide = $$('table', this.baseItem().markerTable()?.table())?.classList.contains('hidden');
-                return this.showHideMarkerTable(shouldHide);
+                // Movie marker tables might not exist yet. In that case we want to show the table since we're
+                // guaranteed to be hidden anyway, and showHideMarkerTable takes care of ensuring we have all
+                // the data we need.
+                const markerTable = this.baseItem().markerTable().table();
+                const isHidden = !markerTable || $$('table', markerTable).classList.contains('hidden');
+                return this.showHideMarkerTable(!isHidden);
             }
             case 'ArrowRight':
                 // Note: this is async for movies. If this ever changes to have additional
