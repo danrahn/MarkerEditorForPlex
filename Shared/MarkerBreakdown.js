@@ -23,7 +23,9 @@ class MarkerBreakdown {
             case MarkerType.Credits:
                 return delta << CreditsShift;
             default:
-                throw new Error(`Invalid marker type ${markerType}`);
+                // Unexpected, but just log an error and treat it as an intro.
+                Log.error(`Invalid marker type ${markerType}`);
+                return delta;
         }
     }
 

@@ -450,6 +450,8 @@ class MovieData extends TopLevelData {
     }
 }
 
+const _supportedMarkerTypes = new Set(['intro', 'credits']);
+
 /**
  * Possible marker types
  * @enum */
@@ -458,6 +460,7 @@ const MarkerType = {
     Intro   : 'intro',
     /** @readonly */
     Credits : 'credits',
+    supportedType : (markerType) => _supportedMarkerTypes.has(markerType)
 };
 
 /**

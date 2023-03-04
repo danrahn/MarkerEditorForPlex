@@ -1,6 +1,7 @@
 import { Log } from '../Shared/ConsoleLog.js';
 
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
+import { MarkerType } from '../Shared/PlexTypes.js';
 
 /** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
@@ -101,6 +102,12 @@ class BaseItemNode extends MarkerNodeBase {
         // TODO: temporary. Make sure that base items only have a single "active" bucket, it doesn't
         //       make sense for a single episode/movie to have multiple buckets.
         Log.assert(this.markerBreakdown.buckets() == 1);
+        // Silently ignore unsupported marker types.
+        // TODO: better support for unsupported types (i.e. commercials)
+        if (!MarkerType.supportedType(markerData.marker_type)) {
+            return;
+        }
+
         const deltaReal = MarkerBreakdown.deltaFromType(multiplier, markerData.marker_type);
         this.markerBreakdown.delta(this.#currentKey, deltaReal);
         this.#currentKey += deltaReal;

@@ -34,7 +34,10 @@ class QueryCommands {
 
         const rawMarkers = await PlexQueries.getMarkersForItems(keys);
         for (const rawMarker of rawMarkers) {
-            markers[rawMarker.parent_id].push(new MarkerData(rawMarker));
+            // TODO: better handing of non intros/credits (i.e. commercials)
+            if (MarkerType.supportedType(rawMarker.marker_type)) {
+                markers[rawMarker.parent_id].push(new MarkerData(rawMarker));
+            }
         }
 
         return markers;
@@ -196,7 +199,13 @@ class QueryCommands {
         let countCur = 0;
         // See MarkerBreakdown.js
         const bucketDelta = (markerType) => markerType == MarkerType.Intro ? 1 : (1 << 16);
+
         for (const row of rows) {
+            // TODO: better handing of non intros/credits (i.e. commercials)
+            if (!MarkerType.supportedType(row.marker_type)) {
+                continue;
+            }
+
             if (row.parent_id == idCur) {
                 if (row.tag_id == PlexQueries.markerTagId()) {
                     // See MarkerBreakdown.js
