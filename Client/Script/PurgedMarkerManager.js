@@ -258,8 +258,9 @@ class PurgeOptions {
 class PurgeRow {
     /**
      * The number of columns to backup and clear out when showing an inline row message.
+     * Note: this is one less than the number of columns, since we treat the options row differently.
      * @type {number} */
-    static #backupLength = 5;
+    static #backupLength = 4;
 
     /** @type {MarkerAction} */
     #markerAction;
