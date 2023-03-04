@@ -376,13 +376,13 @@ class ClientSettingsUI {
                 'Enable Thumbnail Previews',
                 'showThumbnailsSetting',
                 this.#settingsManager.useThumbnails(),
-                'When editing markers, display thumbnails that<br>correspond to the current timestamp (if available)');
+                'When editing markers, display thumbnails that correspond to the current timestamp (if available)');
             options.push(showThumbs);
             const collapsed = this.#buildSettingCheckbox(
                 'Collapse Thumbnails',
                 'collapseThumbnailsSetting',
                 this.#settingsManager.collapseThumbnails(),
-                'Keep thumbnails collapsed by default, with the option to<br>expand them when adding/editing a marker.'
+                'Keep thumbnails collapsed by default, with the option to expand them when adding/editing a marker.'
             );
             const autoload = this.#buildSettingCheckbox(
                 'Auto Load Thumbnails',
