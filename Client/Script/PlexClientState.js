@@ -20,6 +20,15 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('./ResultRow').SeasonResultRow} SeasonResultRow */
 /** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
 
+/**
+ * A class that contains two maps, mapping words of media titles
+ * to the set of the media items that have that word. */
+class SearchTokenMaps {
+    /** @type {{[token: string]: Set<TopLevelData>}} */
+    titles = {};
+    /** @type {{[token: string]: Set<TopLevelData>}} */
+    originalTitles = {};
+}
 
 /**
  * The Singleton client state.
@@ -35,7 +44,7 @@ class PlexClientStateManager {
     #activeSection = -1;
     /** @type {number} */
     #activeSectionType = SectionType.TV;
-    /** @type {{[sectionId: number]: ShowMap|MovieMap}} */
+    /** @type {{[sectionId: number]: { items: ShowMap|MovieMap, searchTokens: SearchTokenMaps }}} */
     #sections = {};
     /** @type {ShowData[]|ClientMovieData[]} */
     activeSearchUnfiltered = [];
@@ -95,7 +104,7 @@ class PlexClientStateManager {
         // We could/should just use showResultRow.show() directly, but this verifies that we've been
         // given a show we expect.
         const metadataId = showResultRow.show().metadataId;
-        if (!this.#sections[this.#activeSection][metadataId]) {
+        if (!this.#sections[this.#activeSection].items[metadataId]) {
             return false;
         }
 
@@ -320,41 +329,48 @@ class PlexClientStateManager {
         // some heavy package that's aware of unicode word characters, just clear out the most common
         // characters we want to ignore. I could probably figure out how to utilize Plex's spellfix
         // tables, but substring search on display, sort, and original titles should be good enough here.
-        query = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
+        const fuzzyQuery = query.toLowerCase().replace(/[\s,'"_\-!?]/g, '');
 
+        const section = this.#sections[this.#activeSection];
         /** @type {TopLevelData[]} */
-        const itemList = Object.values(this.#sections[this.#activeSection]);
+        const itemList = Object.values(section.items);
 
-        const result = [];
+        const result = new Set();
         for (const item of itemList) {
             // If we have a regular expression, it takes precedence over our plain query string
             if (regexp) {
                 if (regexp.test(item.title) || regexp.test(item.sortTitle) || regexp.test(item.originalTitle)
                     || (this.#activeSectionType == SectionType.Movie && regexp.test(queryYear))) {
-                    result.push(item);
+                    result.add(item);
                 }
             } else {
-                if (item.normalizedTitle.indexOf(query) != -1
-                    || (item.normalizedSortTitle && item.normalizedSortTitle.indexOf(query) != -1)
-                    || (item.normalizedOriginalTitle && item.normalizedOriginalTitle.indexOf(query) != -1)
+                if (item.normalizedTitle.indexOf(fuzzyQuery) != -1
+                    || (item.normalizedSortTitle && item.normalizedSortTitle.indexOf(fuzzyQuery) != -1)
+                    || (item.normalizedOriginalTitle && item.normalizedOriginalTitle.indexOf(fuzzyQuery) != -1)
                     || (this.#activeSectionType == SectionType.Movie && queryYear && item.year == queryYear)) {
-                    result.push(item);
+                    result.add(item);
                 }
             }
         }
 
+        // After the fuzzy search, look at individual tokens so something like 'lord rings' will still match
+        // 'The Lord of the Rings'.
+        for (const tokenMatch of this.#tokenSearch(query, section.searchTokens)) {
+            result.add(tokenMatch);
+        }
+
         // Sort the results. Title prefix matches are first, then sort title prefix matches,
         // then original title prefix matches, and alphabetical sort title after that.
-        result.sort((a, b) => {
-            if (query.length == 0) {
+        const resultArr = [...result.keys()].sort((a, b) => {
+            if (fuzzyQuery.length == 0) {
                 // Blank query should return all shows, and in that case we just care about sort title order
                 return this.#defaultSort(a, b);
             }
 
             // Title prefix matches are first, then sort title, then original title.
-            for (const key of ['searchTitle', 'sortTitle', 'originalTitle']) {
-                const prefixA = a[key] && a[key].startsWith(query);
-                const prefixB = b[key] && b[key].startsWith(query);
+            for (const key of ['normalizedTitle', 'normalizedSortTitle', 'normalizedOriginalTitle']) {
+                const prefixA = a[key] && a[key].startsWith(fuzzyQuery);
+                const prefixB = b[key] && b[key].startsWith(fuzzyQuery);
                 if (prefixA != prefixB) {
                     return prefixA ? -1 : 1;
                 }
@@ -364,8 +380,56 @@ class PlexClientStateManager {
             return this.#defaultSort(a, b);
         });
 
-        this.activeSearchUnfiltered = result;
+        this.activeSearchUnfiltered = resultArr;
         return;
+    }
+
+    /**
+     * Do a token-based search, returning the set of media items that have
+     * every token of the query string.
+     * @param {string} query
+     * @param {SearchTokenMaps} tokenMaps
+     * @returns {Set<TopLevelData>} */
+    #tokenSearch(query, tokenMaps) {
+        // Assume longer words will have a smaller number of matches, which may improve performance.
+        const tokens = [...this.#getSearchTokens(query)].sort((a, b) => b.length - a.length);
+        if (tokens.length === 0) {
+            return new Set();
+        }
+
+        /** @type {Set<TopLevelData>} */
+        const finalResult = new Set();
+        /** @type {Set<TopLevelData>} */
+        let intersection;
+        for (const tokenMap of [tokenMaps.titles, tokenMaps.originalTitles]) {
+            intersection = tokenMap[tokens[0]];
+            if (!intersection) {
+                continue;
+            }
+
+            for (const token of tokens.slice(1)) {
+                const next = tokenMap[token];
+                if (!next) {
+                    intersection.clear();
+                    break;
+                }
+
+                intersection = new Set([...intersection].filter(t => next.has(t)));
+                if (intersection.size === 0) {
+                    break;
+                }
+            }
+
+            if (intersection.size === 0) {
+                continue;
+            }
+
+            for (const item of intersection) {
+                finalResult.add(item);
+            }
+        }
+
+        return finalResult;
     }
 
     /**
@@ -373,7 +437,7 @@ class PlexClientStateManager {
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged. */
     async #updateInactiveBreakdown(activeIds, unpurged) {
         const promises = [];
-        for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection])) {
+        for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection].items)) {
             if (activeIds.has(metadataId) || !unpurged.get(metadataId)) {
                 continue;
             }
@@ -543,7 +607,8 @@ class PlexClientStateManager {
         try {
             const items = await ServerCommand.getSection(this.#activeSection);
             const allItems = {};
-            this.#sections[this.#activeSection] = allItems;
+            this.#sections[this.#activeSection] = { items : allItems, searchTokens : new SearchTokenMaps() };
+            const section = this.#sections[this.#activeSection];
             for (const movieOrShow of items) {
                 let itemData;
                 switch (this.#activeSectionType) {
@@ -562,10 +627,27 @@ class PlexClientStateManager {
                 }
 
                 allItems[itemData.metadataId] = itemData;
+                for (const token of this.#getSearchTokens(itemData.title)) {
+                    (section.searchTokens.titles[token] ??= new Set()).add(itemData);
+                }
+
+                for (const token of this.#getSearchTokens(itemData.originalTitle)) {
+                    (section.searchTokens.originalTitles[token] ??= new Set()).add(itemData);
+                }
             }
         } catch (err) {
             errorResponseOverlay('Something went wrong retrieving shows from the selected library, please try again later.', err);
         }
+    }
+
+    /**
+     * Breaks an item down into individual searchable tokens
+     * @param {string} value */
+    #getSearchTokens(value) {
+        return new Set(value.toLowerCase().replace(/[,'"_\-!?:]/g, '').split(/[ .]/)
+            .filter(str => !!str)
+            .map(str => str.endsWith('s') ? str.substring(0, str.length - 1) : str)
+        );
     }
 }
 
