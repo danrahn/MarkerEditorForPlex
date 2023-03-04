@@ -1,4 +1,4 @@
-import { $, $$, buildNode, clearEle } from './Common.js';
+import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
@@ -281,8 +281,10 @@ class PlexUIManager {
             PurgedMarkers.findPurgedMarkers(true /*dryRun*/);
         }
 
-        if (this.#searchBox.value.length > 0) {
+        if (this.#searchBox.value.length > 0 || FilterSettings.hasFilter()) {
             this.#search(); // Restart any existing search in the new library
+        } else {
+            this.#noSearch();
         }
     }
 
@@ -299,21 +301,29 @@ class PlexUIManager {
         }
 
         // List of modifiers to ignore as input, take from
-        // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values.
+        // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values (and Tab).
         const modifiers = ['Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta',
-            'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock'];
+            'NumLock', 'ScrollLock', 'Shift', 'Super', 'Symbol', 'SymbolLock', 'Tab'];
         if (modifiers.indexOf(e.key) !== -1) {
             return;
         }
 
         if (this.#searchBox.value.length == 0) {
-            // Only show all series if the user explicitly presses 'Enter'
-            // on a blank query, otherwise clear the results.
-            if (this.#lastSearch?.length != 0) {
+            // Only show all items if the user explicitly presses 'Enter'
+            // on a blank query with no filter, otherwise clear the results.
+            if (this.#lastSearch?.length != 0 && !FilterSettings.hasFilter()) {
+                // Previous search was deleted, and we have no filter. Go to default state,
+                // not loading any results.
                 this.clearAllSections();
+                this.#noSearch();
+                return;
+            } else if (!FilterSettings.hasFilter()) {
+                // Last search _was_ empty, but 'enter' wasn't pressed, so don't do anything.
+                return;
             }
 
-            return;
+            // Otherwise, we have a filter and our previous search wasn't empty,
+            // so set our regular timer for a filtered search of all items.
         }
 
         this.#searchTimer = setTimeout(this.#search.bind(this), 250);
@@ -354,6 +364,19 @@ class PlexUIManager {
                 Log.error(`Attempting to search with an invalid section type.`);
                 break;
         }
+    }
+
+    /**
+     * Add a "landing page" for a library, including the main section options row,
+     * and a description row explaining how to narrow things down. */
+    #noSearch() {
+        if (!ClientSettings.backupEnabled() || !ClientSettings.showExtendedMarkerInfo()) {
+            return;
+        }
+
+        const itemList = this.#uiSections[UISection.MoviesOrShows];
+        itemList.appendChild(new SectionOptionsResultRow().buildRow());
+        itemList.appendChild(this.noResultsBecauseNoSearchRow());
     }
 
     #searchMovies() {
@@ -455,9 +478,20 @@ class PlexUIManager {
     noResultsBecauseOfFilterRow() {
         return buildNode(
             'div',
-            { class : 'topLevelResult ' },
+            { class : 'topLevelResult tabbableRow', tabindex : 0 },
             'No results with the current filter.',
-            { click : () => new FilterDialog().show() });
+            { click : () => new FilterDialog().show(),
+              keydown : clickOnEnterCallback });
+    }
+
+    noResultsBecauseNoSearchRow() {
+        return buildNode(
+            'div',
+            { class : 'topLevelResult noSearchRow tabbableRow', tabindex : 0 },
+            'Click here to load all items, or narrow things down with a filter or search above.',
+            { click : function() { this.#search(); }.bind(this),
+              keydown : clickOnEnterCallback }
+        );
     }
 
     /** Apply the given function to all UI sections specified in uiSections. */
@@ -472,9 +506,12 @@ class PlexUIManager {
     /**
      * Callback invoked when a new filter is applied. */
     onFilterApplied() {
-        // Don't initialize a search if we don't have any existing items
-        if (PlexClientState.getUnfilteredSearchResults().length !== 0) {
-            this.#search(true /*forFilterReapply*/);
+        // Don't start a search if we don't have any existing items, unless
+        // we're in the "start" page.
+        const showingStartScreen = $$('.noSearchRow', this.#uiSections[UISection.MoviesOrShows]);
+        if (PlexClientState.getUnfilteredSearchResults().length !== 0
+            || showingStartScreen) {
+            this.#search(!showingStartScreen /*forFilterReapply*/);
         }
 
         // onFilterApplied should probably live completely within PlexClientState,
