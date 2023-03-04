@@ -550,6 +550,72 @@ class MarkerBackupManager {
     }
 
     /**
+     * Core method that inserts a record into the backup database.
+     * @param {TransactionBuilder} transaction
+     * @param {number} markerOp
+     * @param {MarkerData} marker
+     * @param {{start: number, end: number}?} oldTimings
+     * @param {number?} restoresId */
+    #recordOp(transaction, markerOp, marker, oldTimings=null, restoresId=null) {
+        const query = `INSERT INTO actions (
+op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at,
+extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES (
+$op, $id, $pid, $seasonId, $showId, $sectionId, $start, $end, $oldStart, $oldEnd, $modifiedAt, $createdAt,
+$extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCreated);`;
+
+        let modifiedAt;
+        let createdAt;
+        const asRaw = new Set();
+        oldTimings = oldTimings || { start : null, end : null };
+        const nowTime = `(strftime('%s', 'now'))`;
+        switch (markerOp) {
+            case MarkerOp.Add:
+                modifiedAt = nowTime;
+                createdAt = nowTime;
+                asRaw.add('$modifiedAt');
+                asRaw.add('$createdAt');
+                break;
+            case MarkerOp.Edit:
+            case MarkerOp.Delete:
+                modifiedAt = nowTime;
+                createdAt = marker.createDate;
+                asRaw.add('$modifiedAt');
+                break;
+            case MarkerOp.Restore:
+                modifiedAt = marker.modifiedDate;
+                createdAt = marker.createDate;
+                break;
+            default:
+                throw new ServerError(`Unknown marker backup operation (${markerOp}), cannot back up action.`, 500);
+        }
+
+        const parameters = {
+            $op : markerOp,
+            $id : marker.id,
+            $pid : marker.parentId,
+            $seasonId : marker.seasonId,
+            $showId : marker.showId,
+            $sectionId : marker.sectionId,
+            $start : marker.start,
+            $end : marker.end,
+            $oldStart : oldTimings.start,
+            $oldEnd : oldTimings.end,
+            $modifiedAt : modifiedAt,
+            $createdAt : createdAt,
+            $extraData : ExtraData.get(marker.markerType, marker.isFinal),
+            $sectionUUID : this.#uuids[marker.sectionId],
+            $restoresId : restoresId,
+            $parentGuid : marker.parentGuid,
+            $markerType : marker.markerType,
+            $final : marker.isFinal,
+            $userCreated : marker.createdByUser,
+            _asRaw : asRaw,
+        };
+
+        transaction.addStatement(query, parameters);
+    }
+
+    /**
      * Records a marker that was added to the Plex database.
      * @param {MarkerData[]} markers */
     async recordAdds(markers) {
@@ -560,31 +626,7 @@ class MarkerBackupManager {
                 return;
             }
 
-            // I should probably use the real timestamps from the database, but I really don't
-            // think it matters if they're a few milliseconds apart.
-            const query = `
-    INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
-        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), (strftime('%s','now')), ?, ?, ?, ?, ?, ?)`;
-            const parameters = [
-                MarkerOp.Add,
-                marker.id,
-                marker.parentId,
-                marker.seasonId,
-                marker.showId,
-                marker.sectionId,
-                marker.start,
-                marker.end,
-                ExtraData.get(marker.markerType, marker.final),
-                this.#uuids[marker.sectionId],
-                marker.parentGuid,
-                marker.markerType,
-                marker.isFinal,
-                1 /*userCreated*/
-            ];
-
-            transaction.addStatement(query, parameters);
+            this.#recordOp(transaction, MarkerOp.Add, marker);
         }
 
         if (transaction.empty()) {
@@ -617,31 +659,7 @@ class MarkerBackupManager {
                 continue;
             }
 
-            const query = `
-    INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at,
-        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [
-                MarkerOp.Edit,
-                marker.id,
-                marker.parentId,
-                marker.seasonId,
-                marker.showId,
-                marker.sectionId,
-                marker.start,
-                marker.end,
-                oldTimings.start,
-                oldTimings.end,
-                marker.createDate,
-                ExtraData.get(marker.markerType, marker.final),
-                this.#uuids[marker.sectionId],
-                marker.parentGuid,
-                marker.markerType,
-                marker.isFinal,
-                marker.createdByUser ? 1 : 0
-            ];
-            transaction.addStatement(query, parameters);
+            this.#recordOp(transaction, MarkerOp.Edit, marker, oldTimings);
         }
 
         if (transaction.empty()) {
@@ -667,29 +685,7 @@ class MarkerBackupManager {
                 continue;
             }
 
-            const query = `
-    INSERT INTO actions
-    (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
-        created_at, extra_data, section_uuid, parent_guid, marker_type, final, user_created) VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, (strftime('%s','now')), ?, ?, ?, ?, ?, ?, ?)`;
-            const parameters = [
-                MarkerOp.Delete,
-                marker.id,
-                marker.parentId,
-                marker.seasonId,
-                marker.showId,
-                marker.sectionId,
-                marker.start,
-                marker.end,
-                marker.createDate,
-                ExtraData.get(marker.markerType, marker.final),
-                this.#uuids[marker.sectionId],
-                marker.parentGuid,
-                marker.markerType,
-                marker.isFinal,
-                marker.createdByUser ? 1 : 0
-            ];
-            transaction.addStatement(query, parameters);
+            this.#recordOp(transaction, MarkerOp.Delete, marker);
         }
 
         if (transaction.empty()) {
@@ -712,33 +708,8 @@ class MarkerBackupManager {
         const transaction = new TransactionBuilder(this.#actions);
 
         for (const restore of restores) {
-            const query = `
-                INSERT INTO actions
-                (op, marker_id, parent_id, season_id, show_id, section_id, start, end, modified_at,
-                    created_at, extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);\n`;
-
-            const m = new MarkerData(restore.marker);
-            const parameters = [
-                MarkerOp.Restore,
-                m.id,
-                m.parentId,
-                m.seasonId,
-                m.showId,
-                m.sectionId,
-                m.start,
-                m.end,
-                m.modifiedDate,
-                m.createDate,
-                ExtraData.get(m.markerType, m.final),
-                this.#uuids[m.sectionId],
-                restore.oldMarkerId,
-                m.parentGuid,
-                m.markerType,
-                m.isFinal,
-                m.createdByUser ? 1 : 0
-            ];
-            transaction.addStatement(query, parameters);
+            const marker = new MarkerData(restore.marker);
+            this.#recordOp(transaction, MarkerOp.Restore, marker, null /*oldTimings*/, restore.oldMarkerId);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
             const updateParameters = [restore.marker.id, restore.oldMarkerId, this.#uuids[sectionId]];
@@ -1305,7 +1276,7 @@ ORDER BY id DESC;`;
 
         // Inefficient, but I'm lazy
         if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
-            for (const movie of this.#purgeCache[sectionId]) {
+            for (const movie of Object.values(this.#purgeCache[sectionId])) {
                 for (const markerAction of Object.values(movie)) {
                     if (idSet[markerAction.marker_id]) {
                         this.#removeFromPurgeMap(markerAction);

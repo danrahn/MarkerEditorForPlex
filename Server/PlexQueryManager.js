@@ -771,23 +771,18 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError(`Attempting to make a new marker final, but it won't be the last marker of the episode.`, 400);
         }
 
-        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now')) * -1`; // negative == user created
-        const addQuery =
-            'INSERT INTO taggings ' +
-                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
-            'VALUES ' +
-                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, (strftime('%s','now')), ?);`;
-        const parameters = [
+        // Use a transaction to share common add statement with bulk operations
+        const transaction = new TransactionBuilder(this.#database);
+        this.#addMarkerStatement(
+            transaction,
             metadataId,
-            this.#markerTagId,
             newIndex,
-            markerType,
             startMs.toString(),
             endMs,
-            ExtraData.get(markerType, final)
-        ];
+            markerType,
+            final);
 
-        await this.#database.run(addQuery, parameters);
+        await transaction.exec();
 
         // Insert succeeded, update indexes of other markers if necessary
         await this.reindex(metadataId);
@@ -808,6 +803,29 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} modifiedAt What to set as the 'modified at' time. Used by bulkRestore to restore original timestamps.
      * @param {number} [createdAt] What to set as the 'created at' time. Used by bulkRestore to restore original timestamps. */
     #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, modifiedAt=undefined, createdAt=undefined) {
+        const validNumber = (n, name) => {
+            if (isNaN(newIndex) || (!newIndex && newIndex !== 0)) {
+                const realValue = n === undefined ? 'undefined' : n === null ? 'null' : n === '' ? '[Empty String]' : n;
+                Log.error(`Not adding marker, expected a number for parameter ${name}, found "${realValue}"`);
+                return false;
+            }
+
+            return true;
+        };
+
+        // The caller should have validated most of this already, but be extra sure we don't add invalid data
+        if (!validNumber(episodeId, 'episodeId')
+            || !validNumber(newIndex, 'newIndex')
+            || !validNumber (startMs, 'startMs')
+            || !validNumber(endMs, 'endMs')) {
+            throw new ServerError(`Unable to add one or more markers, invalid parameters given`, 500);
+        }
+
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            Log.error(`Not adding marker, unexpected type "${markerType}"`);
+            throw new ServerError(`Unable to add one or more markers, invalid marker type given (${markerType})`, 500);
+        }
+
         let thumbUrl;
         if (this.#pureMode) {
             thumbUrl = '""';
