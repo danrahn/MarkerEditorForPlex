@@ -306,14 +306,14 @@ class PlexClientStateManager {
     async search(query) {
         let regexp = undefined;
         // Not a perfect test, but close enough
-        const match = /^\/(.+)\/(g?i?d?y?)$/.exec(query);
+        const match = /^\/(?<regex>.+)\/(?<modifiers>g?i?d?y?)$/.exec(query);
         if (match) {
-            regexp = new RegExp(match[1], match[2]);
+            regexp = new RegExp(match.groups.regex, match.groups.modifiers);
         }
 
         // For movies, also try matching any year that's present.
-        let queryYear = /\b(1[8-9]\d{2}|20\d{2})\b/.exec(query);
-        if (queryYear) { queryYear = queryYear[1]; }
+        let queryYear = /\b(?<year>1[8-9]\d{2}|20\d{2})\b/.exec(query);
+        if (queryYear) { queryYear = queryYear.groups.year; }
 
         // Ignore non-word characters to improve matching if there are spacing or quote mismatches.
         // Don't use \W though, since that also clears out unicode characters. Rather than import

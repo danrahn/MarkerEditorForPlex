@@ -312,12 +312,12 @@ function Color(r, g, b, a) {
         }
 
         // Assume rgb string
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i.exec(r);
+        const result = /^#?(?<red>[a-f\d]{2})(?<green>[a-f\d]{2})(?<blue>[a-f\d]{2})(?<alpha>[a-f\d]{2})?$/i.exec(r);
 
-        this.r = parse(result[1], 16);
-        this.g = parse(result[2], 16);
-        this.b = parse(result[3], 16);
-        this.a = result[4] ? (parse(result[4], 16) / 255): 1;
+        this.r = parse(result.groups.red, 16);
+        this.g = parse(result.groups.green, 16);
+        this.b = parse(result.groups.blue, 16);
+        this.a = result.groups.alpha ? (parse(result.groups.alpha, 16) / 255) : 1;
     } else {
         if (g === undefined) {
             // Hacky to keep the trailing parenthesis, but parseInt/Float figures it out

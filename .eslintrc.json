@@ -37,6 +37,7 @@
             { "blankLine": "any", "prev": "*", "next": "case" },
             { "blankLine": "any", "prev": "*", "next": "default" }],
         "prefer-const" : "error",
+        "prefer-named-capture-group" : "error",
         "prefer-regex-literals" : "error",
         "quote-props" : ["error", "as-needed"],
         "quotes": ["error", "single", { "avoidEscape" : true, "allowTemplateLiterals" : true }],

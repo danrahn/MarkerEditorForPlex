@@ -216,7 +216,7 @@ class Version {
      *     * `alpha`
      *     * `beta`
      *     * `rc.0`, where 0 is any number with 1 or more digits */
-    static #versionRegex = /^v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc\.(\d+)))?/;
+    static #versionRegex = /^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<type>alpha|beta|rc\.(?<rcVersion>\d+)))?/;
 
     /**
      * Compare two `Version`s, ordering from smallest to largest
@@ -272,11 +272,11 @@ class Version {
             return;
         }
 
-        this.major = parseInt(parts[1]);
-        this.minor = parseInt(parts[2]);
-        this.patch = parseInt(parts[3]);
-        if (parts[4]) {
-            const partLower = parts[4].toLowerCase();
+        this.major = parseInt(parts.groups.major);
+        this.minor = parseInt(parts.groups.minor);
+        this.patch = parseInt(parts.groups.patch);
+        if (parts.groups.type) {
+            const partLower = parts.groups.type.toLowerCase();
             switch (partLower) {
                 case 'alpha':
                     this.releaseTypeInfo.type = PrereleaseType.Alpha;
@@ -286,11 +286,11 @@ class Version {
                     break;
                 default:
                     Log.assert(
-                        partLower.startsWith('rc') && parts[5],
+                        partLower.startsWith('rc') && parts.groups.rcVersion,
                         `Version: Expected rc with a valid rc number if not alpha or beta, found ${partLower}.`);
 
                     this.releaseTypeInfo.type = PrereleaseType.ReleaseCandidate;
-                    this.releaseTypeInfo.rcVersion = parseInt(parts[5]);
+                    this.releaseTypeInfo.rcVersion = parseInt(parts.groups.rcVersion);
                     break;
             }
         }

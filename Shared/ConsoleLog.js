@@ -186,10 +186,10 @@ class ConsoleLog {
      * @param {string} logString
      * @param {number} levelDefault The default level if we are unable to parse the logString. */
     setFromString(logString, levelDefault=ConsoleLog.Level.Info) {
-        const match = /(trace)?(dark)?(extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
-        this.setTrace(match[1] ? 1 : 0);
-        this.setDarkConsole(match[2] ? 1 : 0);
-        let level = match[3] ? ConsoleLog.#logStrings.indexOf(match[3].toUpperCase()) : ConsoleLog.Level.Invalid;
+        const match = /(?<t>trace)?(?<d>dark)?(?<l>extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
+        this.setTrace(match.groups.t ? 1 : 0);
+        this.setDarkConsole(match.groups.d ? 1 : 0);
+        let level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
         if (level == ConsoleLog.Level.Invalid) {
             console.warn(
                 `[WARN][${ConsoleLog.#getTimestring()}] ` +
