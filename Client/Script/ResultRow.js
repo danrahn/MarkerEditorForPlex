@@ -1298,6 +1298,7 @@ class MovieResultRow extends BaseItemResultRow {
         // If the table has been initialized, it has the wrong parent. Move it over to
         // this row, and ensure the visibility is correct.
         if (tableInitialized) {
+            mov.markerTable().setParent(this);
             this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
             this.showHideMarkerTable(!mov.markerTable().isVisible());
         }
