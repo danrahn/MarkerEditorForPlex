@@ -1039,9 +1039,7 @@ class BaseItemResultRow extends ResultRow {
                 // Movie marker tables might not exist yet. In that case we want to show the table since we're
                 // guaranteed to be hidden anyway, and showHideMarkerTable takes care of ensuring we have all
                 // the data we need.
-                const markerTable = this.baseItem().markerTable().table();
-                const isHidden = !markerTable || $$('table', markerTable).classList.contains('hidden');
-                return this.showHideMarkerTable(!isHidden);
+                return this.showHideMarkerTable(this.baseItem().markerTable().isVisible());
             }
             case 'ArrowRight':
                 // Note: this is async for movies. If this ever changes to have additional
@@ -1148,8 +1146,7 @@ class EpisodeResultRow extends BaseItemResultRow {
             return;
         }
 
-        const shouldHide = !$$('table', this.episode().markerTable().table()).classList.contains('hidden');
-        this.#seasonRow.showHideMarkerTables(shouldHide);
+        this.#seasonRow.showHideMarkerTables(this.episode().markerTable().isVisible());
     }
 
     /**
@@ -1191,7 +1188,7 @@ class EpisodeResultRow extends BaseItemResultRow {
             return;
         }
 
-        const expanded = !$$('table', this.episode().markerTable().table()).classList.contains('hidden');
+        const expanded = this.episode().markerTable().isVisible();
         if (e.ctrlKey) {
             this.#seasonRow.showHideMarkerTables(expanded);
         } else {
@@ -1208,7 +1205,7 @@ class EpisodeResultRow extends BaseItemResultRow {
      * Expands or contracts the marker table for this row.
      * @param {boolean} hide */
     showHideMarkerTable(hide) {
-        $$('table', this.episode().markerTable().table()).classList[hide ? 'add' : 'remove']('hidden');
+        this.episode().markerTable().setVisibility(!hide);
         $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
 
         // Should really only be necessary on hide, but hide tooltips on both show and hide
@@ -1259,8 +1256,13 @@ class MovieResultRow extends BaseItemResultRow {
      * with a collapsed marker table that appears when this row is clicked. */
     buildRow() {
         const mov = this.movie();
-        // Create a blank marker table, and only load when the marker table is shown
-        mov.createMarkerTable(this, [] /*markerData*/);
+        // Create a blank marker table if we haven't already, and only load when the marker table is shown
+        const tableExists = !!mov.markerTable();
+        const tableInitialized = tableExists && mov.markerTable().table();
+        if (!tableExists) {
+            mov.createMarkerTable(this, [] /*markerData*/);
+        }
+
         const titleText = 'Click to expand/contract.';
         const titleNode = buildNode('div', { class : 'movieName', title : titleText });
         titleNode.appendChild(buildNode('span', { class : 'markerExpand' }, '&#9205; '));
@@ -1292,6 +1294,14 @@ class MovieResultRow extends BaseItemResultRow {
         );
 
         this.setHtml(row);
+
+        // If the table has been initialized, it has the wrong parent. Move it over to
+        // this row, and ensure the visibility is correct.
+        if (tableInitialized) {
+            this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
+            this.showHideMarkerTable(!mov.markerTable().isVisible());
+        }
+
         return row;
     }
 
@@ -1433,7 +1443,7 @@ class MovieResultRow extends BaseItemResultRow {
      * @param {boolean} hide */
     async showHideMarkerTable(hide) {
         await this.#verifyMarkerTableInitialized();
-        $$('table', this.movie().markerTable().table()).classList[hide ? 'add' : 'remove']('hidden');
+        this.movie().markerTable().setVisibility(!hide);
         $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
 
         // Should really only be necessary on hide, but hide tooltips on both show and hide

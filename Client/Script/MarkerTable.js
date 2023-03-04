@@ -17,9 +17,14 @@ import TableElements from './TableElements.js';
  */
 class MarkerTable {
     /**
-     * The raw HTML of this table.
+     * The raw HTML of this table, including its container.
      * @type {HTMLElement} */
     #html;
+
+    /**
+     * The actual <table> element.
+     * @type {HTMLTableElement} */
+    #table;
 
     /**
      * The episode/movie UI that this table is attached to.
@@ -91,6 +96,7 @@ class MarkerTable {
         table.appendChild(rows);
         container.appendChild(table);
         this.#html = container;
+        this.#table = table;
     }
 
     /**
@@ -125,6 +131,14 @@ class MarkerTable {
 
     /** @returns {HTMLElement} The raw HTML of the marker table. */
     table() { return this.#html; }
+
+    /** @returns {boolean} Whether the marker table is visible. */
+    isVisible() { return !!this.#table && !this.#table.classList.contains('hidden'); }
+
+    /**
+     * Sets this table to be visible or hidden. No-op if the table is not initialized.
+     * @param {boolean} visible */
+    setVisibility(visible) {this.#table?.classList[visible ? 'remove'  : 'add']('hidden'); }
 
     /** @returns {MarkerData[]} */
     markers() {
