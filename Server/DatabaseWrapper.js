@@ -3,6 +3,8 @@ import ServerError from './ServerError.js';
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
+/** @typedef {[number|string|boolean|null]|{[parameter: string]: number|string|boolean|null}} QueryParameters */
+
 /**
  * A wrapper around a Sqlite3 database that allows for async/await interaction,
  * something that can't be done with the base database as it's async
@@ -31,7 +33,7 @@ class DatabaseWrapper {
     /**
      * Run the given query, returning no rows.
      * @param {string} query
-     * @param {[*]} [parameters=[]]
+     * @param {QueryParameters} [parameters=[]]
      * @returns {Promise<void>} */
     async run(query, parameters=[]) {
         return this.#action(this.#db.run.bind(this.#db), query, parameters);
@@ -40,7 +42,7 @@ class DatabaseWrapper {
     /**
      * Retrieves a single row from the given query.
      * @param {string} query
-     * @param {[*]} [parameters=[]]
+     * @param {QueryParameters} [parameters=[]]
      * @returns {Promise<any>} */
     async get(query, parameters=[]) {
         return this.#action(this.#db.get.bind(this.#db), query, parameters);
@@ -49,7 +51,7 @@ class DatabaseWrapper {
     /**
      * Retrieves all rows from the given query.
      * @param {string} query
-     * @param {[*]} parameters
+     * @param {QueryParameters} parameters
      * @returns {Promise{any[]}} */
     async all(query, parameters=[]) {
         return this.#action(this.#db.all.bind(this.#db), query, parameters);
@@ -98,7 +100,7 @@ class DatabaseWrapper {
      * of the expected use-case, but it's slightly safer than writing raw queries and hoping for
      * the best, which is currently the case for exec, as it doesn't accept parameterized queries
      * @param {string} query Query with a '?' for each parameter.
-     * @param {[number|string]|{[parameter: string]: number|string}} parameters The parameters to insert. Only expects numbers and strings
+     * @param {QueryParameters} parameters The parameters to insert. Only expects numbers and strings
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static parameterize(query, parameters) {
         if (parameters instanceof Array) {
@@ -115,7 +117,7 @@ class DatabaseWrapper {
 
     /**
      * Parameterize the given query of unnamed parameters.
-     * @param {[number|string]} parameters The parameters to insert. Only expects numbers and strings
+     * @param {[number|string|boolean|null]} parameters The parameters to insert. Only expects numbers and strings
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static #parameterizeArray(query, parameters) {
         let startSearch = 0;
@@ -134,7 +136,14 @@ class DatabaseWrapper {
             } else if (typeof parameter === 'boolean') {
                 newQuery += parameter ? '1' : '0';
             } else {
-                throw new ServerError(`Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`, 500);
+                // Allow null, since that's more likely to be intentional than undefined.
+                if (parameter === null) {
+                    newQuery += 'NULL';
+                } else {
+                    throw new ServerError(
+                        `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
+                        500);
+                }
             }
 
             startSearch = idx + 1;

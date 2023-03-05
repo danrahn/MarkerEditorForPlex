@@ -1,7 +1,7 @@
 import { Log } from '../Shared/ConsoleLog.js';
 
+import { MarkerEnum, supportedMarkerType } from '../Shared/PlexTypes.js';
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
-import { supportedMarkerType } from '../Shared/PlexTypes.js';
 
 /** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
@@ -352,6 +352,24 @@ class MarkerCacheManager {
      * @param {number} metadataId */
     baseItemExists(metadataId) {
         return this.#allBaseItems.has(metadataId);
+    }
+
+    /**
+     * Deletes all markers of the given type from the given section.
+     * @param {number} sectionId
+     * @param {number} deleteType */
+    nukeSection(sectionId, deleteType) {
+        let removed = 0;
+        const allMarkers = Object.values(this.#allMarkers);
+        for (const marker of allMarkers) {
+            if (marker.section_id === sectionId && MarkerEnum.typeMatch(marker.marker_type, deleteType)) {
+                this.removeMarkerFromCache(marker.id);
+                ++removed;
+            }
+        }
+
+        Log.info(`Removed ${removed} markers from the cache due to section delete.`);
+        return removed;
     }
 
     /**

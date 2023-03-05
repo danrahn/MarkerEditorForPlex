@@ -460,7 +460,7 @@ input:focus-visible {
   float: unset !important;
 }
 
-#sectionOptionsOverlayContainer {
+.sectionOptionsOverlayContainer {
   max-width: 600px;
   margin: auto;
   text-align: center;

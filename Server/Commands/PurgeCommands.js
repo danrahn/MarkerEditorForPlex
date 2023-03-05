@@ -3,7 +3,9 @@ import { Log } from '../../Shared/ConsoleLog.js';
 
 import { BackupManager } from '../MarkerBackupManager.js';
 import { Config } from '../IntroEditorConfig.js';
+import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
+import { PlexQueries } from '../PlexQueryManager.js';
 import ServerError from '../ServerError.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
@@ -91,6 +93,31 @@ class PurgeCommands {
         PurgeCommands.#checkBackupManagerEnabled();
 
         await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
+    }
+
+    /**
+     * Dangerous. Deletes _all_ markers for the given section and purges the
+     * section from the backup database, making this completely unrecoverable.
+     * @param {number} sectionId
+     * @param {number} deleteType */
+    static async nukeSection(sectionId, deleteType) {
+        PurgeCommands.#checkBackupManagerEnabled();
+        if (!MarkerCache) {
+            throw new ServerError('Action is not enabled due to a configuration setting.', 400);
+        }
+
+        const dbDeleteCount = await PlexQueries.nukeSection(sectionId, deleteType);
+        const backupDeleteCount = await BackupManager.nukeSection(sectionId, deleteType);
+        const cacheRemoveCount = MarkerCache.nukeSection(sectionId, deleteType);
+
+        // Don't bother doing anything special with this, just clear it out and force
+        // repopulation. We shouldn't even be using this if this command is enabled anyway.
+        LegacyMarkerBreakdown.Clear();
+
+        return {
+            deleted : dbDeleteCount,
+            backupDeleted : backupDeleteCount,
+            cacheDeleted : cacheRemoveCount, };
     }
 
     /**

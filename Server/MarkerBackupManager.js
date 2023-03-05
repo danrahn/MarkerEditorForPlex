@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { join as joinPath } from 'path';
 
 // Client/Server shared dependencies
-import { EpisodeData, MarkerData, MovieData } from '../Shared/PlexTypes.js';
+import { EpisodeData, MarkerData, MarkerEnum, MarkerType, MovieData } from '../Shared/PlexTypes.js';
 import { Log } from '../Shared/ConsoleLog.js';
 
 // Server dependencies/typedefs
@@ -13,6 +13,7 @@ import { MarkerCache } from './MarkerCacheManager.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
+/** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('../Shared/PlexTypes').PurgeShow} PurgeShow */
 /** @typedef {!import('./PlexQueryManager').MultipleMarkerQuery} MultipleMarkerQuery */
@@ -1020,6 +1021,15 @@ ORDER BY id DESC;`;
      * @returns {Promise<PurgeSection>} Tree of purged `MarkerAction`s.
      * @throws {ServerError} If the cache is not initialized or the section does not exist. */
     async purgesForSection(sectionId) {
+        return this.#purgesForSectionInternal(sectionId, true /*populateData*/);
+    }
+
+    /**
+     * Retrieve purged markers for the given library section.
+     * @param {number} sectionId The section to parse.
+     * @param {boolean} populateData Whether to grab movie/episode data for each marker. This will
+     *        be false when we're wiping out a section, since we just want the base data to delete. */
+    async #purgesForSectionInternal(sectionId, populateData) {
         if (!this.#purgeCache) {
             throw new ServerError('Purge cache not initialized, cannot query for purges.', 500);
         }
@@ -1029,13 +1039,13 @@ ORDER BY id DESC;`;
         }
 
         if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
-            return this.#purgesForMovieSection(sectionId);
+            return this.#purgesForMovieSection(sectionId, populateData);
         }
 
-        return this.#purgesForTVSection(sectionId);
+        return this.#purgesForTVSection(sectionId, populateData);
     }
 
-    async #purgesForTVSection(sectionId) {
+    async #purgesForTVSection(sectionId, populateData) {
         const needsEpisodeData = {};
         for (const show of Object.values(this.#purgeCache[sectionId])) {
             for (const season of Object.values(show)) {
@@ -1049,14 +1059,17 @@ ORDER BY id DESC;`;
             }
         }
 
-        await this.#populateEpisodeData(needsEpisodeData);
+        if (populateData) {
+            await this.#populateEpisodeData(needsEpisodeData);
+        }
+
         return this.#purgeCache[sectionId];
     }
 
     /**
      * Retrieve all purged markers associated with the given movie library
      * @param {number} sectionId */
-    async #purgesForMovieSection(sectionId) {
+    async #purgesForMovieSection(sectionId, populateData) {
         const needsMovieData = {};
         for (const movie of Object.values(this.#purgeCache[sectionId])) {
             for (const markerAction of Object.values(movie)) {
@@ -1066,7 +1079,10 @@ ORDER BY id DESC;`;
             }
         }
 
-        await this.#populateMovieData(needsMovieData);
+        if (populateData) {
+            await this.#populateMovieData(needsMovieData);
+        }
+
         return this.#purgeCache[sectionId];
     }
 
@@ -1296,6 +1312,63 @@ ORDER BY id DESC;`;
                 }
             }
         }
+    }
+
+    /**
+     * Erases all traces of the given marker type(s) from the backup database. I.e.
+     * deletes items in a completely unrecoverable way.
+     * @param {number} sectionId
+     * @param {number} deleteType */
+    async nukeSection(sectionId, deleteType) {
+        // Note, the backup database shouldn't have unknown marker types, but still be safe by
+        // explicitly only deleting intros and/or credits, not 'commercial' or other unknown types.
+        if (!(sectionId in this.#uuids)) {
+            throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
+        }
+
+        const params = [this.#uuids[sectionId]];
+        let whereClause = 'WHERE section_uuid=? AND (';
+        let addText = '';
+        for (const markerType of Object.values(MarkerType)) {
+            if (MarkerEnum.typeMatch(markerType, deleteType)) {
+                addText += ' OR marker_type=?';
+                params.push(markerType);
+            }
+        }
+
+        whereClause += addText.substring(4) + ')';
+
+        /** @type {number} */
+        const deleteCount = (await this.#actions.get(`SELECT COUNT(*) AS count FROM actions ${whereClause};`, params)).count;
+
+        Log.info(`Removing ${deleteCount} entries from the backup database.`);
+        await this.#actions.run(`DELETE FROM actions ${whereClause};`, params);
+
+        // Now clear out any purged markers that we just deleted.
+        // Inefficient, and copy/paste but I'm lazy
+        if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+            for (const movie of Object.values(this.#purgeCache[sectionId])) {
+                for (const markerAction of Object.values(movie)) {
+                    if (MarkerEnum.typeMatch(markerAction.marker_type, deleteType)) {
+                        this.#removeFromPurgeMap(markerAction);
+                    }
+                }
+            }
+        } else {
+            for (const show of Object.values(this.#purgeCache[sectionId])) {
+                for (const season of Object.values(show)) {
+                    for (const episode of Object.values(season)) {
+                        for (const markerAction of Object.values(episode)) {
+                            if (MarkerEnum.typeMatch(markerAction.marker_type, deleteType)) {
+                                this.#removeFromPurgeMap(markerAction);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return deleteCount;
     }
 }
 

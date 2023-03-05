@@ -211,6 +211,13 @@ const ServerCommand = {
     ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds : markerIds, sectionId : sectionId }),
 
     /**
+     * Irreversibly delete all markers of the given type from the given section.
+     * @param {number} sectionId
+     * @param {number} deleteType
+     * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number}>} */
+    sectionDelete : async (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId : sectionId, deleteType : deleteType }),
+
+    /**
      * Shutdown Marker Editor.
      * @returns {Promise<void>} */
     shutdown : async () => jsonRequest('shutdown'),

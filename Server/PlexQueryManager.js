@@ -1,4 +1,4 @@
-import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType, PurgeConflictResolution } from '../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerEnum, MarkerType, PurgeConflictResolution } from '../Shared/PlexTypes.js';
 import { Log } from '../Shared/ConsoleLog.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
@@ -1515,6 +1515,50 @@ ORDER BY e.\`index\` ASC;`;
             episodeMap : episodeMarkerMap,
             ignoredEpisodes : Array.from(ignoredEpisodes),
         };
+    }
+
+    /**
+     * Deletes all markers of the given type from the given section, both
+     * manually modified and Plex-generated markers.
+     * @param {number} section
+     * @param {number} deleteType
+     * @returns {Promise<number>} */
+    async nukeSection(section, deleteType) {
+        let whereClause = `WHERE m.library_section_id=? AND taggings.tag_id=? AND (`;
+        const params = [section, this.#markerTagId];
+
+        let markerTypeFilter = '';
+        for (const markerType of Object.values(MarkerType)) {
+            if (MarkerEnum.typeMatch(markerType, deleteType)) {
+                markerTypeFilter += ` OR taggings.text=?`;
+                params.push(markerType);
+            }
+        }
+
+        if (markerTypeFilter.length === 0) {
+            throw new ServerError(`Server delete type ${deleteType} does not match any known marker types.`, 400);
+        }
+
+        markerTypeFilter = markerTypeFilter.substring(4);
+        whereClause += markerTypeFilter + ')';
+
+        // Determine how many markers we're deleting, purely for reporting
+        const countQuery =
+`SELECT COUNT(*) AS count FROM taggings
+ INNER JOIN metadata_items m ON m.id=taggings.metadata_item_id
+ ${whereClause};`;
+        const deleteCount = (await this.#database.get(countQuery, params)).count;
+
+        const deleteQuery = `
+DELETE FROM taggings
+WHERE metadata_item_id in (SELECT id FROM metadata_items WHERE library_section_id=?)
+    AND tag_id=?
+    AND (${markerTypeFilter});`;
+
+        Log.info(`Attempting to delete ${deleteCount} markers for section ${section}.`);
+        Log.tmi(params, deleteQuery + `\nParams`);
+        await this.#database.run(deleteQuery, params);
+        return deleteCount;
     }
 }
 

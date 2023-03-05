@@ -34,7 +34,7 @@ import MarkerBreakdown from './MarkerBreakdown.js';
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
  *
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
- * @typedef {{ [showId: number] : { PurgeShow } }} PurgeSection
+ * @typedef {{ [showId: number] : PurgeShow }} PurgeSection
  *
  * @typedef {{
  *          episodeData: EpisodeData,
@@ -468,6 +468,30 @@ const MarkerType = {
 };
 
 /**
+ * Known marker types, as OR-able values
+ * @enum */
+const MarkerEnum = {
+    /**@readonly*/
+    Intro   : 0x1,
+    /**@readonly*/
+    Credits : 0x2,
+    /**
+     * Determine whether the given enum values matches the given marker type string.
+     * @param {string} markerType
+     * @param {number} markerEnum */
+    typeMatch : (markerType, markerEnum) => {
+        switch (markerType) {
+            case MarkerType.Intro:
+                return (markerEnum & MarkerEnum.Intro) !== 0;
+            case MarkerType.Credits:
+                return (markerEnum & MarkerEnum.Credits) !== 0;
+            default:
+                return false;
+        }
+    }
+};
+
+/**
  * Information about a single marker for an episode of a TV show in the Plex database.
  */
 class MarkerData extends PlexData {
@@ -628,6 +652,7 @@ export {
     EpisodeData,
     MovieData,
     MarkerData,
+    MarkerEnum,
     MarkerType,
     SectionType,
     supportedMarkerType,

@@ -17,9 +17,9 @@ class ServerCommands {
         delete        : async (params) => await CoreCommands.deleteMarker(params.i('id')),
         check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, 0, ShiftApplyType.DontApply, []),
         shift         : async (params) => await CoreCommands.shiftMarkers(
-                                                                ...params.ints('id', 'startShift', 'endShift'),
-                                                                params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
-                                                                params.ia('ignored', true)),
+                                                                 ...params.ints('id', 'startShift', 'endShift'),
+                                                                 params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
+                                                                 params.ia('ignored', true)),
         bulk_delete   : async (params) => await CoreCommands.bulkDelete(params.i('id'), params.i('dryRun'), params.ia('ignored', true)),
         bulk_add      : async (params) => await CoreCommands.bulkAdd(params.raw('type'), ...params.ints('id', 'start', 'end', 'final', 'resolveType'), params.ia('ignored')),
 
@@ -40,6 +40,8 @@ class ServerCommands {
         all_purges    : async (params) => await PurgeCommands.allPurges(params.i('sectionId')),
         restore_purge : async (params) => await PurgeCommands.restoreMarkers(params.ia('markerIds'), ...params.ints('sectionId', 'resolveType')),
         ignore_purge  : async (params) => await PurgeCommands.ignorePurgedMarkers(params.ia('markerIds'), params.i('sectionId')),
+
+        nuke_section  : async (params) => await PurgeCommands.nukeSection(...params.ints('sectionId', 'deleteType')),
     };
     /* eslint-enable */
 
