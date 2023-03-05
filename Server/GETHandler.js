@@ -8,6 +8,7 @@ import { Log } from '../Shared/ConsoleLog.js';
 
 import { GetServerState, ServerState } from './ServerState.js';
 import { Config } from './IntroEditorConfig.js';
+import DatabaseImportExport from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 import { Thumbnails } from './ThumbnailManager.js';
@@ -31,6 +32,10 @@ class GETHandler {
                 return ImageHandler.GetThumbnail(url, res);
             default:
                 break;
+        }
+
+        if (url.startsWith('/export/')) {
+            return DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
         }
 
         const mimetype = contentType(lookup(url));

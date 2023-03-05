@@ -400,7 +400,8 @@ input:focus-visible {
   margin: auto;
 }
 
-#overlayDeleteMarker {
+#overlayDeleteMarker,
+#exportConfirmBtn {
   margin-right: 10px;
 }
 

@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
+import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import Animation from './inc/Animate.js';
@@ -8,30 +8,98 @@ import ThemeColors from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { MarkerEnum } from '../../Shared/PlexTypes.js';
 import { PlexClientState } from './PlexClientState.js';
+import Tooltip from './inc/Tooltip.js';
 
 /** @typedef {import('./inc/Overlay').OverlayOptions} OverlayOptions */
 
 class SectionOptionsOverlay {
+    /**
+     * The element to set focus back to when the overlay is dismissed.
+     * @type {HTMLElement} */
     #focusBack;
+
     constructor() { }
 
-    show(target) {
-        this.#focusBack = target;
+    /**
+     * Initialize and show the section options overlay.
+     * @param {HTMLElement} focusBack */
+    show(focusBack) {
+        this.#focusBack = focusBack;
+        this.#showMain(false /*needsTransition*/);
+    }
+
+    /**
+     * Display the main overlay, either for the first time, or as the result of
+     * canceling out of a specific option.
+     * @param {boolean} needsTransition Whether an overlay is already showing, so we should smoothly transition between overlays. */
+    #showMain(needsTransition) {
         const container = buildNode('div', { class : 'sectionOptionsOverlayContainer' });
         appendChildren(container,
             buildNode('h1', {}, 'Section Options'),
             buildNode('hr'),
-            ButtonCreator.textButton('Import/Export markers', this.#onImportExport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton('Export markers', this.#onExport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton('Import markers', this.#onImport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
             ButtonCreator.textButton(
                 'Delete all markers',
                 this.#onDeleteAll.bind(this),
-                { class : 'sectionOptionsOverlayBtn cancelSetting' }));
+                { class : 'sectionOptionsOverlayBtn cancelSetting' }),
+            ButtonCreator.textButton(
+                'Back',
+                Overlay.dismiss,
+                { class : 'sectionOptionsOverlayBtn', style : 'margin-top: 20px' })
+        );
 
-        Overlay.build({ dismissible : true, focusBack : this.#focusBack, noborder : true, closeButton : true }, container);
+        const options = { dismissible : true, focusBack : this.#focusBack, noborder : true, closeButton : true };
+        if (needsTransition) {
+            this.#transitionOverlay(container, options);
+        } else {
+            Overlay.build(options, container);
+        }
     }
 
-    #onImportExport() {
-        Log.info('Import/export!');
+    /**
+     * Overlay invoked from the 'Export Markers' action. */
+    #onExport() {
+        const container = buildNode('div', { class : 'sectionOptionsOverlayContainer' });
+        appendChildren(container,
+            buildNode('h2', {}, 'Marker Export'),
+            buildNode('hr'),
+            buildNode('span', {}, 'Export all markers to a database file that can be imported at a later date.'),
+            buildNode('hr'),
+            appendChildren(buildNode('div'),
+                buildNode('label', { for : 'exportAll' }, 'Export all libraries '),
+                buildNode('input', { type : 'checkbox', id : 'exportAll' })),
+            buildNode('br'),
+            appendChildren(buildNode('div'),
+                ButtonCreator.textButton(
+                    'Export',
+                    this.#exportConfirmed.bind(this),
+                    { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
+                ButtonCreator.textButton(
+                    'Back',
+                    function () { this.#showMain(true); }.bind(this),
+                    { class : 'overlayButton' })));
+
+        Tooltip.setTooltip($$('label', container), 'Export markers from the entire server, not just the active library.');
+        this.#transitionOverlay(container, { dismissible : true, focusBack : this.#focusBack });
+    }
+
+    /**
+     * Attempt to export this section's markers (or the entire server). */
+    #exportConfirmed() {
+        const exportAll = $('#exportAll').checked;
+        try {
+            window.open(`export/${exportAll ? -1 : PlexClientState.activeSection() }`);
+            setTimeout(Overlay.dismiss, 1000);
+        } catch (err) {
+            errorResponseOverlay('Failed to export library markers.', err);
+        }
+    }
+
+    /**
+     * Overlay invoked from the 'Import Markers' action. */
+    #onImport() {
+        Log.info('Import!');
         Overlay.dismiss();
         setTimeout(() => { Overlay.show('Not Yet Implemented'); Overlay.setFocusBackElement(this.#focusBack); }, 250);
     }
@@ -47,8 +115,10 @@ class SectionOptionsOverlay {
         const okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete' };
         const okayButton = ButtonCreator.textButton('Delete', this.#deleteAllConfirmed.bind(this), okayAttr);
 
-        const cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
-        const cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
+        const cancelButton = ButtonCreator.textButton(
+            'Back',
+            function () { this.#showMain(true); }.bind(this),
+            { id : 'deleteMarkerCancel', class : 'overlayButton' });
 
         warnText.appendChild(
             buildNode('span', {}, `If you're sure you want to continue, type DELETE (all caps) ` +
@@ -75,7 +145,7 @@ class SectionOptionsOverlay {
             warnText);
         this.#transitionOverlay(
             container,
-            { dismissible : true, centered : true, focusBack : this.#focusBack });
+            { dismissible : true, focusBack : this.#focusBack });
     }
 
     /**
