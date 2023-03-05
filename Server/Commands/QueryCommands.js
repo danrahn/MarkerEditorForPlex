@@ -1,4 +1,12 @@
-import { EpisodeData, MarkerData, MarkerType, MovieData, SeasonData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import {
+    EpisodeData,
+    MarkerData,
+    MarkerType,
+    MovieData,
+    SeasonData,
+    SectionType,
+    ShowData,
+    supportedMarkerType } from '../../Shared/PlexTypes.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import { Config } from '../IntroEditorConfig.js';
@@ -35,7 +43,7 @@ class QueryCommands {
         const rawMarkers = await PlexQueries.getMarkersForItems(keys);
         for (const rawMarker of rawMarkers) {
             // TODO: better handing of non intros/credits (i.e. commercials)
-            if (MarkerType.supportedType(rawMarker.marker_type)) {
+            if (supportedMarkerType(rawMarker.marker_type)) {
                 markers[rawMarker.parent_id].push(new MarkerData(rawMarker));
             }
         }
@@ -202,7 +210,7 @@ class QueryCommands {
 
         for (const row of rows) {
             // TODO: better handing of non intros/credits (i.e. commercials)
-            if (!MarkerType.supportedType(row.marker_type)) {
+            if (!supportedMarkerType(row.marker_type)) {
                 continue;
             }
 

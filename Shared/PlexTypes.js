@@ -453,14 +453,18 @@ class MovieData extends TopLevelData {
 const _supportedMarkerTypes = new Set(['intro', 'credits']);
 
 /**
+ * Return whether the given marker type is a supported type.
+ * @param {string} markerType */
+const supportedMarkerType = markerType => _supportedMarkerTypes.has(markerType);
+
+/**
  * Possible marker types
  * @enum */
 const MarkerType = {
     /** @readonly */
     Intro   : 'intro',
     /** @readonly */
-    Credits : 'credits',
-    supportedType : (markerType) => _supportedMarkerTypes.has(markerType)
+    Credits : 'credits'
 };
 
 /**
@@ -626,4 +630,5 @@ export {
     MarkerData,
     MarkerType,
     SectionType,
+    supportedMarkerType,
     PurgeConflictResolution };

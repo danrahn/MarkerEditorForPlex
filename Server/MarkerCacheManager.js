@@ -1,7 +1,7 @@
 import { Log } from '../Shared/ConsoleLog.js';
 
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
-import { MarkerType } from '../Shared/PlexTypes.js';
+import { supportedMarkerType } from '../Shared/PlexTypes.js';
 
 /** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
@@ -104,7 +104,7 @@ class BaseItemNode extends MarkerNodeBase {
         Log.assert(this.markerBreakdown.buckets() == 1);
         // Silently ignore unsupported marker types.
         // TODO: better support for unsupported types (i.e. commercials)
-        if (!MarkerType.supportedType(markerData.marker_type)) {
+        if (!supportedMarkerType(markerData.marker_type)) {
             return;
         }
 
