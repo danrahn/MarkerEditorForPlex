@@ -460,6 +460,24 @@ input:focus-visible {
   float: unset !important;
 }
 
+#sectionOptionsOverlayContainer {
+  max-width: 600px;
+  margin: auto;
+  text-align: center;
+  background: rgba(0,0,0,0.4);
+  padding: 20px;
+}
+
+.sectionOptionsOverlayBtn {
+  width: 60%;
+  min-width: 200px;
+  size: larger;
+  clear: both;
+  text-align: center;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {

@@ -182,3 +182,11 @@ input[type=button]:hover {
 #updateBar .button:hover {
     background-color: #DFD;
 }
+
+#sectionOptionsOverlayContainer {
+    background-color: #fecd;
+}
+
+.sectionOptionsOverlayBtn:hover {
+  background: rgba(255,255,255,0.3);
+}

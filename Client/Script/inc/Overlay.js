@@ -240,7 +240,7 @@ const Overlay = new function() {
             0,
             {
                 click : Overlay.dismiss,
-                keydown : (e) => { if (e.key == 'Enter') Overlay.dismiss(); },
+                keyup : (e) => { if (e.key == 'Enter') Overlay.dismiss(); },
             });
         Tooltip.setTooltip(close, 'Close');
         $('#mainOverlay').appendChild(close);

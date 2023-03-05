@@ -23,9 +23,9 @@ const FilterConditions = {
  * Strings used to describe each filter condition.
  * @enum */
 const FilterConditionText = {
-    [FilterConditions.LessThan] : ' is less than ',
-    [FilterConditions.Equals] : ' is ',
-    [FilterConditions.GreaterThan] : ' is greater than ',
+    [FilterConditions.LessThan] : 'is less than',
+    [FilterConditions.Equals] : 'is',
+    [FilterConditions.GreaterThan] : 'is greater than',
 };
 
 /**
@@ -265,16 +265,16 @@ class FilterDialog {
         }
 
         FilterSettings.creditsCondition = creditsCondition;
-        PlexUI.onFilterApplied();
         Overlay.dismiss();
+        PlexUI.onFilterApplied();
     }
 
     /**
      * Clear any existing filter. */
     #resetFilter() {
         FilterSettings.resetFilter();
-        PlexUI.onFilterApplied();
         Overlay.dismiss();
+        PlexUI.onFilterApplied();
     }
 }
 

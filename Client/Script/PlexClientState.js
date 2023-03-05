@@ -187,6 +187,12 @@ class PlexClientStateManager {
         return true;
     }
 
+    /**
+     * Return whether we're showing the top-level results (i.e. movies or shows) */
+    showingSearchResults() {
+        return !this.#activeSeason;
+    }
+
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
         if (this.#activeSectionType !== SectionType.TV) {

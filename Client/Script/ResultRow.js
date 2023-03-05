@@ -28,6 +28,7 @@ import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';
+import SectionOptionsOverlay from './SectionOptionsOverlay.js';
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
@@ -328,6 +329,11 @@ class BulkActionResultRow extends ResultRow {
     }
 }
 
+/** TODO: Remove once the initial 'More' options are actually implemented */
+let _sectionMoreEnabled = false;
+window.isSectionMoreEnabled = () => _sectionMoreEnabled;
+window.setSectionMoreEnabled = (enabled) => { _sectionMoreEnabled = enabled; PlexUI.onFilterApplied(); };
+
 /**
  * A section-wide header that is displayed no matter what the current view state is (beside the blank state).
  * Currently only contains the Filter entrypoint.
@@ -335,6 +341,8 @@ class BulkActionResultRow extends ResultRow {
 class SectionOptionsResultRow extends ResultRow {
     /** @type {HTMLElement} */
     #filterButton;
+    /** @type {HTMLElement} */
+    #moreOptionsButton;
     constructor() {
         super(null, 'topLevelResult sectionOptions');
     }
@@ -359,14 +367,25 @@ class SectionOptionsResultRow extends ResultRow {
             'Filter results',
             'standard',
             function(_e, self) { new FilterDialog().show(self); },
-            { style : 'margin-right: 10px' });
+            { class : 'filterBtn', style : 'margin-right: 10px' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
+
+        if (_sectionMoreEnabled) {
+            this.#moreOptionsButton = ButtonCreator.fullButton(
+                'More...',
+                'settings',
+                'More options',
+                'standard',
+                function(_e, self) { new SectionOptionsOverlay().show(self); },
+                { class : 'moreSectionOptionsBtn' });
+        }
 
         appendChildren(row,
             titleNode,
             appendChildren(row.appendChild(buildNode('div',  { class : 'goBack' })),
-                this.#filterButton));
+                this.#filterButton,
+                this.#moreOptionsButton));
         this.setHtml(row);
         return row;
     }
