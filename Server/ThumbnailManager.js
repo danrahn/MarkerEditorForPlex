@@ -198,7 +198,7 @@ class BifThumbnailManager extends ThumbnailManager {
         const thumbCache = this.#cache.getItem(metadataId);
         if (!thumbCache || !thumbCache.hasThumbs) {
             // We only expect to be called if thumbnails are actually available.
-            throw new ServerError(`No thumbnails for ${metadataId}`);
+            throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }
 
         let index;
@@ -349,7 +349,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} timestamp Timestamp, in milliseconds */
     async #getThumbnailCore(metadataId, timestamp) {
         if (!this.#cache.getItem(metadataId)?.hasThumbs) {
-            throw new ServerError(`No thumbnails for ${metadataId}`);
+            throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }
 
         const maxDuration = this.#cache.getItem(metadataId).duration;
@@ -397,8 +397,18 @@ class FfmpegThumbnailManager extends ThumbnailManager {
                 '-y',                        // Force overwrite (though we shouldn't get here if that's the case)
                 saveFile],
             { timeout : 10000 });            // Give up if it takes more than 10 seconds.
-        // It better exist now. Just throw if we fail and it will be caught by the caller.
-        const data = readFileSync(saveFile);
+
+        // It better exist now. If it doesn't, chances are there's a discrepancy between
+        // the reported duration and the real duration of the video stream. Return 404
+        let data;
+        try {
+            data = readFileSync(saveFile);
+        } catch (ex) {
+            // NOTE: if you change this error message, also adjust GETHandler's error handler, as we hackily use
+            // this specific message to indicate this specific error.
+            throw new ServerError(`Unable to retrieve thumbnail. Video stream likely doesn't line up with reported duration.`, 404);
+        }
+
         this.#cache.add(metadataId, timestamp, data);
         const execEnd = performance.now();
         Log.tmi(`Generated thumbnail ${metadataId}:${timestamp} in ${Math.round(execEnd - execStart)}ms`);

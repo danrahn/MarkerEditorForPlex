@@ -124,6 +124,29 @@ class ImageHandler {
             return badRequest(`Non-integer id/timestamp provided`);
         }
 
+        if (metadataId === -1) {
+            // This is an expected fallback case when we initially fail to grab a thumbnail.
+            // The 'timestamp' is actually the height of the SVG we want to generate that has
+            // a generic 'Error' text in the middle of it.
+            try {
+                let contents = readFileSync(join(Config.projectRoot(), 'SVG', 'badThumb.svg'));
+                if (Buffer.isBuffer(contents)) {
+                    contents = contents.toString('utf-8');
+                }
+
+                // Raw file has IMAGE_HEIGHT to be replaced with our desired height, as
+                // width is constant, so height will depend on the aspect ratio.
+                contents = contents.replace(/IMAGE_HEIGHT/g, `${timestamp}`);
+                res.writeHead(200, {
+                    'Content-Type' : contentType('image/svg+xml'),
+                    'x-content-type-options' : 'nosniff'
+                }).end(Buffer.from(contents, 'utf-8'));
+                return;
+            } catch (err) {
+                return badRequest(err.message, err.code && err.code == 'ENOENT' ? 404 : 500);
+            }
+        }
+
         try {
             const data = await Thumbnails.getThumbnail(metadataId, timestamp);
             res.writeHead(200, {
@@ -132,7 +155,12 @@ class ImageHandler {
                 'x-content-type-options' : 'nosniff'
             }).end(data);
         } catch (err) {
-            Log.error(err, 'Failed to retrieve thumbnail');
+            if ((err instanceof ServerError) && err.message.endsWith('duration.')) {
+                Log.warn(`Failed to retrieve thumbnail for ${metadataId} at timestamp ${timestamp}, likely due to duration differences.`);
+            } else {
+                Log.error(err, 'Failed to retrieve thumbnail');
+            }
+
             res.writeHead(err instanceof ServerError ? err.code : 500).end('Failed to retrieve thumbnail.');
         }
     }

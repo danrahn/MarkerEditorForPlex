@@ -284,10 +284,11 @@ class MarkerEdit {
  */
 class ThumbnailMarkerEdit extends MarkerEdit {
     /**
-     * Whether we ran into an error when loading a thumbnail.
-     * @type {boolean} */
-    #thumbnailError = false;
+     * Whether we ran into an error when loading a start/end thumbnail.
+     * @type {boolean[]} */
+    #thumbnailError = [false, false];
     #thumbnailsCollapsed = ClientSettings.collapseThumbnails();
+    #cachedHeight = 0;
 
     /** @param {MarkerRow} markerRow The marker row to edit. */
     constructor(markerRow) {
@@ -311,17 +312,23 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
         const img = buildNode(
             'img',
-            { src : src, class : 'inputThumb loading', alt : 'Timestamp Thumbnail', width : '240px', style : 'height: 0' },
+            {
+                src : src,
+                class : `inputThumb loading thumb${isEnd ? 'End' : 'Start' }`,
+                alt : 'Timestamp thumbnail',
+                width : '240px',
+                style : 'height: 0'
+            },
             0,
             {
-                error : this.#onThumbnailPreviewLoadFailed,
-                load : this.#onThumbnailPreviewLoad
+                error : this.#onThumbnailPreviewLoadFailed.bind(this),
+                load : this.#onThumbnailPreviewLoad.bind(this)
             },
             { thisArg : this }
         );
 
-        if (ClientSettings.autoLoadThumbnails()) {
-            Tooltip.setTooltip(img, 'Press Enter after entering a timestamp<br>to update the thumbnail.');
+        if (!ClientSettings.autoLoadThumbnails()) {
+            Tooltip.setTooltip(img, 'Press Enter after entering a timestamp to update the thumbnail.');
         }
 
         return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, img);
@@ -381,8 +388,6 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-
-
         this.#refreshImage(input.parentNode);
     }
 
@@ -428,18 +433,42 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         }
     }
 
-    /** Callback when we failed to load a preview thumbnail, marking it as in an error state. */
+    /** Callback when we failed to load a preview thumbnail, marking it as in an error state.
+     * @param {HTMLImageElement} img */
     #onThumbnailPreviewLoadFailed(img) {
-        this.#thumbnailError = true;
-        img.classList.add('hidden');
-        img.classList.remove('loading');
+        if (this.#cachedHeight && !img.src.endsWith('svg')) {
+            img.src = `t/-1/${this.#cachedHeight}.svg`;
+            const idx = img.classList.contains('thumbnailStart') ? 0 : 1;
+            const wasError = this.#thumbnailError[idx];
+            if (!wasError) {
+                Tooltip.removeTooltip(img);
+                Tooltip.setTooltip(img, `Failed to load thumbnail. This is usually due to the file reporting ` +
+                    `a duration that's longer than the actual length of the video stream.`);
+            }
+        } else {
+            this.#thumbnailError[img.classList.contains('thumbStart') ? 0 : 1] = true;
+            img.alt = 'Failed to load thumbnail';
+            img.classList.remove('loading');
+        }
     }
 
-    /** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state. */
+    /** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state.
+     * @param {HTMLImageElement} img */
     #onThumbnailPreviewLoad(img) {
+        const idx = img.classList.contains('thumbnailStart') ? 0 : 1;
+        const wasError = this.#thumbnailError[idx];
+        this.#thumbnailError[idx] = false;
+        if (wasError) {
+            Tooltip.removeTooltip(img);
+            if (!ClientSettings.autoLoadThumbnails()) {
+                Tooltip.setTooltip(img, 'Press Enter after entering a timestamp to update the thumbnail.');
+            }
+        }
+
         img.classList.remove('loading');
         img.classList.add('loaded');
         const realHeight = img.naturalHeight * (img.width / img.naturalWidth);
+        this.#cachedHeight = realHeight;
         img.setAttribute('realheight', realHeight);
         if (this.#thumbnailsCollapsed) {
             img.classList.add('hiddenThumb');
@@ -455,10 +484,6 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {MouseEvent} _ The (unused) MouseEvent
      * @param {HTMLElement} button */
     #expandContractThumbnails(_, button) {
-        if (this.#thumbnailError) {
-            return; // Something else bad happened, don't touch it. TODO: Recover if it's no longer in an error state.
-        }
-
         this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
         const hidden = button.innerText.startsWith('Show');
         $('.inputThumb', this.markerRow.row()).forEach(thumb => {
