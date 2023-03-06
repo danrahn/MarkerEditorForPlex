@@ -73,11 +73,11 @@ import MarkerBreakdown from './MarkerBreakdown.js';
  * @typedef {Object} BulkRestoreResponse
  * @property {SerializedMarkerDataMap} newMarkers Markers that were added as the result of a bulk restore.
  * @property {SerializedMarkerDataMap} deletedMarkers Existing markers that were deleted during the restoration.
- *                                     Will be empty if PurgeConflictResolution was not Overwrite.
+ *                                     Will be empty if MarkerConflictResolution was not Overwrite.
  * @property {SerializedMarkerDataMap} modifiedMarkers Existing markers that were adjusted instead of creating a new marker.
- *                                     Will be empty if PurgeConflictResolution was not Merge.
+ *                                     Will be empty if MarkerConflictResolution was not Merge.
  * @property {number} ignoredMarkers Number of markers we decided to ignore, either because an identical marker already existed,
- *                    or because it overlapped with an existing marker and the PurgeConflictResolution was Merge or Ignore.
+ *                    or because it overlapped with an existing marker and the MarkerConflictResolution was Merge or Ignore.
  */
 /**
  * A full row in the Actions table
@@ -634,7 +634,7 @@ const SectionType = {
 /**
  * Ways to resolve restoring purged markers.
  * @enum */
-const PurgeConflictResolution = {
+const MarkerConflictResolution = {
     /** If any existing markers overlap the restored marker, delete the existing marker. */
     Overwrite : 1,
     /** Merge overlapping markers into a single marker that spans the entire length of both. */
@@ -651,9 +651,9 @@ export {
     SeasonData,
     EpisodeData,
     MovieData,
+    MarkerConflictResolution,
     MarkerData,
     MarkerEnum,
     MarkerType,
     SectionType,
-    supportedMarkerType,
-    PurgeConflictResolution };
+    supportedMarkerType };

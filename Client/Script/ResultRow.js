@@ -329,11 +329,6 @@ class BulkActionResultRow extends ResultRow {
     }
 }
 
-/** TODO: Remove once the initial 'More' options are actually implemented */
-let _sectionMoreEnabled = false;
-window.isSectionMoreEnabled = () => _sectionMoreEnabled;
-window.setSectionMoreEnabled = (enabled) => { _sectionMoreEnabled = enabled; PlexUI.onFilterApplied(); };
-
 /**
  * A section-wide header that is displayed no matter what the current view state is (beside the blank state).
  * Currently only contains the Filter entrypoint.
@@ -371,15 +366,13 @@ class SectionOptionsResultRow extends ResultRow {
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
 
-        if (_sectionMoreEnabled) {
-            this.#moreOptionsButton = ButtonCreator.fullButton(
-                'More...',
-                'settings',
-                'More options',
-                'standard',
-                function(_e, self) { new SectionOptionsOverlay().show(self); },
-                { class : 'moreSectionOptionsBtn' });
-        }
+        this.#moreOptionsButton = ButtonCreator.fullButton(
+            'More...',
+            'settings',
+            'More options',
+            'standard',
+            function(_e, self) { new SectionOptionsOverlay().show(self); },
+            { class : 'moreSectionOptionsBtn' });
 
         appendChildren(row,
             titleNode,

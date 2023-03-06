@@ -5,8 +5,8 @@ import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 import ThemeColors from './ThemeColors.js';
 
+import { MarkerConflictResolution, MarkerEnum } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
-import { MarkerEnum } from '../../Shared/PlexTypes.js';
 import { PlexClientState } from './PlexClientState.js';
 import Tooltip from './inc/Tooltip.js';
 
@@ -99,9 +99,84 @@ class SectionOptionsOverlay {
     /**
      * Overlay invoked from the 'Import Markers' action. */
     #onImport() {
-        Log.info('Import!');
-        Overlay.dismiss();
-        setTimeout(() => { Overlay.show('Not Yet Implemented'); Overlay.setFocusBackElement(this.#focusBack); }, 250);
+        const container = buildNode('div', { class : 'sectionOptionsOverlayContainer' });
+        appendChildren(container,
+            buildNode('h2', {}, 'Marker Import'),
+            buildNode('hr'),
+            buildNode('span', {}, 'Import markers from a backed up database file to items in this library (or the entire server).'),
+            buildNode('hr'),
+            appendChildren(buildNode('div'),
+                buildNode('label', { for : 'databaseFile' }, 'Select a file: '),
+                buildNode('input', { type : 'file', accept : '.db,application/x-sqlite3', id : 'databaseFile' })),
+            appendChildren(buildNode('div'),
+                buildNode('label', { for : 'applyGlobally' }, 'Apply to all libraries: '),
+                buildNode('input', { type : 'checkbox', id : 'applyGlobally' })),
+            appendChildren(buildNode('div'),
+                buildNode('label', { for : 'resolutionType' }, 'Conflict Resolution Type: '),
+                appendChildren(buildNode('select', { id : 'resolutionType' }),
+                    buildNode('option', { value : MarkerConflictResolution.Overwrite }, 'Overwrite'),
+                    buildNode('option', { value : MarkerConflictResolution.Merge }, 'Merge'),
+                    buildNode('option', { value : MarkerConflictResolution.Ignore }, 'Ignore'))),
+            buildNode('br'),
+            appendChildren(buildNode('div'),
+                ButtonCreator.textButton(
+                    'Import',
+                    this.#importConfirmed.bind(this),
+                    { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
+                ButtonCreator.textButton(
+                    'Back',
+                    function () { this.#showMain(true); }.bind(this),
+                    { class : 'overlayButton' }))
+        );
+
+        this.#transitionOverlay(container, { dismissible : true, focusBack : this.#focusBack });
+    }
+
+    /**
+     * Upload the attached file and attempt to import all markers it contains. */
+    async #importConfirmed() {
+        /** @type {HTMLInputElement} */
+        const fileNode = $('#databaseFile');
+        const files = fileNode.files;
+        if (files?.length !== 1) {
+            return this.#flashInput(fileNode);
+        }
+
+        const file = files[0];
+        if (!file.name.endsWith('.db')) {
+            return this.#flashInput(fileNode);
+        }
+
+        if (file.size > 1024 * 1024 * 32) { // 32MB limit
+            errorResponseOverlay('Failed to upload and apply markers.', `File size of ${file.size} bytes is larger than 32MB limit.`);
+            return;
+        }
+
+        Log.info(file.name, `Uploading File`);
+        try {
+            const result = await ServerCommand.importDatabase(
+                file,
+                $('#applyGlobally').checked ? -1 : PlexClientState.activeSection(),
+                $('#resolutionType').value);
+
+            Overlay.dismiss(true /*forReshow*/);
+            setTimeout(() => {
+                Overlay.show(
+                    `<h2>Marker Import Succeeded</h2><hr>` +
+                        `Markers Added: ${result.added}<br>` +
+                        `Ignored Markers (identical): ${result.identical}<br>` +
+                        `Ignored Markers (merge/ignore/self-overlap): ${result.ignored}<br>` +
+                        `Existing Markers Deleted (overwritten): ${result.deleted}<br>` +
+                        `Existing Markers Modified (merged): ${result.modified}<br>`,
+                    'Reload',
+                    // Easier to just reload the page instead of reconciling all the newly deleted markers
+                    () => { window.location.reload(); },
+                    false /*dismissible*/);
+                Overlay.setFocusBackElement(this.#focusBack);
+            }, 250);
+        } catch (err) {
+            errorResponseOverlay('Failed to upload and apply markers', err);
+        }
     }
 
     /**

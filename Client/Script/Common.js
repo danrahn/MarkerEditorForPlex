@@ -233,6 +233,13 @@ const ServerCommand = {
      * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
     resume : async () => jsonRequest('resume'),
+
+    /**
+     * Upload a database file and import the markers present into the given section.
+     * @param {Object} database
+     * @param {number} sectionId
+     * @param {number} resolveType */
+    importDatabase : async (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database : database, sectionId : sectionId, resolveType : resolveType }),
 };
 /* eslint-enable */
 
@@ -246,8 +253,35 @@ async function jsonRequest(endpoint, parameters={}) {
         url.searchParams.append(key, value);
     }
 
+    return jsonPostCore(url);
+}
+
+/**
+ * Similar to jsonRequest, but expects blob data and attaches parameters to the body instead of URL parameters.
+ * @param {string} endpoint
+ * @param {Object} parameters */
+async function jsonBodyRequest(endpoint, parameters={}) {
+    const url = new URL(endpoint, window.location.href);
+    const data = new FormData();
+    for (const [key, value] of Object.entries(parameters)) {
+        data.append(key, value);
+    }
+
+    return jsonPostCore(url, data);
+}
+
+/**
+ * Core method that makes a request to the server, expecting JSON in return.
+ * @param {URL} url The fully built URL endpoint
+ * @param {FormData} body The message body, if any. */
+async function jsonPostCore(url, body=null) {
+    const init = { method : 'POST', headers : { accept : 'application/json' } };
+    if (body) {
+        init.body = body;
+    }
+
     try {
-        const response = await (await fetch(url, { method : 'POST', headers : { accept : 'application/json' } })).json();
+        const response = await (await fetch(url, init)).json();
         Log.verbose(response, `Response from ${url}`);
         if (!response || response.Error) {
 
@@ -407,6 +441,10 @@ function errorMessage(error) {
         }
 
         return error.toString();
+    }
+
+    if (typeof error === 'string') {
+        return error;
     }
 
     return 'I don\'t know what went wrong, sorry :(';

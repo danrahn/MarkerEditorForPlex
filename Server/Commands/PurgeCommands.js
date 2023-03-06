@@ -1,4 +1,4 @@
-import { MarkerData, PurgeConflictResolution } from '../../Shared/PlexTypes.js';
+import { MarkerConflictResolution, MarkerData } from '../../Shared/PlexTypes.js';
 import { Log } from '../../Shared/ConsoleLog.js';
 
 import { BackupManager } from '../MarkerBackupManager.js';
@@ -40,8 +40,8 @@ class PurgeCommands {
     static async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
         PurgeCommands.#checkBackupManagerEnabled(); // TODO: Why does bulk overwrite keep the old markers around?
 
-        if (Object.keys(PurgeConflictResolution).filter(k => PurgeConflictResolution[k] == resolveType).length == 0) {
-            throw new ServerError(`Unexpected PurgeConflictResolution type: ${resolveType}`, 400);
+        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {
+            throw new ServerError(`Unexpected MarkerConflictResolution type: ${resolveType}`, 400);
         }
 
         const restoredMarkerData = await BackupManager.restoreMarkers(oldMarkerIds, sectionId, resolveType);

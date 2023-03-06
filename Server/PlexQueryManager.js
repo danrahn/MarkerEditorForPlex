@@ -1,5 +1,5 @@
-import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerEnum, MarkerType, PurgeConflictResolution } from '../Shared/PlexTypes.js';
-import { Log } from '../Shared/ConsoleLog.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData, MarkerEnum, MarkerType } from '../Shared/PlexTypes.js';
+import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
@@ -230,7 +230,7 @@ FROM taggings
     }
 
     /** Close the query connection. */
-    static Close() { Instance?.close(); Instance = null; }
+    static async Close() { await Instance?.close(); Instance = null; }
 
     /**
      * Initializes the query manager. Should only be called via the static CreateInstance.
@@ -541,23 +541,39 @@ ORDER BY e.\`index\` ASC;`;
      * Retrieve all markers for the given mediaIds, which should all be either episodes
      * or movies (and not mixed).
      * @param {number[]} metadataIds
+     * @param {number} sectionId Used in cases where we have too many metadataIds to initially grab all markers
+     *                           for the section, and then filter to the given metadataIds.
      * @returns {Promise<RawMarkerData[]>}*/
-    async getMarkersForItems(metadataIds) {
-        const metadataType = await this.#validateSameMetadataTypes(metadataIds);
-        if (metadataType == MetadataType.Invalid) {
-            throw new ServerError(`getMarkersForItems can only accept metadata ids that are the same metadata_type`, 400);
-        }
-
-        switch (metadataType) {
-            case MetadataType.Movie:
-                return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedMovieMarkerFields);
-            case MetadataType.Episode:
-                return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedEpisodeMarkerFields);
-            default:
-            {
-                const typeString = Object.keys(MetadataType).find(k => MetadataType[k] == metadataType);
-                throw new ServerError(`getMarkersForItems only expects movie or episode ids, found ${typeString}.`, 400);
+    async getMarkersForItems(metadataIds, sectionId) {
+        if (metadataIds.length <= 500) {
+            const metadataType = await this.#validateSameMetadataTypes(metadataIds);
+            if (metadataType == MetadataType.Invalid) {
+                throw new ServerError(`getMarkersForItems can only accept metadata ids that are the same metadata_type`, 400);
             }
+
+            switch (metadataType) {
+                case MetadataType.Movie:
+                    return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedMovieMarkerFields);
+                case MetadataType.Episode:
+                    return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedEpisodeMarkerFields);
+                default:
+                {
+                    const typeString = Object.keys(MetadataType).find(k => MetadataType[k] == metadataType);
+                    throw new ServerError(`getMarkersForItems only expects movie or episode ids, found ${typeString}.`, 400);
+                }
+            }
+        } else {
+            // Too many individual ids to account for. Grab all items in the given section and filter accordingly.
+            const allMarkers = await this.#getMarkersForSection(sectionId, (await this.#mediaTypeFromId(metadataIds[0])).metadata_type);
+            const idSet = new Set(metadataIds);
+            const filtered = [];
+            for (const marker of allMarkers) {
+                if (idSet.has(marker.parent_id)) {
+                    filtered.push(marker);
+                }
+            }
+
+            return this.#postProcessExtendedMarkerFields(filtered);
         }
     }
 
@@ -577,6 +593,23 @@ ORDER BY e.\`index\` ASC;`;
         query = query.substring(0, query.length - 4) + ') ORDER BY taggings.time_offset ASC;';
 
         return this.#postProcessExtendedMarkerFields(await this.#database.all(query, [this.#markerTagId]));
+    }
+
+    /**
+     * Retrieve all markers for the given section.
+     * @param {number} sectionId
+     * @param {number} mediaType
+     * @returns {Promise<RawMarkerData[]>} */
+    async #getMarkersForSection(sectionId, mediaType) {
+        const fields = this.#extendedFieldsFromMediaType(mediaType);
+        const markerQuery =
+            `SELECT ${fields} WHERE taggings.tag_id=$tagId AND section_id=$sectionId ORDER BY taggings.time_offset ASC;`;
+        const parameters = {
+            $tagId : this.#markerTagId,
+            $sectionId : sectionId,
+        };
+
+        return this.#database.all(markerQuery, parameters);
     }
 
     /**
@@ -852,16 +885,20 @@ ORDER BY e.\`index\` ASC;`;
 
     /**
      * Restore multiple markers at once.
+     * NOTE: This method is shared between purge restoration and marker import. If changes are made,
+     *       make sure the data types line up.
      * @param {{ [episodeId: number] : MarkerAction[] }} actions Map of episode IDs to the list of markers to restore for that episode
+     * @param {number} sectionId The section ID we're restoring markers for
      * @param {number} sectionType The type of section we're restoring for (i.e. TV or movie)
      * @param {number} resolveType How to resolve conflicts with existing markers.
      * @returns {Promise<BulkRestoreResult>} */
     /* eslint-disable-next-line complexity */ // TODO: eslint is right, this is massive and should be broken up.
-    async bulkRestore(actions, sectionType, resolveType) {
+    async bulkRestore(actions, sectionId, sectionType, resolveType) {
         /** @type {RawMarkerData[]} */
         let markerList;
         try {
-            markerList = await this.getMarkersForItems(Object.keys(actions));
+            const keys = Object.keys(actions).map(eid => parseInt(eid));
+            markerList = await this.getMarkersForItems(keys, sectionId);
         } catch (err) {
             throw new ServerError(`Unable to retrieve existing markers to correlate marker restoration:\n\n${err.message}`, 500);
         }
@@ -886,7 +923,7 @@ ORDER BY e.\`index\` ASC;`;
         const transaction = new TransactionBuilder(this.#database);
         for (const [baseItemId, markerActions] of Object.entries(actions)) {
             markerActions.sort((a, b) => a.start - b.start);
-            const lastAction = { start : -2, end : -1, marker_type : 'intro', final : false, modified_at : 0 };
+            let lastAction = { start : -2, end : -1, marker_type : 'intro', final : false, modified_at : 0 };
             // Need a first loop to trim our actions based on overlap with ourselves
             for (const action of markerActions) {
                 if (action.start <= lastAction.start ? action.end >= lastAction.start : action.start <= lastAction.end) {
@@ -894,12 +931,12 @@ ORDER BY e.\`index\` ASC;`;
                     // for the reasons outlined below:
                     ignoredActions.add(action);
                     switch (resolveType) {
-                        case PurgeConflictResolution.Ignore:
+                        case MarkerConflictResolution.Ignore:
                             // Making the first marker take precedence gives us a better chance to
                             // restore the most markers possible.
                             // "|A  [B  A| {C  B]  C}" will become "|A  A| {C  C}" and not "{C  C}"
                             break;
-                        case PurgeConflictResolution.Merge:
+                        case MarkerConflictResolution.Merge:
                             // Just extend the last marker, making it the new "tracker" in the backup database.
                             // Credits/final takes precedence over intro/non-final
                             lastAction.start = Math.min(lastAction.start, action.start);
@@ -908,13 +945,15 @@ ORDER BY e.\`index\` ASC;`;
                             lastAction.final = lastAction.final || action.final;
                             lastAction.modified_at = Math.max(lastAction.modified_at, action.modified_at);
                             break;
-                        case PurgeConflictResolution.Overwrite:
+                        case MarkerConflictResolution.Overwrite:
                             // Similar to Ignore.
                             break;
                         default:
                             break;
                     }
                 }
+
+                lastAction = action;
             }
 
             // Second loop for overlap with existing markers.
@@ -930,22 +969,33 @@ ORDER BY e.\`index\` ASC;`;
 
                 // Now check for overlap with existing markers.
                 const overlappingMarkers = existingMarkers[baseItemId].filter(getOverlapping);
+                let identical = false;
                 for (const overlappingMarker of overlappingMarkers) {
                     // If they're identical, ignore no matter the resolution strategy
-                    if (action.start == overlappingMarker.start && action.end == overlappingMarker.end) {
-                        Log.verbose(action, `Ignoring purged marker that is identical to an existing marker.`);
+                    identical = action.start == overlappingMarker.start && action.end == overlappingMarker.end;
+                    if (identical) {
+                        if (identicalMarkers.length === 10) {
+                            Log.verbose('Too many identical markers, moving reporting to TMI');
+                        }
+
+                        if (identicalMarkers.length >= 10) {
+                            Log.tmi(action, `Ignoring marker that is identical to an existing marker`);
+                        } else {
+                            Log.verbose(action, `Ignoring marker that is identical to an existing marker`);
+                        }
+
                         // Add to identicalMarkers, but not to ignoredActions. The idea being that for
                         // identicalMarkers we pretend that we restored it with the existing marker, but
                         // we pretend like we explicitly ignored actions in ignoredActions.
                         identicalMarkers.push(overlappingMarker.getRaw());
-                        continue;
+                        break;
                     }
 
                     switch (resolveType) {
-                        case PurgeConflictResolution.Ignore:
+                        case MarkerConflictResolution.Ignore:
                             ignoredActions.add(action);
                             continue;
-                        case PurgeConflictResolution.Merge:
+                        case MarkerConflictResolution.Merge:
                             toModify[overlappingMarker.id] = {
                                 marker : overlappingMarker.getRaw(),
                                 newData : {
@@ -953,13 +1003,13 @@ ORDER BY e.\`index\` ASC;`;
                                     newEnd      : Math.max(action.end, overlappingMarker.end),
                                     newType     : action.type == MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
                                     newFinal    : overlappingMarker.final || action.final,
-                                    newModified : Math.max(action.modified_at || action.recorded_at, overlappingMarker.modified_date),
+                                    newModified : Math.max(action.modified_at || action.recorded_at || 0, overlappingMarker.modified_date),
                                 }
                             };
 
                             ignoredActions.add(action);
                             continue;
-                        case PurgeConflictResolution.Overwrite:
+                        case MarkerConflictResolution.Overwrite:
                         {
                             // Delete. However, potentially change the action type if the overlapping marker is a
                             // credits marker, since it's very likely that we're overwriting an automatically created
@@ -984,7 +1034,7 @@ ORDER BY e.\`index\` ASC;`;
                     }
                 }
 
-                if (ignoredActions.has(action)) {
+                if (ignoredActions.has(action) || identical) {
                     continue;
                 }
 
@@ -1023,6 +1073,10 @@ ORDER BY e.\`index\` ASC;`;
                     transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
                 }
             }
+        }
+
+        if (identicalMarkers.length > 10 && Log.getLevel() >= ConsoleLog.Level.Verbose) {
+            Log.verbose(`Found ${identicalMarkers.length - 10} additional identical markers that are being ignored.`);
         }
 
         for (const marker of toDelete) {
@@ -1074,6 +1128,64 @@ ORDER BY e.\`index\` ASC;`;
 
         // All markers were added successfully. Now query them all to return back to the backup manager
         // so it can update caches accordingly.
+        // If this throws, the server really should restart. We added the markers successfully,
+        // but we can't update our caches since we couldn't retrieve them.
+        const newMarkers = await this.#newMarkersAfterBulkInsert(existingMarkers, sectionId, sectionType);
+
+        if (newMarkers.length != expectedInserts) {
+            Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
+        }
+
+        return {
+            newMarkers : this.#postProcessExtendedMarkerFields(newMarkers),
+            identicalMarkers : identicalMarkers,
+            deletedMarkers : toDelete,
+            modifiedMarkers : Object.values(toModify),
+            ignoredActions  : Array.from(ignoredActions)
+        };
+    }
+
+    /**
+     * @param {{ [parent_id: string|number] : TrimmedMarker[] }} existingMarkers
+     * @param {number} sectionId
+     * @param {number} sectionType
+     * @returns {Promise<RawMarkerData[]>} */
+    async #newMarkersAfterBulkInsert(existingMarkers, sectionId, sectionType) {
+        const toQuery = Object.values(existingMarkers);
+        if (toQuery.length > 150) {
+            // If we have more than 150 markers, get all section markers and then filter,
+            // since we don't want want to hit SQLite's condition limit, and it's faster than
+            // running hundreds of individual queries.
+            const allMarkers = await this.#getMarkersForSection(sectionId, sectionType);
+            const filtered = [];
+            /** @type {{[parentId: number]: {[start: number]: Set<number>}}} */
+            const filterSet = {};
+            let existingCount = 0;
+            let newCount = 0;
+            for (const markerArr of toQuery) {
+                for (const trimmedMarker of markerArr) {
+                    if (trimmedMarker.existing()) {
+                        ++existingCount;
+                        continue;
+                    }
+
+                    filterSet[trimmedMarker.parent_id] ??= {};
+                    filterSet[trimmedMarker.parent_id][trimmedMarker.start] ??= new Set();
+                    filterSet[trimmedMarker.parent_id][trimmedMarker.start].add(trimmedMarker.end);
+                    ++newCount;
+                }
+            }
+
+            Log.info(`Expecting ${newCount} new markers against ${existingCount} existing.`);
+            for (const marker of allMarkers) {
+                if (filterSet[marker.parent_id] && filterSet[marker.parent_id][marker.start]?.has(marker.end)) {
+                    filtered.push(marker);
+                }
+            }
+
+            return filtered;
+        }
+
         const params = [this.#markerTagId];
         let query = `SELECT ${this.#extendedFieldsFromMediaType(sectionType)} WHERE taggings.tag_id=? AND (`;
         for (const newMarkers of Object.values(existingMarkers)) {
@@ -1088,21 +1200,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         query = query.substring(0, query.length - 4) + ')';
-
-        // If this throws, the server really should restart. We added the markers successfully,
-        // but we can't update our caches since we couldn't retrieve them.
-        const newMarkers = params.length == 1 ? [] : await this.#database.all(query, params);
-        if (newMarkers.length != expectedInserts) {
-            Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
-        }
-
-        return {
-            newMarkers : this.#postProcessExtendedMarkerFields(newMarkers),
-            identicalMarkers : identicalMarkers,
-            deletedMarkers : toDelete,
-            modifiedMarkers : Object.values(toModify),
-            ignoredActions  : Array.from(ignoredActions)
-        };
+        return params.length == 1 ? [] : await this.#database.all(query, params);
     }
 
     /**
@@ -1239,7 +1337,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} startShift The time to shift marker starts by, in milliseconds
      * @param {number} endShift The time to shift marker ends by, in milliseconds */
     async shiftMarkers(markers, episodeData, startShift, endShift) {
-        const episodeIds = Object.keys(markers);
+        const episodeIds = Object.keys(markers).map(eid => parseInt(eid));
         const limits = {};
         for (const episode of episodeData) {
             limits[episode.id] = episode.duration;
@@ -1275,7 +1373,7 @@ ORDER BY e.\`index\` ASC;`;
 
         // TODO: Movies? Do we want to surface bulk actions? Makes less sense for movies versus all episodes of a season.
         await transaction.exec();
-        const newMarkers = await this.getMarkersForItems(episodeIds);
+        const newMarkers = await this.getMarkersForItems(episodeIds, markers[episodeIds[0]].section_id);
         // No ignored markers, no need to prune
         if (newMarkers.length == expectedShifts) {
             return newMarkers;

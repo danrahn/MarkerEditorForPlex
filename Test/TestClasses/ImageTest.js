@@ -18,7 +18,7 @@ class ImageTest extends TestBase {
     }
 
     // Hacky, but there are some SVGs that don't have a FILL_COLOR, so we don't expect to see it in the text.
-    static #colorExceptions = { 'favicon.svg' : 1, 'noise.svg' : 1 };
+    static #colorExceptions = new Set(['favicon.svg', 'noise.svg', 'badthumb.svg']);
 
     className() { return 'ImageTest'; }
 
@@ -106,7 +106,7 @@ class ImageTest extends TestBase {
         TestHelpers.verify(response.status == 200, `Expected 200 when retrieving ${endpoint}, got ${response.status}.`);
         TestHelpers.verifyHeader(response.headers, 'Content-Type', 'img/svg+xml', endpoint);
 
-        if (ImageTest.#colorExceptions[endpoint.substring(endpoint.lastIndexOf('/') + 1).toLowerCase()]) {
+        if (ImageTest.#colorExceptions.has(endpoint.substring(endpoint.lastIndexOf('/') + 1).toLowerCase())) {
             return;
         }
 

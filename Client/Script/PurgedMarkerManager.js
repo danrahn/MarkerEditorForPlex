@@ -15,7 +15,7 @@ import {
     PurgedServer,
     PurgedShow,
     PurgedTVSection } from './PurgedMarkerCache.js';
-import { MarkerData, PurgeConflictResolution, SectionType } from '../../Shared/PlexTypes.js';
+import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
@@ -822,13 +822,13 @@ class MoviePurgeTable extends PurgeTable {
 
 class PurgeConflictControl {
     static #resolutionDescriptions = {
-        [PurgeConflictResolution.Overwrite] :
+        [MarkerConflictResolution.Overwrite] :
             `If any existing markers overlap with the restored marker, delete the existing marker.<br>` +
             `This is useful if you previously tweaked Plex-generated markers and analyzing the item reset them.`,
-        [PurgeConflictResolution.Merge] :
+        [MarkerConflictResolution.Merge] :
             `If any existing markers overlap with the restored marker, merge them into one marker that spans ` +
             `the full length of both.`,
-        [PurgeConflictResolution.Ignore] :
+        [MarkerConflictResolution.Ignore] :
             `If any existing markers overlap with the restored marker, keep the existing marker and permanently ` +
             `ignore the purged marker.`,
     };
@@ -844,7 +844,7 @@ class PurgeConflictControl {
         };
 
         const select = buildNode('select', { id : 'purgeResolution' }, 0, { change : resolutionTypeChange });
-        for (const [key, value] of Object.entries(PurgeConflictResolution)) {
+        for (const [key, value] of Object.entries(MarkerConflictResolution)) {
             select.appendChild(buildNode('option', { value : value }, key));
         }
 
@@ -867,7 +867,7 @@ class PurgeConflictControl {
             select,
             buildNode('div',
                 { id : 'purgeResolutionDescription', class : 'hidden' },
-                PurgeConflictControl.#resolutionDescriptions[PurgeConflictResolution.Overwrite]));
+                PurgeConflictControl.#resolutionDescriptions[MarkerConflictResolution.Overwrite]));
 
         return selectContainer;
     }

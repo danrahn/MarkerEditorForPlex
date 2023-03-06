@@ -386,7 +386,7 @@ class MarkerBackupManager {
     }
 
     /** Clear out the singleton backup manager instance. */
-    static Close() { Instance?.close(); Instance = null; }
+    static async Close() { await Instance?.close(); Instance = null; }
 
     /**
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
@@ -1172,7 +1172,7 @@ ORDER BY id DESC;`;
             (toRestore[markerAction.parent_id] ??= []).push(markerAction);
         }
 
-        const markerData = await PlexQueries.bulkRestore(toRestore, this.#sectionTypes[sectionId], resolveType);
+        const markerData = await PlexQueries.bulkRestore(toRestore, sectionId, this.#sectionTypes[sectionId], resolveType);
 
         // First thing to log is deletes, as we want order to indicate that they were replaced by subsequent entries.
         const deletedMarkers = markerData.deletedMarkers.map(x => new MarkerData(x));

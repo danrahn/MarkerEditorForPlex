@@ -16,6 +16,7 @@ import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { Config, IntroEditorConfig } from './IntroEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import DatabaseImportExport from './ImportExport.js';
 import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
@@ -177,12 +178,16 @@ function handleClose(signal, restart=false) {
 /**
  * Properly close out open resources in preparation for shutting down the process.
  * @param {boolean} fullShutdown Whether we're _really_ shutting down the process, or just suspending/restarting it. */
-function cleanupForShutdown(fullShutdown) {
+async function cleanupForShutdown(fullShutdown) {
     ServerCommands.clear();
-    PlexQueryManager.Close();
-    MarkerBackupManager.Close();
     MarkerCacheManager.Close();
     ThumbnailManager.Close(fullShutdown);
+    DatabaseImportExport.Close();
+
+    await Promise.all([
+        PlexQueryManager.Close(),
+        MarkerBackupManager.Close(),
+    ]);
 
     // Ensure this is always last, as some classes
     // above may rely on values here.
@@ -247,6 +252,25 @@ function userResume(res) {
 
     ResumeResponse = res;
 
+    run();
+}
+
+/**
+ * Do a soft internal restart to rebuild all internal caches
+ * and reconnect to databases, usually after a large operation where
+ * it's easier to just rebuild everything from scratch.
+ *
+ * TODO: How much of this can be moved to a different file instead of Main? */
+async function softRestart() {
+    Log.info('Soft reset started. Rebuilding everything.');
+    if (GetServerState() != ServerState.Running) {
+        Log.warn(`Attempting a soft reset when the server isn't running. Ignoring it.`);
+        return;
+    }
+
+    SetServerState(ServerState.Suspended);
+    await cleanupForShutdown(false /*fullShutdown*/);
+    Log.assert(GetServerState() == ServerState.Suspended, 'Server state changed during cleanup, that\'s not right!');
     run();
 }
 
@@ -353,6 +377,14 @@ const ServerActionMap = {
 };
 
 /**
+ * Map of actions that require more direct access to the underlying request and response.
+ * Instead of adjusting ServerCommands to accommodate these, have a separate map.
+ * @type {[endpoint: string]: (req: IncomingMessage, res: ServerResponse) => Promise<any>} */
+const RawActions = {
+    import_db : async (req, res) => await DatabaseImportExport.importDatabase(req, res),
+};
+
+/**
  * Handle POST requests, used to return JSON data queried by the client.
  * @param {IncomingMessage} req
  * @param {ServerResponse} res */
@@ -366,6 +398,14 @@ async function handlePost(req, res) {
 
     if (ServerActionMap[endpoint]) {
         return ServerActionMap[endpoint](res);
+    }
+
+    if (RawActions[endpoint]) {
+        try {
+            return await RawActions[endpoint](req, res);
+        } catch (err) {
+            return sendJsonError(res, err);
+        }
     }
 
     try {
@@ -408,3 +448,5 @@ function checkTestData() {
 
     return testData;
 }
+
+export { softRestart };

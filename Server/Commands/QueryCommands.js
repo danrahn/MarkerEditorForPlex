@@ -35,12 +35,19 @@ class QueryCommands {
             throw new ServerError(`Marker query must have at least one metadata id to search for,`, 400);
         }
 
+        let sectionId;
+        if (keys.length > 500) {
+            // It's inefficient to query for 500+ individual markers. At this scale,
+            // get all items in a section and filter accordingly.
+            sectionId = (await PlexQueries.getMarkersAuto(keys[0])).markers[0].section_id;
+        }
+
         const markers = {};
         for (const key of keys) {
             markers[key] = [];
         }
 
-        const rawMarkers = await PlexQueries.getMarkersForItems(keys);
+        const rawMarkers = await PlexQueries.getMarkersForItems(keys, sectionId);
         for (const rawMarker of rawMarkers) {
             // TODO: better handing of non intros/credits (i.e. commercials)
             if (supportedMarkerType(rawMarker.marker_type)) {
