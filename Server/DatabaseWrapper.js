@@ -84,9 +84,9 @@ class DatabaseWrapper {
      * @param {*} parameters
      * @returns {Promise<any>} */
     async #action(fn, query, parameters=null) {
-        return new Promise((resolve, _) => {
+        return new Promise((resolve, reject) => {
             const callback = (err, result) => {
-                if (err) { throw ServerError.FromDbError(err); }
+                if (err) { reject(err.message); }
 
                 resolve(result);
             };

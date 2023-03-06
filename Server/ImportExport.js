@@ -110,7 +110,6 @@ class DatabaseImportExport {
         }
 
         // Save to backup subdirectory.
-        // TODO: cleanup on shutdown/startup?
         const backupDir = join(Config.projectRoot(), 'Backup', 'MarkerExports');
         mkdirSync(backupDir, { recursive : true });
         const time = new Date();
