@@ -16,6 +16,13 @@ import { Thumbnails } from './ThumbnailManager.js';
 class GETHandler {
 
     /**
+     * Regex that defines valid paths, which are currently index.html, or anything inside
+     * the client, shared, or svg folder, as long as it doesn't contain '/..' or '\..'
+     * somewhere in the path.
+     */
+    static #whitelistRegex = /^\/(?:index\.html|(?:client|shared|svg)\/(?:(?![\\/]\.\.).)*)$/i;
+
+    /**
      * Handle the given GET request.
      * @param {IncomingMessage} req
      * @param {ServerResponse} res */
@@ -41,6 +48,12 @@ class GETHandler {
         const mimetype = contentType(lookup(url));
         if (!mimetype) {
             res.writeHead(404).end(`Bad MIME type: ${url}`);
+            return;
+        }
+
+        if (!GETHandler.#whitelistRegex.test(url)) {
+            Log.warn(url, `Attempting to access url that is not whitelisted`);
+            res.writeHead(404).end('Not Found');
             return;
         }
 

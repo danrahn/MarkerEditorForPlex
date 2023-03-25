@@ -148,7 +148,8 @@ class SectionOptionsOverlay {
         }
 
         if (file.size > 1024 * 1024 * 32) { // 32MB limit
-            errorResponseOverlay('Failed to upload and apply markers.', `File size of ${file.size} bytes is larger than 32MB limit.`);
+            const fSize = parseInt(file.size);
+            errorResponseOverlay('Failed to upload and apply markers.', `File size of ${fSize} bytes is larger than 32MB limit.`);
             return;
         }
 

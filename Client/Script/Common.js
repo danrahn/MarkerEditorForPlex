@@ -651,7 +651,17 @@ function clickOnEnterCallback(e) {
  * @param {() => void} [onDismiss=Overlay.dismiss] */
 function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
     const errType = err instanceof FetchError ? 'Server Message' : 'Error';
-    Overlay.show(`${message}<br><br>${errType}:<br>${errorMessage(err)}`, 'OK', onDismiss);
+    Overlay.show(
+        appendChildren(
+            buildNode('div'),
+            document.createTextNode(message),
+            buildNode('br'),
+            buildNode('br'),
+            document.createTextNode(errType + ':'),
+            buildNode('br'),
+            document.createTextNode(errorMessage(err))),
+        'OK',
+        onDismiss);
 }
 
 export {

@@ -57,11 +57,13 @@ class ServerCommands {
      * @param {IncomingMessage} request
      * @throws {ServerError} If the endpoint does not exist or the request fails. */
     static async runCommand(endpoint, request) {
-        if (!ServerCommands.#commandMap[endpoint]) {
-            throw new ServerError(`Invalid endpoint: ${endpoint}`, 404);
+        if (Object.prototype.hasOwnProperty.call(ServerCommands.#commandMap, endpoint)
+            && typeof ServerCommands.#commandMap[endpoint] === 'function') {
+            return ServerCommands.#commandMap[endpoint](new QueryParser(request));
         }
 
-        return ServerCommands.#commandMap[endpoint](new QueryParser(request));
+        throw new ServerError(`Invalid endpoint: ${endpoint}`, 404);
+
     }
 }
 

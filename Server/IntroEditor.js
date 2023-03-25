@@ -342,11 +342,6 @@ async function serverMain(req, res) {
         return sendJsonError(res, new ServerError('Server is shutting down', 503));
     }
 
-    // Don't get into node_modules or parent directories
-    if (req.url.toLowerCase().indexOf('node_modules') != -1 || req.url.indexOf('/..') != -1) {
-        return sendJsonError(res, new ServerError(`Cannot access ${req.url}: Forbidden`, 403));
-    }
-
     try {
         // Only serve static resources via GET, and only accept queries for JSON via POST.
         switch (method) {
@@ -396,7 +391,8 @@ async function handlePost(req, res) {
         return sendJsonError(res, new ServerError('Server is suspended', 503));
     }
 
-    if (ServerActionMap[endpoint]) {
+    if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
+        && typeof ServerActionMap[endpoint] === 'function') {
         return ServerActionMap[endpoint](res);
     }
 
