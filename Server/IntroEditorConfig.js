@@ -1,5 +1,6 @@
+import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { fileURLToPath } from 'url';
 
 import { Log } from '../Shared/ConsoleLog.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
@@ -132,15 +133,14 @@ let Instance;
 class IntroEditorConfig extends ConfigBase {
     /**
      * Create the singleton config instance.
-     * @param {string} projectRoot
      * @param {*} testData
      * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
-    static Create(projectRoot, testData, dataRoot) {
+    static Create(testData, dataRoot) {
         if (Instance != null) {
             Log.warn(`Singleton IntroEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
-        Instance = new IntroEditorConfig(projectRoot, testData, dataRoot);
+        Instance = new IntroEditorConfig(testData, dataRoot);
         return Instance;
     }
 
@@ -149,11 +149,6 @@ class IntroEditorConfig extends ConfigBase {
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
     #Base = {};
-
-    /**
-     * The directory root of the project.
-     * @type {string} */
-    #root;
 
     /** The path to the root of Plex's data directory.
      * https://support.plex.tv/articles/202915258-where-is-the-plex-media-server-data-directory-located/
@@ -181,7 +176,7 @@ class IntroEditorConfig extends ConfigBase {
     #version;
 
     /** Creates a new IntroEditorConfig. */
-    constructor(projectRoot, testData, dataRoot) {
+    constructor(testData, dataRoot) {
         Log.info('Reading configuration...');
         const baseClass = {};
 
@@ -201,7 +196,6 @@ class IntroEditorConfig extends ConfigBase {
 
         super(config, baseClass);
         this.#Base = baseClass;
-        this.#root = projectRoot;
 
         Log.setFromString(this.#getOrDefault('logLevel', 'Info'));
         if (process.env.IS_DOCKER) {
@@ -230,7 +224,7 @@ class IntroEditorConfig extends ConfigBase {
             this.#verifyPathExists(this.#dataPath, 'dataPath');
         }
 
-        const packagePath = join(projectRoot, 'package.json');
+        const packagePath = join(ProjectRoot(), 'package.json');
         if (!existsSync(packagePath)) {
             Log.warn(`Unable to find package.json, can't check for new version.`);
             this.#version = '0.0.0';
@@ -301,8 +295,19 @@ class IntroEditorConfig extends ConfigBase {
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     backupActions() { return this.#features.backupActions; }
     pureMode() { return this.#features.pureMode; }
-    projectRoot() { return this.#root; }
     appVersion() { return this.#version; }
 }
 
-export { IntroEditorConfig, Instance as Config };
+/**
+ * Cached root directory.
+ * @type {string} */
+let globalProjectRoot = undefined;
+
+/**
+ * Retrieve the root path of this application.
+ *
+ * Doesn't live in IntroEditorConfig directly because it occasionally needs to be
+ * accessed before IntroEditorConfig is completely set up. */
+const ProjectRoot = () => (globalProjectRoot ??= dirname(dirname(fileURLToPath(import.meta.url))));
+
+export { IntroEditorConfig, Instance as Config, ProjectRoot };

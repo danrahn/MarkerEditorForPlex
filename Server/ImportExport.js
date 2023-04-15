@@ -5,9 +5,9 @@ import { Log } from '../Shared/ConsoleLog.js';
 
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import { Config } from './IntroEditorConfig.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerConflictResolution } from '../Shared/PlexTypes.js';
+import { ProjectRoot } from './IntroEditorConfig.js';
 import ServerError from './ServerError.js';
 import { softRestart } from './IntroEditor.js';
 import TransactionBuilder from './TransactionBuilder.js';
@@ -110,7 +110,7 @@ class DatabaseImportExport {
         }
 
         // Save to backup subdirectory.
-        const backupDir = join(Config.projectRoot(), 'Backup', 'MarkerExports');
+        const backupDir = join(ProjectRoot(), 'Backup', 'MarkerExports');
         mkdirSync(backupDir, { recursive : true });
         const time = new Date();
         const padL = (val, pad=2) => { val = val.toString(); return '0'.repeat(Math.max(0, pad - val.length)) + val; };
@@ -212,7 +212,7 @@ WHERE t.tag_id=$tagId`;
             }
 
             // Form data looks good. Write the database to a real file.
-            const backupDir = join(Config.projectRoot(), 'Backup', 'MarkerExports');
+            const backupDir = join(ProjectRoot(), 'Backup', 'MarkerExports');
             mkdirSync(backupDir, { recursive : true });
             const dbData = Buffer.from(formData.database.data, 'binary');
             const fullPath = join(backupDir, `Import-${formData.database.filename}`);
@@ -413,12 +413,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
     /**
      * On server close, clear out any exported/imported databases that are still lying around, if we can. */
     static Close() {
-        if (!Config || !Config.projectRoot()) {
-            // Very early shutdown
-            return;
-        }
-
-        const tempRoot = join(Config.projectRoot(), 'Backup', 'MarkerExports');
+        const tempRoot = join(ProjectRoot(), 'Backup', 'MarkerExports');
         if (!existsSync(tempRoot)) {
             Log.verbose('ImportExport: No database files to clean up.');
             return;

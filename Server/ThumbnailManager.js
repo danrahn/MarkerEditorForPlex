@@ -4,7 +4,7 @@ import { execFileSync } from 'child_process';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
-import { Config } from './IntroEditorConfig.js';
+import { Config, ProjectRoot } from './IntroEditorConfig.js';
 import ServerError from './ServerError.js';
 
 /** @typedef {!import('./DatabaseWrapper'.default) DatabaseWrapper} */
@@ -375,7 +375,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId
      * @param {number} timestamp Timestamp, in milliseconds */
     #fileCacheOrGenerate(metadataId, timestamp) {
-        const savePath = join(Config.projectRoot(), 'cache', `${metadataId}`);
+        const savePath = join(ProjectRoot(), 'cache', `${metadataId}`);
         const saveFile = join(savePath, `${timestamp}.jpg`);
         if (existsSync(saveFile)) {
             Log.tmi(`Found cached thumbnail file for ${metadataId}:${timestamp}`);
@@ -424,7 +424,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             return;
         }
 
-        const cacheRoot = join(Config.projectRoot(), 'cache');
+        const cacheRoot = join(ProjectRoot(), 'cache');
         if (!existsSync(cacheRoot)) {
             // Nothing to clear
             return;

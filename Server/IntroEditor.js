@@ -1,8 +1,7 @@
 /** External dependencies */
-import { dirname, join } from 'path';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { createServer } from 'http';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import Open from 'open';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
@@ -13,7 +12,7 @@ import { Log } from '../Shared/ConsoleLog.js';
 
 /** Server dependencies */
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
-import { Config, IntroEditorConfig } from './IntroEditorConfig.js';
+import { Config, IntroEditorConfig, ProjectRoot } from './IntroEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import DatabaseImportExport from './ImportExport.js';
@@ -37,14 +36,13 @@ let IsTest = false;
 async function run() {
     setupTerminateHandlers();
     const testData = checkTestData();
-    const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
     // In docker, the location of the config and backup data files are not the project root.
-    const dataRoot = process.env.IS_DOCKER ? '/Data' : projectRoot;
+    const dataRoot = process.env.IS_DOCKER ? '/Data' : ProjectRoot();
     if (!testData.isTest) {
         await FirstRunConfig(dataRoot);
     }
 
-    const config = IntroEditorConfig.Create(projectRoot, testData, dataRoot);
+    const config = IntroEditorConfig.Create(testData, dataRoot);
 
     // Set up the database, and make sure it's the right one.
     const queryManager = await PlexQueryManager.CreateInstance(config.databasePath(), config.pureMode());
@@ -112,8 +110,7 @@ function setupTerminateHandlers() {
  * @param {string} message The message to log */
 function writeErrorToFile(message) {
     try {
-        // Early init failures won't have a valid Config, so grab the project root directly.
-        const logDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Logs');
+        const logDir = join(ProjectRoot(), 'Logs');
         if (!existsSync(logDir)) {
             mkdirSync(logDir);
         }

@@ -6,8 +6,8 @@ import { readFileSync } from 'fs';
 
 import { Log } from '../Shared/ConsoleLog.js';
 
+import { Config, ProjectRoot } from './IntroEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
-import { Config } from './IntroEditorConfig.js';
 import DatabaseImportExport from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
@@ -58,7 +58,7 @@ class GETHandler {
         }
 
         try {
-            const contents = readFileSync(join(Config.projectRoot(), url));
+            const contents = readFileSync(join(ProjectRoot(), url));
             sendCompressedData(res, 200, contents, mimetype);
         } catch (err) {
             Log.warn(`Unable to serve ${url}: ${err.message}`);
@@ -96,7 +96,7 @@ class ImageHandler {
         }
 
         try {
-            let contents = readFileSync(join(Config.projectRoot(), 'SVG', icon));
+            let contents = readFileSync(join(ProjectRoot(), 'SVG', icon));
             if (Buffer.isBuffer(contents)) {
                 contents = contents.toString('utf-8');
             }
@@ -147,7 +147,7 @@ class ImageHandler {
             // The 'timestamp' is actually the height of the SVG we want to generate that has
             // a generic 'Error' text in the middle of it.
             try {
-                let contents = readFileSync(join(Config.projectRoot(), 'SVG', 'badThumb.svg'));
+                let contents = readFileSync(join(ProjectRoot(), 'SVG', 'badThumb.svg'));
                 if (Buffer.isBuffer(contents)) {
                     contents = contents.toString('utf-8');
                 }
