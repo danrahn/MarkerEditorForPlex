@@ -13,6 +13,7 @@ import { GetServerState, ServerState } from '../Server/ServerState.js';
 import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
 import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
 
@@ -35,6 +36,7 @@ class TestRunner {
         ShiftTest : ShiftTest,
         BulkDeleteTest : BulkDeleteTest,
         BulkAddTest : BulkAddTest,
+        DeleteAllTest : DeleteAllTest,
     };
 
     constructor() {

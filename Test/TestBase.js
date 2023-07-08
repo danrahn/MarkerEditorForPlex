@@ -349,7 +349,7 @@ class TestBase {
         const sectionInsert = `
         INSERT INTO library_sections (library_id, name, section_type, uuid)
         VALUES                       (1,          "TV", 2,            "94319c6e-16c0-11ed-861d-0242ac120002"),
-                                     (2,           "M", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc"),
+                                     (2,      "Movies", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc"),
                                      (3,       "Music", 8,            "27465ca2-2a7f-48b5-b5a2-d70da84f1cd9");`;
 
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override

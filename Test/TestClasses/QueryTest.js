@@ -52,8 +52,8 @@ class QueryTest extends TestBase {
         TestHelpers.verify(tvLib.name == 'TV', `Expected library name to be TV, found ${tvLib.name}.`);
 
         const movieLib = result[1];
-        TestHelpers.verify(movieLib.id == 2, `Expected library section to have an id of 2, fount ${movieLib.id}`);
-        TestHelpers.verify(movieLib.name == 'M', `Expected library name to be 'M', found ${movieLib.name}.`);
+        TestHelpers.verify(movieLib.id == 2, `Expected library section to have an id of 2, found ${movieLib.id}`);
+        TestHelpers.verify(movieLib.name == 'Movies', `Expected library name to be 'M', found ${movieLib.name}.`);
     }
 
     //////////////////////

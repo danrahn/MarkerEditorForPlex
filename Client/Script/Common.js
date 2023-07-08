@@ -214,7 +214,7 @@ const ServerCommand = {
      * Irreversibly delete all markers of the given type from the given section.
      * @param {number} sectionId
      * @param {number} deleteType
-     * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number}>} */
+     * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number }>} */
     sectionDelete : async (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId : sectionId, deleteType : deleteType }),
 
     /**

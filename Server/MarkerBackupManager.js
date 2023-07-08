@@ -1344,6 +1344,11 @@ ORDER BY id DESC;`;
         Log.info(`Removing ${deleteCount} entries from the backup database.`);
         await this.#actions.run(`DELETE FROM actions ${whereClause};`, params);
 
+        // Short circuit if we don't have any purged markers to care about.
+        if (!this.#purgeCache[sectionId]) {
+            return deleteCount;
+        }
+
         // Now clear out any purged markers that we just deleted.
         // Inefficient, and copy/paste but I'm lazy
         if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
