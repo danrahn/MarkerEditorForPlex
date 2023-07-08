@@ -255,6 +255,11 @@ WHERE t.tag_id=$tagId`;
                 throw new ServerError('Database does not have any markers to import!', 400);
             }
         } catch (err) {
+            Log.error(err);
+            if (err instanceof ServerError) {
+                throw err;
+            }
+
             throw new ServerError('Unable to read imported database. Are you sure it was created by this application?', 400);
         }
 
