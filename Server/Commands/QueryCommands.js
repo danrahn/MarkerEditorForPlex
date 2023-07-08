@@ -7,7 +7,7 @@ import {
     SectionType,
     ShowData,
     supportedMarkerType } from '../../Shared/PlexTypes.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Config } from '../IntroEditorConfig.js';
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
@@ -17,6 +17,9 @@ import ServerError from '../ServerError.js';
 import { Thumbnails } from '../ThumbnailManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
+
+
+const Log = new ContextualLog('QueryCommands');
 
 /**
  * Classification of commands that queries the database for information, does not edit any underlying data

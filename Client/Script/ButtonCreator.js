@@ -1,11 +1,13 @@
 import { $$, appendChildren, buildNode } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Tooltip from './inc/Tooltip.js';
 
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
+
+const Log = new ContextualLog('ButtonCreator');
 
 /**
  * A static class that creates various buttons used throughout the app.

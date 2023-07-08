@@ -1,6 +1,9 @@
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
+
+
+const Log = new ContextualLog('SQLiteTxn');
 
 class TransactionBuilder {
     /** @type {string[]} */

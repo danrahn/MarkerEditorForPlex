@@ -1,4 +1,4 @@
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -14,6 +14,8 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 /** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedShowData} SerializedShowData */
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
+
+const Log = new ContextualLog('ClientCommon');
 
 /**
  * Removes all children from the given element.

@@ -8,7 +8,7 @@ import {
     errorMessage,
     errorResponseOverlay,
     ServerCommand } from './Common.js';
-import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -19,6 +19,8 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('./inc/Overlay').OverlayOptions} OverlayOptions */
+
+const Log = new ContextualLog('ClientSettings');
 
 /**
  * Base class for implementing a client-side setting.
@@ -50,7 +52,7 @@ class SettingBase {
      * @param {*} defaultValue */
     fieldOrDefault(data, key, defaultValue) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) {
-            Log.verbose(data, `Client settings: Didn't find '${key}', defaulting to '${defaultValue}'`);
+            Log.verbose(data, `Didn't find '${key}', defaulting to '${defaultValue}'`);
             SettingBase.needsSave = true;
             return defaultValue;
         }

@@ -9,7 +9,7 @@ import {
     ServerCommand,
     timeInputShortcutHandler,
     timeToMs } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -22,6 +22,8 @@ import { ClientSettings } from './ClientSettings.js';
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 
+
+const Log = new ContextualLog('MarkerEdit');
 
 /**
  * Handles the editing of markers in the marker table.
@@ -101,7 +103,7 @@ class MarkerEdit {
                 try {
                     document.execCommand('insertText', false, newText);
                 } catch (ex) {
-                    Log.warn(ex, `MarkerEdit: Failed to execute insertText command`);
+                    Log.warn(ex, `Failed to execute insertText command`);
                     // Most browsers still support execCommand even though it's deprecated, but if we did fail, try a direct replacement
                     this.value = this.value.substring(0, this.selectionStart) + newText + this.value.substring(this.selectionEnd);
                 }

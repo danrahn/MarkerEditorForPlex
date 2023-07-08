@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Animation from './inc/Animate.js';
 
@@ -12,6 +12,8 @@ import ThemeColors from './ThemeColors.js';
 
 
 /** @typedef {{ [showId: number] : { [seasonId: number]: MarkerData[] } }} BulkMarkerResult */
+
+const Log = new ContextualLog('BulkAction');
 
 /**
  * Base class that represents a row in a bulk action customization table.

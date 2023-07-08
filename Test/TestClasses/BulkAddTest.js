@@ -1,5 +1,4 @@
 import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
-import { Log } from '../../Shared/ConsoleLog.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
@@ -310,7 +309,6 @@ class BulkAddTest extends TestBase {
         const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         /** @type {SerializedBulkAddResult} // TODO: credits */
         const result = await this.send('bulk_add', { id : metadataId, start : start, end : end, type : 'intro', final : 0, resolveType : resolveType, ignored : ignored.join(',') });
-        Log.info(result);
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
         TestHelpers.verify(result.applied === true || result.applied === false, `Expected result.applied to be true or false, found ${result.applied}`);
         const c = result.conflict;

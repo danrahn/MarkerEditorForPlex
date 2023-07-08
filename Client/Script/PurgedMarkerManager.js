@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
@@ -29,6 +29,8 @@ import ThemeColors from './ThemeColors.js';
 /** @typedef {!import('./PurgedMarkerCache').PurgedGroup} PurgedGroup */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 
+
+const Log = new ContextualLog('PurgedManager');
 
 /**
  * A class that holds the information relevant for a button callback
@@ -1125,8 +1127,7 @@ class PurgedMarkerManager {
             const movie = section.getOrAdd(action.parent_id);
             this.#purgeCache.lazySet(movie.id, movie);
             if (movie.get(action.marker_id)) {
-                Log.warn(`PurgedMarkerManager: Attempting to add a marker to the cache that already exists ` +
-                    `(${action.marker_id})! Overwriting.`);
+                Log.warn(`Attempting to add a marker to the cache that already exists (${action.marker_id})! Overwriting.`);
             }
 
             movie.addNewMarker(action);
@@ -1140,8 +1141,7 @@ class PurgedMarkerManager {
             this.#purgeCache.lazySet(season.id, season);
             this.#purgeCache.lazySet(episode.id, episode);
             if (episode.get(action.marker_id)) {
-                Log.warn(`PurgedMarkerManager: Attempting to add a marker to the cache that already exists ` +
-                    `(${action.marker_id})! Overwriting.`);
+                Log.warn(`Attempting to add a marker to the cache that already exists (${action.marker_id})! Overwriting.`);
             }
 
             episode.addNewMarker(action);
@@ -1184,8 +1184,7 @@ class PurgedMarkerManager {
         const showMarkers = this.#purgeCache.get(showId);
         if (!showMarkers) {
             // Ignore invalid requests
-            Log.warn(`PurgedMarkerManager: Called showSingleShow with a show that has no cached purged markers ` +
-                `(${showId}). How did that happen?`);
+            Log.warn(`Called showSingleShow with a show that has no cached purged markers (${showId}). How did that happen?`);
             return;
         }
 
@@ -1200,9 +1199,7 @@ class PurgedMarkerManager {
         const seasonMarkers = this.#purgeCache.get(seasonId);
         if (!seasonMarkers) {
             // Ignore invalid requests
-            Log.warn(
-                `PurgedMarkerManager: Called showSingleSeason with a season that has no cached purged markers ` +
-                    `(${seasonId}). How did that happen?`);
+            Log.warn(`Called showSingleSeason with a season that has no cached purged markers (${seasonId}). How did that happen?`);
             return;
         }
 
@@ -1221,9 +1218,7 @@ class PurgedMarkerManager {
         const episodeMarkers = this.#purgeCache.get(episodeId);
         if (!episodeMarkers) {
             // Ignore invalid requests
-            Log.warn(
-                `PurgedMarkerManager: Called showSingleEpisode with an episode that has no cached purged markers ` +
-                    `(${episodeId}). How did that happen?`);
+            Log.warn(`Called showSingleEpisode with an episode that has no cached purged markers (${episodeId}). How did that happen?`);
             return;
         }
 
@@ -1246,9 +1241,7 @@ class PurgedMarkerManager {
         const movieMarkers = this.#purgeCache.get(movieId);
         if (!movieMarkers) {
             // Ignore invalid requests
-            Log.warn(
-                `PurgedMarkerManager: Called showSingleMovie with a movie that has no cached purged markers ` +
-                    `(${movieId}). How did that happen?`);
+            Log.warn(`Called showSingleMovie with a movie that has no cached purged markers (${movieId}). How did that happen?`);
             return;
         }
 
@@ -1280,7 +1273,7 @@ class PurgedMarkerManager {
             for (const [movieId, movie] of Object.entries(purgeSection)) {
                 const movieCache = this.#purgeCache.get(movieId);
                 if (movieCache && movieCache.status == PurgeCacheStatus.Complete) {
-                    Log.tmi(`PurgedMarkerCache::onMarkersFound: Not caching completely cached movie ${movieId}`);
+                    Log.tmi(`#onMarkersFound: Not caching completely cached movie ${movieId}`);
                     continue;
                 }
 
@@ -1295,7 +1288,7 @@ class PurgedMarkerManager {
             for (const [showId, show] of Object.entries(purgeSection)) {
                 const showCache = this.#purgeCache.get(showId);
                 if (showCache && showCache.status == PurgeCacheStatus.Complete) {
-                    Log.tmi(`PurgedMarkerCache::onMarkersFound: Not caching completely cached show ${showId}`);
+                    Log.tmi(`#onMarkersFound: Not caching completely cached show ${showId}`);
                     continue;
                 }
 
@@ -1303,7 +1296,7 @@ class PurgedMarkerManager {
                     // If we're here, we shouldn't have anything cached
                     Log.assert(
                         !this.#purgeCache.get(seasonId),
-                        `PurgedMarkerCache::onMarkersFound: [!this.#purgeCache.get(seasonId)] - ` +
+                        `#onMarkersFound: [!this.#purgeCache.get(seasonId)] - ` +
                             `If the season isn't complete, the season shouldn't exist.`);
                     for (const [episodeId, episode] of Object.entries(season)) {
                         for (const markerAction of Object.values(episode)) {

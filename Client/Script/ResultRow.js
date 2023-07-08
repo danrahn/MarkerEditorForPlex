@@ -10,7 +10,7 @@ import {
     pad0,
     plural,
     ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
@@ -41,6 +41,9 @@ import ThemeColors from './ThemeColors.js';
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSeason} PurgedSeason */
 /** @typedef {!import('./PurgedMarkerCache').PurgedShow} PurgedShow */
+
+
+const Log = new ContextualLog('ResultRow');
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.
@@ -117,7 +120,7 @@ class ResultRow {
     hasPurgedMarkers() { return this.getPurgeCount() > 0; }
 
     /** @returns {() => void} An event callback that will invoke the purge overlay if purged markers are present. */
-    getPurgeEventListener() { Log.error(`ResultRow: Classes must override getPurgeEventListener.`); return () => {}; }
+    getPurgeEventListener() { Log.error(`Classes must override getPurgeEventListener.`); return () => {}; }
 
     /** Updates the marker breakdown text ('X/Y (Z.ZZ%)) and tooltip, if necessary. */
     updateMarkerBreakdown() {

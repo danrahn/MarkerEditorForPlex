@@ -1,5 +1,5 @@
 import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeInputShortcutHandler, timeToMs } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -23,6 +23,8 @@ import TableElements from './TableElements.js';
  * @property {boolean} hasCutoff Whether any markers are partially cut off by the shift
  * @property {boolean} hasError Whether any markers are completely cut off by the shift
  */
+
+const Log = new ContextualLog('BulkShift');
 
 /**
  * UI for bulk shifting markers for a given show/season by a set amount of time.

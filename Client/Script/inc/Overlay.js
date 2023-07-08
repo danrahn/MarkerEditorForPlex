@@ -1,5 +1,5 @@
 import { $, buildNode, clearEle } from '../Common.js';
-import { Log } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
 import Animation from './Animate.js';
 import Tooltip from './Tooltip.js';
@@ -19,6 +19,9 @@ import ThemeColors from '../ThemeColors.js';
  * @property {HTMLElement?} focusBack The element to set focus back to after the overlay is dismissed. If this is undefined
  *                                    no element will be focused. If it's null, set focus to whatever this was last set to.
  */
+
+
+const Log = new ContextualLog('Overlay');
 
 /**
  * Class to display overlays on top of a webpage.

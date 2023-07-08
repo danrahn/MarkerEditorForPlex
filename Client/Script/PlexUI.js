@@ -1,5 +1,5 @@
 import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -14,6 +14,8 @@ import { SectionType } from '../../Shared/PlexTypes.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 /** @typedef {!import('./ClientDataExtensions').ClientMovieData} ClientMovieData */
 
+
+const BaseLog = new ContextualLog('PlexUI');
 
 /**
  * The result sections of the application.
@@ -89,7 +91,7 @@ class PlexUIManager {
     /** Creates the singleton PlexUI for this session. */
     static CreateInstance() {
         if (Instance) {
-            Log.error('We should only have a single PlexUI instance!');
+            BaseLog.error('We should only have a single PlexUI instance!');
             return;
         }
 
@@ -170,7 +172,7 @@ class PlexUIManager {
         }
 
         if (savedSection != -1 && !lastSectionExists) {
-            Log.info(`Found a cached library section (${savedSection}), but it doesn't exist anymore!`);
+            BaseLog.info(`Found a cached library section (${savedSection}), but it doesn't exist anymore!`);
         }
 
         // Select a library automatically if there's only one TV show library
@@ -263,7 +265,7 @@ class PlexUIManager {
                 // "Select a library"
                 break;
             default:
-                Log.warn(`Unexpected library type ${libType}`);
+                BaseLog.warn(`Unexpected library type ${libType}`);
                 this.#searchBox.placeholder = 'Search for an item...';
                 break;
         }
@@ -361,7 +363,7 @@ class PlexUIManager {
                 this.#searchShows(forFilterReapply);
                 break;
             default:
-                Log.error(`Attempting to search with an invalid section type.`);
+                BaseLog.error(`Attempting to search with an invalid section type.`);
                 break;
         }
     }

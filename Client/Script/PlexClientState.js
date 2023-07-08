@@ -1,5 +1,5 @@
 import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
 import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
@@ -19,6 +19,8 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
 /** @typedef {!import('./ResultRow').SeasonResultRow} SeasonResultRow */
 /** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
+
+const Log = new ContextualLog('PlexClientState');
 
 /**
  * A class that contains two maps, mapping words of media titles
@@ -261,7 +263,7 @@ class PlexClientStateManager {
         for (const seasonRow of seasons) {
             const newBreakdown = response.seasonData[seasonRow.season().metadataId];
             if (!newBreakdown) {
-                Log.warn(`PlexClientState::UpdateNonActiveBreakdown: ` +
+                Log.warn(`updateNonActiveBreakdown: ` +
                     `Unable to find season breakdown data for ${seasonRow.season().metadataId}`);
                 continue;
             }

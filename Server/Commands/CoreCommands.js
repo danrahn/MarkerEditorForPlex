@@ -1,5 +1,5 @@
 import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { MetadataType, PlexQueries } from '../PlexQueryManager.js';
 import { BackupManager } from '../MarkerBackupManager.js';
@@ -13,6 +13,9 @@ import ServerError from '../ServerError.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
 /** @typedef {!import('../PlexQueryManager').RawEpisodeData} RawEpisodeData */
 /** @typedef {!import('../PlexQueryManager').RawMarkerData} RawMarkerData */
+
+
+const Log = new ContextualLog('CoreCommands');
 
 /**
  * Core add/edit/delete commands

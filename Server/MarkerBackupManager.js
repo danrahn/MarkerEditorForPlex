@@ -4,7 +4,7 @@ import { join as joinPath } from 'path';
 
 // Client/Server shared dependencies
 import { EpisodeData, MarkerData, MarkerEnum, MarkerType, MovieData } from '../Shared/PlexTypes.js';
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 // Server dependencies/typedefs
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
@@ -19,6 +19,8 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('./PlexQueryManager').MultipleMarkerQuery} MultipleMarkerQuery */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
+
+const Log = new ContextualLog('MarkerBackup');
 
 /*
 Backup table V1:
@@ -321,13 +323,13 @@ class MarkerBackupManager {
             MarkerBackupManager.Close();
         }
 
-        Log.info('MarkerBackupManager: Initializing marker backup database...');
+        Log.info('Initializing marker backup database...');
         /** @type {{id: number, uuid: string, section_type: number}[]} */
         let sections;
         try {
             sections = await PlexQueries.sectionUuids();
         } catch (err) {
-            Log.error(`MarkerBackupManager: Unable to get existing library sections. Can't properly backup marker actions`);
+            Log.error(`Unable to get existing library sections. Can't properly backup marker actions`);
             throw err;
         }
 
@@ -340,21 +342,21 @@ class MarkerBackupManager {
 
         const dbPath = joinPath(dataRoot, 'Backup');
         if (!existsSync(dbPath)) {
-            Log.verbose('MarkerBackupManager: Backup path does not exist, creating it.');
+            Log.verbose('Backup path does not exist, creating it.');
             mkdirSync(dbPath);
         }
 
         const fullPath = joinPath(dbPath, 'markerActions.db');
         const dbExists = existsSync(fullPath);
         if (!dbExists) {
-            Log.info(`MarkerBackupManager: No backup marker database found, creating it (${fullPath}).`);
+            Log.info(`No backup marker database found, creating it (${fullPath}).`);
         } else {
-            Log.tmi(`MarkerBackupManager: Backup database found, attempting to open...`);
+            Log.tmi(`Backup database found, attempting to open...`);
         }
 
         try {
             const db = await DatabaseWrapper.CreateDatabase(fullPath, true /*allowCreate*/);
-            Log.tmi('MarkerBackupManager: Opened database, checking schema');
+            Log.tmi('Opened database, checking schema');
             await db.exec(CheckVersionTable);
             if (!dbExists) {
                 await db.exec(SchemaUpgrades[0]);
@@ -366,7 +368,7 @@ class MarkerBackupManager {
             if (version != CurrentSchemaVersion) {
                 if (version != 0) {
                     // Only log if this isn't a new database, i.e. version isn't 0.
-                    Log.info(`MarkerBackupManager: Old database schema detected (${version}), attempting to upgrade.`);
+                    Log.info(`Old database schema detected (${version}), attempting to upgrade.`);
                 }
 
                 await manager.upgradeSchema(version);
@@ -376,11 +378,11 @@ class MarkerBackupManager {
             // TODO: Do something similar for 1 -> 2?
             await manager.postUpgrade();
 
-            Log.info(fullPath, 'MarkerBackupManager: Initialized backup database');
+            Log.info(fullPath, 'Initialized backup database');
             Instance = manager;
             return manager;
         } catch (err) {
-            Log.error('MarkerBackupManager: Unable to create/open backup database, exiting...');
+            Log.error('Unable to create/open backup database, exiting...');
             throw err;
         }
     }
@@ -401,12 +403,12 @@ class MarkerBackupManager {
 
     /** Closes the database connection. */
     async close() {
-        Log.verbose('MarkerBackupManager: Shutting down backup database connection...');
+        Log.verbose('Shutting down backup database connection...');
         try {
             await this.#actions?.close();
-            Log.verbose('MarkerBackupManager: Shut down backup database connection.');
+            Log.verbose('Shut down backup database connection.');
         } catch (err) {
-            Log.error('MarkerBackupManager: Backup marker database close failed', err.message);
+            Log.error('Backup marker database close failed', err.message);
         }
     }
 
@@ -415,14 +417,14 @@ class MarkerBackupManager {
      * @param {number} oldVersion The current schema version of the backup database. */
     async upgradeSchema(oldVersion) {
         const nextVersion = oldVersion + 1;
-        Log.info(`MarkerBackupManager: Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
+        Log.info(`Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
         await this.#actions.exec(SchemaUpgrades[oldVersion]);
         await this.#schemaUpgradeCallbacks[oldVersion]();
         if (nextVersion != CurrentSchemaVersion) {
             await this.upgradeSchema(nextVersion);
         } else {
-            Log.info('MarkerBackupManager: Successfully upgraded database schema.');
-            Log.info('MarkerBackupManager: Initialized backup database');
+            Log.info('Successfully upgraded database schema.');
+            Log.info('Initialized backup database');
         }
     }
 
@@ -431,7 +433,7 @@ class MarkerBackupManager {
      * the user performed any actions with the V1 database schema.
      * This should be a one-time operation (per server associated with this application). */
     async #updateSectionIdAfterUpgrade() {
-        Log.verbose('MarkerBackupManager: Setting section_id after upgrading schema.');
+        Log.verbose('Setting section_id after upgrading schema.');
 
         const transaction = new TransactionBuilder(this.#actions);
         for (const [section, uuid] of Object.entries(this.#uuids)) {
@@ -514,7 +516,7 @@ class MarkerBackupManager {
         /** @type {MarkerAction[]} */
         const allActions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
         if (!allActions || allActions.length == 0) {
-            Log.verbose('MarkerBackupManager: No active actions missing episode guid.');
+            Log.verbose('No active actions missing episode guid.');
             return;
         }
 
@@ -524,14 +526,14 @@ class MarkerBackupManager {
             (bySection[action.section_id] ??= []).push(action);
         }
 
-        Log.info('MarkerBackupManager: Found marker actions without an episode guid. Attempting to match them now.');
+        Log.info('Found marker actions without an episode guid. Attempting to match them now.');
         const transaction = new TransactionBuilder(this.#actions);
         for (const [sectionId, actions] of Object.entries(bySection)) {
             const items = await PlexQueries.baseGuidsForSection(sectionId);
             for (const action of actions) {
                 const guid = items[action.parent_id];
                 if (!guid) {
-                    Log.warn(`MarkerBackupManager: Unable to find matching guid for metadata item ${action.parent_id}, ` +
+                    Log.warn(`Unable to find matching guid for metadata item ${action.parent_id}, ` +
                         `marking it as ignored as it cannot be restored.`);
                     transaction.addStatement(
                         'UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?',
@@ -546,7 +548,7 @@ class MarkerBackupManager {
             }
         }
 
-        Log.info(`MarkerBackupManager: Running ${transaction.statementCount()} queries to update guids.`);
+        Log.info(`Running ${transaction.statementCount()} queries to update guids.`);
         await transaction.exec();
     }
 
@@ -623,7 +625,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
-                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record added marker - unexpected section id');
+                Log.error(marker.sectionId, 'Unable to record added marker - unexpected section id');
                 return;
             }
 
@@ -636,9 +638,9 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
 
         try {
             await transaction.exec();
-            Log.verbose(`MarkerBackupManager: ${transaction.statementCount()} marker add(s) added to backup.`);
+            Log.verbose(`${transaction.statementCount()} marker add(s) added to backup.`);
         } catch (err) {
-            Log.error(err.message, 'MarkerBackupManager: Unable to record added marker');
+            Log.error(err.message, 'Unable to record added marker');
         }
     }
 
@@ -650,13 +652,13 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
-                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record edited marker - unexpected section id');
+                Log.error(marker.sectionId, 'Unable to record edited marker - unexpected section id');
                 continue;
             }
 
             const oldTimings = oldMarkerTimings[marker.id];
             if (!oldTimings) {
-                Log.error(marker.id, 'MarkerBackupManager: Unable to record edited marker - marker id not in old timings map');
+                Log.error(marker.id, 'Unable to record edited marker - marker id not in old timings map');
                 continue;
             }
 
@@ -669,9 +671,9 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
 
         try {
             await transaction.exec();
-            Log.verbose(`MarkerBackupManager: Backed up ${transaction.statementCount()} marker edit(s).`);
+            Log.verbose(`Backed up ${transaction.statementCount()} marker edit(s).`);
         } catch (err) {
-            Log.error(err.message, 'MarkerBackupManager: Unable to record edited marker');
+            Log.error(err.message, 'Unable to record edited marker');
         }
     }
 
@@ -682,7 +684,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
-                Log.error(marker.sectionId, 'MarkerBackupManager: Unable to record deleted marker - unexpected section id');
+                Log.error(marker.sectionId, 'Unable to record deleted marker - unexpected section id');
                 continue;
             }
 
@@ -695,9 +697,9 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
 
         try {
             await transaction.exec();
-            Log.verbose(`MarkerBackupManager: ${transaction.statementCount()} marker delete(s) added to backup.`);
+            Log.verbose(`${transaction.statementCount()} marker delete(s) added to backup.`);
         } catch (err) {
-            Log.error(err.message, 'MarkerBackupManager: Unable to record deleted markers');
+            Log.error(err.message, 'Unable to record deleted markers');
         }
     }
 
@@ -721,7 +723,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             await transaction.exec();
         } catch (err) {
             // Swallow the error, though we should probably actually do something about this.
-            Log.error(err.message, 'MarkerBackupManager: Unable to record restoration of marker');
+            Log.error(err.message, 'Unable to record restoration of marker');
         }
     }
 
@@ -779,7 +781,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
-                Log.warn(`MarkerBackupManager: Couldn't find episode ${episode.id} in purge list.`);
+                Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
                 continue;
             }
 
@@ -812,7 +814,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const movies = await PlexQueries.getMoviesFromList(Object.keys(movieMap));
         for (const movie of movies) {
             if (!movieMap[movie.id]) {
-                Log.warn(`MarkerBackupManager: Couldn't find movie ${movie.id} in purge list.`);
+                Log.warn(`Couldn't find movie ${movie.id} in purge list.`);
                 continue;
             }
 
@@ -1096,7 +1098,7 @@ ORDER BY id DESC;`;
             case MetadataType.Season: return 'season';
             case MetadataType.Episode: case MetadataType.Movie: return 'parent';
             default:
-                Log.error(`MarkerBackupManager: The caller should have verified a valid value already.`);
+                Log.error(`The caller should have verified a valid value already.`);
                 throw new ServerError(`columnFromMediaType: Unexpected media type ${mediaType}`, 400);
         }
     }
@@ -1136,7 +1138,7 @@ ORDER BY id DESC;`;
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }
 
-        Log.verbose(`MarkerBackupManager: Attempting to restore ${oldMarkerIds.length} marker(s).`);
+        Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
         let query = 'SELECT * FROM actions WHERE (';
         const parameters = [];
         for (const oldMarkerId of oldMarkerIds) {
@@ -1235,7 +1237,7 @@ ORDER BY id DESC;`;
             }
 
             oldAction = oldAction[0];
-            Log.tmi(`MarkerBackupManager::restoreMarkers: Identical marker found, setting it as the restored id.`);
+            Log.tmi(`restoreMarkers: Identical marker found, setting it as the restored id.`);
             restoredList.push({ marker : ignoredMarker, oldMarkerId : oldAction.marker_id });
             this.#removeFromPurgeMap(oldAction);
         }
@@ -1268,7 +1270,7 @@ ORDER BY id DESC;`;
         }
 
         const idSet = {};
-        Log.verbose(`MarkerBackupManager: Attempting to ignore ${oldMarkerIds} marker(s).`);
+        Log.verbose(`Attempting to ignore ${oldMarkerIds} marker(s).`);
 
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
         // while also letting us know that there isn't a real marker that

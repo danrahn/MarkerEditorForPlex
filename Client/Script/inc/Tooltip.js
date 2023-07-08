@@ -1,5 +1,8 @@
 import { $, buildNode } from './../Common.js';
-import { Log } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+
+
+const Log = new ContextualLog('Tooltip');
 
 /**
  * Implements common functionality for on-hover tooltips, offering expanded functionality over 'title'.

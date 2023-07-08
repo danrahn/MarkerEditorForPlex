@@ -4,7 +4,7 @@ import { readFileSync } from 'fs';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './IntroEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
@@ -12,6 +12,9 @@ import DatabaseImportExport from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 import { Thumbnails } from './ThumbnailManager.js';
+
+
+const Log = new ContextualLog('GETHandler');
 
 class GETHandler {
 

@@ -1,5 +1,5 @@
 import { $$ } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { EpisodeData, MarkerData, MovieData, PlexData } from '../../Shared/PlexTypes.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
@@ -7,6 +7,8 @@ import MarkerTable from './MarkerTable.js';
 
 /** @typedef {!import('./ResultRow').EpisodeResultRow} EpisodeResultRow */
 /** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
+
+const Log = new ContextualLog('ClientData');
 
 /**
  * Note: This class is never actually instantiated. It's only used for

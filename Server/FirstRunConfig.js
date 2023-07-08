@@ -3,10 +3,13 @@ import { createInterface as createReadlineInterface } from 'readline';
 import { join } from 'path';
 /** @typedef {!import('readline').Interface} Interface */
 
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { IntroEditorConfig } from './IntroEditorConfig.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
+
+
+const Log = new ContextualLog('FirstRun');
 
 /**
  * Checks whether config.json exists. If it doesn't, asks the user

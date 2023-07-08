@@ -2,8 +2,11 @@ import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
+
+
+const Log = new ContextualLog('EditorConfig');
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.

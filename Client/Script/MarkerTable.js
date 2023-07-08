@@ -1,5 +1,5 @@
 import { appendChildren, buildNode, clearEle, msToHms } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -11,6 +11,8 @@ import TableElements from './TableElements.js';
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 /** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */
+
+const Log = new ContextualLog('MarkerTable');
 
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.

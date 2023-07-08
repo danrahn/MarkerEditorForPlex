@@ -3,9 +3,12 @@
  * Most definitely overkill for its low-level purpose.
  */
 
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
+
+
+const Log = new ContextualLog('PurgedGroup');
 
 /** Enum defining the various states of initialization possible for a PurgedGroup
  * @enum */
@@ -90,7 +93,7 @@ class PurgedGroup {
     /** Retrieve the PurgedGroup for the given metadataId, adding and returning a new entry if it doesn't exist. */
     getOrAdd(id) { return this.data[id] || this.addNewGroup(id); }
     /** Adds a new PurgedGroup to the cache. Should never be called directly from the base class. */
-    addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on the base PurgedGroup, must call from derived class.`); }
+    addNewGroup(_) { Log.error(`Cannot call addNewGroup on the base PurgedGroup, must call from derived class.`); }
 
     /**
      * Base add method that adds the given PurgedGroup at the given metadataId
@@ -112,7 +115,7 @@ class PurgedGroup {
      * @param {number} key */
     checkNewKey(key) {
         if (this.data[key]) {
-            Log.warn(`PurgedGroup: Overwriting existing data at "${key}"`);
+            Log.warn(`Overwriting existing data at "${key}"`);
             return false;
         }
 
@@ -227,8 +230,8 @@ class PurgedSeason extends PurgedGroup {
 }
 
 class PurgedBaseItem extends PurgedGroup {
-    addNewGroup(_) { Log.error(`PurgedGroup: Cannot call addNewGroup on a base media type (purgedMovie/purgedEpisode).`); }
-    getOrAdd(_) { Log.error(`PurgedGroup: Cannot call getOrAdd on a base media type (purgedMovie/purgedEpisode).`); }
+    addNewGroup(_) { Log.error(`Cannot call addNewGroup on a base media type (purgedMovie/purgedEpisode).`); }
+    getOrAdd(_) { Log.error(`Cannot call getOrAdd on a base media type (purgedMovie/purgedEpisode).`); }
     deepClone() {
         // Special handling for base item types since data values are not a PurgeGroup, but MarkerActions
         const newItem = this._getNewObjectForClone();

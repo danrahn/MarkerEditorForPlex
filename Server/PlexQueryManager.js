@@ -1,5 +1,5 @@
 import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData, MarkerEnum, MarkerType } from '../Shared/PlexTypes.js';
-import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';
@@ -34,6 +34,9 @@ import TransactionBuilder from './TransactionBuilder.js';
  * @typedef {{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[], deletedMarkers: RawMarkerData[],
  *            modifiedMarkers: ModifiedMarkerDetails[], ignoredActions: MarkerAction[]}} BulkRestoreResult
  */
+
+
+const Log = new ContextualLog('PlexDB');
 
 /**
  * extra_data string for different marker types
@@ -192,17 +195,17 @@ FROM taggings
             Instance.close();
         }
 
-        Log.info(`PlexQueryManager: Verifying database ${databasePath}...`);
+        Log.info(`Verifying database ${databasePath}...`);
         /** @type {DatabaseWrapper} */
         let db;
         try {
             db = await DatabaseWrapper.CreateDatabase(databasePath, false /*fAllowCreate*/);
         } catch (err) {
-            Log.error(`PlexQueryManager: Unable to open database. Are you sure "${databasePath}" exists?`);
+            Log.error(`Unable to open database. Are you sure "${databasePath}" exists?`);
             throw ServerError.FromDbError(err);
         }
 
-        Log.tmi(`PlexQueryManager: Opened database, making sure it looks like the Plex database`);
+        Log.tmi(`Opened database, making sure it looks like the Plex database`);
         try {
             const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
             if (!row) {
@@ -220,11 +223,11 @@ FROM taggings
                 throw new ServerError(`Plex database must contain at least one marker.`, 500);
             }
 
-            Log.info('PlexQueryManager: Database verified');
+            Log.info('Database verified');
             Instance = new PlexQueryManager(db, pureMode, row.id);
             return Instance;
         } catch (err) {
-            Log.error(`PlexQueryManager: Are you sure "${databasePath}" is the Plex database, and has at least one existing marker?`);
+            Log.error(`Are you sure "${databasePath}" is the Plex database, and has at least one existing marker?`);
             throw ServerError.FromDbError(err);
         }
     }
@@ -245,13 +248,13 @@ FROM taggings
 
     /** On process exit, close the database connection. */
     async close() {
-        Log.verbose(`PlexQueryManager: Shutting down Plex database connection...`);
+        Log.verbose(`Shutting down Plex database connection...`);
         if (this.#database) {
             try {
                 await this.#database.close();
-                Log.verbose('PlexQueryManager: Shut down Plex database connection.');
+                Log.verbose('Shut down Plex database connection.');
             } catch (err) {
-                Log.error('PlexQueryManager: Database close failed', err.message);
+                Log.error('Database close failed', err.message);
             }
 
             this.#database = null;
@@ -414,7 +417,7 @@ ORDER BY e.\`index\` ASC;`;
             // We should have already ensured only integers are passed in here, but be safe.
             const metadataId = parseInt(episodeId);
             if (isNaN(metadataId)) {
-                Log.warn(`PlexQueryManager: Can't get episode information for non-integer id ${episodeId}`);
+                Log.warn(`Can't get episode information for non-integer id ${episodeId}`);
                 continue;
             }
 
@@ -582,7 +585,7 @@ ORDER BY e.\`index\` ASC;`;
         mediaIds.forEach(mediaId => {
             if (isNaN(mediaId)) {
                 // Don't accept bad keys, but don't fail the entire operation either.
-                Log.warn(mediaId, 'PlexQueryManager: Found bad key in queryIds, skipping');
+                Log.warn(mediaId, 'Found bad key in queryIds, skipping');
                 return;
             }
 
@@ -1099,13 +1102,15 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         if (expectedInserts == 0) {
-            Log.assert(ignoredActions.size > 0, `PlexQueryManager::bulkRestore: no inserts expected, but we aren't blocking any actions.`);
+            Log.assert(
+                ignoredActions.size > 0,
+                `bulkRestore: no inserts expected, but we aren't blocking any actions.`);
             if (toDelete.length == 0 && Object.keys(toModify).length == 0) {
                 // This is only expected if every marker we tried to restore already exists. In that case just
                 // immediately return without any new markers, since we didn't add any.
                 const isExpected = identicalMarkers.length + ignoredActions.size == potentialRestores;
-                Log.assert(isExpected, `PlexQueryManager::bulkRestore: identicalMarkers == potentialRestores`);
-                Log.warn(`PlexQueryManager::bulkRestore: no markers to restore, did they all match against an existing marker?`);
+                Log.assert(isExpected, `bulkRestore: identicalMarkers == potentialRestores`);
+                Log.warn(`bulkRestore: no markers to restore, did they all match against an existing marker?`);
                 return {
                     newMarkers : [],
                     identicalMarkers : identicalMarkers,
@@ -1265,7 +1270,7 @@ ORDER BY e.\`index\` ASC;`;
         try {
             await this.#database.run('UPDATE taggings SET `index`=? WHERE id=?;', [newIndex, markerId]);
         } catch (err) {
-            Log.error(`PlexQueryManager: Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
+            Log.error(`Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
         }
     }
 
@@ -1417,7 +1422,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         if (!transaction.empty()) {
-            Log.verbose(`PlexQueryManager::reindex: Reindexing ${transaction.statementCount()} markers.`);
+            Log.verbose(`reindex: Reindexing ${transaction.statementCount()} markers.`);
             await transaction.exec();
         }
 

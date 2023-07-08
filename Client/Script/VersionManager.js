@@ -1,11 +1,14 @@
 import { $, $$, appendChildren, buildNode, plural } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Animation from './inc/Animate.js';
 
 import ButtonCreator from './ButtonCreator.js';
 
 /** @typedef {{[version: string]: { ignoreType : number, ignoreDate : number}}} UpdateCheckSettings */
+
+
+const Log = new ContextualLog('VersionManager');
 
 /**
  * Handles checking whether a new version of the app is available on GitHub

@@ -1,5 +1,5 @@
 import { MarkerConflictResolution, MarkerData } from '../../Shared/PlexTypes.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { BackupManager } from '../MarkerBackupManager.js';
 import { Config } from '../IntroEditorConfig.js';
@@ -9,6 +9,9 @@ import { PlexQueries } from '../PlexQueryManager.js';
 import ServerError from '../ServerError.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+
+
+const Log = new ContextualLog('PurgeCommands');
 
 class PurgeCommands {
 
@@ -50,7 +53,7 @@ class PurgeCommands {
         const modifiedMarkers = restoredMarkerData.modifiedMarkers;
 
         if (restoredMarkers.length == 0) {
-            Log.verbose(`IntroEditor::restoreMarkers: No markers to restore, likely because they all already existed.`);
+            Log.verbose(`restoreMarkers: No markers to restore, likely because they all already existed.`);
         }
 
 

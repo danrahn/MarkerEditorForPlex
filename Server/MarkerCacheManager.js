@@ -1,4 +1,4 @@
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { MarkerEnum, supportedMarkerType } from '../Shared/PlexTypes.js';
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
@@ -25,6 +25,9 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
  * @typedef {{ id: number, season_id: number, show_id: number, section_id: number }} MediaItemQueryResult
  * @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap
  */
+
+
+const Log = new ContextualLog('MarkerCache');
 
 /**
  * Extension of MarkerBreakdown to handle the parent hierarchy that the client-side breakdown doesn't have.

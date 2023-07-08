@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
@@ -11,6 +11,9 @@ import { PlexClientState } from './PlexClientState.js';
 import Tooltip from './inc/Tooltip.js';
 
 /** @typedef {import('./inc/Overlay').OverlayOptions} OverlayOptions */
+
+
+const Log = new ContextualLog('SectionOps');
 
 class SectionOptionsOverlay {
     /**

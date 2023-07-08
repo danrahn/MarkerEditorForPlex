@@ -2,13 +2,15 @@ import { existsSync, mkdirSync, readFile, readFileSync, rmSync, statSync } from 
 import { join, join as joinPath } from 'path';
 import { execFileSync } from 'child_process';
 
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './IntroEditorConfig.js';
 import ServerError from './ServerError.js';
 
 /** @typedef {!import('./DatabaseWrapper'.default) DatabaseWrapper} */
 
+
+const Log = new ContextualLog('ThumbManager');
 
 /**
  * Singleton thumbnail manager instance
@@ -67,7 +69,7 @@ class ThumbnailManager {
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) {
-        Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}`);
+        Log.error(`getThumbnail: This should not be called on the base class ${metadataId}`);
     }
 
     /**
@@ -81,7 +83,7 @@ class ThumbnailManager {
      * retrieval was successful, and `reject`ed if the thumbnail doesn't exist or we were
      * otherwise unable to retrieve it. */
     async getThumbnail(metadataId, timestamp) {
-        Log.error(`ThumbnailManager.getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
+        Log.error(`getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
     }
 
     close() {}

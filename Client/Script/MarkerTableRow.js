@@ -1,6 +1,6 @@
 
 import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
@@ -11,6 +11,8 @@ import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import TableElements from './TableElements.js';
 
+
+const Log = new ContextualLog('MarkerTableRow');
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */

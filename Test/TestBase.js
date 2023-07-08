@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 
 // Client/Server shared dependencies
-import { ConsoleLog, Log } from '../Shared/ConsoleLog.js';
+import { BaseLog, ConsoleLog } from '../Shared/ConsoleLog.js';
 
 // Server/test dependencies/typedefs
 import { GetServerState, ServerState } from '../Server/ServerState.js';
@@ -68,14 +68,14 @@ class TestBase {
      * General purpose method that will be called after a test is executed. */
     testMethodTeardown() {
         // Tests that expect to fail disable Error logging in the main Log (see `expectFailure`). Rest it to Warn.
-        Log.setLevel(ConsoleLog.Level.Warn);
+        BaseLog.setLevel(ConsoleLog.Level.Warn);
     }
 
     /**
      * Sets the application log level to suppress everything but critical messages
      * because we expect operations to fail. */
     expectFailure() {
-        Log.setLevel(ConsoleLog.Level.Critical);
+        BaseLog.setLevel(ConsoleLog.Level.Critical);
     }
 
     /**
@@ -239,7 +239,7 @@ class TestBase {
         }
 
         await this.send('resume');
-        Log.tmi('Resuming server');
+        BaseLog.tmi('Resuming server');
     }
 
     /**

@@ -1,4 +1,4 @@
-import { Log } from '../Shared/ConsoleLog.js';
+import { BaseLog } from '../Shared/ConsoleLog.js';
 
 /**
  * Manages cached marker breakdown stats, used when extendedMarkerStats are disabled.
@@ -29,7 +29,7 @@ class LegacyMarkerBreakdown {
         }
 
         if (!(oldMarkerCount in cache)) {
-            Log.warn(`updateMarkerBreakdownCache: no bucket for oldMarkerCount. That's not right!`);
+            BaseLog.warn(`LegacyMarkerBreakdown::updateMarkerBreakdownCache: no bucket for oldMarkerCount. That's not right!`);
             cache[oldMarkerCount] = 1; // Bring it down to zero I guess.
         }
 

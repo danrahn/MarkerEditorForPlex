@@ -1,5 +1,8 @@
 import { $ } from '../Common.js';
-import { Log } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+
+
+const Log = new ContextualLog('Animation');
 
 /**
  * A lightweight class to animate various element properties. Performance is questionable at best,

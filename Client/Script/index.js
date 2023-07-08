@@ -1,5 +1,5 @@
 import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { BaseLog } from '../../Shared/ConsoleLog.js';
 
 import { ClientSettings, SettingsManager } from './ClientSettings.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
@@ -9,7 +9,7 @@ import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import VersionManager from './VersionManager.js';
 
-window.Log = Log; // Let the user interact with the class to tweak verbosity/other settings.
+window.Log = BaseLog; // Let the user interact with the class to tweak verbosity/other settings.
 
 window.addEventListener('load', setup);
 
@@ -36,7 +36,7 @@ async function mainSetup() {
     try {
         config = await ServerCommand.getConfig();
     } catch (err) {
-        Log.warn(errorMessage(err), 'Unable to get app config, assuming everything is disabled. Server responded with');
+        BaseLog.warn(errorMessage(err), 'ClientCore: Unable to get app config, assuming everything is disabled. Server responded with');
     }
 
     ClientSettings.parseServerConfig(config);

@@ -29,6 +29,16 @@ class ConsoleLog {
     /** Display strings for each log {@linkcode Level} */
     static #logStrings = ['EXTREME', 'TMI', 'VERBOSE', 'INFO', 'WARN', 'ERROR', 'CRITICAL'];
 
+    /** Spacing for more readable logs. Also includes formatted brackets for over-optimization. */
+    static #formattedLogStrings = [
+        '[%cEXTREME%c]',
+        '[%cTMI    %c]',
+        '[%cVERBOSE%c]',
+        '[%cINFO   %c]',
+        '[%cWARN   %c]',
+        '[%cERROR  %c]',
+        '[%cCRITICAL%c]'];
+
     /** Console color definitions for each log {@linkcode Level} */
     static #consoleColors = [
         // Light Title, Dark Title, Light Text, Dark Text
@@ -67,24 +77,30 @@ class ConsoleLog {
         ],
     ];
 
+    /**
+     * The Window object associated with this session. Client-side this is a real
+     * window. Server-side, this is a fake and hacky skeleton of one. */
+    static #window;
+
     /** The current log level. Anything below this will not be logged.
      * @type {Level} */
-    #currentLogLevel;
+    static #currentLogLevel;
 
     /** Determine whether we should add a trace to every log event, not just errors.
      * @type {number} */
-    #traceLogging;
+    static #traceLogging;
 
     /** Tweak colors a bit based on whether the user is using a dark console theme.
      * @type {number} 0 for light, 1 for dark. */
-    #darkConsole;
+    static #darkConsole;
 
-    constructor(window) {
-        this.window = window;
+    static BaseSetup(window) {
+
+        ConsoleLog.#window = window;
 
         // We use ConsoleLog both on both the server and client side.
         // Server-side, create a stub of localStorage and window so nothing breaks
-        if (!this.window) {
+        if (!ConsoleLog.#window) {
             class LS {
                 constructor() {
                     this._dict = {};
@@ -98,34 +114,43 @@ class ConsoleLog {
                 localStorage = new LS();
             }
 
-            this.window = new W();
+            ConsoleLog.#window = new W();
         }
 
         /** The current log level. Anything below this will not be logged. */
-        this.#currentLogLevel = parseInt(this.window.localStorage.getItem('loglevel'));
-        if (isNaN(this.#currentLogLevel)) {
-            this.#currentLogLevel = ConsoleLog.Level.Info;
+        ConsoleLog.#currentLogLevel = parseInt(ConsoleLog.#window.localStorage.getItem('loglevel'));
+        if (isNaN(ConsoleLog.#currentLogLevel)) {
+            ConsoleLog.#currentLogLevel = ConsoleLog.Level.Info;
         }
 
         /** Determine whether we should add a trace to every log event, not just errors. */
-        this.#traceLogging = parseInt(this.window.localStorage.getItem('logtrace'));
-        if (isNaN(this.#traceLogging)) {
-            this.#traceLogging = 0;
+        ConsoleLog.#traceLogging = parseInt(ConsoleLog.#window.localStorage.getItem('logtrace'));
+        if (isNaN(ConsoleLog.#traceLogging)) {
+            ConsoleLog.#traceLogging = 0;
         }
 
         /** Tweak colors a bit based on whether the user is using a dark console theme */
-        this.#darkConsole = parseInt(this.window.localStorage.getItem('darkconsole'));
-        if (isNaN(this.#darkConsole)) {
+        ConsoleLog.#darkConsole = parseInt(ConsoleLog.#window.localStorage.getItem('darkconsole'));
+        if (isNaN(ConsoleLog.#darkConsole)) {
             // Default to system browser theme (if available)
-            let mediaMatch = this.window.matchMedia('(prefers-color-scheme: dark)');
+            let mediaMatch = ConsoleLog.#window.matchMedia('(prefers-color-scheme: dark)');
             mediaMatch = mediaMatch != 'not all' && mediaMatch.matches;
-            this.#darkConsole = mediaMatch ? 1 : 0;
+            ConsoleLog.#darkConsole = mediaMatch ? 1 : 0;
+        }
+    }
+
+    constructor() {
+        // Ensure our core log has been initialized.
+        if ((this instanceof ContextualLog) && !ConsoleLog.#window) {
+            console.error(
+                `[${ConsoleLog.#getTimestring()}][ERROR  ] ` +
+                `ContextualLog initialized before BaseLog. That shouldn't happen!`);
         }
     }
 
     /** Test ConsoleLog by outputting content for each log level */
     testConsolelog() {
-        const old = this.#currentLogLevel;
+        const old = ConsoleLog.#currentLogLevel;
         this.setLevel(-1);
         this.tmi('TMI!');
         this.setLevel(0);
@@ -144,40 +169,40 @@ class ConsoleLog {
      * Sets the new minimum logging severity.
      * @param {Level} level The new log level. */
     setLevel(level) {
-        this.window.localStorage.setItem('loglevel', level);
-        this.#currentLogLevel = level;
+        ConsoleLog.#window.localStorage.setItem('loglevel', level);
+        ConsoleLog.#currentLogLevel = level;
     }
 
     /**
      * @returns The current minimum logging severity. */
     getLevel() {
-        return this.#currentLogLevel;
+        return ConsoleLog.#currentLogLevel;
     }
 
     /**
      * Set text to be better suited for dark versus light backgrounds.
      * @param {number} dark `1` to adjust colors for dark consoles, `0` for light. */
     setDarkConsole(dark) {
-        this.window.localStorage.setItem('darkconsole', dark);
-        this.#darkConsole = dark ? 1 : 0;
+        ConsoleLog.#window.localStorage.setItem('darkconsole', dark);
+        ConsoleLog.#darkConsole = dark ? 1 : 0;
     }
 
     /** @returns Whether the current color scheme is best suited for dark consoles. */
     getDarkConsole() {
-        return this.#darkConsole;
+        return ConsoleLog.#darkConsole;
     }
 
     /**
      * Set whether to print stack traces for each log. Helpful when debugging.
      * @param {number} trace `1` to enable trace logging, `0` otherwise. */
     setTrace(trace) {
-        this.window.localStorage.setItem('logtrace', trace);
-        this.#traceLogging = trace ? 1 : 0;
+        ConsoleLog.#window.localStorage.setItem('logtrace', trace);
+        ConsoleLog.#traceLogging = trace ? 1 : 0;
     }
 
     /** @returns Whether stack traces are printed for each log. */
     getTrace() {
-        return this.#traceLogging;
+        return ConsoleLog.#traceLogging;
     }
 
     /**
@@ -192,7 +217,7 @@ class ConsoleLog {
         let level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
         if (level == ConsoleLog.Level.Invalid) {
             console.warn(
-                `[WARN][${ConsoleLog.#getTimestring()}] ` +
+                `[${ConsoleLog.#getTimestring()}][WARN   ] ` +
                 `ConsoleLog.setFromString: Got invalid level "${match[3]}". ` +
                 `Defaulting to "${ConsoleLog.#logStrings[levelDefault]}".`);
             level = levelDefault;
@@ -224,9 +249,9 @@ class ConsoleLog {
      * @param {any} obj The object or string to log.
      * @param {string} [description] If provided, will be prefixed to the output before `obj`.
      * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
-    info = function (obj, description, freeze) {
+    info(obj, description, freeze) {
         this.log(obj, description, freeze, ConsoleLog.Level.Info);
-    };
+    }
 
     /**
      * Log a warning using `console.warn`.
@@ -270,7 +295,7 @@ class ConsoleLog {
      * @param {string} text The warning to give if the assertion fails. */
     assert(condition, text) {
         if (!condition) {
-            Log.warn(`Assertion Failed: ${text}`);
+            this.warn(`Assertion Failed: ${text}`);
         }
     }
 
@@ -288,18 +313,18 @@ class ConsoleLog {
      * Note that this cannot apply to `obj`, only `description`.
      */
     log(obj, description, freeze, level, textOnly, ...more) {
-        if (level < this.#currentLogLevel) {
+        if (level < ConsoleLog.#currentLogLevel) {
             return;
         }
 
         const timestring = ConsoleLog.#getTimestring();
-        const colors = this.#traceLogging ? ConsoleLog.#traceColors : ConsoleLog.#consoleColors;
+        const colors = ConsoleLog.#traceLogging ? ConsoleLog.#traceColors : ConsoleLog.#consoleColors;
         const type = (object) => typeof (object) == 'string' ? '%s' : '%o';
 
-        if (this.#currentLogLevel == ConsoleLog.Level.Extreme) {
+        if (ConsoleLog.#currentLogLevel == ConsoleLog.Level.Extreme) {
             this.#write(
                 console.debug,
-                `%c[%cEXTREME%c][%c${timestring}%c] Called log with '${description ? description + ': ' : ''}${type(obj)},${level}'`,
+                `%c[%c${timestring}%c][%cEXTREME%c] Called log with '${description ? description + ': ' : ''}${type(obj)},${level}'`,
                 ConsoleLog.#currentState(obj, freeze),
                 ConsoleLog.Level.Extreme,
                 colors,
@@ -317,7 +342,7 @@ class ConsoleLog {
 
         this.#write(
             this.#getOutputStream(level),
-            `%c[%c${ConsoleLog.#logStrings[level]}%c][%c${timestring}%c] ${desc}`,
+            `%c[%c${timestring}%c]${ConsoleLog.#formattedLogStrings[level]} ${desc}`,
             ConsoleLog.#currentState(obj, freeze),
             level,
             colors,
@@ -334,8 +359,8 @@ class ConsoleLog {
      * This will be `traceColors` if trace logging is enabled, otherwise `consoleColors`.
      * @param {...any} [more] Any additional formatting properties that will be applied to `text`. */
     #write(outputStream, text, object, logLevel, colors, ...more) {
-        const textColor = `color: ${colors[logLevel][2 + this.#darkConsole]}`;
-        const titleColor = `color: ${colors[logLevel][this.#darkConsole]}`;
+        const textColor = `color: ${colors[logLevel][2 + ConsoleLog.#darkConsole]}`;
+        const titleColor = `color: ${colors[logLevel][ConsoleLog.#darkConsole]}`;
         outputStream(text, textColor, titleColor, textColor, titleColor, textColor, ...more, object);
     }
 
@@ -368,7 +393,7 @@ class ConsoleLog {
 
     /** Return the correct output stream for the given log level */
     #getOutputStream(level) {
-        return this.#traceLogging ? console.trace :
+        return ConsoleLog.#traceLogging ? console.trace :
             level > ConsoleLog.Level.Warn ? console.error :
                 level > ConsoleLog.Level.Info ? console.warn :
                     level > ConsoleLog.Level.Tmi ? console.info :
@@ -378,8 +403,8 @@ class ConsoleLog {
     /** Prints a help message to the console */
     consoleHelp() {
         // After initializing everything we need, print a message to the user to give some basic tips
-        const logLevelSav = this.#currentLogLevel;
-        this.#currentLogLevel = 2;
+        const logLevelSav = ConsoleLog.#currentLogLevel;
+        ConsoleLog.#currentLogLevel = 2;
         this.info(' ');
         console.log('Welcome to the console!\n' +
             "If you're debugging an issue, here are some tips:\n" +
@@ -387,14 +412,152 @@ class ConsoleLog {
             '  2. Set the log level via Log.setLevel(level), where level is a value from the ConsoleLog.Level dictionary ' +
             '(e.g. Log.setLevel(ConsoleLog.Level.Verbose);)\n' +
             '  3. To view the stack trace for every logged event, call Log.setTrace(1). To revert, Log.setTrace(0)\n\n');
-        this.#currentLogLevel = logLevelSav;
+        ConsoleLog.#currentLogLevel = logLevelSav;
     }
 }
 
-const w = typeof window == 'undefined' ? null : window;
-const Log = new ConsoleLog(w);
-if (w) {
-    Log.info('Welcome to the console! For debugging help, call Log.consoleHelp()');
+
+/**
+ * An extension of ConsoleLog that prefixes each call with a given string, used to
+ * better categorize log messages. */
+class ContextualLog extends ConsoleLog {
+    static #longestPrefix = 0;
+    /** @type {Set<ContextualLog>} */
+    static #logs = new Set();
+    #prefix = '';
+    #formattedPrefix = '';
+    constructor(prefix) {
+        super();
+        ContextualLog.#logs.add(this);
+        if (prefix) {
+            this.#prefix = prefix;
+            if (this.#prefix.length > ContextualLog.#longestPrefix) {
+                ContextualLog.#longestPrefix = this.#prefix.length;
+                ContextualLog.#notifyNewContextualLog();
+            } else {
+                this.#preComputeSpaces();
+            }
+        }
+    }
+
+    /**
+     * Recompute all whitespace after a new log is added. */
+    static #notifyNewContextualLog() {
+        for (const log of ContextualLog.#logs) {
+            log.#preComputeSpaces();
+        }
+    }
+
+    /**
+     * Cache our prefix string that includes whitespace for better log parsing. */
+    #preComputeSpaces() {
+        this.#formattedPrefix = this.#prefix + ' '.repeat(ContextualLog.#longestPrefix - this.#prefix.length);
+    }
+
+    /**
+     * Log TMI (Too Much Information) output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    tmi(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Tmi);
+    }
+
+    /**
+     * Log Verbose output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    verbose(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Verbose);
+    }
+
+    /**
+     * Log Info level output.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    info(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Info);
+    }
+
+    /**
+     * Log a warning using `console.warn`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    warn(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Warn);
+    }
+
+    /**
+     * Log a error using `console.error`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    error(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Error);
+    }
+
+    /**
+     * Log a critical error using `console.error`.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] If provided, will be prefixed to the output before `obj`.
+     * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
+    critical(obj, description, freeze) {
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Critical);
+    }
+
+    /**
+     * Log formatted text to the console.
+     * @param {Level} level The severity of the log.
+     * @param {string} text The formatted text string.
+     * @param {...any} format The arguments for {@linkcode text} */
+    formattedText(level, text, ...format) {
+        if (this.#prefix) {
+            text = `${this.#prefix}${this.#formattedPrefix}: ${text}`;
+        }
+
+        super.log('', text, false /*freeze*/, level, true /*textOnly*/, ...format);
+    }
+
+    /**
+     * Verify that the given condition is true, logging a warning if it's not.
+     * @param {boolean} condition The condition to test.
+     * @param {string} text The warning to give if the assertion fails. */
+    assert(condition, text) {
+        if (!condition) {
+            super.warn(`Assertion Failed: ${this.#formattedPrefix} - ${text}`);
+        }
+    }
+
+    /**
+     * Adds the contextual prefix to the log message before handing it off to the base log.
+     * @param {any} obj The object or string to log.
+     * @param {string} [description] A description for the object being logged.
+     * Largely used when `obj` is an array/dictionary and not a string.
+     * @param {boolean} freeze If true, freezes the current state of obj before logging it.
+     * This prevents subsequent code from modifying the console output.
+     * @param {Level} level The Log level. Determines the format colors as well as where
+     * to display the message (info, warn err). If traceLogging is set, always outputs to {@linkcode console.trace}
+     * Note that this cannot apply to `obj`, only `description`. */
+    #addPrefixAndCall(obj, description, freeze, level) {
+        if (description) {
+            description = `${this.#formattedPrefix} - ${description}`;
+        } else if (typeof obj == 'string') {
+            obj = `${this.#formattedPrefix} - ${obj}`;
+        }
+
+        super.log(obj, description, freeze, level);
+    }
 }
 
-export { Log, ConsoleLog };
+
+const w = typeof window == 'undefined' ? null : window;
+ConsoleLog.BaseSetup(w);
+const BaseLog = new ConsoleLog();
+if (w) {
+    BaseLog.info('Welcome to the console! For debugging help, call Log.consoleHelp()');
+}
+
+export { BaseLog, ConsoleLog, ContextualLog };

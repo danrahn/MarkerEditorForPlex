@@ -1,7 +1,10 @@
-import { ConsoleLog, Log } from '../../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Config } from '../IntroEditorConfig.js';
 import ServerError from '../ServerError.js';
+
+
+const Log = new ContextualLog('GeneralCommands');
 
 /**
  * Classification of commands that don't fit in any of the other buckets

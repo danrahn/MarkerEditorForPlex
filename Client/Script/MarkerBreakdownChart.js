@@ -1,5 +1,5 @@
 import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from './Common.js';
-import { Log } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Chart, PieChartOptions } from './inc/Chart.js';
 import Overlay from './inc/Overlay.js';
@@ -7,6 +7,9 @@ import Tooltip from './inc/Tooltip.js';
 
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { PlexClientState } from './PlexClientState.js';
+
+
+const Log = new ContextualLog('BreakdownChart');
 
 /**
  * Available charts

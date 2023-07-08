@@ -1,4 +1,4 @@
-import { Log } from './ConsoleLog.js';
+import { ContextualLog } from './ConsoleLog.js';
 
 import { MarkerType } from './PlexTypes.js';
 
@@ -6,6 +6,9 @@ const IntroMask =   0x0000FFFF;
 const CreditsShift = 16;
 
 /** @typedef {!import('./PlexTypes').MarkerBreakdownMap} MarkerBreakdownMap */
+
+
+const Log = new ContextualLog('MarkerBreakdown');
 
 /**
  * Manages marker statistics at an arbitrary level (section/series/season/episode)

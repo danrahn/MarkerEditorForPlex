@@ -8,7 +8,7 @@ import Open from 'open';
 /** @typedef {!import('http').Server} httpServer */
 
 /** Server+Client shared dependencies */
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 /** Server dependencies */
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
@@ -23,6 +23,8 @@ import { PlexQueryManager } from './PlexQueryManager.js';
 import ServerCommands from './ServerCommands.js';
 import ServerError from './ServerError.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
+
+const Log = new ContextualLog('ServerCore');
 
 /**
  * HTTP server instance.

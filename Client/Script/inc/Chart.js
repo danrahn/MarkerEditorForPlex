@@ -1,8 +1,11 @@
-import { Log } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
 import { buildNodeNS } from './../Common.js';
 
 import Tooltip from './Tooltip.js';
+
+
+const Log = new ContextualLog('Chart');
 
 /**
  * @typedef {string} DataLabel A label for a point in the chart.

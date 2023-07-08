@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
-import { Log } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
@@ -77,6 +77,9 @@ const CurrentSchemaVersion = 1;
 const CheckVersionTable = `
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER);
 INSERT INTO schema_version (version) SELECT ${CurrentSchemaVersion} WHERE NOT EXISTS (SELECT * FROM schema_version);`;
+
+
+const Log = new ContextualLog('ImportExport');
 
 /**
  * Static class that handles the import/export of markers
@@ -353,7 +356,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
         for (const [sectionId, sectionInfo] of Object.entries(sectionsToUpdate)) {
             const itemsToUpdate = Object.keys(sectionInfo.items).length;
             if (itemsToUpdate === 0) {
-                Log.verbose(`Import: Ignoring section ${sectionId}, no relevant items.`);
+                Log.verbose(`Ignoring section ${sectionId}, no relevant items.`);
                 continue;
             }
 
@@ -420,15 +423,15 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
     static Close() {
         const tempRoot = join(ProjectRoot(), 'Backup', 'MarkerExports');
         if (!existsSync(tempRoot)) {
-            Log.verbose('ImportExport: No database files to clean up.');
+            Log.verbose('No database files to clean up.');
             return;
         }
 
         try {
             rmSync(tempRoot, { recursive : true, force : true });
-            Log.verbose('ImportExport: Successfully removed cached databases.');
+            Log.verbose('Successfully removed cached databases.');
         } catch (err) {
-            Log.warn(err.message, 'ImportExport: Failed to clear cached databases.');
+            Log.warn(err.message, 'Failed to clear cached databases.');
         }
     }
 }
