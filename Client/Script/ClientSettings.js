@@ -521,8 +521,19 @@ class ClientSettingsUI {
      * Callback when we successfully told the server to restart.
      * Transitions to a new UI that will restart the page automatically in 30 seconds,
      * with the option to restart immediately. */
-    async #onRestartConfirm() {
-        Log.info('Attempting to restart server.');
+    async #onRestartConfirm(e) {
+        Log.info(`Attempting to ${e.ctrlKey ? '(quickly) ' : ''}restart server.`);
+        if (e.ctrlKey) {
+            this.#quickReload();
+        } else {
+            this.#fullRestart();
+        }
+    }
+
+    /**
+     * Do a full reload - disconnecting from the database and shutting down the HTTP server
+     * before bringing everything back online. */
+    async #fullRestart() {
         try {
             await ServerCommand.restart();
         } catch (err) {
@@ -559,6 +570,21 @@ class ClientSettingsUI {
         btnContainer.removeChild(confirmBtn);
         confirmBtn = ButtonCreator.textButton('Refresh Now', () => { window.location.reload(); }, { id : 'srConfirm' });
         btnContainer.appendChild(confirmBtn);
+    }
+
+    /**
+     * Do a mini-restart (quick suspend/resume), without restarting the HTTP server. */
+    async #quickReload() {
+        try {
+            await ServerCommand.reload();
+        } catch (err) {
+            $('#serverStateMessage').innerText = `Failed to reload data: ${errorMessage(err)}`;
+            $('#srConfirm').value = 'Try Again.';
+            return;
+        }
+
+        $('#serverStateMessage').innerText = 'Server data reloaded, reloading page...';
+        setTimeout(() => window.location.reload(), 1000);
     }
 
     /** Transition to a confirmation UI when the user attempts to shut down the server. */

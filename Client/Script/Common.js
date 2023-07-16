@@ -228,6 +228,10 @@ const ServerCommand = {
      * @returns {Promise<void>} */
     restart : async () => jsonRequest('restart'),
     /**
+     * Reload all markers from the database. Like restart, but doesn't also restart the HTTP server.
+     * @returns {Promise<void>} */
+    reload : async () => jsonRequest('reload'),
+    /**
      * Suspend Marker Editor.
      * @returns {Promise<void>} */
     suspend : async () => jsonRequest('suspend'),

@@ -255,6 +255,26 @@ function userResume(res) {
 }
 
 /**
+ * Restart without restarting the HTTP server. Essentially a suspend+resume.
+ * @param {ServerResponse} res */
+async function userReload(res) {
+    Log.verbose('Attempting to reload marker data');
+    if (GetServerState() != ServerState.Running) {
+        return sendJsonError(res, new ServerError('Server must be running in order to reload.', 400));
+    }
+
+    SetServerState(ServerState.Suspended);
+    await cleanupForShutdown(false /*fullShutdown*/);
+    if (ResumeResponse) {
+        Log.verbose('userReload: Already in the middle of a user operation');
+        return sendJsonSuccess(res, { message : 'Server is already resuming.' });
+    }
+
+    ResumeResponse = res;
+    run();
+}
+
+/**
  * Do a soft internal restart to rebuild all internal caches
  * and reconnect to databases, usually after a large operation where
  * it's easier to just rebuild everything from scratch.
@@ -368,6 +388,7 @@ const ServerActionMap = {
     restart  : (res) => userRestart(res),
     suspend  : (res) => userSuspend(res),
     resume   : (res) => userResume(res),
+    reload   : (res) => userReload(res),
 };
 
 /**
