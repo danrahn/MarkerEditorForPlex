@@ -52,7 +52,7 @@ class MarkerEdit {
         }
 
         this.editing = true;
-        this.#setMarkerType();
+        this.#buildMarkerType();
         this.#buildTimeEdit();
         this.#buildConfirmCancel();
         return true;
@@ -65,7 +65,10 @@ class MarkerEdit {
      * @returns {HTMLElement} A text input for a marker. */
     getTimeInput(isEnd) {
         const events = {
-            keydown : [ function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); } ]
+            keydown : [
+                function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); },
+                this.#timeInputEditShortcutHandler
+            ]
         };
         if (isEnd) {
             events.keydown.push(this.#onEndTimeInput);
@@ -118,8 +121,33 @@ class MarkerEdit {
     }
 
     /**
+     * Handles MarkerEdit specific time input shortcuts, like committing an action
+     * and changing the marker type.
+     * @param {KeyboardEvent} e */
+    #timeInputEditShortcutHandler(_input, e) {
+        switch (e.key) {
+            case 'i':
+                e.preventDefault();
+                return this.#setMarkerType(MarkerType.Intro);
+            case 'c':
+                e.preventDefault();
+                return this.#setMarkerType(MarkerType.Credits);
+            case 'Enter':
+                // Ctrl+Enter or Shift+Enter attempts to submit the operation
+                if (e.ctrlKey || e.shiftKey) {
+                    this.#onMarkerActionConfirm(e);
+                }
+                break;
+            case 'Escape':
+                return this.#onMarkerActionCancel(e);
+            default:
+                return;
+        }
+    }
+
+    /**
      * Set the first column to be the type of marker (e.g. 'Intro' or 'Credits') */
-    #setMarkerType() {
+    #buildMarkerType() {
         const span = this.markerRow.row().children[0];
         clearEle(span);
         const select = buildNode('select', { class : 'inlineMarkerType' });
@@ -133,6 +161,28 @@ class MarkerEdit {
         }
 
         span.appendChild(select);
+    }
+
+    /**
+     * @param {string} markerType */
+    #setMarkerType(markerType) {
+        const select = this.markerRow.row().children[0].querySelector('select');
+        if (!select) {
+            Log.warn('setMarkerType - Unable to find marker type dropdown');
+            return;
+        }
+
+        switch (markerType) {
+            case MarkerType.Intro:
+                select.value = 'intro';
+                break;
+            case MarkerType.Credits:
+                select.value = 'credits';
+                break;
+            default:
+                Log.warn(`setMarkerType - Unknown type ${markerType} given.`);
+                break;
+        }
     }
 
     /**
@@ -152,32 +202,48 @@ class MarkerEdit {
     /**
      * Replaces the modified date column with confirm/cancel buttons. */
     #buildConfirmCancel() {
-        let confirmCallback;
-        let cancelCallback;
         let operation;
         if (this.markerRow.forAdd()) {
-            confirmCallback = this.onMarkerAddConfirm;
-            cancelCallback = this.onMarkerAddCancel;
             operation = 'Add';
         } else {
-            confirmCallback = this.onMarkerEditConfirm;
-            cancelCallback = this.onMarkerEditCancel;
             operation = 'Edit';
         }
 
         const destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', confirmCallback.bind(this)),
-            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', cancelCallback.bind(this))
+            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', this.#onMarkerActionConfirm.bind(this)),
+            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', this.#onMarkerActionCancel.bind(this))
         );
+    }
+
+    /**
+     * Relay a marker add/edit confirmation to the right handler.
+     * @param {Event} event */
+    async #onMarkerActionConfirm(event) {
+        if (this.markerRow.forAdd()) {
+            this.#onMarkerAddConfirm(event);
+        } else {
+            this.#onMarkerEditConfirm(event);
+        }
+    }
+
+    /**
+     * Relay a marker add/edit cancellation to the right handler.
+     * @param {Event} event */
+    async #onMarkerActionCancel(event) {
+        if (this.markerRow.forAdd()) {
+            this.#onMarkerAddCancel(event);
+        } else {
+            this.#onMarkerEditCancel(event);
+        }
     }
 
     /**
      * Attempts to add a marker to the database, first validating that the marker is valid.
      * On success, make the temporary row permanent and rearrange the markers based on their start time.
      * @param {Event} event */
-    async onMarkerAddConfirm(event) {
+    async #onMarkerAddConfirm(event) {
         const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
@@ -203,7 +269,7 @@ class MarkerEdit {
     }
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
-    onMarkerAddCancel() {
+    #onMarkerAddCancel() {
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.parent().mediaItem();
         mediaItem.markerTable().removeTemporaryMarkerRow(this.markerRow.row());
@@ -211,7 +277,7 @@ class MarkerEdit {
 
     /** Commits a marker edit, assuming it passes marker validation.
      * @param {Event} event */
-    async onMarkerEditConfirm(event) {
+    async #onMarkerEditConfirm(event) {
         const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
         const inputs = $('input[type="text"]', this.markerRow.row());
         const startTime = timeToMs(inputs[0].value);
@@ -251,7 +317,7 @@ class MarkerEdit {
     }
 
     /** Cancels an edit operation, reverting the editable row fields with their previous times. */
-    onMarkerEditCancel() {
+    #onMarkerEditCancel() {
         this.resetAfterEdit();
     }
 
@@ -309,6 +375,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      */
     getTimeInput(isEnd) {
         const input = super.getTimeInput(isEnd);
+        input.addEventListener('keydown', this.#thumbnailTimeInputShortcutHandler.bind(this));
         const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
         const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
@@ -372,6 +439,19 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         }
 
         super.resetAfterEdit();
+    }
+
+    /**
+     * @param {KeyboardEvent} e */
+    #thumbnailTimeInputShortcutHandler(e) {
+        switch (e.key) {
+            case 't':
+                e.preventDefault();
+                this.#expandContractThumbnails(null, this.markerRow.row().children[4].querySelector('div.button'));
+                break;
+            default:
+                break;
+        }
     }
 
     /**
