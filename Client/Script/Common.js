@@ -588,18 +588,32 @@ function timeToMs(value, allowNegative=false) {
  * makes it even smaller. Combined with Alt, this gives us the ability to change the timings
  * by 5m, 1m, 50s, 10s, 5s, 1s, 0.5s, or .1s without manually typing specific numbers. */
 const adjustKeys = {
-    '_'  : () => -60000, // Shift+-
-    '+'  : () =>  60000, // Shift+=
-    '-'  : () => -10000, // -
-    '='  : () =>  10000, // +
-    '['  : () =>  -1000, // [
-    ']'  : () =>   1000,
-    '{'  : () =>   -100,
-    '}'  : () =>    100,
-    '\\' : (c, m) => -(c % 1000) + ((m - c < 1000 - (c % 1000)) || (c % 1000 < 500) ? 0 : 1000), // Truncate to nearest second
-    '|'  : (c, m) => -(c %  100) + ((m - c <  100 - (c %  100)) || (c %  100 <  50) ? 0 :  100), // Truncate to nearest tenth
+    '_'  : -60000, // Shift+-
+    '+'  :  60000, // Shift+=
+    '-'  : -10000, // -
+    '='  :  10000, // +
+    '['  :  -1000, // [
+    ']'  :   1000,
+    '{'  :   -100,
+    '}'  :    100,
 };
 /* eslint-enable */
+
+/**
+ * Round `c` to the nearest `f`, with a maximum value of `m`
+ * @param {number} c Current ms value
+ * @param {number} m Maximum value
+ * @param {number} f Truncation factor
+ * @returns {number} */
+const _roundTo = (c, m, f) => c % f === 0 ? 0 : -(c % f) + ((m - c < f - (c % f)) || (c & f < (f / 2)) ? 0 : f);
+
+/**
+ * Map of "special" time input shortcuts that requires additional parameters
+ * @type {{[key: string]: (currentMs: number, maxValue: number, altKey: boolean) => number}} */
+const truncationKeys = {
+    '\\' : (c, m, a) => _roundTo(c, m, a ? 5000 : 1000),
+    '|'  : (c, m, a) => _roundTo(c, m, a ? 500 : 100)
+};
 
 /**
  * A common input handler that allows incremental
@@ -608,10 +622,11 @@ const adjustKeys = {
 function timeInputShortcutHandler(e, maxDuration=NaN) {
     if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
         e.preventDefault();
-        if (!adjustKeys[e.key]) {
+        if (!adjustKeys[e.key] && !truncationKeys[e.key]) {
             return;
         }
 
+        const simpleKey = e.key in adjustKeys;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
         const currentValue = e.target.value;
 
@@ -624,7 +639,13 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
             return; // Don't try to do anything with invalid input
         }
 
-        const timeDiff = adjustKeys[e.key](currentValueMs, max) * (e.altKey ? 5 : 1);
+        let timeDiff = 0;
+        if (simpleKey) {
+            timeDiff = adjustKeys[e.key] * (e.altKey ? 5 : 1);
+        } else {
+            timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
+        }
+
         const newTime = Math.min(max, Math.max(0, currentValueMs + timeDiff));
         const newValue = needsHms ? msToHms(newTime) : newTime;
 
