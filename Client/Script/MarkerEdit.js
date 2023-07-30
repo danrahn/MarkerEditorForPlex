@@ -68,6 +68,9 @@ class MarkerEdit {
             keydown : [
                 function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); },
                 this.#timeInputEditShortcutHandler
+            ],
+            keyup : [
+                this.#timeInputEditKeyupShortcutHandler
             ]
         };
         if (isEnd) {
@@ -133,15 +136,32 @@ class MarkerEdit {
                 e.preventDefault();
                 return this.#setMarkerType(MarkerType.Credits);
             case 'Enter':
-                // Ctrl+Enter or Shift+Enter attempts to submit the operation
-                if (e.ctrlKey || e.shiftKey) {
-                    this.#onMarkerActionConfirm(e);
-                }
+                // Only commit on Keyup to avoid any accidental double submissions
+                // that may result in confusing error UI. Left here for when my
+                // future self forgets why I didn't add this here.
                 break;
             case 'Escape':
                 return this.#onMarkerActionCancel(e);
             default:
                 return;
+        }
+    }
+
+    /**
+     * Handles MarkerEdit specific time input shortcuts that should
+     * only fire on Keyup (i.e. committing the action)
+     * @param {*} _input
+     * @param {KeyboardEvent} e */
+    #timeInputEditKeyupShortcutHandler(_input, e) {
+        switch (e.key) {
+            case 'Enter':
+                // Ctrl+Enter or Shift+Enter attempts to submit the operation
+                if (e.ctrlKey || e.shiftKey) {
+                    this.#onMarkerActionConfirm(e);
+                }
+                break;
+            default:
+                break;
         }
     }
 
