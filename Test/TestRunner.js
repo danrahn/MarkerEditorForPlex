@@ -9,18 +9,56 @@ import ImageTest from './TestClasses/ImageTest.js';
 import MultipleMarkers from './TestClasses/MultipleMarkersTest.js';
 
 // Server/Shared dependencies
+import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { GetServerState, ServerState } from '../Server/ServerState.js';
 import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
-import { ConsoleLog } from '../Shared/ConsoleLog.js';
+import ClientTests from './TestClasses/ClientTests.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
 
+
+/**
+ * This is a workaround for the global log level, since for tests
+ * we want to suppress verbose/warning messages from the "real" log,
+ * but give more information in tests. The real solution would be to
+ * allow individual log level overrides.
+ */
+class CustomLogLevelLog extends ContextualLog {
+    #logLevel;
+
+    constructor(prefix) {
+        super(prefix);
+        this.#logLevel = ConsoleLog.Level.Verbose;
+    }
+
+    setLevelOverride(level) { this.#logLevel = level; }
+    tmi(obj, description, freeze) { this.#log(obj, description, freeze, super.tmi); }
+    verbose(obj, description, freeze) { this.#log(obj, description, freeze, super.verbose); }
+    info(obj, description, freeze) { this.#log(obj, description, freeze, super.info); }
+    warn(obj, description, freeze) { this.#log(obj, description, freeze, super.warn); }
+    error(obj, description, freeze) { this.#log(obj, description, freeze, super.error); }
+    critical(obj, description, freeze) { this.#log(obj, description, freeze, super.critical); }
+    formattedText(level, text, ...format) { this.#saveRestore(super.formattedText, level, text, ...format); }
+    assert(condition, text) { this.#saveRestore(super.assert, condition, text); }
+
+    #log(obj, description, freeze, fn) {
+        this.#saveRestore(fn, obj, description, freeze);
+    }
+
+    #saveRestore(fn, ...args) {
+        const lvlSav = this.getLevel();
+        this.setLevel(this.#logLevel);
+        fn.bind(this)(...args);
+        this.setLevel(lvlSav);
+    }
+}
+
 // Separate log for testing, since we want to suppress
 // most server messages, but have more test details
-const TestLog = new ConsoleLog();
-TestLog.setLevel(ConsoleLog.Level.Verbose);
+const TestLog = new CustomLogLevelLog('TestRunner');
+TestLog.setLevelOverride(ConsoleLog.Level.Verbose);
 TestLog.setDarkConsole(1);
 
 /**
@@ -37,6 +75,7 @@ class TestRunner {
         BulkDeleteTest : BulkDeleteTest,
         BulkAddTest : BulkAddTest,
         DeleteAllTest : DeleteAllTest,
+        ClientTests : ClientTests
     };
 
     constructor() {

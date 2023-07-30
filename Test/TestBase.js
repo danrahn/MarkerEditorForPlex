@@ -33,6 +33,11 @@ class TestBase {
     testDb = null;
     /** @type {DatabaseWrapper} */
     backupDb = null;
+    /**
+     * Determines whether this test class requires server setup.
+     * True for backend/E2E tests, false for client-only tests.
+     * @type {boolean} */
+    requiresServer = true;
 
     constructor() {
         TestLog.tmi('TestBase Constructor');
@@ -95,20 +100,23 @@ class TestBase {
             methodFn = availableMethods[methodName];
         }
 
-        try {
-            this.testDb = await DatabaseWrapper.CreateDatabase(TestBase.testDbPath, true /*allowCreate*/);
-        } catch (err) {
-            TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
-            throw err;
+        if (this.requiresServer) {
+            try {
+                this.testDb = await DatabaseWrapper.CreateDatabase(TestBase.testDbPath, true /*allowCreate*/);
+            } catch (err) {
+                TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
+                throw err;
+            }
+
+            await this.setupPlexDbTestTables();
+
+            this.setupConfig();
+            await this.startService();
+
+            // Wait until after the service starts, as it will populate the empty backup database if necessary.
+            await this.connectToBackupDatabase();
         }
 
-        await this.setupPlexDbTestTables();
-
-        this.setupConfig();
-        await this.startService();
-
-        // Wait until after the service starts, as it will populate the empty backup database if necessary.
-        await this.connectToBackupDatabase();
         if (methodFn) {
             return this.runSingle(methodFn);
         }
@@ -210,7 +218,10 @@ class TestBase {
             TestLog.verbose(`\t\t${response}`);
         }
 
-        await this.suspend();
+        if (this.requiresServer) {
+            await this.suspend();
+        }
+
         return success;
     }
 

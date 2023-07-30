@@ -605,14 +605,14 @@ const adjustKeys = {
  * @param {number} m Maximum value
  * @param {number} f Truncation factor
  * @returns {number} */
-const _roundTo = (c, m, f) => c % f === 0 ? 0 : -(c % f) + ((m - c < f - (c % f)) || (c & f < (f / 2)) ? 0 : f);
+const roundDelta = (c, m, f, r=c % f) => r === 0 ? 0 : -r + ((m - c < f - r) || (r < (f / 2)) ? 0 : f);
 
 /**
  * Map of "special" time input shortcuts that requires additional parameters
  * @type {{[key: string]: (currentMs: number, maxValue: number, altKey: boolean) => number}} */
 const truncationKeys = {
-    '\\' : (c, m, a) => _roundTo(c, m, a ? 5000 : 1000),
-    '|'  : (c, m, a) => _roundTo(c, m, a ? 500 : 100)
+    '\\' : (c, m, a) => roundDelta(c, m, a ? 5000 : 1000),
+    '|'  : (c, m, a) => roundDelta(c, m, a ? 500 : 100)
 };
 
 /**
@@ -704,6 +704,7 @@ export {
     msToHms,
     pad0,
     plural,
+    roundDelta,
     ServerCommand,
     timeInputShortcutHandler,
     timeToMs

@@ -1,3 +1,5 @@
+import WindowProxy from './WindowProxy.js';
+
 /**
  * Console logging class. Allows easy timestamped logging with various log levels.
  *
@@ -77,11 +79,6 @@ class ConsoleLog {
         ],
     ];
 
-    /**
-     * The Window object associated with this session. Client-side this is a real
-     * window. Server-side, this is a fake and hacky skeleton of one. */
-    static #window;
-
     /** The current log level. Anything below this will not be logged.
      * @type {Level} */
     static #currentLogLevel;
@@ -94,46 +91,25 @@ class ConsoleLog {
      * @type {number} 0 for light, 1 for dark. */
     static #darkConsole;
 
-    static BaseSetup(window) {
-
-        ConsoleLog.#window = window;
-
-        // We use ConsoleLog both on both the server and client side.
-        // Server-side, create a stub of localStorage and window so nothing breaks
-        if (!ConsoleLog.#window) {
-            class LS {
-                constructor() {
-                    this._dict = {};
-                }
-
-                getItem(item) { return this._dict[item]; }
-                setItem(item, value) { this._dict[item] = value; }
-            }
-            class W {
-                matchMedia() { return false; }
-                localStorage = new LS();
-            }
-
-            ConsoleLog.#window = new W();
-        }
+    static BaseSetup() {
 
         /** The current log level. Anything below this will not be logged. */
-        ConsoleLog.#currentLogLevel = parseInt(ConsoleLog.#window.localStorage.getItem('loglevel'));
+        ConsoleLog.#currentLogLevel = parseInt(WindowProxy.localStorage.getItem('loglevel'));
         if (isNaN(ConsoleLog.#currentLogLevel)) {
             ConsoleLog.#currentLogLevel = ConsoleLog.Level.Info;
         }
 
         /** Determine whether we should add a trace to every log event, not just errors. */
-        ConsoleLog.#traceLogging = parseInt(ConsoleLog.#window.localStorage.getItem('logtrace'));
+        ConsoleLog.#traceLogging = parseInt(WindowProxy.localStorage.getItem('logtrace'));
         if (isNaN(ConsoleLog.#traceLogging)) {
             ConsoleLog.#traceLogging = 0;
         }
 
         /** Tweak colors a bit based on whether the user is using a dark console theme */
-        ConsoleLog.#darkConsole = parseInt(ConsoleLog.#window.localStorage.getItem('darkconsole'));
+        ConsoleLog.#darkConsole = parseInt(WindowProxy.localStorage.getItem('darkconsole'));
         if (isNaN(ConsoleLog.#darkConsole)) {
             // Default to system browser theme (if available)
-            let mediaMatch = ConsoleLog.#window.matchMedia('(prefers-color-scheme: dark)');
+            let mediaMatch = WindowProxy.matchMedia('(prefers-color-scheme: dark)');
             mediaMatch = mediaMatch != 'not all' && mediaMatch.matches;
             ConsoleLog.#darkConsole = mediaMatch ? 1 : 0;
         }
@@ -141,7 +117,7 @@ class ConsoleLog {
 
     constructor() {
         // Ensure our core log has been initialized.
-        if ((this instanceof ContextualLog) && !ConsoleLog.#window) {
+        if ((this instanceof ContextualLog) && !WindowProxy) {
             console.error(
                 `[${ConsoleLog.#getTimestring()}][ERROR  ] ` +
                 `ContextualLog initialized before BaseLog. That shouldn't happen!`);
@@ -169,7 +145,7 @@ class ConsoleLog {
      * Sets the new minimum logging severity.
      * @param {Level} level The new log level. */
     setLevel(level) {
-        ConsoleLog.#window.localStorage.setItem('loglevel', level);
+        WindowProxy.localStorage.setItem('loglevel', level);
         ConsoleLog.#currentLogLevel = level;
     }
 
@@ -183,7 +159,7 @@ class ConsoleLog {
      * Set text to be better suited for dark versus light backgrounds.
      * @param {number} dark `1` to adjust colors for dark consoles, `0` for light. */
     setDarkConsole(dark) {
-        ConsoleLog.#window.localStorage.setItem('darkconsole', dark);
+        WindowProxy.localStorage.setItem('darkconsole', dark);
         ConsoleLog.#darkConsole = dark ? 1 : 0;
     }
 
@@ -196,7 +172,7 @@ class ConsoleLog {
      * Set whether to print stack traces for each log. Helpful when debugging.
      * @param {number} trace `1` to enable trace logging, `0` otherwise. */
     setTrace(trace) {
-        ConsoleLog.#window.localStorage.setItem('logtrace', trace);
+        WindowProxy.localStorage.setItem('logtrace', trace);
         ConsoleLog.#traceLogging = trace ? 1 : 0;
     }
 
@@ -553,10 +529,10 @@ class ContextualLog extends ConsoleLog {
 }
 
 
-const w = typeof window == 'undefined' ? null : window;
-ConsoleLog.BaseSetup(w);
+const isDOM = typeof window !== 'undefined';
+ConsoleLog.BaseSetup();
 const BaseLog = new ConsoleLog();
-if (w) {
+if (isDOM) {
     BaseLog.info('Welcome to the console! For debugging help, call Log.consoleHelp()');
 }
 

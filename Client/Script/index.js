@@ -7,6 +7,7 @@ import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
+import Tooltip from './inc/Tooltip.js';
 import VersionManager from './VersionManager.js';
 
 window.Log = BaseLog; // Let the user interact with the class to tweak verbosity/other settings.
@@ -19,6 +20,7 @@ function setup() {
     SettingsManager.CreateInstance();
     PlexClientStateManager.CreateInstance();
     PlexUIManager.CreateInstance();
+    Tooltip.Setup();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
