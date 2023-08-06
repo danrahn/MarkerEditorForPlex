@@ -23,7 +23,7 @@ class TransactionBuilder {
      * Adds the given statement to the current transaction.
      * @param {string} statement A single SQL query
      * @param {[*]} parameters Query parameters */
-    addStatement(statement, parameters) {
+    addStatement(statement, parameters=[]) {
         statement = statement.trim();
         if (statement[statement.length - 1] != ';') {
             statement += ';';

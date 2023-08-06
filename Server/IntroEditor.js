@@ -181,7 +181,7 @@ async function cleanupForShutdown(fullShutdown) {
     ServerCommands.clear();
     MarkerCacheManager.Close();
     ThumbnailManager.Close(fullShutdown);
-    DatabaseImportExport.Close();
+    DatabaseImportExport.Close(fullShutdown);
 
     await Promise.all([
         PlexQueryManager.Close(),
@@ -201,26 +201,39 @@ async function cleanupForShutdown(fullShutdown) {
 }
 
 /**
+ * Wait for the server to be in a "ready" state (running or suspended),
+ * used to ensure we don't try to restart/shutdown when we're already
+ * attempting to change states. There's definitely a better way than
+ * what's essentially a spin lock, but cases that require this should
+ * be rare, mainly isolated to tests. */
+async function waitForStable() {
+    while (!ServerState.Stable()) {
+        await new Promise((resolve, _) => setTimeout(resolve, 100));
+    }
+}
+
+/**
  * Shuts down the server after a user-initiated shutdown request.
  * @param {ServerResponse} res */
-function userShutdown(res) {
+async function userShutdown(res) {
+    // Make sure we're in a stable state before shutting down
+    await waitForStable();
     sendJsonSuccess(res);
     handleClose('User Shutdown');
 }
 
 /** Restarts the server after a user-initiated restart request.
  * @param {ServerResponse} res */
-function userRestart(res) {
+async function userRestart(res) {
+    await waitForStable();
     sendJsonSuccess(res);
     handleClose('User Restart', true /*restart*/);
 }
 
 /** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database. */
-function userSuspend(res) {
+async function userSuspend(res) {
     Log.verbose('Attempting to pause the server');
-    if (GetServerState() != ServerState.Running) {
-        return sendJsonError(res, new ServerError('Server is either already suspended or shutting down.', 400));
-    }
+    await waitForStable();
 
     SetServerState(ServerState.Suspended);
     cleanupForShutdown(false /*fullShutdown*/);
@@ -233,6 +246,12 @@ function userSuspend(res) {
  * to avoid passing it through the mess of init callbacks initiated by `run()`.
  * @type {ServerResponse} */
 let ResumeResponse;
+
+/**
+ * The response data to send once we're ready to resume. If not set, a
+ * default 'resumed' message will be sent.
+ * @type {*} */
+let ResumeData;
 
 /**
  * Resumes the server after being disconnected from the Plex database.
@@ -279,8 +298,11 @@ async function userReload(res) {
  * and reconnect to databases, usually after a large operation where
  * it's easier to just rebuild everything from scratch.
  *
- * TODO: How much of this can be moved to a different file instead of Main? */
-async function softRestart() {
+ * TODO: How much of this can be moved to a different file instead of Main?
+ *
+ * @param {ServerResponse?} response The response to send when the reload completes.
+ * @param {*?} data The data to send alongside the response, if any. */
+async function softRestart(response, data) {
     Log.info('Soft reset started. Rebuilding everything.');
     if (GetServerState() != ServerState.Running) {
         Log.warn(`Attempting a soft reset when the server isn't running. Ignoring it.`);
@@ -290,6 +312,15 @@ async function softRestart() {
     SetServerState(ServerState.Suspended);
     await cleanupForShutdown(false /*fullShutdown*/);
     Log.assert(GetServerState() == ServerState.Suspended, 'Server state changed during cleanup, that\'s not right!');
+    SetServerState(ServerState.SoftBoot);
+    if (response) {
+        ResumeResponse = response;
+    }
+
+    if (data) {
+        ResumeData = data;
+    }
+
     run();
 }
 
@@ -329,14 +360,16 @@ function shouldCreateServer() {
         return true;
     }
 
-    if (GetServerState() != ServerState.Suspended) {
+    if (GetServerState() != ServerState.Suspended && GetServerState() != ServerState.SoftBoot) {
         Log.warn('Calling launchServer when server already exists!');
     }
 
     SetServerState(ServerState.Running);
     if (ResumeResponse) {
-        sendJsonSuccess(ResumeResponse, { message : 'Server resumed' });
+        const data = ResumeData || { message : 'Server resumed' };
+        sendJsonSuccess(ResumeResponse, data);
         ResumeResponse = null;
+        ResumeData = null;
     }
 
     return false;

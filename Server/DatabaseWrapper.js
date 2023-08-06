@@ -52,7 +52,7 @@ class DatabaseWrapper {
      * Retrieves all rows from the given query.
      * @param {string} query
      * @param {QueryParameters} parameters
-     * @returns {Promise{any[]}} */
+     * @returns {Promise<any[]>} */
     async all(query, parameters=[]) {
         return this.#action(this.#db.all.bind(this.#db), query, parameters);
     }

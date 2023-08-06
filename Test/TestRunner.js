@@ -15,6 +15,7 @@ import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
 import ClientTests from './TestClasses/ClientTests.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
+import ImportExportTest from './TestClasses/ImportExportTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
 
@@ -75,7 +76,8 @@ class TestRunner {
         BulkDeleteTest : BulkDeleteTest,
         BulkAddTest : BulkAddTest,
         DeleteAllTest : DeleteAllTest,
-        ClientTests : ClientTests
+        ClientTests : ClientTests,
+        ImportExportTest : ImportExportTest
     };
 
     constructor() {
@@ -126,7 +128,7 @@ class TestRunner {
     /**
      * Shut down the test server if necessary. */
     async #shutdown() {
-        if (GetServerState() == ServerState.Running || GetServerState() == ServerState.Suspended) {
+        if (GetServerState() !== ServerState.ShuttingDown) {
             return fetch(
                 `http://localhost:3233/shutdown`,
                 {

@@ -4,10 +4,10 @@ import { join } from 'path';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
-import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerConflictResolution } from '../Shared/PlexTypes.js';
 import { ProjectRoot } from './IntroEditorConfig.js';
+import { sendJsonError } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 import { softRestart } from './IntroEditor.js';
 import TransactionBuilder from './TransactionBuilder.js';
@@ -233,7 +233,11 @@ WHERE t.tag_id=$tagId`;
                 Log.warn(err.message, `Unable to clean up uploaded database file`);
             }
 
-            return sendJsonSuccess(response, stats);
+            // Force a mini-reload, as it's easier than trying to perfectly account for the right
+            // marker deltas, and import isn't expected to be a common scenario, so I don't really care
+            // about the slightly worse user experience. Wait until the reload completes before sending
+            // the response.
+            await softRestart(response, stats);
 
         } catch (err) {
             return sendJsonError(response, err);
@@ -380,11 +384,6 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
             ll('Existing markers modified (merged)', stats.modified) +
             ll('Ignored imports', stats.ignored));
 
-        // Force a mini-reload, as it's easier than trying to perfectly account for the right
-        // marker deltas, and import isn't expected to be a common scenario, so I don't really care
-        // about the slightly worse user experience.
-        await softRestart();
-
         return stats;
     }
 
@@ -420,7 +419,12 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
 
     /**
      * On server close, clear out any exported/imported databases that are still lying around, if we can. */
-    static Close() {
+    static Close(fullShutdown) {
+        if (!fullShutdown) {
+            // We can wait until server shutdown to clean everything up
+            return;
+        }
+
         const tempRoot = join(ProjectRoot(), 'Backup', 'MarkerExports');
         if (!existsSync(tempRoot)) {
             Log.verbose('No database files to clean up.');

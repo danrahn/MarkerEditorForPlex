@@ -141,7 +141,7 @@ class TestBase {
         testDefault('host', 'localhost', true);
         testDefault('port', 3233, true);
         testDefault('database', TestBase.testDbPath, true);
-        testDefault('logLevel', 'DarkWarn');
+        testDefault('logLevel', 'DarkError');
 
         // Good testing of preview thumbnails would require actual bif files and proper test db
         // entries that I don't want to deal with right now.
@@ -229,7 +229,7 @@ class TestBase {
      * Suspend the test server, which will disconnect it from the test config
      * and database, allowing us to reset the server state between tests. */
     async suspend() {
-        if (GetServerState() != ServerState.Running) {
+        if (GetServerState() === ServerState.ShuttingDown) {
             return;
         }
 
@@ -329,6 +329,10 @@ class TestBase {
                     Marker1 : { Id : 6, Start : 13000, End : 47000, Index : 0, Type : 'intro', Final : false }, },
             },
         },
+        Show1_1 : { Id : 17, // "Split" show
+            Season1 : { Id : 18,
+                Episode1 : { Id : 19, }, },
+        },
         Movie1 : { Id : 100, },
         Movie2 : { Id : 101,
             Marker1 : { Id : 7, Start : 10000, End : 30000, Index : 0, Type : 'intro', Final : false },
@@ -386,6 +390,9 @@ class TestBase {
                                    (14, 1,                  4,             12,        "Episode2", 2,        "d"),
                                    (15, 1,                  3,             11,        "Season2",  2,        "e"),
                                    (16, 1,                  4,             15,        "Episode1", 1,        "f"),
+                                   (17, 1,                  2,             NULL,      "Show1_1",  1,        "0"),
+                                   (18, 1,                  3,             17,        "Season1",  1,        "1"),
+                                   (19, 1,                  4,             18,        "Episode1", 1,        "2"),
 
                                    (100,2,                  1,             NULL,      "Movie1",   1,        "00"),
                                    (101,2,                  1,             NULL,      "Movie2",   1,        "01"),
@@ -407,6 +414,7 @@ class TestBase {
                                 (13,               600000),
                                 (14,               600000),
                                 (16,               600000),
+                                (19,               600000),
                                 (100,              600000),
                                 (101,              600000),
                                 (102,              600000);`;
