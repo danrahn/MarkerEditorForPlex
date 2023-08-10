@@ -5,10 +5,11 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Overlay from './inc/Overlay.js';
 
 import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
-import { MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import { MarkerData } from '../../Shared/PlexTypes.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 import TableElements from './TableElements.js';
 
 

@@ -1,12 +1,5 @@
-import {
-    EpisodeData,
-    MarkerData,
-    MarkerType,
-    MovieData,
-    SeasonData,
-    SectionType,
-    ShowData,
-    supportedMarkerType } from '../../Shared/PlexTypes.js';
+import { EpisodeData, MarkerData, MovieData, SeasonData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import { MarkerType, supportedMarkerType } from '../../Shared/MarkerType.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Config } from '../IntroEditorConfig.js';

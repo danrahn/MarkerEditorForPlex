@@ -1,5 +1,6 @@
-import { BulkMarkerResolveType, EpisodeData, MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 
 import { MetadataType, PlexQueries } from '../PlexQueryManager.js';
 import { BackupManager } from '../MarkerBackupManager.js';

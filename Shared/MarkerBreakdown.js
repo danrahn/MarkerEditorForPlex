@@ -1,6 +1,6 @@
 import { ContextualLog } from './ConsoleLog.js';
 
-import { MarkerType } from './PlexTypes.js';
+import { MarkerType } from './MarkerType.js';
 
 const IntroMask =   0x0000FFFF;
 const CreditsShift = 16;

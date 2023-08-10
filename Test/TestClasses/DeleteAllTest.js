@@ -1,4 +1,4 @@
-import { MarkerEnum, MarkerType } from '../../Shared/PlexTypes.js';
+import { MarkerEnum, MarkerType } from '../../Shared/MarkerType.js';
 import { PlexQueries } from '../../Server/PlexQueryManager.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';

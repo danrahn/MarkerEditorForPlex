@@ -1,14 +1,15 @@
 import TestBase from '../TestBase.js';
+import TestHelpers from '../TestHelpers.js';
 
 import { createReadStream, createWriteStream, existsSync, rmSync } from 'fs';
 import FormData from 'form-data';
 import { gunzipSync } from 'zlib';
 import { join } from 'path';
 
-import { MarkerConflictResolution, MarkerType } from '../../Shared/PlexTypes.js';
 import DatabaseWrapper from '../../Server/DatabaseWrapper.js';
 import { ExtraData } from '../../Server/PlexQueryManager.js';
-import TestHelpers from '../TestHelpers.js';
+import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 import TransactionBuilder from '../../Server/TransactionBuilder.js';
 
 /** @typedef {!import  ('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */

@@ -1,5 +1,6 @@
-import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData, MarkerEnum, MarkerType } from '../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
+import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 import ServerError from './ServerError.js';

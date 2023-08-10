@@ -1,4 +1,5 @@
 import { contentType } from 'mime-types';
+import { execFileSync } from 'child_process';
 import { gzip } from 'zlib';
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
@@ -76,4 +77,15 @@ function sendCompressedData(res, status, data, contentType) {
     });
 }
 
-export { sendJsonSuccess, sendJsonError, sendCompressedData };
+/**
+ * Verifies that we can find ffmpeg in our path */
+function testFfmpeg() {
+    try {
+        execFileSync('ffmpeg', ['-version']);
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+export { sendJsonSuccess, sendJsonError, sendCompressedData, testFfmpeg };

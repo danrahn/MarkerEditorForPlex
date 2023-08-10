@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
-import { ThumbnailManager } from './ThumbnailManager.js';
+import { testFfmpeg } from './ServerHelpers.js';
 
 
 const Log = new ContextualLog('EditorConfig');
@@ -110,7 +110,7 @@ class PlexFeatures extends ConfigBase {
         this.pureMode = this.#getOrDefault('pureMode', false);
 
         if (this.previewThumbnails && this.preciseThumbnails) {
-            this.preciseThumbnails = ThumbnailManager.TestFfmpeg();
+            this.preciseThumbnails = testFfmpeg();
             if (!this.preciseThumbnails) {
                 Log.warn(`Precise thumbnails enabled, but ffmpeg wasn't found in your path! Falling back to BIF`);
             }

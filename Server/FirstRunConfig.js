@@ -6,7 +6,7 @@ import { join } from 'path';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { IntroEditorConfig } from './IntroEditorConfig.js';
-import { ThumbnailManager } from './ThumbnailManager.js';
+import { testFfmpeg } from './ServerHelpers.js';
 
 
 const Log = new ContextualLog('FirstRun');
@@ -76,7 +76,7 @@ async function FirstRunConfig(dataRoot) {
     config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
     config.features.backupActions = await askUserYesNo('Do you want to track/backup custom marker actions', true, rl);
     config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
-    if (config.features.previewThumbnails && ThumbnailManager.TestFfmpeg()) {
+    if (config.features.previewThumbnails && testFfmpeg()) {
         console.log();
         console.log(`Preview thumbnails can use either Plex's generated thumbnails or generate them`);
         console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);

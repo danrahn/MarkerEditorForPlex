@@ -1,6 +1,6 @@
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { MarkerEnum, supportedMarkerType } from '../Shared/PlexTypes.js';
+import { MarkerEnum, supportedMarkerType } from '../Shared/MarkerType.js';
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
 
 /** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */

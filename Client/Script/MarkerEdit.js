@@ -14,9 +14,10 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
-import { MarkerData, MarkerType } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import { MarkerData } from '../../Shared/PlexTypes.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */

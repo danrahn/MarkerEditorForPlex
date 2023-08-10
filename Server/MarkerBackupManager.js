@@ -3,11 +3,12 @@ import { existsSync, mkdirSync } from 'fs';
 import { join as joinPath } from 'path';
 
 // Client/Server shared dependencies
-import { EpisodeData, MarkerData, MarkerEnum, MarkerType, MovieData } from '../Shared/PlexTypes.js';
+import { EpisodeData, MarkerData, MovieData } from '../Shared/PlexTypes.js';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 // Server dependencies/typedefs
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
+import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import ServerError from './ServerError.js';

@@ -49,17 +49,6 @@ class ThumbnailManager {
      * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
     static Close(fullShutdown) { Instance?.close(fullShutdown); Instance = null; }
 
-    /**
-     * Verifies that we can find ffmpeg in our path */
-    static TestFfmpeg() {
-        try {
-            execFileSync('ffmpeg', ['-version']);
-            return true;
-        } catch (err) {
-            return false;
-        }
-    }
-
     constructor(db) {
         this.database = db;
     }

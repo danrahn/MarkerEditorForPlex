@@ -5,8 +5,9 @@ import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 import ThemeColors from './ThemeColors.js';
 
-import { MarkerConflictResolution, MarkerEnum } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
+import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import { PlexClientState } from './PlexClientState.js';
 import Tooltip from './inc/Tooltip.js';
 
