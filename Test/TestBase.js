@@ -1,7 +1,6 @@
 // External dependencies
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
-import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 
 // Client/Server shared dependencies

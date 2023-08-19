@@ -1,6 +1,3 @@
-// External dependencies
-import fetch from 'node-fetch';
-
 // Test dependencies
 import TestBase from './TestBase.js';
 

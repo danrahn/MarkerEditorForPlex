@@ -1,4 +1,4 @@
-import { createInterface as createReadlineInterface } from 'readline';
+import { createInterface as createReadlineInterface } from 'readline/promises';
 /** @typedef {!import('readline').Interface} Interface */
 
 import { TestLog, TestRunner } from './TestRunner.js';
@@ -25,22 +25,10 @@ async function askForTests() {
     const rl = createReadlineInterface({
         input : process.stdin,
         output : process.stdout });
-    const testClass = await askUser('Test Class Name: ', rl);
-    const testMethod = await askUser('Test Method (Enter to run all class tests): ', rl);
+    const testClass = await rl.question('Test Class Name: ');
+    const testMethod = await rl.question('Test Method (Enter to run all class tests): ');
     rl.close();
     return testRunner.runSpecific(testClass, testMethod);
-}
-
-/**
- * Wrap callback-based readline with a Promise.
- * Native promise-based readline is available experimentally in Node 17, but LTS is still on 16.x
- * @param {string} message The question to ask the user
- * @param {Interface} rl ReadLine interface
- * @returns {Promise<string>} */
-async function askUser(message, rl) {
-    return new Promise((resolve, _) => {
-        rl.question(message, resolve);
-    });
 }
 
 /**

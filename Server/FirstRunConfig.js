@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from 'fs';
-import { createInterface as createReadlineInterface } from 'readline';
+import { createInterface as createReadlineInterface } from 'readline/promises';
 import { join } from 'path';
 /** @typedef {!import('readline').Interface} Interface */
 
@@ -49,7 +49,7 @@ async function FirstRunConfig(dataRoot) {
     /* eslint-disable-next-line max-len */
     console.log('For more information about what these settings control, see https://github.com/danrahn/IntroEditorForPlex/wiki/Configuration');
     console.log();
-    await askUserCore('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ', rl);
+    await rl.question('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ');
     console.log();
 
     const config = {};
@@ -127,7 +127,7 @@ async function askUserPath(question, rl, defaultPath) {
 async function askUser(question, defaultValue, rl, validateFunc=null, validateMsg=null) {
     question += ` (default: ${defaultValue}): `;
     for (;;) {
-        const answer = await askUserCore(question, rl);
+        const answer = await rl.question(question);
         if (answer.length == 0 || !validateFunc || validateFunc(answer)) {
             return answer.length == 0 ? defaultValue : answer;
         }
@@ -147,7 +147,7 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
 async function askUserYesNo(question, defaultValue, rl) {
     question += ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
     for (;;) {
-        const answer = await askUserCore(question, rl);
+        const answer = await rl.question(question);
         if (answer.length == 0) {
             return defaultValue;
         }
@@ -161,22 +161,6 @@ async function askUserYesNo(question, defaultValue, rl) {
             return false;
         }
     }
-}
-
-/**
- * Base method to ask the user a question and return a response. Wraps the callback-based
- * ReadLine interface with a Promise.
- * Note: Promise-based interface is directly available in Node 17, but since as of
- * this function's creation, LTS is still on 16.x, so best to avoid it for now.
- * @param {string} question The question to ask the user.
- * @param {Interface} rl The console interface.
- * @returns {Promise<string>} */
-async function askUserCore(question, rl) {
-    return new Promise((resolve, _) => {
-        rl.question(question, (response) => {
-            resolve(response);
-        });
-    });
 }
 
 /**

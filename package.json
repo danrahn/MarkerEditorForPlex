@@ -12,7 +12,7 @@
     "lint-fix": "eslint . --fix"
   },
   "engines": {
-    "node": ">=15.0"
+    "node": ">=18.0"
   },
   "author": "Daniel Rahn",
   "license": "MIT",
