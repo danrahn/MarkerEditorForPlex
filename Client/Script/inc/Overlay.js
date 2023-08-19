@@ -18,6 +18,7 @@ import ThemeColors from '../ThemeColors.js';
  * @property {{args?: any[], fn (...any) => void}} setup Setup function to call once the overlay has been attached to the DOM.
  * @property {HTMLElement?} focusBack The element to set focus back to after the overlay is dismissed. If this is undefined
  *                                    no element will be focused. If it's null, set focus to whatever this was last set to.
+ * @property {() => void} onDismiss Callback to invoke when this overlay is dismissed.
  */
 
 
@@ -68,13 +69,25 @@ const Overlay = new function() {
     };
 
     /**
+     * Callback functions (if any) to invoke when this overlay is dismissed.
+     * @type {(() => void)[]} */
+    let dismissCallbacks = [];
+
+    /**
+     * Add a callback to be invoked when this overlay is dismissed.
+     * @param {() => void} event */
+    this.addDismissEvent = function(event) {
+        dismissCallbacks.push(event);
+    };
+
+    /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist.
      * @param {...any} args Function parameters. Ignored unless a boolean is found, in which case it's used to determine whether
      *                      we should reset our focusBack element. We don't want to in overlay chains.
      */
     this.dismiss = function(...args) {
-        Animation.queue({ opacity : 0 }, $('#mainOverlay'), 250, true /*deleteAfterTransition*/);
+        Animation.queue({ opacity : 0 }, Overlay.get(), 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
         let forReshow = false;
         for (const arg of args) {
@@ -89,6 +102,11 @@ const Overlay = new function() {
         if (!forReshow) {
             focusBack?.focus();
             focusBack = null;
+            for (const dismiss of dismissCallbacks) {
+                dismiss();
+            }
+
+            dismissCallbacks = [];
         }
     };
 
@@ -159,6 +177,10 @@ const Overlay = new function() {
 
         if (options.focusBack !== null) {
             focusBack = options.focusBack;
+        }
+
+        if (options.onDismiss) {
+            dismissCallbacks.push(options.onDismiss);
         }
 
         window.addEventListener('keydown', overlayKeyListener, false);
@@ -262,6 +284,19 @@ const Overlay = new function() {
                 Overlay.dismiss();
             }
         }
+    };
+
+    /**
+     * Return whether an overlay is currently showing. */
+    this.showing = function() {
+        return !!$('#mainOverlay');
+    };
+
+    /**
+     * Returns the current overlay HTML, if any.
+     * @returns {HTMLElement} */
+    this.get = function() {
+        return $('#mainOverlay');
     };
 }();
 

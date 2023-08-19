@@ -27,8 +27,19 @@
     width: auto;
 }
 
-#bulkActionContainer .multiSelectCheck {
+#bulkActionContainer .multiSelectContainer {
     position: absolute;
+    display: inline-block;
+}
+
+#bulkActionContainer .multiSelectCheck {
+    margin: 5px 2px 5px 2px; /* Default input margin is 5px, but that's a bit too much left/right here */
+}
+
+#bulkActionContainer .multiSelectLabel {
+    font-size: 13px;
+    vertical-align: text-top;
+    margin-right: 2px;
 }
 
 #bulkActionContainer .buttonContainer input[type=button] {

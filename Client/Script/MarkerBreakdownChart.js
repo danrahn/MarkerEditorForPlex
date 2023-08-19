@@ -78,7 +78,7 @@ class MarkerBreakdownManager {
      * Displays a pie chart of the data from the server.
      * @param {MarkerBreakdown} breakdown The marker breakdown data */
     #showMarkerBreakdown(breakdownType) {
-        const overlay = $('#mainOverlay');
+        const overlay = Overlay.get();
         if (!overlay || !this.#currentBreakdown) {
             Log.verbose('Overlay is gone, not showing stats');
             return; // User closed out of window

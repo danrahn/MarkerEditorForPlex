@@ -4,6 +4,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Animation from './inc/Animate.js';
 
 import { MarkerData } from '../../Shared/PlexTypes.js';
+import Overlay from './inc/Overlay.js';
 import TableElements from './TableElements.js';
 import ThemeColors from './ThemeColors.js';
 
@@ -161,9 +162,9 @@ class BulkActionTable {
      * @type {boolean} */
     #lastSelectedWasDeselect = false;
     /**
-     * Holds the bulk check/uncheck checkboxes.
-     * @type {HTMLInputElement[]} */
-    #multiSelectChecks = [];
+     * Holds the bulk check/uncheck checkboxes and label.
+     * @type {HTMLDivElement} */
+    #multiSelectContainer;
 
     /** @type {HTMLTableElement} */
     #html = null;
@@ -173,6 +174,20 @@ class BulkActionTable {
      * for each added row.
      * @type {HTMLTableSectionElement} */
     #tbody = null;
+
+    /**
+     * Event listeners are created using .bind(this), as the listener is private, but .bind creates a
+     * new reference for each use, so something like `removeEventListener('a', this.#fn.bind(this))`
+     * will not remove the #fn listener. This intermediate object is used instead to ensure the same
+     * bound reference is captured.
+     * @type {() => void} */
+    #boundMultiCheckboxListener = null;
+
+    constructor() {
+        // If this changes, I'll need to find another bottleneck for removing window event listeners.
+        Log.assert(Overlay.showing(), 'The overlay should be showing if we\'re showing a customization table.');
+        Overlay.addDismissEvent(this.#removeEventListeners.bind(this));
+    }
 
     /**
      * Retrieve the HTML <table> */
@@ -192,12 +207,24 @@ class BulkActionTable {
     /**
      * Remove this table from the DOM. */
     remove() {
-        for (const check of this.#multiSelectChecks) {
-            check.parentNode.removeChild(check);
+        if (this.#multiSelectContainer) {
+            this.#html.parentElement.removeChild(this.#multiSelectContainer);
         }
 
         if (this.#html) {
             this.#html.parentNode.removeChild(this.#html);
+        }
+
+        this.#removeEventListeners();
+    }
+
+    /**
+     * Remove any event listeners that this table added. */
+    #removeEventListeners() {
+        window.removeEventListener('resize', this.#boundMultiCheckboxListener);
+        const overlay = Overlay.get();
+        if (overlay) {
+            overlay.removeEventListener('scroll', this.#boundMultiCheckboxListener);
         }
     }
 
@@ -261,22 +288,25 @@ class BulkActionTable {
      * @param {MouseEvent} e */
     #onMultiSelectClick(checkbox, e) {
         e.preventDefault(); // Don't change the check state
-        const select = (checkbox == this.#multiSelectChecks[0]);
+        const select = checkbox.id == 'multiSelectSelect';
         for (const row of this.#selected.values()) {
             row.setChecked(select);
         }
     }
 
     /**
-     * Reposition the check/uncheck all inputs based on the position of the first selected item in the list
-     * TODO: Use a fixed position to guarantee it's always in view? */
+     * Reposition the check/uncheck all inputs based on the position of the first selected item in the list.
+     * If the first item is not in the viewport, pin it to the top/bottom. */
     #repositionMultiSelectCheckboxes() {
-        if (this.#multiSelectChecks.length == 0) {
+        if (!this.#multiSelectContainer) {
+            this.#multiSelectContainer = buildNode('div', { class : 'multiSelectContainer hidden' });
+            const label = buildNode('span', { class : 'multiSelectLabel' });
+            this.#multiSelectContainer.appendChild(label);
             let checked = true;
             for (const id of ['multiSelectSelect', 'multiSelectDeselect']) {
                 const checkbox = buildNode('input', {
                     type : 'checkbox', id : id,
-                    class : 'multiSelectCheck hidden',
+                    class : 'multiSelectCheck',
                     title : id.substring(11) + ' Selected' });
 
                 checkbox.addEventListener('click', this.#onMultiSelectClick.bind(this, checkbox));
@@ -285,28 +315,41 @@ class BulkActionTable {
                     checked = !checked;
                 }
 
-                this.#multiSelectChecks.push(checkbox);
-                this.#html.parentElement.appendChild(checkbox);
+                this.#multiSelectContainer.appendChild(checkbox);
+
             }
+
+            this.#html.parentElement.appendChild(this.#multiSelectContainer);
+            this.#boundMultiCheckboxListener = this.#repositionMultiSelectCheckboxes.bind(this);
+            Overlay.get().addEventListener('scroll', this.#boundMultiCheckboxListener);
+            window.addEventListener('resize', this.#boundMultiCheckboxListener);
         }
 
         // Hide if no items or only a single item is selected.
         if (this.#selected.size < 2) {
-            this.#multiSelectChecks[0].classList.add('hidden');
-            this.#multiSelectChecks[1].classList.add('hidden');
+            this.#multiSelectContainer.classList.add('hidden');
             return;
         }
 
-        this.#multiSelectChecks[0].classList.remove('hidden');
-        this.#multiSelectChecks[1].classList.remove('hidden');
+        this.#multiSelectContainer.classList.remove('hidden');
         for (const row of this.#rows) {
             if (row.selected) {
-                const enable = this.#multiSelectChecks[0];
-                const disable = this.#multiSelectChecks[1];
+                const label = $$('span', this.#multiSelectContainer);
                 const bounds = row.row.getBoundingClientRect();
-                enable.style.top = disable.style.top = (bounds.y + $('#mainOverlay').scrollTop) + 'px';
-                enable.style.left = (bounds.x - 20) + 'px';
-                disable.style.left = (bounds.x - 40) + 'px';
+                let newTop = 0;
+                const overlay = Overlay.get();
+                if (bounds.y < 0) { // Row is above viewport, pin to top
+                    newTop = overlay.scrollTop;
+                } else if (bounds.y > window.innerHeight) { // Row is in viewport
+                    newTop = overlay.scrollTop + window.innerHeight - 25;
+                } else { // Row is below viewport, pin to bottom
+                    newTop = bounds.y + overlay.scrollTop;
+                }
+
+                newTop += 'px';
+                this.#multiSelectContainer.style.top = newTop;
+                label.innerText = `[${this.#selected.size}]`;
+                this.#multiSelectContainer.style.right = (bounds.right) + 'px';
                 return;
             }
         }
