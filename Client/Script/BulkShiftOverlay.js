@@ -63,6 +63,11 @@ class BulkShiftOverlay {
         this.#mediaItem = mediaItem;
     }
 
+    /** 
+     * Keeps track of markers without existing rows, so we can add them to the ignored markers table later
+     * @type {Array} */
+    #markersWithoutRows = [];
+
     /**
      * Launch the bulk shift overlay.
      * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
@@ -109,6 +114,14 @@ class BulkShiftOverlay {
             appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
                 buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
                 separateShiftCheck),
+            appendChildren(buildNode('div', { id : 'bulkShiftMarkerType' }),
+                buildNode('label', { for : 'markerTypeSelect' }, 'Select Marker Type: '),
+                appendChildren(
+                    buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onMarkerTypeSelectChange.bind(this) }),
+                    buildNode('option', { value : 'both', selected : 'selected' }, 'Both'),
+                    buildNode('option', { value : 'intro' }, 'Intro'),
+                    buildNode('option', { value : 'credits' }, 'Credits'))
+            ),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply',
                     this.#tryApply.bind(this),
@@ -181,6 +194,11 @@ class BulkShiftOverlay {
      * the shift changes. */
     #adjustNewTimes() {
         this.#table?.rows().forEach(row => row.update());
+    }
+
+    /** Refresh/Show the custom markers list when a type is selected*/
+    #onMarkerTypeSelectChange(checkbox) {
+        this.#check();
     }
 
     /**
@@ -422,13 +440,28 @@ class BulkShiftOverlay {
             TableElements.shortTimeColumn('New End')
         );
 
+        const markerTypeSelected = this.markerType();
         const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
+
+        this.#markersWithoutRows.length = 0; 
+
         for (let i = 0; i < sortedMarkers.length; ++i) {
             const checkGroup = [];
             const eInfo = shiftResult.episodeData[sortedMarkers[i].parentId];
-            checkGroup.push(sortedMarkers[i]);
+
+            
+            if (markerTypeSelected == 'both' || sortedMarkers[i].markerType == markerTypeSelected)  { // If the marker type is selected, prep it for row addition
+                checkGroup.push(sortedMarkers[i]);
+            }
+            else this.#markersWithoutRows.push(sortedMarkers[i].id); // If not then store it for the getIgnored table later
+            
             while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
-                checkGroup.push(sortedMarkers[++i]);
+                i++;
+                // Same deal here as above comments
+                if (markerTypeSelected == 'both' || sortedMarkers[i].markerType == markerTypeSelected)  { 
+                    checkGroup.push(sortedMarkers[i]);
+                }
+                else this.#markersWithoutRows.push(sortedMarkers[i].id);
             }
 
             const multiple = checkGroup.length > 1;
@@ -470,6 +503,11 @@ class BulkShiftOverlay {
             }
         }
 
+        // Add markers with non-existant rows to the ignored list
+        for (let i = 0; i < this.#markersWithoutRows.length; i++) {
+            ignored.push(this.#markersWithoutRows[i]);
+        }
+
         return {
             ignored : ignored,
             tableVisible : true,
@@ -478,6 +516,10 @@ class BulkShiftOverlay {
             hasError  : hasError,
         };
     }
+    
+    // Copied this from BulkAddOverlay to maintain consistency
+    markerType() { return $('#markerTypeSelect').value; } // TODO: store main container and scope to that. 
+
 }
 
 /**
