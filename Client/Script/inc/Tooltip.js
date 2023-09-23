@@ -166,15 +166,19 @@ class Tooltip {
 
         const heightAdjust = tooltip.clientHeight + 20 + windowMargin;
         const rawHeight = e.clientY + window.scrollY;
-        const maxHeight = window.innerHeight + window.scrollY - heightAdjust;
+        const maxHeight = document.body.clientHeight + window.scrollY - heightAdjust;
         tooltip.style.top = (Math.min(rawHeight, maxHeight) + 20) + 'px';
 
         const avoidOverlay = rawHeight > maxHeight ? 10 : 0;
         // Border isn't included in clientWidth, which can cause us to slowly shrink a tooltip that's on the right edge.
         const borderAdjust = Tooltip.#borderWidth(tooltip);
         const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
-        const maxWidth = window.innerWidth + window.scrollX - widthAdjust;
+        const maxWidth = document.body.clientWidth + window.scrollX - widthAdjust;
         tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + 'px';
+        if (maxWidth < e.clientX + window.scrollX && rawHeight + heightAdjust > document.body.clientHeight + window.scrollY) {
+            // Adjusting x & y, move tooltip completely above cursor
+            tooltip.style.top = (rawHeight - heightAdjust + 20) + 'px';
+        }
     }
 
     /** Dismisses the tooltip. */
