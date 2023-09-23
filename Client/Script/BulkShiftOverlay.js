@@ -453,7 +453,9 @@ class BulkShiftOverlay {
             if (markerTypeSelected == 'both' || sortedMarkers[i].markerType == markerTypeSelected)  { // If the marker type is selected, prep it for row addition
                 checkGroup.push(sortedMarkers[i]);
             }
-            else this.#markersWithoutRows.push(sortedMarkers[i].id); // If not then store it for the getIgnored table later
+            else {
+                this.#markersWithoutRows.push(sortedMarkers[i].id); // If not then store it for the getIgnored table later
+            }
             
             while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
                 i++;
