@@ -157,7 +157,7 @@ class ResultRow {
     /**
      * Create and return the main content of the marker row.
      * @param {HTMLElement} titleColumn The first/title column of the row.
-     * @param {HTMLElement} customColumn The second row, which is implementation specific.
+     * @param {HTMLElement} [customColumn=null] The second row, which is implementation specific.
      * @param {() => void} [clickCallback=null] The callback to invoke, if any, when the row is clicked. */
     buildRowColumns(titleColumn, customColumn, clickCallback=null) {
         const events = { keydown : this.onRowKeydown.bind(this) };
@@ -170,6 +170,7 @@ class ResultRow {
         }
 
         properties.class = className;
+        titleColumn.classList.add('resultTitle');
 
         return appendChildren(buildNode('div', properties, 0, events),
             titleColumn,
@@ -718,7 +719,7 @@ class SeasonResultRow extends ResultRow {
             title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
         }
 
-        const row = this.buildRowColumns(title, buildNode('div'), selected ? null : this.#seasonClick.bind(this));
+        const row = this.buildRowColumns(title, null, selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', () => {
                 PlexUI.clearSections(UISection.Episodes);

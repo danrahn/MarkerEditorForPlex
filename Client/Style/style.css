@@ -209,8 +209,30 @@ input:focus-visible {
   text-align: right;
 }
 
+/* Allow show names to take up 50% of the space, allocating 25% for season counts and marker info. */
+.showResult:not(.selected)>.resultTitle {
+  flex: 0 1 50%;
+}
+.showResult:not(.selected)>.showResultEpisodes,
+.showResult:not(.selected)>.showResultSeasons {
+  flex: 0 1 25%;
+}
+
 .seasonResult {
   padding: 10px 10px 10px 20px;
+}
+
+/* Allow marker info to shrink to make room for long season titles */
+.seasonResult:not(.selected)>.showResultEpisodes {
+  flex: 0 1 auto;
+}
+
+/* Make back buttons/marker info a fixed width to allow show/season titles to grow. */
+.showResult.selected>.showResultEpisodes,
+.showResult.selected>.goBack,
+.seasonResult.selected>.showResultEpisodes,
+.seasonResult.selected>.goBack {
+  flex: 0 1 20%;
 }
 
 .bulkResultRow {
