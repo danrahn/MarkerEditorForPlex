@@ -10,6 +10,7 @@ import DatabaseWrapper from '../../Server/DatabaseWrapper.js';
 import { ExtraData } from '../../Server/PlexQueryManager.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
+import { Readable } from 'stream';
 import TransactionBuilder from '../../Server/TransactionBuilder.js';
 
 /** @typedef {!import  ('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
@@ -284,13 +285,14 @@ class ImportExportTest extends TestBase {
     async #getExportedData(section) {
         const exported = await this.get(`export/${section}`);
         const stream = createWriteStream(this.#dbPath());
-        exported.body.pipe(stream);
-        await new Promise((resolve, _) => {
-            stream.on('finish', resolve);
-        });
+        Readable.fromWeb(exported.body).pipe(stream);
+        await new Promise((resolve, _) => { stream.on('finish', resolve); });
+        await new Promise(resolve => { stream.end(() => resolve()); });
+
         const db = await DatabaseWrapper.CreateDatabase(this.#dbPath(), false /*allowCreate*/);
         const data = await db.all('SELECT * FROM markers;');
         this.#verifyData(data);
+        db.close();
         return data;
     }
 

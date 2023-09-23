@@ -364,8 +364,30 @@ ORDER BY seasons.\`index\` ASC;`;
      * @param {number} seasonMetadataId
      * @returns {Promise<RawEpisodeData[]>} */
     async getEpisodes(seasonMetadataId) {
-        // Multiple joins to grab the season name, show name, and episode duration (MAX so that we capture)
-        // (the longest available episode, as Plex seems fine with ends beyond the media's length).
+        return this.#getEpisodesCore(seasonMetadataId, `p.id`);
+    }
+
+    /**
+     * Return all episodes for the given show, season, or episode id.
+     * @param {number} metadataId
+     * @returns {Promise<RawEpisodeData[]>} */
+    async getEpisodesAuto(metadataId) {
+        const typeInfo = await this.#mediaTypeFromId(metadataId);
+        let where = '';
+        switch (typeInfo.metadata_type) {
+            case MetadataType.Show   : where = `g.id`; break;
+            case MetadataType.Season : where = `p.id`; break;
+            case MetadataType.Episode: where = `e.id`; break;
+            default:
+                throw new ServerError(`Item ${metadataId} is not an episode, season, or series`, 400);
+        }
+
+        return this.#getEpisodesCore(metadataId, where);
+    }
+
+    async #getEpisodesCore(metadataId, whereClause) {
+        // Multiple joins to grab the season name, show name, and episode duration (MAX so that we capture
+        // the longest available episode, as Plex seems fine with ends beyond the media's length).
         const query = `
 SELECT
     e.title AS title,
@@ -380,21 +402,42 @@ FROM metadata_items e
     INNER JOIN metadata_items p ON e.parent_id=p.id
     INNER JOIN metadata_items g ON p.parent_id=g.id
     INNER JOIN media_items m ON e.id=m.metadata_item_id
-WHERE e.parent_id=? AND e.metadata_type=4
+WHERE ${whereClause}=? AND e.metadata_type=4
 GROUP BY e.id
 ORDER BY e.\`index\` ASC;`;
 
-        return this.#database.all(query, [seasonMetadataId]);
+        return this.#database.all(query, [metadataId]);
     }
 
     /**
      * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
-     * @param {Iterable<number>} episodeMetadataIds
+     * @param {Set<number>} episodeMetadataIds
+     * @param {number} metadataId The parent id for all episodes
      * @returns {Promise<RawEpisodeData[]>}*/
-    async getEpisodesFromList(episodeMetadataIds) {
+    async getEpisodesFromList(episodeMetadataIds, metadataId) {
         if (episodeMetadataIds.length == 0) {
             Log.warn('Why are we calling getEpisodesFromList with an empty list?');
             return [];
+        }
+
+        // With many ids, it can be faster to just grab all ids from the parent and filter it ourselves.
+        // On top of that, the DB can only handle so many WHERE conditions before it errors out.
+        if (episodeMetadataIds.size > 500) {
+            if (!metadataId) {
+                Log.warn(`Too many episodes in getEpisodesFromList without a fallback metadata id, batching calls`);
+                let index = 0;
+                const episodes = [];
+                const ids = Array.from(episodeMetadataIds);
+                while (index <= ids.length) {
+                    episodes.concat(await this.getEpisodesFromList(ids.slice(index, Math.min(index + 500, ids.length))));
+                    index += 500;
+                }
+
+                return episodes;
+            }
+
+            const episodes = await this.getEpisodesAuto(metadataId);
+            return episodes.filter(e => episodeMetadataIds.has(e.id));
         }
 
         let query = `
@@ -435,10 +478,23 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve episode info for each of the episode ids in `episodeMetadataIds`
-     * @param {Iterable<number>} episodeMetadataIds
+     * Retrieve movie info for each of the movie ids in `movieMetadataIds`
+     * @param {number[]} movieMetadataIds
      * @returns {Promise<RawMovieData[]>}*/
     async getMoviesFromList(movieMetadataIds) {
+
+        // For large queries, do it in batches to get around SQLite's condition limits
+        if (movieMetadataIds.length > 500) {
+            let index = 0;
+            const movies = [];
+            while (index < movieMetadataIds.length) {
+                movies.concat(await this.getMoviesFromList(movieMetadataIds.slice(index, Math.min(movieMetadataIds.length, index + 500))));
+                index += 500;
+            }
+
+            return movies;
+        }
+
         let query = `
     SELECT movies.id AS id,
         movies.title AS title,
@@ -581,12 +637,26 @@ ORDER BY e.\`index\` ASC;`;
         }
     }
 
+    /**
+     * Retrieve episodes or movies for the given media ids.
+     * @param {number[]} mediaIds
+     * @param {string} extendedFields */
     async #getMarkersForEpisodesOrMovies(mediaIds, extendedFields) {
         let query = `SELECT ${extendedFields} WHERE taggings.tag_id=? AND (`;
-        mediaIds.forEach(mediaId => {
+        mediaIds.forEach((mediaId, index) => {
             if (isNaN(mediaId)) {
                 // Don't accept bad keys, but don't fail the entire operation either.
                 Log.warn(mediaId, 'Found bad key in queryIds, skipping');
+                return;
+            }
+
+            // This query only works if we have relatively few ids to query, otherwise we run into
+            // SQL condition limits. The caller should have verified this already.
+            if (index > 500) {
+                if (index == 501) {
+                    Log.error(`Over 500 ids requested in getMarkersForEpisodesOrMovies, ignoring subsequent calls`);
+                }
+
                 return;
             }
 
@@ -1483,7 +1553,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         // This could probably be combined with the switch above, but it shouldn't be _that_ much slower
-        const episodeData = await this.getEpisodesFromList(episodeIds);
+        const episodeData = await this.getEpisodesFromList(episodeIds, metadataId);
 
         /** @type {{[episodeId: number]: BulkAddResultEntry}} */
         const episodeMarkerMap = {};

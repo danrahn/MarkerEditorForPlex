@@ -779,7 +779,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             return;
         }
 
-        const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap));
+        const episodes = await PlexQueries.getEpisodesFromList(new Set(Object.keys(episodeMap).map(k => parseInt(k))));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
                 Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
@@ -1130,19 +1130,26 @@ ORDER BY id DESC;`;
     }
 
     /**
-     * Attempts to restore the markers specified by the given ids
-     * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
-     * @param {number} sectionId The id of the section the old marker belonged to.
-     * @param {number} resolveType How to resolve overlapping markers. */
-    async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
-        if (!(sectionId in this.#uuids)) {
-            throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
+     * Retrieve all actions for the given marker ids.
+     * @param {number[]} markerIds
+     * @param {number} sectionId
+     * @returns {Promise<MarkerAction[]>} */
+    async #getActionsForIds(markerIds, sectionId) {
+        const parameters = [];
+
+        // Faster to just grab everything and filter ourselves, and also gets
+        // around sqlite limits to the number of variables allowed.
+        if (markerIds.length > 500) {
+            const markerSet = new Set(markerIds.map(m => parseInt(m)));
+            const query = `SELECT * FROM actions WHERE section_uuid=? ORDER BY id desc;`;
+            parameters.push(this.#uuids[sectionId]);
+            /** @type {MarkerAction[]} */
+            const rows = await this.#actions.all(query, parameters);
+            return rows.filter(m => markerSet.has(m.marker_id));
         }
 
-        Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
         let query = 'SELECT * FROM actions WHERE (';
-        const parameters = [];
-        for (const oldMarkerId of oldMarkerIds) {
+        for (const oldMarkerId of markerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {
                 throw new ServerError(`Trying to restore an invalid marker id ${oldMarkerId}`, 400);
@@ -1157,7 +1164,21 @@ ORDER BY id DESC;`;
         query += `) AND section_uuid=? ORDER BY id DESC;`;
 
         /** @type {MarkerAction[]} */
-        const rows = await this.#actions.all(query, parameters);
+        return this.#actions.all(query, parameters);
+    }
+
+    /**
+     * Attempts to restore the markers specified by the given ids
+     * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
+     * @param {number} sectionId The id of the section the old marker belonged to.
+     * @param {number} resolveType How to resolve overlapping markers. */
+    async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
+        if (!(sectionId in this.#uuids)) {
+            throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
+        }
+
+        Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
+        const rows = await this.#getActionsForIds(oldMarkerIds, sectionId);
         if (rows.length == 0) {
             throw new ServerError(`No markers found with ids ${oldMarkerIds} to restore.`, 400);
         }
@@ -1275,8 +1296,8 @@ ORDER BY id DESC;`;
 
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
         // while also letting us know that there isn't a real marker that
-        let query = 'UPDATE actions SET restored_id=-1 WHERE (';
-        const parameters = [];
+        const transaction = new TransactionBuilder(this.#actions);
+        const sectionUuid = this.#uuids[sectionId];
         for (const oldMarkerId of oldMarkerIds) {
             const markerId = parseInt(oldMarkerId);
             if (isNaN(markerId)) {
@@ -1284,14 +1305,10 @@ ORDER BY id DESC;`;
             }
 
             idSet[oldMarkerId] = true;
-            parameters.push(markerId);
-            query += `marker_id=? OR `;
+            transaction.addStatement('UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?', [markerId, sectionUuid]);
         }
 
-        query = query.substring(0, query.length - 4);
-        parameters.push(this.#uuids[sectionId]);
-        query += ') AND section_uuid=?';
-        await this.#actions.run(query, parameters);
+        await transaction.exec();
 
         // Inefficient, but I'm lazy
         if (this.#sectionTypes[sectionId] == MetadataType.Movie) {

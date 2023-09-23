@@ -47,6 +47,7 @@ class CoreCommands {
         LegacyMarkerBreakdown.Update(markerData, allMarkers.length - 1, 1 /*delta*/);
         MarkerCache?.addMarkerToCache(newMarker);
         await BackupManager?.recordAdds([markerData]);
+        Log.info(`Added ${markerType} marker to item ${metadataId} [${startMs}-${endMs}]`);
         return markerData;
     }
 
@@ -104,6 +105,8 @@ class CoreCommands {
         const oldStart = currentMarker.start;
         const oldEnd = currentMarker.end;
         await BackupManager?.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
+        Log.info(`Edited Marker for item ${currentMarker.parent_id}, ` +
+            `was [${currentMarker.start}-${currentMarker.end}], now [${startMs}-${endMs}]`);
         return newMarker;
     }
 
@@ -136,6 +139,7 @@ class CoreCommands {
         MarkerCache?.removeMarkerFromCache(markerId);
         LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
         await BackupManager?.recordDeletes([deletedMarker]);
+        Log.info(`Deleted marker from item ${markerToDelete.parent_id} [${markerToDelete.start}-${markerToDelete.end}]`);
         return deletedMarker;
     }
 
@@ -177,8 +181,8 @@ class CoreCommands {
         }
 
         /** @type {number[]} */
-        const episodeIds = Object.keys(seen);
-        const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
+        const episodeIds = new Set(Object.keys(seen).map(k => parseInt(k)));
+        const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
         const foundOverflow = CoreCommands.#checkOverflow(seen, rawEpisodeData, startShift, endShift);
 
         if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
@@ -225,6 +229,7 @@ class CoreCommands {
         }
 
         await BackupManager?.recordEdits(markerData, oldMarkerMap);
+        Log.info(`Shifted ${markerData.length} markers for item ${metadataId} [startShift=${startShift}, endShift=${endShift}]`);
 
         return {
             applied : true,
@@ -279,7 +284,7 @@ class CoreCommands {
             }
 
             const serializedEpisodeData = {};
-            const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
+            const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
             rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
             return {
                 markers : serializedMarkers,
@@ -310,6 +315,7 @@ class CoreCommands {
         }
 
         await BackupManager?.recordDeletes(deleted);
+        Log.info(`Deleted ${deleted.length} markers for item ${metadataId} (explicitly ignored ${ignoredMarkerIds.length})`);
         return {
             markers : serializedMarkers,
             deletedMarkers : deleted
@@ -397,6 +403,8 @@ class CoreCommands {
             await BackupManager?.recordEdits(edits, oldMarkerTimings);
             await BackupManager?.recordDeletes(deletes);
         }
+
+        Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);
 
         return addResult;
     }
