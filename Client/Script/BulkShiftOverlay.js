@@ -5,8 +5,10 @@ import Overlay from './inc/Overlay.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
+import Tooltip from './inc/Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').EpisodeData} EpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
@@ -42,6 +44,9 @@ class BulkShiftOverlay {
     /** @type {boolean} */
     #separateShift = false;
 
+    /** @type {HTMLSelectElement} */
+    #appliesToDropdown;
+
     /**
      * Timer id to track shift user input.
      * @type {number} */
@@ -49,6 +54,12 @@ class BulkShiftOverlay {
 
     /** @type {BulkActionTable} */
     #table;
+
+    /**
+     * Keeps track of all markers associated with relevant episodes, regardless of whether
+     * they're currently in the marker table.
+     * @type {{[episodeId: number]: {inactive: SerializedMarkerData[], active: BulkShiftRow[] }}} */
+    #episodeMap;
 
     /** @type {number} Cached start shift time, in milliseconds */
     #startShiftMs;
@@ -78,7 +89,8 @@ class BulkShiftOverlay {
             },
             0,
             { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : timeInputShortcutHandler });
+              keydown : e => { timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/); }
+            });
 
         this.#endTimeInput = buildNode('input',
             {   type : 'text',
@@ -88,7 +100,8 @@ class BulkShiftOverlay {
                 class : 'hidden' },
             0,
             { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : timeInputShortcutHandler });
+              keydown : e => { timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/); }
+            });
 
         const separateShiftCheck = buildNode(
             'input', {
@@ -109,6 +122,15 @@ class BulkShiftOverlay {
             appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
                 buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
                 separateShiftCheck),
+            appendChildren(buildNode('div'),
+                buildNode('label', { for : 'markerTypeSelect' }, 'Shift Marker Type(s): '),
+                appendChildren(
+                    buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onApplyToChanged.bind(this) }),
+                    buildNode('option', { value : MarkerEnum.All, selected : 'selected' }, 'All'),
+                    buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
+                    buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
+                )
+            ),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply',
                     this.#tryApply.bind(this),
@@ -130,6 +152,8 @@ class BulkShiftOverlay {
                 ButtonCreator.textButton('Cancel', Overlay.dismiss)
             )
         );
+
+        this.#appliesToDropdown = $('#markerTypeSelect', container);
 
         Overlay.build({
             dismissible : true,
@@ -181,6 +205,14 @@ class BulkShiftOverlay {
      * the shift changes. */
     #adjustNewTimes() {
         this.#table?.rows().forEach(row => row.update());
+    }
+
+    /**
+     * Recreate the marker table if it's showing and the marker apply type was changed. */
+    #onApplyToChanged() {
+        if (this.#table) {
+            this.#check();
+        }
     }
 
     /**
@@ -282,6 +314,7 @@ class BulkShiftOverlay {
         const shiftResult = await ServerCommand.shift(
             this.#mediaItem.metadataId,
             startShift, endShift,
+            this.#applyTo(),
             false /*force*/,
             ignoreInfo.ignored);
 
@@ -347,6 +380,7 @@ class BulkShiftOverlay {
                 this.#mediaItem.metadataId,
                 startShift,
                 endShift,
+                this.#applyTo(),
                 true /*force*/,
                 ignoreInfo.ignored);
 
@@ -372,7 +406,7 @@ class BulkShiftOverlay {
     /**
      * Retrieves marker information for the current metadata id and displays it in a table for the user. */
     async #check() {
-        const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId);
+        const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId, this.#applyTo());
         this.#showCustomizeTable(shiftResult);
     }
 
@@ -408,11 +442,71 @@ class BulkShiftOverlay {
     }
 
     /**
+     * The marker type(s) to apply the shift to. */
+    #applyTo() { return parseInt(this.#appliesToDropdown.value); }
+
+    /**
+     * Return an array of all markers that overlap with the given start and end timestamps,
+     * excluding the marker that's associated with those timestamps.
+     * @param {number} markerId The marker to check
+     * @param {number} episodeId The episode associated with the marker
+     * @param {number} start The new start time of the marker
+     * @param {number} end The new end time of the marker
+     * @returns {SerializedMarkerData[]} */
+    overlappingMarkers(markerId, episodeId, start, end) {
+        const data = this.#episodeMap[episodeId];
+        if (!data) {
+            Log.assert(false, 'We should only call overlappingMarkers if we have a customization table.');
+            return [];
+        }
+
+        const overlapping = [];
+        for (const marker of data.inactive) {
+            if (marker.id == markerId) {
+                continue; // This should be impossible for inactive markers.
+            }
+
+            if (start <= marker.start && end >= marker.start || start > marker.start && start <= marker.end) {
+                overlapping.push(marker);
+            }
+        }
+
+        for (const row of data.active) {
+            if (row.markerId() == markerId) {
+                continue;
+            }
+
+            const marker = row.marker();
+
+            // If the linked row is also enabled, apply the shift to that marker before testing
+            // It's only possible for a linked row to overlap if we have separate start and end
+            // shifts, but check all rows regardless.
+            if (row.enabled && !row.isError()) {
+                const linkStart = marker.start + this.shiftStartValue();
+                const linkEnd = marker.end + this.shiftEndValue();
+                if (start <= linkStart && end >= linkStart || start > linkStart && start <= linkEnd) {
+                    const markerCopy = { ...marker };
+                    markerCopy.start = linkStart;
+                    markerCopy.end = linkEnd;
+                    overlapping.push(markerCopy);
+                }
+            } else {
+                if (start <= marker.start && end >= marker.start || start > marker.start && start <= marker.end) {
+                    overlapping.push(marker);
+                }
+            }
+        }
+
+        return overlapping;
+    }
+
+    /**
      * Display a table of all markers applicable to this instance's metadata id.
      * @param {ShiftResult} shiftResult */
     #showCustomizeTable(shiftResult) {
         this.#table?.remove();
         this.#table = new BulkActionTable();
+        this.#episodeMap = {};
 
         this.#table.buildTableHead(
             'Episode',
@@ -422,22 +516,44 @@ class BulkShiftOverlay {
             TableElements.shortTimeColumn('New End')
         );
 
+        const markerTypeSelected = this.#applyTo();
+
         const sortedMarkers = BulkActionCommon.sortMarkerList(shiftResult.allMarkers, shiftResult.episodeData);
         for (let i = 0; i < sortedMarkers.length; ++i) {
             const checkGroup = [];
             const eInfo = shiftResult.episodeData[sortedMarkers[i].parentId];
-            checkGroup.push(sortedMarkers[i]);
+            const inactive = [];
+
+            // If the marker type is selected, prep it for row addition
+            if (MarkerEnum.typeMatch(sortedMarkers[i].markerType, markerTypeSelected))  {
+                checkGroup.push(sortedMarkers[i]);
+            } else {
+                inactive.push(sortedMarkers[i]);
+            }
+
             while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
-                checkGroup.push(sortedMarkers[++i]);
+                if (MarkerEnum.typeMatch(sortedMarkers[++i].markerType, markerTypeSelected)) {
+                    checkGroup.push(sortedMarkers[i]);
+                } else {
+                    inactive.push(sortedMarkers[i]);
+                }
             }
 
             const multiple = checkGroup.length > 1;
+            const rows = [];
             for (const marker of checkGroup) {
                 const row = new BulkShiftRow(this, marker, eInfo, multiple);
                 this.#table.addRow(row, multiple);
-                row.update();
+                rows.push(row);
             }
+
+            this.#episodeMap[eInfo.metadataId] = {
+                inactive : inactive,
+                active : rows,
+            };
         }
+
+        this.#table.rows().forEach(row => row.update());
 
         $('#bulkActionContainer').appendChild(this.#table.html());
     }
@@ -524,6 +640,7 @@ class BulkShiftRow extends BulkActionRow {
 
     episodeId() { return this.#marker.parentId; }
     markerId() { return this.#marker.id; }
+    marker() { return this.#marker; }
     /** Returns whether this row is linked to other rows that share the same episode id. */
     linked() { return this.#linked; }
     /** Returns whether any part of the shifted marker in this row is cut off by the start/end of the episode. */
@@ -579,7 +696,8 @@ class BulkShiftRow extends BulkActionRow {
         this.#isWarn = false;
         const startShift = this.#parent.shiftStartValue() || 0;
         const endShift = this.#parent.shiftEndValue() || 0;
-        if (this.enabled !== this.#enabledLastUpdate) {
+        const enabledChanged = this.enabled !== this.#enabledLastUpdate;
+        if (enabledChanged) {
             this.#markActive(!this.enabled, this.row.children[2], this.row.children[3]);
             if (!this.enabled) {
                 BulkShiftClasses.set(this.row.children[4], BulkShiftClasses.Type.Reset, false);
@@ -591,49 +709,16 @@ class BulkShiftRow extends BulkActionRow {
             this.#enabledLastUpdate = this.enabled;
         }
 
-        const start = this.#marker.start + startShift;
-        const end = this.#marker.end + endShift;
-        const maxDuration = this.#episode.duration;
-        const newStart = Math.max(0, Math.min(start, maxDuration));
-        const newEnd = Math.max(0, Math.min(end, maxDuration));
-        const newStartNode = this.row.children[4];
-        const newEndNode = this.row.children[5];
-        newStartNode.innerText = msToHms(newStart);
-        newEndNode.innerText = msToHms(newEnd);
-        // If we aren't enabled, skip custom coloring.
-        if (this.enabled) {
-            if (end < 0 || start > maxDuration || end <= start) {
-                this.#markActive(true, this.row.children[2], this.row.children[3]);
-                [newStartNode, newEndNode].forEach(n => {
-                    BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false);
-                });
-
-                this.#isError = true;
-
-                return;
-            }
-
-            if (start < 0) {
-                BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true);
-                this.#isWarn = true;
-            } else {
-                BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.On, true);
-            }
-
-            if (end > maxDuration) {
-                this.#isWarn = true;
-                BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true);
-            } else {
-                BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.On, true);
-            }
+        if (!this.#validateMarkerRowShift(startShift, endShift)) {
+            return;
         }
-
 
         if (!this.#linked) {
             BulkShiftClasses.set(this.row.children[1], this.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error, true);
             return;
         }
 
+        /** @type {BulkShiftRow[]} */
         const linkedRows = [];
         let anyChecked = this.enabled;
         for (const row of this.#parent.table().rows()) {
@@ -648,14 +733,88 @@ class BulkShiftRow extends BulkActionRow {
             if (anyChecked) {
                 BulkShiftClasses.set(
                     linkedRow.row.children[1],
-                    linkedRow.enabled ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error,
+                    linkedRow.enabled && !linkedRow.#isError ? BulkShiftClasses.Type.On : BulkShiftClasses.Type.Error,
                     true);
-            } else {
+            } else if (!linkedRow.#isError) {
                 BulkShiftClasses.set(linkedRow.row.children[1], BulkShiftClasses.Type.Warn, true);
+            }
+
+            // A change in enabled/disabled state might result in new warnings for linked markers. Update those as well.
+            // This should be safe from infinite recursion, because enabledChanged shouldn't be true for these sub-updates.
+            if (enabledChanged) {
+                linkedRow.update();
             }
         }
     }
 
+    /**
+     * Updates the marker row's new timings and checks for overflow/underflow/overlap.
+     * @param {number} startShift Time in ms to shift the start marker
+     * @param {number} endShift Time in ms to shift the end marker
+     * @returns {boolean} `true` if the caller should continue processing the marker, false if a blocking check failed. */
+    #validateMarkerRowShift(startShift, endShift) {
+        const start = this.#marker.start + startShift;
+        const end = this.#marker.end + endShift;
+        const maxDuration = this.#episode.duration;
+        const newStart = Math.max(0, Math.min(start, maxDuration));
+        const newEnd = Math.max(0, Math.min(end, maxDuration));
+        const newStartNode = this.row.children[4];
+        const newEndNode = this.row.children[5];
+        newStartNode.innerText = msToHms(newStart);
+        newEndNode.innerText = msToHms(newEnd);
+
+        // If we aren't enabled, skip custom coloring.
+        if (!this.enabled) {
+            return true;
+        }
+
+        if (end < 0 || start > maxDuration || end <= start) {
+            this.#markActive(true, this.row.children[2], this.row.children[3]);
+            [this.row.children[1], newStartNode, newEndNode].forEach(n => {
+                BulkShiftClasses.set(n, BulkShiftClasses.Type.Error, false,
+                    `This marker is shifted outside of the episode.`);
+            });
+
+            this.#isError = true;
+
+            return false;
+        }
+
+        let startWarnText = '';
+        let endWarnText = '';
+        if (start < 0) {
+            startWarnText = `<br>This shift will truncate the marker by ${msToHms(-start)}.`;
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.substring(4));
+            this.#isWarn = true;
+        } else {
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.On, true);
+        }
+
+        if (end > maxDuration) {
+            this.#isWarn = true;
+            endWarnText = `<br>This shift will truncate the marker by ${msToHms(end - maxDuration)}.`;
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.substring(4));
+        } else {
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.On, true);
+        }
+
+        const overlap = this.#parent.overlappingMarkers(this.markerId(), this.#episode.metadataId, newStart, newEnd);
+        for (const marker of overlap) {
+            const warnText = `<br>Overlaps with ${marker.markerType} marker: [${msToHms(marker.start)}-${msToHms(marker.end)}]`;
+            startWarnText += warnText;
+            endWarnText += warnText;
+        }
+
+        if (startWarnText) {
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.substring(4));
+        }
+
+        if (endWarnText) {
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.substring(4));
+        }
+
+        return true;
+    }
 }
 
 /**
@@ -673,7 +832,7 @@ const BulkShiftClasses = {
      * @param {HTMLTableCellElement} node
      * @param {number} idx BulkShiftClasses.Type value
      * @param {boolean} active Whether this node is active */
-    set : (node, idx, active) => {
+    set : (node, idx, active, tooltip='') => {
         const names = BulkShiftClasses.classNames;
         active ? node.classList.remove('bulkActionInactive') : node.classList.add('bulkActionInactive');
         if (idx == -1) {
@@ -687,6 +846,12 @@ const BulkShiftClasses = {
             for (let i = 0; i < names.length; ++i) {
                 i == idx ? node.classList.add(names[i]) : node.classList.remove(names[i]);
             }
+        }
+
+        if (tooltip) {
+            Tooltip.setTooltip(node, tooltip);
+        } else {
+            Tooltip.removeTooltip(node);
         }
     }
 };

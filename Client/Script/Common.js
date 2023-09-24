@@ -78,18 +78,20 @@ const ServerCommand = {
     /**
      * Retrieve all markers under the given metadata id that may be affected by a shift operation.
      * @param {number} id
+     * @param {number} applyTo
      * @returns {Promise<ShiftResult>} */
-    checkShift : async (id) => jsonRequest('check_shift', { id : id }),
+    checkShift : async (id, applyTo) => jsonRequest('check_shift', { id : id, applyTo : applyTo }),
 
     /**
      * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
      * @param {number} id The metadata id of the item to shift markers for.
      * @param {number} startShift The number of milliseconds to shift marker starts (positive or negative).
      * @param {number} endShift The number of milliseconds to shift marker ends (positive or negative).
+     * @param {number} applyTo The marker type(s) to apply the shift to.
      * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
      * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    shift : async (id, startShift, endShift, force, ignored=[]) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, force : force ? 1 : 0, ignored : ignored.join(',') }),
+    shift : async (id, startShift, endShift, applyTo, force, ignored=[]) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, applyTo : applyTo, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
     /**
      * Query for all markers that would be deleted for the given metadata id.
@@ -619,8 +621,14 @@ const truncationKeys = {
  * A common input handler that allows incremental
  * time changes with keyboard shortcuts.
  * @param {MouseEvent} e */
-function timeInputShortcutHandler(e, maxDuration=NaN) {
+function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
     if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
+        // Some time inputs (like bulk shift) allow negative values,
+        // so don't override '-' if we're at the start of the input.
+        if (allowNegative && e.key == '-' && e.target.selectionStart == 0) {
+            return;
+        }
+
         e.preventDefault();
         if (!adjustKeys[e.key] && !truncationKeys[e.key]) {
             return;
@@ -628,6 +636,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
 
         const simpleKey = e.key in adjustKeys;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
+        const min = allowNegative ? 0 : isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration;
         const currentValue = e.target.value;
 
         // Default to HMS, but keep ms if that's what's currently being used
@@ -646,7 +655,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
             timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
         }
 
-        const newTime = Math.min(max, Math.max(0, currentValueMs + timeDiff));
+        const newTime = Math.min(max, Math.max(min, currentValueMs + timeDiff));
         const newValue = needsHms ? msToHms(newTime) : newTime;
 
         // execCommand will make this undo-able, but is deprecated.

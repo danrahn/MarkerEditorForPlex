@@ -211,7 +211,7 @@ class BulkActionTable {
             this.#html.parentElement.removeChild(this.#multiSelectContainer);
         }
 
-        if (this.#html) {
+        if (this.#html && this.#html.isConnected) {
             this.#html.parentNode.removeChild(this.#html);
         }
 

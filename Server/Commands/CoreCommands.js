@@ -1,6 +1,6 @@
 import { BulkMarkerResolveType, EpisodeData, MarkerData } from '../../Shared/PlexTypes.js';
+import { MarkerEnum, MarkerType } from '../../Shared/MarkerType.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
-import { MarkerType } from '../../Shared/MarkerType.js';
 
 import { MetadataType, PlexQueries } from '../PlexQueryManager.js';
 import { BackupManager } from '../MarkerBackupManager.js';
@@ -148,10 +148,11 @@ class CoreCommands {
      * @param {number} metadataId show, season, or episode metadata id
      * @param {number} startShift The number of milliseconds to shift marker starts.
      * @param {number} endShift The number of milliseconds to shift marker ends.
+     * @param {number} applyTo The marker type(s) to apply the shift to.
      * @param {number} applyType The ShiftApplyType
      * @param {number[]} ignoredMarkerIds Markers to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    static async shiftMarkers(metadataId, startShift, endShift, applyType, ignoredMarkerIds) {
+    static async shiftMarkers(metadataId, startShift, endShift, applyTo, applyType, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
         if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
@@ -171,13 +172,23 @@ class CoreCommands {
                 continue;
             }
 
+            // We want to ignore markers that aren't the right type,
+            // but we still want to get episode info for all markers,
+            // even if all of an episode's markers will end up being ignored.
+            const typeMatch = MarkerEnum.typeMatch(marker.marker_type, applyTo);
+            if (!typeMatch) {
+                ignoreSet.add(marker.id);
+            }
+
             if (!seen[marker.parent_id]) {
                 seen[marker.parent_id] = [];
-            } else {
+            } else if (seen[marker.parent_id].length > 0 && typeMatch) {
                 foundConflict = true;
             }
 
-            seen[marker.parent_id].push(marker);
+            if (typeMatch) {
+                seen[marker.parent_id].push(marker);
+            }
         }
 
         /** @type {number[]} */

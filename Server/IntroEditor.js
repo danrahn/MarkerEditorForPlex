@@ -378,7 +378,8 @@ function shouldCreateServer() {
 /**
  * Entrypoint for incoming connections to the server.
  * @type {Http.RequestListener}
- */
+ * @param {IncomingMessage} req
+ * @param {ServerResponse} res */
 async function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();

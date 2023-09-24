@@ -53,10 +53,13 @@ class Tooltip {
      * @param {string} tooltip The tooltip text.
      * @param {number} [delay=250] The duration an element must be hovered before the tooltip is shown, in ms. */
     static setTooltip(element, tooltip, delay=250) {
+        const hasTT = element.hasAttribute('tt');
         this.setText(element, tooltip);
         element.setAttribute('ttDelay', delay);
-        element.addEventListener('mousemove', Tooltip.#onMouseMove);
-        element.addEventListener('mouseleave', Tooltip.dismiss);
+        if (!hasTT) {
+            element.addEventListener('mousemove', Tooltip.#onMouseMove);
+            element.addEventListener('mouseleave', Tooltip.dismiss);
+        }
     }
 
     /**

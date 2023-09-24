@@ -25,6 +25,8 @@ const MarkerEnum = {
     Intro   : 0x1,
     /**@readonly*/
     Credits : 0x2,
+    /**@readonly*/
+    All     : 0x1 | 0x2,
     /**
      * Determine whether the given enum values matches the given marker type string.
      * @param {string} markerType

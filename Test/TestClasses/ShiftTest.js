@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
@@ -25,6 +26,8 @@ class ShiftTest extends TestBase {
             this.tryShiftSeasonWithoutIgnoreTest,
             this.shiftShowWithIgnoreTest,
             this.splitShiftSeasonTest,
+            this.shiftIntroTest,
+            this.shiftCreditsTest,
         ];
     }
 
@@ -110,6 +113,7 @@ class ShiftTest extends TestBase {
             id : episode.Id,
             startShift : startShift,
             endShift : endShift,
+            applyTo : MarkerEnum.All,
             force : 0,
         });
 
@@ -161,7 +165,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeWithMultipleMarkersTryApplyWithIgnoreTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         const shift = 345000;
-        const result = await this.#verifyJoinedShift(episode.Id, shift, 1, [episode.Marker2.Id, episode.Marker3.Id]);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1, MarkerEnum.All, [episode.Marker2.Id, episode.Marker3.Id]);
         const newMarker = result.allMarkers[0];
         await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, episode.Marker1.Final, this.testDb);
 
@@ -177,7 +181,7 @@ class ShiftTest extends TestBase {
     async shiftSingleEpisodeWithMultipleMarkersForceApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         const shift = 3000;
-        const result = await this.#verifyJoinedShift(episode.Id, shift, 3, [], true, 1);
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 3, MarkerEnum.All, [], true, 1);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -193,7 +197,7 @@ class ShiftTest extends TestBase {
     async shiftSeasonWithIgnoreTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const shift = 3000;
-        const result = await this.#verifyJoinedShift(season.Id, shift, 2, [season.Episode2.Marker2.Id, season.Episode2.Marker3.Id]);
+        const result = await this.#verifyJoinedShift(season.Id, shift, 2, MarkerEnum.All, [season.Episode2.Marker2.Id, season.Episode2.Marker3.Id]);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -221,7 +225,7 @@ class ShiftTest extends TestBase {
     async shiftShowWithIgnoreTest() {
         const show = TestBase.DefaultMetadata.Show3;
         const shift = 3000;
-        const result = await this.#verifyJoinedShift(show.Id, shift, 3, [show.Season1.Episode2.Marker1.Id, show.Season1.Episode2.Marker3.Id]);
+        const result = await this.#verifyJoinedShift(show.Id, shift, 3, MarkerEnum.All, [show.Season1.Episode2.Marker1.Id, show.Season1.Episode2.Marker3.Id]);
         /** @type {MarkerData[]} */
         const newMarkers = result.allMarkers;
 
@@ -251,16 +255,53 @@ class ShiftTest extends TestBase {
     }
 
     /**
+     * Ensure we can shift only Intro markers. */
+    async shiftIntroTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
+        const shift = 3000;
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 1, MarkerEnum.Intro);
+        const newMarker = result.allMarkers[0];
+        await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, null, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, episode.Marker1.Final, this.testDb);
+        await TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker2), episode.Marker2.Type, null, null, null, episode.Marker2.Start, episode.Marker2.End, 1, episode.Marker2.Final, this.testDb);
+        return TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker3), episode.Marker3.Type, null, null, null, episode.Marker3.Start, episode.Marker3.End, 2, episode.Marker3.Final, this.testDb);
+    }
+
+    /** Ensure we can shift only Credits markers. */
+    async shiftCreditsTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
+        const shift = -3000;
+        const result = await this.#verifyJoinedShift(episode.Id, shift, 2, MarkerEnum.Credits, [], true /*expectConflict*/, 1 /*force*/);
+        await TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker1), episode.Marker1.Type, null, null, null, episode.Marker1.Start, episode.Marker1.End, 0, episode.Marker1.Final, this.testDb);
+        await TestHelpers.validateMarker(result.allMarkers[0], episode.Marker2.Type, episode.Id, null, null, episode.Marker2.Start + shift, episode.Marker2.End + shift, 1, episode.Marker2.Final, this.testDb);
+        return TestHelpers.validateMarker(result.allMarkers[1], episode.Marker3.Type, episode.Id, null, null, episode.Marker3.Start + shift, episode.Marker3.End + shift, 2, episode.Marker3.Final, this.testDb);
+    }
+
+    /**
+     * Returns minimal marker data from a DefaultMetadata marker.
+     * @param {{Id : number, Start : number, End : number, Index : number, Type : string, Final : boolean}} marker
+     * @returns {{id : number, start : number, end : number, index : number}} */
+    #testMarkerFromTestData(marker) {
+        return {
+            id : marker.Id,
+            markerType : marker.Type,
+            start : marker.Start,
+            end : marker.End,
+            index : marker.Index,
+            isFinal : marker.Final };
+    }
+
+    /**
      * Helper that validates a successfully applied shift.
      * @param {number} metadataId The show/season/episode metadata id.
      * @param {number} shift The ms to shift.
      * @param {number} expectedLength The expected number of shifted markers.
+     * @param {number} [applyTo] The marker type(s) to apply the shift to.
      * @param {number[]} [ignoreList=[]] The list of marker ids to ignore.
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
      * @param {boolean} force Whether the shift operation should be forced.
      * @returns {Promise<ShiftResult>} */
-    async #verifyJoinedShift(metadataId, shift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
-        return this.#verifySplitShift(metadataId, shift, shift, expectedLength, ignoreList, expectConflict, force);
+    async #verifyJoinedShift(metadataId, shift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
+        return this.#verifySplitShift(metadataId, shift, shift, expectedLength, applyTo, ignoreList, expectConflict, force);
     }
 
     /**
@@ -269,15 +310,17 @@ class ShiftTest extends TestBase {
      * @param {number} startShift The ms to shift the start of markers.
      * @param {number} endShift The ms to shift the end of markers.
      * @param {number} expectedLength The expected number of shifted markers.
+     * @param {number} applyTo The marker type(s) to apply the shift to.
      * @param {number[]} [ignoreList=[]] The list of marker ids to ignore.
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
      * @param {boolean} force Whether the shift operation should be forced.
      * @returns {Promise<ShiftResult>} */
-    async #verifySplitShift(metadataId, startShift, endShift, expectedLength, ignoreList=[], expectConflict=false, force=0) {
+    async #verifySplitShift(metadataId, startShift, endShift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
         const params = {
             id : metadataId,
             startShift : startShift,
             endShift : endShift,
+            applyTo : applyTo,
             force : force
         };
         if (ignoreList.length != 0) {
@@ -311,9 +354,9 @@ class ShiftTest extends TestBase {
          * @readonly */ // readonly after assign
         let result;
         if (checkOnly) {
-            result = await this.send('check_shift', { id : metadataId });
+            result = await this.send('check_shift', { id : metadataId, applyTo : MarkerEnum.All });
         } else {
-            result = await this.send('shift', { id : metadataId, startShift : 3000, endShift : 3000, force : 0 });
+            result = await this.send('shift', { id : metadataId, startShift : 3000, endShift : 3000, applyTo : MarkerEnum.All, force : 0 });
         }
 
         TestHelpers.verify(result, `Expected shift to return a valid object, found nothing.`);
