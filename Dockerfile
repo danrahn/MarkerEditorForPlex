@@ -1,5 +1,5 @@
 # LTS
-FROM node:16
+FROM node:18
 
 # Set production env
 ARG NODE_ENV=production
