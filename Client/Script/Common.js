@@ -636,7 +636,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
 
         const simpleKey = e.key in adjustKeys;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
-        const min = allowNegative ? 0 : isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration;
+        const min = allowNegative ? (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration) : 0;
         const currentValue = e.target.value;
 
         // Default to HMS, but keep ms if that's what's currently being used
