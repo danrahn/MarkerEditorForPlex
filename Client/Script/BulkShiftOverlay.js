@@ -122,15 +122,7 @@ class BulkShiftOverlay {
             appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
                 buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
                 separateShiftCheck),
-            appendChildren(buildNode('div'),
-                buildNode('label', { for : 'markerTypeSelect' }, 'Shift Marker Type(s): '),
-                appendChildren(
-                    buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onApplyToChanged.bind(this) }),
-                    buildNode('option', { value : MarkerEnum.All, selected : 'selected' }, 'All'),
-                    buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
-                    buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
-                )
-            ),
+            BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this)),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Apply',
                     this.#tryApply.bind(this),

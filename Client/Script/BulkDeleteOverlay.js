@@ -4,6 +4,7 @@ import Overlay from './inc/Overlay.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
 
@@ -21,6 +22,9 @@ class BulkDeleteOverlay {
     /** @type {BulkActionTable} */
     #table;
 
+    /** @type {HTMLSelectElement} */
+    #appliesToDropdown;
+
     /**
      * Construct a new bulk delete overlay.
      * @param {ShowData|SeasonData} mediaItem */
@@ -37,7 +41,8 @@ class BulkDeleteOverlay {
         appendChildren(container,
             title,
             buildNode('hr'),
-            buildNode('h4', {}, `Are you sure you want to delete all markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
+            buildNode('h4', {}, `Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
+            BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this)),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.textButton('Delete All', this.#deleteAll.bind(this), { id : 'deleteApply', class : 'cancelSetting' }),
                 ButtonCreator.textButton(
@@ -51,6 +56,8 @@ class BulkDeleteOverlay {
             )
         );
 
+        this.#appliesToDropdown = $('#markerTypeSelect', container);
+
         Overlay.build({
             dismissible : true,
             closeButton : true,
@@ -59,17 +66,58 @@ class BulkDeleteOverlay {
             focusBack : focusBack }, container);
     }
 
+    /** Adjusts the customization table (if visible) after the marker apply type is changed. */
+    #onApplyToChanged() {
+        const applyTo = this.#applyTo();
+        this.#table?.rows().forEach(row => {
+            if (!(row instanceof BulkDeleteRow)) {
+                return;
+            }
+
+            if (MarkerEnum.typeMatch(row.markerType(), applyTo)) {
+                row.row.classList.remove('hidden');
+            } else {
+                row.row.classList.add('hidden');
+            }
+
+            // Bit of a hack based on how getIgnored works, but we want to ensure
+            // that anything ignored by marker type filters is seen as selected
+            // by the underlying table so it's not added to our ignore list, so
+            // mark everything as checked after the marker selection type is changed.
+            row.setChecked(true);
+        });
+
+        let text = `Delete ${this.#table ? 'Selected' : 'All'}`;
+        switch (applyTo) {
+            case MarkerEnum.Intro:
+                text += ' Intros';
+                break;
+            case MarkerEnum.Credits:
+                text += ' Credits';
+                break;
+            default:
+                break;
+        }
+
+        ButtonCreator.setText($('#deleteApply'), text);
+    }
+
     /**
      * Attempt to delete all markers associated with this overlay's metadata id, minus any unchecked items. */
     async #deleteAll() {
         const ignored = this.#table?.getIgnored();
+        const applyTo = this.#applyTo();
         try {
-            const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, ignored);
+            const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, applyTo, ignored);
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
 
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Delete);
             await BulkActionCommon.flashButton('deleteApply', 'green');
-            if (result.markers.length == 0) {
+
+            // If the bulk operation deleted all markers of the desired type, dismiss the overlay,
+            // otherwise refresh the customization table.
+            const remaining = result.markers.reduce((acc, marker) => acc + MarkerEnum.typeMatch(marker.markerType, applyTo) ? 1 : 0, 0);
+            if (remaining === 0) {
                 return Overlay.dismiss();
             }
 
@@ -87,11 +135,11 @@ class BulkDeleteOverlay {
         this.#table?.remove();
         this.#table = new BulkActionTable();
 
-        ButtonCreator.setText($('#deleteApply'), 'Delete Selected');
         const sortedMarkers = BulkActionCommon.sortMarkerList(data.markers, data.episodeData);
 
         this.#table.buildTableHead(
             'Episode',
+            'Type',
             TableElements.customClassColumn('Name', 'bulkActionEpisodeColumn'),
             TableElements.shortTimeColumn('Start Time'),
             TableElements.shortTimeColumn('End Time')
@@ -102,7 +150,12 @@ class BulkDeleteOverlay {
         }
 
         $('#bulkActionContainer').appendChild(this.#table.html());
+        this.#onApplyToChanged();
     }
+
+    /**
+     * The marker type(s) to apply the shift to. */
+    #applyTo() { return parseInt(this.#appliesToDropdown.value); }
 }
 
 /**
@@ -129,6 +182,7 @@ class BulkDeleteRow extends BulkActionRow {
         const row = this.buildRow(
             this.createCheckbox(true /*checked*/, this.#marker.id, this.#marker.parentId),
             `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
+            this.#marker.markerType[0].toUpperCase() + this.#marker.markerType.substring(1),
             TableElements.customClassColumn(this.#episode.title, 'bulkActionEpisodeColumn'),
             TableElements.timeData(this.#marker.start),
             TableElements.timeData(this.#marker.end),
@@ -148,6 +202,11 @@ class BulkDeleteRow extends BulkActionRow {
             this.enabled ? col.classList.add('bulkActionOff') : col.classList.remove('bulkActionOff');
             this.enabled ? col.classList.remove('bulkActionInactive') : col.classList.add('bulkActionInactive');
         }
+    }
+
+    /** The marker type (intro/credits) of the marker associated with this row. */
+    markerType() {
+        return this.#marker.markerType;
     }
 }
 

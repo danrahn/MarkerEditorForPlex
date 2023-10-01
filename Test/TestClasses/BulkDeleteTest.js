@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+import { MarkerEnum, MarkerType } from '../../Shared/MarkerType.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
@@ -22,6 +23,8 @@ class BulkDeleteTest extends TestBase {
             this.bulkDeleteEpisodeWithIgnoreTest,
             this.bulkDeleteSeasonWithIgnoreTest,
             this.bulkDeleteShowWithIgnoreTest,
+            this.bulkDeleteIntroTest,
+            this.bulkDeleteCreditsTest,
         ];
     }
 
@@ -96,7 +99,7 @@ class BulkDeleteTest extends TestBase {
 
     async dryRunMovieTest() {
         this.expectFailure();
-        const response = await this.#bulkDelete(100, true, [], true /*raw*/);
+        const response = await this.#bulkDelete(100, true, MarkerEnum.All, [], true /*raw*/);
         TestHelpers.verifyBadRequest(response);
     }
 
@@ -155,7 +158,7 @@ class BulkDeleteTest extends TestBase {
     async bulkDeleteEpisodeWithIgnoreTest() {
         // Single marker, make sure we're okay with an empty delete
         let episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
-        let response = await this.#bulkDelete(episode.Id, false /*dryRun*/, [episode.Marker1.Id]);
+        let response = await this.#bulkDelete(episode.Id, false /*dryRun*/, MarkerEnum.All, [episode.Marker1.Id]);
         let length = (response && response.markers) ? response.markers.length : undefined;
         TestHelpers.verify(length === 1, `Expected bulk delete ignore list to return marker array of size 1, found ${length}`);
         length = response.deletedMarkers ? response.deletedMarkers.length : undefined;
@@ -167,7 +170,7 @@ class BulkDeleteTest extends TestBase {
 
         // Multiple markers
         episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
-        response = await this.#bulkDelete(episode.Id, false /*dryRun*/, [episode.Marker2.Id]);
+        response = await this.#bulkDelete(episode.Id, false /*dryRun*/, MarkerEnum.All, [episode.Marker2.Id]);
         length = (response && response.markers) ? response.markers.length : undefined;
         TestHelpers.verify(length === 1, `Expected bulk delete ignore list to return marker array of size 1, found ${length}`);
         length = response.deletedMarkers ? response.deletedMarkers.length : undefined;
@@ -183,7 +186,7 @@ class BulkDeleteTest extends TestBase {
 
     async bulkDeleteSeasonWithIgnoreTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
-        const response = await this.#bulkDelete(season.Id, false, [season.Episode2.Marker2.Id]);
+        const response = await this.#bulkDelete(season.Id, false, MarkerEnum.All, [season.Episode2.Marker2.Id]);
         let length = (response && response.markers) ? response.markers.length : undefined;
         TestHelpers.verify(length === 1, `Expected bulk delete ignore list of 1 to return marker array of length 1, found ${length}`);
         length = response.deletedMarkers ? response.deletedMarkers.length : undefined;
@@ -198,7 +201,7 @@ class BulkDeleteTest extends TestBase {
 
     async bulkDeleteShowWithIgnoreTest() {
         const show = TestBase.DefaultMetadata.Show3;
-        const response = await this.#bulkDelete(show.Id, false, [show.Season1.Episode1.Marker1.Id, show.Season1.Episode2.Marker1.Id]);
+        const response = await this.#bulkDelete(show.Id, false, MarkerEnum.All, [show.Season1.Episode1.Marker1.Id, show.Season1.Episode2.Marker1.Id]);
         let length = (response && response.markers) ? response.markers.length : undefined;
         TestHelpers.verify(length === 2, `Expected bulk delete ignore list of 2 to return marker array of length 2, found ${length}`);
         length = response.deletedMarkers ? response.deletedMarkers.length : undefined;
@@ -213,9 +216,58 @@ class BulkDeleteTest extends TestBase {
         }
     }
 
+    async bulkDeleteIntroTest() {
+        const show = TestBase.DefaultMetadata.Show3;
+        const response = await this.#bulkDelete(show.Id, false /*dryRun*/, MarkerEnum.Intro);
+        let length = response && response.markers && response.markers.length;
+        TestHelpers.verify(length === 2, `Expected bulk delete of intros to ignore 2 credits, found ${length}.`);
+        for (const marker of response.markers) {
+            TestHelpers.verify(marker.markerType == MarkerType.Credits, `Only expected credits remain, found ${marker.markerType}.`);
+        }
+
+        length = response && response.deletedMarkers && response.deletedMarkers.length;
+        TestHelpers.verify(length === 3, `Expected bulk delete of intros to delete 3 intros, found ${length}.`);
+        for (const marker of response.deletedMarkers) {
+            TestHelpers.verify(marker.markerType == MarkerType.Intro, `Only expected intros to be deleted, found ${marker.markerType}.`);
+        }
+
+        for (const testMarker of [show.Season1.Episode1.Marker1, show.Season1.Episode2.Marker1, show.Season2.Episode1.Marker1]) {
+            await TestHelpers.validateMarker({ id : testMarker.Id }, null, null, null, null, null, null, null, null, this.testDb, true /*isDeleted*/);
+        }
+
+        for (const testMarker of [show.Season1.Episode2.Marker2, show.Season1.Episode2.Marker3]) {
+            await TestHelpers.validateMarker({ id : testMarker.Id }, null, null, null, null, null, null, null, null, this.testDb, false /*isDeleted*/);
+        }
+    }
+
+    async bulkDeleteCreditsTest() {
+        const show = TestBase.DefaultMetadata.Show3;
+        const response = await this.#bulkDelete(show.Id, false /*dryRun*/, MarkerEnum.Credits);
+        let length = response && response.markers && response.markers.length;
+        TestHelpers.verify(length === 3, `Expected bulk delete of credits to ignore 3 intros, found ${length}.`);
+        for (const marker of response.markers) {
+            TestHelpers.verify(marker.markerType == MarkerType.Intro, `Only expected intros to remain, found ${marker.markerType}.`);
+        }
+
+        length = response && response.deletedMarkers && response.deletedMarkers.length;
+        TestHelpers.verify(length === 2, `Expected bulk delete of credits to delete 2 credits, found ${length}.`);
+        for (const marker of response.deletedMarkers) {
+            TestHelpers.verify(marker.markerType == MarkerType.Credits, `Only expected credits to be deleted, found ${marker.markerType}.`);
+        }
+
+        for (const testMarker of [show.Season1.Episode1.Marker1, show.Season1.Episode2.Marker1, show.Season2.Episode1.Marker1]) {
+            await TestHelpers.validateMarker({ id : testMarker.Id }, null, null, null, null, null, null, null, null, this.testDb, false /*isDeleted*/);
+        }
+
+        for (const testMarker of [show.Season1.Episode2.Marker2, show.Season1.Episode2.Marker3]) {
+            await TestHelpers.validateMarker({ id : testMarker.Id }, null, null, null, null, null, null, null, null, this.testDb, true /*isDeleted*/);
+        }
+    }
+
     /**
      * @param {number} id
      * @param {boolean} dryRun
+     * @param {number} applyTo
      * @param {number[]} [ignored=[]]
      * @param {boolean} raw
      * @returns {Promise<{
@@ -223,10 +275,11 @@ class BulkDeleteTest extends TestBase {
      *               deletedMarkers: SerializedMarkerData[],
      *               episodeData?: SerializedEpisodeData[]}>}
      */
-    async #bulkDelete(id, dryRun, ignored=[], raw=false) {
+    async #bulkDelete(id, dryRun, applyTo=MarkerEnum.All, ignored=[], raw=false) {
         return this.send('bulk_delete', {
             id : id,
             dryRun : dryRun ? 1 : 0,
+            applyTo : applyTo,
             ignored : ignored.join(','),
         }, raw);
     }

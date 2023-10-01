@@ -254,13 +254,14 @@ class CoreCommands {
      * Delete all markers associated with the given metadataId, unless its id is in `ignoredMarkerIds`
      * @param {number} metadataId Metadata id of the episode/season/show
      * @param {boolean} dryRun Whether we should just gather data about what we would delete.
+     * @param {number} applyTo The type of marker(s) to delete.
      * @param {number[]} ignoredMarkerIds List of marker ids to not delete.
      * @returns {Promise<{
      *               markers: SerializedMarkerData,
      *               deletedMarkers: SerializedMarkerData[],
      *               episodeData?: SerializedEpisodeData[]}>}
      */
-    static async bulkDelete(metadataId, dryRun, ignoredMarkerIds) {
+    static async bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
         if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
@@ -276,7 +277,7 @@ class CoreCommands {
         /** @type {{[episodeId: number]: RawMarkerData[]}} */
         const markerCounts = {};
         for (const marker of markerInfo.markers) {
-            if (!ignoreSet.has(marker.id)) {
+            if (!ignoreSet.has(marker.id) && MarkerEnum.typeMatch(marker.marker_type, applyTo)) {
                 episodeIds.add(marker.parent_id);
                 toDelete.push(marker);
             }

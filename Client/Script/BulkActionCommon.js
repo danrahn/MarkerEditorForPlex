@@ -4,6 +4,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Animation from './inc/Animate.js';
 
 import { MarkerData } from '../../Shared/PlexTypes.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './inc/Overlay.js';
 import TableElements from './TableElements.js';
 import ThemeColors from './ThemeColors.js';
@@ -520,6 +521,22 @@ class BulkActionCommon {
         return new Promise((resolve, _) => {
             Animation.queueDelayed({ backgroundColor : 'transparent' }, button, duration, duration, true, resolve);
         });
+    }
+
+    /**
+     * Common UI to select specific marker type(s) for bulk operations.
+     * @param {string} label The label for the dropdown
+     * @param {() => void} callback The function to call when the value changes. */
+    static markerSelectType(label, callback) {
+        return appendChildren(buildNode('div'),
+            buildNode('label', { for : 'markerTypeSelect' }, label),
+            appendChildren(
+                buildNode('select', { id : 'markerTypeSelect' }, 0, { change : callback }),
+                buildNode('option', { value : MarkerEnum.All, selected : 'selected' }, 'All'),
+                buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
+                buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
+            )
+        );
     }
 }
 

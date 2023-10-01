@@ -20,7 +20,7 @@ class ServerCommands {
                                                                  ...params.ints('id', 'startShift', 'endShift', 'applyTo'),
                                                                  params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
                                                                  params.ia('ignored', true)),
-        bulk_delete   : async (params) => await CoreCommands.bulkDelete(params.i('id'), params.i('dryRun'), params.ia('ignored', true)),
+        bulk_delete   : async (params) => await CoreCommands.bulkDelete(...params.ints('id', 'dryRun', 'applyTo'), params.ia('ignored', true)),
         bulk_add      : async (params) => await CoreCommands.bulkAdd(params.raw('type'), ...params.ints('id', 'start', 'end', 'final', 'resolveType'), params.ia('ignored')),
 
 

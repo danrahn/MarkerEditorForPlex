@@ -3,6 +3,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Overlay from './inc/Overlay.js';
 
 import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
@@ -96,14 +97,15 @@ const ServerCommand = {
      * Query for all markers that would be deleted for the given metadata id.
      * @param {number} id
      * @returns {Promise<{markers: SerializedMarkerData[], episodeData?: SerializedEpisodeData[]}>} */
-    checkBulkDelete : async (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, ignored : [] }),
+    checkBulkDelete : async (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
 
     /**
      * Delete all markers associated with the given media item, except those specified in `ignored`.
      * @param {number} id
+     * @param {number} applyTo The marker type(s) to apply the delete to.
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
      * @returns {Promise<{markers: SerializedMarkerData[], deletedMarkers: SerializedMarkerData[]}>} */
-    bulkDelete : async (id, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, ignored : ignored.join(',') }),
+    bulkDelete : async (id, applyTo, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
 
     /**
      * Retrieve episode and marker information relevant to a bulk_add operation.
