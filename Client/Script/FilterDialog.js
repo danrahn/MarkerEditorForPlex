@@ -337,10 +337,6 @@ class FilterDialog {
     /**
      * Update possible sort order options when the sort by field changes. */
     #onSortByChanged() {
-        if (this.#libType !== SectionType.TV) {
-            return;
-        }
-
         const sortBy = parseInt($('#sortBy').value);
         const alpha = sortBy === SortConditions.Alphabetical;
         const hasPercentageSorts = !!$('#sortAscP');
@@ -360,7 +356,7 @@ class FilterDialog {
         } else {
             $('#sortAsc').innerText = 'Low to High';
             $('#sortDesc').innerText = 'High to Low';
-            if (!hasPercentageSorts) {
+            if (!hasPercentageSorts && this.#libType === SectionType.TV) {
                 appendChildren(so, ...this.#percentageSortOptions());
             }
         }
