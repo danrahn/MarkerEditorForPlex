@@ -16,7 +16,7 @@ import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
-import { FilterDialog, FilterSettings } from './FilterDialog.js';
+import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import BulkAddOverlay from './BulkAddOverlay.js';
@@ -250,6 +250,10 @@ class ResultRow {
         if (atLeastOne == 0) {
             tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
         } else {
+            const totalIntros = breakdown.totalIntros();
+            const totalCredits = breakdown.totalCredits();
+            tooltipText += `<hr>${totalIntros} total intro${totalIntros !== 1 ? 's' : ''}<br>`;
+            tooltipText += `${totalCredits} total credit${totalCredits !== 1 ? 's' : ''}<br>`;
             tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 
@@ -361,11 +365,11 @@ class SectionOptionsResultRow extends ResultRow {
 
         const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
         const row = buildNode('div', { class : 'sectionOptionsResultRow' });
-        this.#filterButton = ButtonCreator.fullButton('Filter',
+        this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
             'filter',
-            'Filter results',
+            'Sort and filter results',
             'standard',
-            function(_e, self) { new FilterDialog().show(self); },
+            function(_e, self) { new FilterDialog(PlexClientState.activeSectionType()).show(self); },
             { class : 'filterBtn', style : 'margin-right: 10px' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
@@ -575,11 +579,20 @@ class ShowResultRow extends ResultRow {
         this.#seasonsFiltered = 0;
         /** @type {HTMLElement?} */
         let firstRow = undefined;
+
+        // Two loops:
+        // Loop to create SeasonResultRows
+        // Sort result rows based on current sort order
+        // Loop to apply filter/add rows to the table
         for (const serializedSeason of seasons) {
             const season = new SeasonData().setFromJson(serializedSeason);
             const seasonRow = new SeasonResultRow(season, this);
             this.#seasons[season.metadataId] = seasonRow;
-            if (FilterSettings.shouldFilter(season.markerBreakdown())) {
+        }
+
+        const sortedSeasons = this.#sortedSeasons();
+        for (const seasonRow of sortedSeasons) {
+            if (FilterSettings.shouldFilter(seasonRow.season().markerBreakdown())) {
                 ++this.#seasonsFiltered;
             } else {
                 const rowHtml = seasonRow.buildRow();
@@ -587,8 +600,9 @@ class ShowResultRow extends ResultRow {
                 addRow(rowHtml);
             }
 
-            PlexClientState.addSeason(season);
+            PlexClientState.addSeason(seasonRow.season());
         }
+
 
         if (!firstRow) {
             firstRow = PlexUI.noResultsBecauseOfFilterRow();
@@ -601,6 +615,41 @@ class ShowResultRow extends ResultRow {
     }
 
     /**
+     * Retrieve the season rows sorted based on our current sort settings. */
+    #sortedSeasons() {
+        const seasons = Object.values(this.#seasons);
+        seasons.sort((a, b) => {
+            const indexFallback = (left, right) => left.season().index - right.season().index;
+            const asc = SortOrder.asc(FilterSettings.sortOrder);
+            if (FilterSettings.sortBy === SortConditions.Alphabetical) {
+                return asc ? indexFallback(a, b) : indexFallback(b, a);
+            }
+
+            if (FilterSettings.sortBy < SortConditions.MarkerCount || FilterSettings.sortBy > SortConditions.CreditsMarkerCount) {
+                Log.warn(`sortedSeasons - Unexpected sort by condition "${FilterSettings.sortBy}", defaulting to index-based`);
+                return indexFallback(a, b);
+            }
+
+            // TODO: share with PlexClientState.#defaultSort/#sortedEpisodes
+            const filterMethod = FilterSettings.sortBreakdownMethod();
+            let aMarkers = a.season().markerBreakdown()[filterMethod]();
+            let bMarkers = b.season().markerBreakdown()[filterMethod]();
+            if (SortOrder.percentage(FilterSettings.sortOrder)) {
+                aMarkers /= a.season().episodeCount;
+                bMarkers /= b.season().episodeCount;
+            }
+
+            if (aMarkers === bMarkers) {
+                return indexFallback(a, b);
+            }
+
+            return (aMarkers - bMarkers) * (asc ? 1 : -1);
+        });
+
+        return seasons;
+    }
+
+    /**
      * Update what rows are visible based on the new filter. */
     onFilterApplied() {
         PlexUI.clearSections(UISection.Seasons);
@@ -609,7 +658,7 @@ class ShowResultRow extends ResultRow {
         addRow(this.#showTitle.html());
         addRow(new BulkActionResultRow(this.show()).buildRow()); // TODO: Make this a class var too?
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
-        const seasons = Object.values(this.#seasons).sort((a, b) => a.season().index - b.season().index);
+        const seasons = this.#sortedSeasons();
         this.#seasonsFiltered = 0;
         let anyShowing = false;
         for (const season of seasons) {
@@ -880,31 +929,27 @@ class SeasonResultRow extends ResultRow {
         addRow(new BulkActionResultRow(this.season()).buildRow());
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
 
-        // Returned data doesn't guarantee order. Create the rows, then sort by index
-        const episodeRows = [];
-        for (const metadataId of Object.keys(data)) {
-            episodeRows.push(new EpisodeResultRow(PlexClientState.getEpisode(parseInt(metadataId)), this));
+        for (const metadataId of Object.keys(data).map(m => parseInt(m))) {
+            const episodeRow = new EpisodeResultRow(PlexClientState.getEpisode(metadataId), this);
+
+            // Even if this row is filtered out, we want to build the row to seed the marker table.
+            episodeRow.buildRow(data[metadataId]);
+            this.#episodes[metadataId] = episodeRow;
         }
 
         this.#episodesFiltered = 0;
         /** @type {HTMLElement} */
         let firstRow = undefined;
-        episodeRows.sort((a, b) => a.episode().index - b.episode().index);
+        const episodeRows = this.#sortedEpisodes(); //episodeRows.sort((a, b) => a.episode().index - b.episode().index);
         for (const resultRow of episodeRows) {
             const markers = data[resultRow.episode().metadataId];
             if (FilterSettings.shouldFilterEpisode(markers)) {
                 ++this.#episodesFiltered;
-                // Still want to seed the marker table so when a filter change exposes more episodes,
-                // we can grab the associated markers..
-                // TODO: find a better place to expose markers
-                resultRow.buildRow(markers);
             } else {
-                const rowHtml = resultRow.buildRow(markers);
+                const rowHtml = resultRow.html() || resultRow.buildRow(markers);
                 firstRow ??= rowHtml;
                 addRow(rowHtml);
             }
-
-            this.#episodes[resultRow.episode().metadataId] = resultRow;
         }
 
         if (!firstRow) {
@@ -917,6 +962,47 @@ class SeasonResultRow extends ResultRow {
         }
 
         this.#onFilterStatusChanged();
+    }
+
+    /**
+     * Retrieve the episode rows sorted based on our current sort settings. */
+    #sortedEpisodes() {
+        // If a percentage-based sort is active, temporary change it into the non-percentage-based order
+        const orderSav = FilterSettings.sortOrder;
+        if (SortOrder.percentage(orderSav)) {
+            FilterSettings.sortOrder = SortOrder.asc(orderSav) ? SortOrder.Ascending : SortOrder.Descending;
+        }
+
+        const episodeRows = Object.values(this.#episodes);
+        episodeRows.sort((a, b) => {
+            const indexFallback = (left, right) => left.episode().index - right.episode().index;
+            const asc = SortOrder.asc(FilterSettings.sortOrder);
+            if (FilterSettings.sortBy === SortConditions.Alphabetical) {
+                return asc ? indexFallback(a, b) : indexFallback(b, a);
+            }
+
+            // There's definitely a more efficient way to do this, but this
+            // lets us avoid keeping track of a breakdown for a type that
+            // doesn't actually need it, and lets us reuse sortBreakdownMethod()
+            const filterMethod = FilterSettings.sortBreakdownMethod();
+            const aBreakdown = new MarkerBreakdown();
+            aBreakdown.initBase();
+            aBreakdown.delta(0, a.currentKey());
+            const aMarkers = aBreakdown[filterMethod]();
+            const bBreakdown = new MarkerBreakdown();
+            bBreakdown.initBase();
+            bBreakdown.delta(0, b.currentKey());
+            const bMarkers = bBreakdown[filterMethod]();
+
+            if (aMarkers === bMarkers) {
+                return indexFallback(a, b);
+            }
+
+            return (aMarkers - bMarkers) * (asc ? 1 : -1);
+        });
+
+        FilterSettings.sortOrder = orderSav;
+        return episodeRows;
     }
 
     /**
@@ -939,7 +1025,7 @@ class SeasonResultRow extends ResultRow {
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
         this.#episodesFiltered = 0;
         let anyShowing = false;
-        const episodes = Object.values(this.#episodes).sort((a, b) => a.episode().index - b.episode().index);
+        const episodes = this.#sortedEpisodes(); // Object.values(this.#episodes).sort((a, b) => a.episode().index - b.episode().index);
         for (const episode of episodes) {
             if (FilterSettings.shouldFilterEpisode(episode.episode().markerTable().markers())) {
                 ++this.#episodesFiltered;

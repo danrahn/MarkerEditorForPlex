@@ -4,14 +4,19 @@ import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 
 import ButtonCreator from './ButtonCreator.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { PlexUI } from './PlexUI.js';
+import { SectionType } from '../../Shared/PlexTypes.js';
 import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerBreakdownMap} MarkerBreakdownMap */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 
+const Log = new ContextualLog('SortFilter');
+
 /**
+ * TODO: BETWEEN and percentage-based for TV shows (something like >90% && <100% could be helpful)
  * @enum */
 const FilterConditions = {
     /**@readonly*/ LessThan : 0,
@@ -28,6 +33,41 @@ const FilterConditionText = {
     [FilterConditions.GreaterThan] : 'is greater than',
 };
 
+/** @enum */
+const SortConditions = {
+    /**@readonly*/ Alphabetical : 0,
+    /**@readonly*/ MarkerCount : 1,
+    /**@readonly*/ IntroMarkerCount : 2,
+    /**@readonly*/ CreditsMarkerCount : 3,
+};
+
+/** @enum */
+const SortConditionText = {
+    [SortConditions.Alphabetical] : 'title',
+    [SortConditions.MarkerCount] : 'total markers',
+    [SortConditions.IntroMarkerCount] : 'intro markers',
+    [SortConditions.CreditsMarkerCount] : 'credits markers',
+};
+
+/** @enum */
+const SortOrder = {
+    /**@readonly*/ Ascending : 0,
+    /**@readonly*/ Descending : 1,
+    /**@readonly*/ AscendingPercentage : 2,
+    /**@readonly*/ DescendingPercentage : 3,
+    /**@readonly*/ asc : (so) => so == SortOrder.Ascending || so == SortOrder.AscendingPercentage,
+    /**@readonly*/ desc : (so) => !SortOrder.asc(so),
+    /**@readonly*/ percentage : (so => so > SortOrder.Descending),
+};
+
+/** @enum */
+const SortOrderText = {
+    [SortOrder.Ascending] : 'ascending',
+    [SortOrder.Descending] : 'descending',
+    [SortOrder.AscendingPercentage] : 'ascending (%)',
+    [SortOrder.DescendingPercentage] : 'descending (%)',
+};
+
 /**
  * Static class that holds the current global filter state, as well as helper methods
  * to determine whether a given media item is caught in said filter state.
@@ -39,6 +79,8 @@ class FilterSettings {
     /**@readonly*/ static introCondition = 0;
     /**@readonly*/ static creditsLimit = -1;
     /**@readonly*/ static creditsCondition = 0;
+    /**@readonly*/ static sortBy = SortConditions.Alphabetical;
+    /**@readonly*/ static sortOrder = 0;
 
     /**
      * @param {MarkerBreakdown} breakdown */
@@ -82,7 +124,7 @@ class FilterSettings {
     /**
      * Returns whether a global filter is active. */
     static hasFilter() {
-        return FilterSettings.introLimit != -1 || FilterSettings.creditsLimit != -1;
+        return FilterSettings.introLimit != -1 || FilterSettings.creditsLimit != -1 || !FilterSettings.isDefaultSort();
     }
 
     /**
@@ -99,7 +141,36 @@ class FilterSettings {
             text += `Credits count ${FilterConditionText[FilterSettings.creditsCondition]} ${FilterSettings.creditsLimit}`;
         }
 
+        if (!FilterSettings.isDefaultSort()) {
+            if (text.length !== 0) { text += '<br>'; }
+
+            text += `Sorted by ${SortConditionText[FilterSettings.sortBy]} (${SortOrderText[FilterSettings.sortOrder]})`;
+        }
+
         return text;
+    }
+
+    static isDefaultSort() {
+        return FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder == SortOrder.Ascending;
+    }
+
+    static resetSort() {
+        FilterSettings.sortBy = SortConditions.Alphabetical;
+        FilterSettings.sortOrder = SortOrder.Ascending;
+    }
+
+    static sortBreakdownMethod() {
+        switch (FilterSettings.sortBy) {
+            case SortConditions.MarkerCount:
+                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithMarkers' : 'totalMarkers';
+            case SortConditions.IntroMarkerCount:
+                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithIntros' : 'totalIntros';
+            case SortConditions.CreditsMarkerCount:
+                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithCredits' : 'totalCredits';
+            default:
+                Log.warn(`sortBreakdownMethod should only be called with marker-based sort conditions.`);
+                return 'totalMarkers';
+        }
     }
 
     /**
@@ -138,8 +209,11 @@ class FilterDialog {
     #introFilter;
     /** @type {HTMLElement} */
     #creditsFilter;
+    /** @type {number} */
+    #libType = -1;
 
-    constructor() {
+    constructor(activeSectionType) {
+        this.#libType = activeSectionType;
         const containerName = 'settingsContainer'; // 'sortFilterDialog'
         const container = buildNode('div', { id : containerName, class : 'filterDialogContainer' });
 
@@ -175,11 +249,17 @@ class FilterDialog {
         this.#creditsFilter = filterRow('Credits', creditsCondition, creditsLimit);
 
         appendChildren(container,
-            buildNode('h2', {}, 'Filter'),
+            buildNode('h2', {}, 'Sort and Filter'),
             buildNode('hr'),
-            this.#introFilter,
-            this.#creditsFilter,
-            buildNode('hr'));
+            appendChildren(buildNode('div', { style : 'padding: 20px' }),
+                buildNode('h3', {}, 'Filter'),
+                buildNode('hr'),
+                this.#introFilter,
+                this.#creditsFilter,
+                buildNode('hr')
+            ),
+            this.#sortOptions()
+        );
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
@@ -190,6 +270,91 @@ class FilterDialog {
         );
 
         this.#html = container;
+    }
+
+    /**
+     * Build the sort section of the dialog (sort by X, sort direction) */
+    #sortOptions() {
+        const sortBy = appendChildren(buildNode('div', { class : 'formInput' }),
+            buildNode('label', { for : 'sortBy' }, 'Sort By'),
+            appendChildren(buildNode('div', { class : 'filterMultiInput' }),
+                appendChildren(
+                    buildNode(
+                        'select',
+                        { id : 'sortBy', class : 'filterSelect' },
+                        0,
+                        { change : this.#onSortByChanged.bind(this) }),
+                    buildNode('option', { value : SortConditions.Alphabetical }, 'Alphabetical'),
+                    buildNode('option', { value : SortConditions.MarkerCount }, 'Marker Count'),
+                    buildNode('option', { value : SortConditions.IntroMarkerCount }, 'Intro Marker Count'),
+                    buildNode('option', { value : SortConditions.CreditsMarkerCount }, 'Credits Marker Count')
+                )
+            )
+        );
+
+        $$('select', sortBy).value = FilterSettings.sortBy;
+
+        const options = [
+            buildNode('option', { value : SortOrder.Ascending }, 'Ascending'),
+            buildNode('option', { value : SortOrder.Descending }, 'Descending')
+        ];
+
+        if (FilterSettings.sortBy !== SortConditions.Alphabetical && this.#libType === SectionType.TV) {
+            options.push(...this.#percentageSortOptions());
+        }
+
+        const sortOrder = appendChildren(buildNode('div', { class : 'formInput' }),
+            buildNode('label', { for : 'sortOrder' }, 'From'),
+            appendChildren(buildNode('div', { class : 'filterMultiInput' }),
+                appendChildren(buildNode('select', { id : 'sortOrder', class : 'filterSelect' }),
+                    ...options
+                )
+            )
+        );
+
+        $$('select', sortOrder).value = FilterSettings.sortOrder;
+
+        return appendChildren(buildNode('div', { style : 'padding: 20px' }),
+            buildNode('h3', {}, 'Sort'),
+            buildNode('hr'),
+            sortBy,
+            sortOrder,
+            buildNode('hr')
+        );
+    }
+
+    /**
+     * Additional percentage-based sort order options when sorting by marker stats. */
+    #percentageSortOptions() {
+        return [
+            buildNode('option', { value : SortOrder.AscendingPercentage, id : 'sortAscP' }, 'Ascending (%)'),
+            buildNode('option', { value : SortOrder.DescendingPercentage, id : 'sortDescP' }, 'Descending (%)'),
+        ];
+    }
+
+    /**
+     * Update possible sort order options when the sort by field changes. */
+    #onSortByChanged() {
+        if (this.#libType !== SectionType.TV) {
+            return;
+        }
+
+        const alpha = parseInt($('#sortBy').value) === SortConditions.Alphabetical;
+        if (alpha !== !!$('#sortAscP')) {
+            return;
+        }
+
+        const so = $('#sortOrder');
+        if (alpha) {
+            if (parseInt(so.value) === SortOrder.DescendingPercentage) {
+                so.value = SortOrder.Descending;
+            }
+
+            so.removeChild($('#sortAscP'));
+            so.removeChild($('#sortDescP'));
+        } else {
+            appendChildren(so, ...this.#percentageSortOptions());
+        }
     }
 
     /**
@@ -265,6 +430,9 @@ class FilterDialog {
         }
 
         FilterSettings.creditsCondition = creditsCondition;
+
+        FilterSettings.sortBy = parseInt($('#sortBy').value);
+        FilterSettings.sortOrder = parseInt($('#sortOrder').value);
         Overlay.dismiss();
         PlexUI.onFilterApplied();
     }
@@ -273,9 +441,10 @@ class FilterDialog {
      * Clear any existing filter. */
     #resetFilter() {
         FilterSettings.resetFilter();
+        FilterSettings.resetSort();
         Overlay.dismiss();
         PlexUI.onFilterApplied();
     }
 }
 
-export { FilterDialog, FilterSettings };
+export { FilterDialog, FilterSettings, SortConditions, SortOrder };

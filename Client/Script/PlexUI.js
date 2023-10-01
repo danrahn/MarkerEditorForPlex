@@ -3,7 +3,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
-import { FilterDialog, FilterSettings } from './FilterDialog.js';
+import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -87,6 +87,11 @@ class PlexUIManager {
 
     /** @type {ShowResultRow[]|MovieResultRow[]} */
     #activeSearch = [];
+
+    #lastSort = {
+        by : SortConditions.Alphabetical,
+        order : SortOrder.Ascending
+    };
 
     /** Creates the singleton PlexUI for this session. */
     static CreateInstance() {
@@ -332,17 +337,17 @@ class PlexUIManager {
     }
 
     /** Initiate a search to the database for shows. */
-    #search(forFilterReapply=false) {
+    #search(forFilterReapply=false, newSort=false) {
         if (!forFilterReapply && this.#searchBox.value == this.#lastSearch) {
             return;
         }
 
         this.#lastSearch = this.#searchBox.value;
 
-        // If we're adjusting the list due to a filter change,
-        // we don't want to reapply the search itself, just decide
-        // what items we want to display.
-        if (!forFilterReapply) {
+        // If we're adjusting the list due to a filter change, we
+        // don't want to reapply the search itself, just decide what
+        // items we want to display, unless the sort order has changed.
+        if (!forFilterReapply || (newSort && PlexClientState.showingSearchResults())) {
 
             // Remove any existing show/season/marker data
             this.clearAllSections();
@@ -482,7 +487,7 @@ class PlexUIManager {
             'div',
             { class : 'topLevelResult tabbableRow', tabindex : 0 },
             'No results with the current filter.',
-            { click : () => new FilterDialog().show(),
+            { click : () => new FilterDialog(PlexClientState.activeSectionType()).show(),
               keydown : clickOnEnterCallback });
     }
 
@@ -511,9 +516,12 @@ class PlexUIManager {
         // Don't start a search if we don't have any existing items, unless
         // we're in the "start" page.
         const showingStartScreen = $$('.noSearchRow', this.#uiSections[UISection.MoviesOrShows]);
+        const newSort = FilterSettings.sortBy !== this.#lastSort.by || FilterSettings.sortOrder !== this.#lastSort.order;
+        this.#lastSort.by = FilterSettings.sortBy;
+        this.#lastSort.order = FilterSettings.sortOrder;
         if (PlexClientState.getUnfilteredSearchResults().length !== 0
             || showingStartScreen) {
-            this.#search(!showingStartScreen /*forFilterReapply*/);
+            this.#search(!showingStartScreen /*forFilterReapply*/, newSort);
         }
 
         // onFilterApplied should probably live completely within PlexClientState,

@@ -1,6 +1,7 @@
 import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
 import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
 import { BulkActionType } from './BulkActionCommon.js';
@@ -193,7 +194,7 @@ class PlexClientStateManager {
     /**
      * Return whether we're showing the top-level results (i.e. movies or shows) */
     showingSearchResults() {
-        return !this.#activeSeason;
+        return !this.#activeShow;
     }
 
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
@@ -377,8 +378,9 @@ class PlexClientStateManager {
 
         // Sort the results. Title prefix matches are first, then sort title prefix matches,
         // then original title prefix matches, and alphabetical sort title after that.
-        const resultArr = [...result.keys()].sort((a, b) => {
-            if (fuzzyQuery.length == 0) {
+        const resultArr = [...result.keys()].sort((/**@type {TopLevelData}*/a, /**@type {TopLevelData}*/b) => {
+            // Only readjust text matches if we're using the default sort.
+            if (fuzzyQuery.length == 0 || !FilterSettings.isDefaultSort()) {
                 // Blank query should return all shows, and in that case we just care about sort title order
                 return this.#defaultSort(a, b);
             }
@@ -604,12 +606,58 @@ class PlexClientStateManager {
         }
     }
 
-    /** Comparator that sorts items by sort title, falling back to the regular title if needed.
-     * @type {(a: ShowData, b: ShowData) => number} */
+
+    /**
+     * Sorts two TopLevelData items based on the current sort settings.
+     * @param {TopLevelData} a
+     * @param {TopLevelData} b
+     * @returns {number} */
     #defaultSort(a, b) {
-        const aTitle = a.normalizedSortTitle || a.normalizedTitle;
-        const bTitle = b.normalizedSortTitle || b.normalizedTitle;
-        return aTitle.localeCompare(bTitle);
+        // This relies on the sort/filter dialog being gated on extendedMarkerStats
+        const standardSort = FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder == SortOrder.Ascending;
+        Log.assert(standardSort || ClientSettings.showExtendedMarkerInfo(),
+            `We should only have custom sort settings if extended marker info is enabled.`);
+
+        const titleFallback = (left, right) => {
+            const leftTitle = left.normalizedSortTitle || left.normalizedTitle;
+            const rightTitle = right.normalizedSortTitle || right.normalizedTitle;
+            return leftTitle.localeCompare(rightTitle);
+        };
+
+        if (!ClientSettings.showExtendedMarkerInfo()) {
+            return titleFallback(a, b);
+        }
+
+        const asc = SortOrder.asc(FilterSettings.sortOrder);
+        switch (FilterSettings.sortBy) {
+            default:
+                Log.warn(`Unknown filter method ${FilterSettings.sortBy}, defaulting to alphabetical.`);
+                // fallthrough
+            case SortConditions.Alphabetical:
+                return asc ? titleFallback(a, b) : titleFallback(b, a);
+            case SortConditions.MarkerCount:
+            case SortConditions.IntroMarkerCount:
+            case SortConditions.CreditsMarkerCount:
+            {
+                const filterMethod = FilterSettings.sortBreakdownMethod();
+                let aMarkers = a.markerBreakdown()[filterMethod]();
+                let bMarkers = b.markerBreakdown()[filterMethod]();
+
+                if (SortOrder.percentage(FilterSettings.sortOrder)) {
+                    // Percentage-based filtering should only be available on tv libraries.
+                    if (a instanceof ShowData && b instanceof ShowData) {
+                        aMarkers /= a.episodeCount;
+                        bMarkers /= b.episodeCount;
+                    }
+                }
+
+                if (aMarkers === bMarkers) {
+                    return titleFallback(a, b);
+                }
+
+                return (aMarkers - bMarkers) * (asc ? 1 : -1);
+            }
+        }
     }
 
     /**
