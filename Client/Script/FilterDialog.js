@@ -341,10 +341,9 @@ class FilterDialog {
             return;
         }
 
-        const alpha = parseInt($('#sortBy').value) === SortConditions.Alphabetical;
-        if (alpha !== !!$('#sortAscP')) {
-            return;
-        }
+        const sortBy = parseInt($('#sortBy').value);
+        const alpha = sortBy === SortConditions.Alphabetical;
+        const hasPercentageSorts = !!$('#sortAscP');
 
         const so = $('#sortOrder');
         if (alpha) {
@@ -354,12 +353,16 @@ class FilterDialog {
 
             $('#sortAsc').innerText = 'A-Z';
             $('#sortDesc').innerText = 'Z-A';
-            so.removeChild($('#sortAscP'));
-            so.removeChild($('#sortDescP'));
+            if (hasPercentageSorts) {
+                so.removeChild($('#sortAscP'));
+                so.removeChild($('#sortDescP'));
+            }
         } else {
             $('#sortAsc').innerText = 'Low to High';
             $('#sortDesc').innerText = 'High to Low';
-            appendChildren(so, ...this.#percentageSortOptions());
+            if (!hasPercentageSorts) {
+                appendChildren(so, ...this.#percentageSortOptions());
+            }
         }
     }
 
