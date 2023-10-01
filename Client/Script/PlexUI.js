@@ -347,7 +347,7 @@ class PlexUIManager {
         // If we're adjusting the list due to a filter change, we
         // don't want to reapply the search itself, just decide what
         // items we want to display, unless the sort order has changed.
-        if (!forFilterReapply || (newSort && PlexClientState.showingSearchResults())) {
+        if (!forFilterReapply || (newSort && !this.#uiSections[UISection.MoviesOrShows].classList.contains('hidden'))) {
 
             // Remove any existing show/season/marker data
             this.clearAllSections();

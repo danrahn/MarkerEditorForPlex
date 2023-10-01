@@ -191,12 +191,6 @@ class PlexClientStateManager {
         return true;
     }
 
-    /**
-     * Return whether we're showing the top-level results (i.e. movies or shows) */
-    showingSearchResults() {
-        return !this.#activeShow;
-    }
-
     /** @returns {SeasonData} The currently active season, or `null` if now season is active. */
     getActiveSeason() {
         if (this.#activeSectionType !== SectionType.TV) {
@@ -648,6 +642,13 @@ class PlexClientStateManager {
                     if (a instanceof ShowData && b instanceof ShowData) {
                         aMarkers /= a.episodeCount;
                         bMarkers /= b.episodeCount;
+                    }
+
+                    if (aMarkers === bMarkers) {
+                        // In the case of an equal percentage, consider those
+                        // with more overall markers as "higher"
+                        aMarkers = a.markerBreakdown()[filterMethod]();
+                        bMarkers = b.markerBreakdown()[filterMethod]();
                     }
                 }
 

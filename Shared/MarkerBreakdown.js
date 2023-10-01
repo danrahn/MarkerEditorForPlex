@@ -138,6 +138,12 @@ class MarkerBreakdown {
     }
 
     /**
+     * The total number of items that have at least one intro or credits marker. */
+    itemsWithMarkers() {
+        return Object.entries(this.#counts).reduce((acc, kv) => acc + (kv[0] > 0 ? kv[1] : 0), 0);
+    }
+
+    /**
      * The total number of items that have an intro marker in this breakdown. */
     itemsWithIntros() {
         return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#ic(kv[0]) > 0 ? kv[1] : 0), 0);

@@ -160,13 +160,14 @@ class FilterSettings {
     }
 
     static sortBreakdownMethod() {
+        const percentageSort = SortOrder.percentage(FilterSettings.sortOrder);
         switch (FilterSettings.sortBy) {
             case SortConditions.MarkerCount:
-                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithMarkers' : 'totalMarkers';
+                return percentageSort ? 'itemsWithMarkers' : 'totalMarkers';
             case SortConditions.IntroMarkerCount:
-                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithIntros' : 'totalIntros';
+                return percentageSort ? 'itemsWithIntros' : 'totalIntros';
             case SortConditions.CreditsMarkerCount:
-                return SortOrder.percentage(FilterSettings.sortBy) ? 'itemsWithCredits' : 'totalCredits';
+                return percentageSort ? 'itemsWithCredits' : 'totalCredits';
             default:
                 Log.warn(`sortBreakdownMethod should only be called with marker-based sort conditions.`);
                 return 'totalMarkers';
@@ -294,9 +295,10 @@ class FilterDialog {
 
         $$('select', sortBy).value = FilterSettings.sortBy;
 
+        const optStr = FilterSettings.sortBy == SortConditions.Alphabetical ? [ 'A-Z', 'Z-A'] : ['Low to High', 'High to Low'];
         const options = [
-            buildNode('option', { value : SortOrder.Ascending }, 'Ascending'),
-            buildNode('option', { value : SortOrder.Descending }, 'Descending')
+            buildNode('option', { value : SortOrder.Ascending, id : 'sortAsc' }, optStr[0]),
+            buildNode('option', { value : SortOrder.Descending, id : 'sortDesc' }, optStr[1])
         ];
 
         if (FilterSettings.sortBy !== SortConditions.Alphabetical && this.#libType === SectionType.TV) {
@@ -327,8 +329,8 @@ class FilterDialog {
      * Additional percentage-based sort order options when sorting by marker stats. */
     #percentageSortOptions() {
         return [
-            buildNode('option', { value : SortOrder.AscendingPercentage, id : 'sortAscP' }, 'Ascending (%)'),
-            buildNode('option', { value : SortOrder.DescendingPercentage, id : 'sortDescP' }, 'Descending (%)'),
+            buildNode('option', { value : SortOrder.AscendingPercentage, id : 'sortAscP' }, 'Low to High (%)'),
+            buildNode('option', { value : SortOrder.DescendingPercentage, id : 'sortDescP' }, 'High to Low (%)'),
         ];
     }
 
@@ -350,9 +352,13 @@ class FilterDialog {
                 so.value = SortOrder.Descending;
             }
 
+            $('#sortAsc').innerText = 'A-Z';
+            $('#sortDesc').innerText = 'Z-A';
             so.removeChild($('#sortAscP'));
             so.removeChild($('#sortDescP'));
         } else {
+            $('#sortAsc').innerText = 'Low to High';
+            $('#sortDesc').innerText = 'High to Low';
             appendChildren(so, ...this.#percentageSortOptions());
         }
     }

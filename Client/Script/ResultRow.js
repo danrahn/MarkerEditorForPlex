@@ -238,8 +238,9 @@ class ResultRow {
         const breakdown = mediaItem.markerBreakdown();
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
-        tooltipText += `${intros} ${intros == 1 ? 'has' : 'have'} intros<br>`;
-        tooltipText += `${credits} ${credits == 1 ? 'has' : 'have'} credits<hr>`;
+        const items = breakdown.totalItems();
+        tooltipText += `${intros} ${intros == 1 ? 'has' : 'have'} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
+        tooltipText += `${credits} ${credits == 1 ? 'has' : 'have'} credits (${(credits / items * 100).toFixed(0)}%)<hr>`;
         for (const [key, episodeCount] of Object.entries(mediaItem.markerBreakdown().collapsedBuckets())) {
             tooltipText += `${episodeCount} ${episodeCount == 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
             if (key != 0) {
