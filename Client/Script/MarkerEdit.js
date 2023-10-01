@@ -107,6 +107,13 @@ class MarkerEdit {
             if (!/^[\d:.]*$/.test(text)) {
                 const newText = text.replace(/[^\d:.]/g, '');
                 e.preventDefault();
+
+                // Only attempt to insert if our transformed data can be interpreted
+                // as a valid timestamp.
+                if (isNaN(timeToMs(newText)) && isNaN(parseInt(newText))) {
+                    return;
+                }
+
                 try {
                     document.execCommand('insertText', false, newText);
                 } catch (ex) {
@@ -129,6 +136,10 @@ class MarkerEdit {
      * and changing the marker type.
      * @param {KeyboardEvent} e */
     #timeInputEditShortcutHandler(_input, e) {
+        if (e.shiftKey || e.ctrlKey || e.altKey) {
+            return;
+        }
+
         switch (e.key) {
             case 'i':
                 e.preventDefault();
