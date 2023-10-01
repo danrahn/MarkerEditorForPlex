@@ -1010,6 +1010,10 @@ class PurgedMarkerManager {
      * @type {AgnosticPurgeCache} */
     #purgeCache = new AgnosticPurgeCache();
 
+    /**
+     * Indicates whether we're in the middle of a purge restoration. */
+    #inBulkRestoration = false;
+
     static CreateInstance(findAllEnabled) {
         if (PurgeManagerSingleton) {
             Log.error('We should only have a single PlexUI instance!');
@@ -1171,7 +1175,9 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
+        this.#inBulkRestoration = true;
         await PlexClientState.notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
+        this.#inBulkRestoration = false;
 
         // After everything's updated, reapply the current filter in case the new/removed items affected anything
         PlexUI.onFilterApplied();
@@ -1322,6 +1328,8 @@ class PurgedMarkerManager {
 
         new PurgeOverlay(this.#serverPurgeInfo.get(activeSection), activeSection).show();
     }
+
+    inBulkOperation() { return this.#inBulkRestoration; }
 }
 
 export { PurgedMarkerManager, PurgeManagerSingleton as PurgedMarkers };

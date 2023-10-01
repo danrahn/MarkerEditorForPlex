@@ -7,6 +7,7 @@ import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
+import { PurgedMarkers } from './PurgedMarkerManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 /** @typedef {!import('../../Shared/PlexTypes').MovieMap} MovieMap */
@@ -233,7 +234,14 @@ class PlexClientStateManager {
      * @param {ClientEpisodeData} episode The episode to update.
      * @param {number} delta 1 if a marker was added, -1 if removed, 0 if purged markers changed. */
     updateBreakdownCache(episode, delta) {
-        if (delta != 0) {
+        // Updating purged markers in-place is complicated. It attempts to update the UI in-place
+        // to avoid refreshing the entire page after a bulk restoration, but the UI isn't really
+        // designed to handle "out-of-band" changes (marker count changes outside of the currently)
+        // active marker table(s)).
+        // A better approach would probably be to properly calculate all the deltas client-side,
+        // not relying on server-side queries that might result in the double-updates that
+        // this hacked call to inBulkOperation prevents.
+        if (delta != 0 && !PurgedMarkers.inBulkOperation()) {
             this.#updateBreakdownCacheInternal(episode, delta);
         }
 

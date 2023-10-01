@@ -330,7 +330,7 @@ class MarkerCacheManager {
         if (!show) { return null; }
 
         const treeData = {
-            showData : show.markerBreakdown.data(),
+            mainData : show.markerBreakdown.data(),
             seasonData : {}
         };
 
