@@ -46,7 +46,7 @@ class CoreCommands {
         const markerData = new MarkerData(newMarker);
         LegacyMarkerBreakdown.Update(markerData, allMarkers.length - 1, 1 /*delta*/);
         MarkerCache?.addMarkerToCache(newMarker);
-        await BackupManager?.recordAdds([markerData]);
+        await BackupManager.recordAdds([markerData]);
         Log.info(`Added ${markerType} marker to item ${metadataId} [${startMs}-${endMs}]`);
         return markerData;
     }
@@ -60,7 +60,7 @@ class CoreCommands {
      * @param {number} userCreated Whether the original marker was user created.
      * @param {number} final Whether this Credits marker goes until the end of the episode
      * @throws {ServerError} */
-    static async editMarker(markerType, markerId, startMs, endMs, userCreated, final) {
+    static async editMarker(markerType, markerId, startMs, endMs, final) {
         CoreCommands.#checkMarkerBounds(startMs, endMs, markerType);
         if (markerType !== MarkerType.Credits && final) {
             Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
@@ -97,14 +97,14 @@ class CoreCommands {
 
         // Make the edit, then adjust indexes
         // TODO: removeIndex: newIndex parameter shouldn't be necessary
-        await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, userCreated, markerType, final);
+        await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, markerType, final);
         await PlexQueries.reindex(currentMarker.parent_id);
 
         const newMarkerRaw = await PlexQueries.getSingleMarker(markerId);
         const newMarker = new MarkerData(newMarkerRaw);
         const oldStart = currentMarker.start;
         const oldEnd = currentMarker.end;
-        await BackupManager?.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
+        await BackupManager.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
         Log.info(`Edited Marker for item ${currentMarker.parent_id}, ` +
             `was [${currentMarker.start}-${currentMarker.end}], now [${startMs}-${endMs}]`);
         return newMarker;
@@ -138,7 +138,7 @@ class CoreCommands {
         const deletedMarker = new MarkerData(markerToDelete);
         MarkerCache?.removeMarkerFromCache(markerId);
         LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
-        await BackupManager?.recordDeletes([deletedMarker]);
+        await BackupManager.recordDeletes([deletedMarker]);
         Log.info(`Deleted marker from item ${markerToDelete.parent_id} [${markerToDelete.start}-${markerToDelete.end}]`);
         return deletedMarker;
     }
@@ -239,7 +239,7 @@ class CoreCommands {
             markerData.push(nonRaw);
         }
 
-        await BackupManager?.recordEdits(markerData, oldMarkerMap);
+        await BackupManager.recordEdits(markerData, oldMarkerMap);
         Log.info(`Shifted ${markerData.length} markers for item ${metadataId} [startShift=${startShift}, endShift=${endShift}]`);
 
         return {
@@ -325,7 +325,7 @@ class CoreCommands {
             deleted.push(nonRaw);
         }
 
-        await BackupManager?.recordDeletes(deleted);
+        await BackupManager.recordDeletes(deleted);
         Log.info(`Deleted ${deleted.length} markers for item ${metadataId} (explicitly ignored ${ignoredMarkerIds.length})`);
         return {
             markers : serializedMarkers,
@@ -410,9 +410,9 @@ class CoreCommands {
                 LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.parentId]--, -1);
             }
 
-            await BackupManager?.recordAdds(adds);
-            await BackupManager?.recordEdits(edits, oldMarkerTimings);
-            await BackupManager?.recordDeletes(deletes);
+            await BackupManager.recordAdds(adds);
+            await BackupManager.recordEdits(edits, oldMarkerTimings);
+            await BackupManager.recordDeletes(deletes);
         }
 
         Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);

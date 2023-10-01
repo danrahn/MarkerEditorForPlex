@@ -6,6 +6,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerConflictResolution } from '../Shared/PlexTypes.js';
+import MarkerEditCache from './MarkerEditCache.js';
 import { ProjectRoot } from './IntroEditorConfig.js';
 import { sendJsonError } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
@@ -132,10 +133,10 @@ class DatabaseImportExport {
 
         const params = { $tagId : PlexQueries.markerTagId() };
         let query =
-`SELECT t.text AS marker_type,
+`SELECT t.id AS id,
+        t.text AS marker_type,
         t.time_offset AS start,
         t.end_time_offset AS end,
-        t.thumb_url AS modified_at,
         t.created_at AS created_at,
         t.extra_data AS extra,
         m.guid AS guid
@@ -164,10 +165,10 @@ WHERE t.tag_id=$tagId`;
                     $markerType : marker.marker_type,
                     $start : marker.start,
                     $end : marker.end,
-                    $modifiedAt : marker.modified_at,
+                    $modifiedAt : MarkerEditCache.getModifiedAt(marker.id),
                     $createdAt : marker.created_at,
                     $extra : marker.extra,
-                    $guid : marker.guid
+                    $guid : marker.guid,
                 });
         }
 

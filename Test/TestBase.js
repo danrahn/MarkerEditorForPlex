@@ -147,9 +147,6 @@ class TestBase {
         testFeature('previewThumbnails', false);
         testFeature('autoOpen', false);
 
-        // TODO: Actually test this
-        testFeature('backupActions', true);
-
         writeFileSync(TestBase.testConfig, JSON.stringify(overrides));
     }
 
@@ -547,7 +544,6 @@ class TestBase {
             id : markerId,
             start : startMs,
             end : endMs,
-            userCreated : 0,
             type : markerType,
             final : final ? 1 : 0,
         }, raw);

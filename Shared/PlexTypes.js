@@ -541,16 +541,12 @@ class MarkerData extends PlexData {
         this.end = marker.end;
         this.index = marker.index;
 
-        if (marker.modified_date) {
-            this.modifiedDate = marker.modified_date;
+        // For legacy purposes, also check whether the create date equals the modified date,
+        // as previous versions of this application didn't include the 'manually created' marker.
+        this.createdByUser = marker.user_created || marker.modified_date == marker.created_at;
 
-            // For legacy purposes, also check whether the create date equals the modified date,
-            // as previous versions of this application didn't include the 'manually created' marker.
-            this.createdByUser = marker.user_created || this.modifiedDate == marker.created_at;
-        } else {
-            this.createdByUser = false;
-            this.modifiedDate = '';
-        }
+        // Conversely, ignore the modified date if it's equal to the create date
+        this.modifiedDate = marker.modified_date == marker.created_at ? null : marker.modified_date;
 
         this.createDate = marker.created_at;
 

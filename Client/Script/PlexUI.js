@@ -277,7 +277,7 @@ class PlexUIManager {
             this.#searchContainer.classList.remove('hidden');
         }
 
-        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
+        if (ClientSettings.showExtendedMarkerInfo()) {
             // In this case, we should have pre-built our purge cache, so grab everything now so that
             // we don't have to 'Find Purged Markers' to hydrate the warning icons at the movie/show/season/episode level
             PurgedMarkers.findPurgedMarkers(true /*dryRun*/);
@@ -372,7 +372,7 @@ class PlexUIManager {
      * Add a "landing page" for a library, including the main section options row,
      * and a description row explaining how to narrow things down. */
     #noSearch() {
-        if (!ClientSettings.backupEnabled() || !ClientSettings.showExtendedMarkerInfo()) {
+        if (!ClientSettings.showExtendedMarkerInfo()) {
             return;
         }
 
@@ -383,7 +383,7 @@ class PlexUIManager {
 
     #searchMovies() {
         const movieList = this.#uiSections[UISection.MoviesOrShows];
-        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
+        if (ClientSettings.showExtendedMarkerInfo()) {
             movieList.appendChild(new SectionOptionsResultRow().buildRow());
         }
 
@@ -448,7 +448,7 @@ class PlexUIManager {
         }
 
         const showList = this.#uiSections[UISection.MoviesOrShows];
-        if (ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo()) {
+        if (ClientSettings.showExtendedMarkerInfo()) {
             showList.appendChild(new SectionOptionsResultRow().buildRow());
         }
 

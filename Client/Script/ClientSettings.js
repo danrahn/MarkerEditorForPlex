@@ -240,10 +240,6 @@ class ClientSettings {
      * @type {RememberLastSectionSetting} */
     lastSection;
 
-    /** Whether the backup database is enabled server-side.
-     * @type {boolean} */
-    backupActions = false;
-
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
      * Default values are used if the `localStorage` key doesn't exist. */
@@ -914,9 +910,6 @@ class SettingsManager {
         }
     }
 
-    /** @returns Whether the server has backups enabled. */
-    backupEnabled() { return this.#settings.backupActions; }
-
     /** Save the currently active settings to {@linkcode localStorage} */
     save() {
         this.#settings.save();
@@ -969,8 +962,6 @@ class SettingsManager {
             // Similarly, don't allow extended marker information if the server isn't set to collect it.
             this.#settings.extendedMarkerStats.block();
         }
-
-        this.#settings.backupActions = serverConfig.backupActions ?? false;
     }
 
     /** Display the settings dialog. */

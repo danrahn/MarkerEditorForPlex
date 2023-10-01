@@ -94,7 +94,8 @@ class TableElements {
      * @param {MarkerData} marker The marker being displayed. */
     static friendlyDate(marker) {
         const createDate = DateUtil.getDisplayDate(marker.createDate * 1000); // Seconds to ms
-        const node = buildNode('span', { class : marker.modifiedDate ? 'userModifiedMarker' : '' }, createDate);
+        const userModified = marker.modifiedDate !== null || marker.createdByUser;
+        const node = buildNode('span', { class : userModified ? 'userModifiedMarker' : '' }, createDate);
         Tooltip.setTooltip(node, TableElements.#dateTooltip(marker));
         return node;
     }
@@ -120,16 +121,12 @@ class TableElements {
      * @param {MarkerData} marker */
     static #dateTooltip(marker) {
         const fullCreateDate = DateUtil.getFullDate(marker.createDate * 1000); // s to ms
-        if (!marker.modifiedDate) {
-            return `Automatically created on ${fullCreateDate}`;
+        let text = `${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`;
+        if (marker.modifiedDate !== null) {
+            text += `<br>Last modified on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`;
         }
 
-        if (marker.modifiedDate == marker.createDate) {
-            return `Manually added on ${fullCreateDate}`;
-        }
-
-        const who = marker.createdByUser ? 'Manually' : 'Automatically';
-        return `${who} added on ${fullCreateDate}<br>Modified by user on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`;
+        return text;
     }
 }
 

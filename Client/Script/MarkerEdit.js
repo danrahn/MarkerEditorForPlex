@@ -305,7 +305,6 @@ class MarkerEdit {
         const endTime = timeToMs(inputs[1].value);
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.parent().mediaItem();
-        const userCreated = this.markerRow.createdByUser();
         const markerId = this.markerRow.markerId();
         const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
         if (!mediaItem.markerTable().checkValues(markerId, startTime, endTime)) {
@@ -314,7 +313,7 @@ class MarkerEdit {
         }
 
         try {
-            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, userCreated, final);
+            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
             /** @type {MediaItemWithMarkerTable} */
             const mediaItem = this.markerRow.parent().mediaItem();

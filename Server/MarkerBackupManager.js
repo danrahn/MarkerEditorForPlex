@@ -11,6 +11,7 @@ import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerCache } from './MarkerCacheManager.js';
+import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
@@ -144,6 +145,26 @@ to also be marked. The schema itself is still okay, but rename some columns so e
 aren't explicitly referenced.
 */
 
+/*
+Backup table V6 modifications:
+
+| OLD COLUMN   | NEW COLUMN  | DESCRIPTION                                              |
++--------------+-------------+----------------------------------------------------------+
+
+Schema remains the same, but this version will set the modified_at date to NULL for markers
+that have been added but not edited, (i.e. created_at equals modified_at). This is done to
+create a standard where a null modified_at means the marker has never been modified after it
+was initially added.
+
+In addition to the above, do the following:
+* Remove the hack in the Plex database that commandeers the thumb_url column to contain
+  information about whether a marker has been edited, and whether the marker is user created.
+  Rely solely on this backup database, as it should contain the same information.
+* Permanently enable the backup database. It was optional in the beginning more as a safeguard
+  to ensure it could be disabled in case it caused issues, but it's since been proven to be
+  reliable, and there aren't really any downsides to having it enabled.
+*/
+
 
 /**
  * The accepted operation types
@@ -198,7 +219,7 @@ CREATE TABLE IF NOT EXISTS actions (
  */
 
 /** The current table schema version. */
-const CurrentSchemaVersion = 5;
+const CurrentSchemaVersion = 6;
 
 /** Single-row table that indicates the current version of the actions table. */
 const CheckVersionTable = `
@@ -270,6 +291,12 @@ const SchemaUpgrades = [
     `ALTER TABLE actions RENAME COLUMN episode_id TO parent_id;
      ALTER TABLE actions RENAME COLUMN episode_guid TO parent_guid;
      UPDATE schema_version SET version=5;`,
+
+    // 5 -> 6:
+    // Set modified_at to null if it equals added_at to indicate that there haven't been any additional
+    // edits after the initial add.
+    `UPDATE actions SET modified_at = NULL where modified_at=created_at;
+    UPDATE schema_version SET version=6;`
 ];
 /* eslint-enable */
 
@@ -312,6 +339,7 @@ class MarkerBackupManager {
         // but we need to update our hacked thumb_urls in the main database.
         this.#checkBadThumbUrls.bind(this),
         async () => { }, // 4 -> 5. Just renaming columns, nothing else to do.
+        PlexQueries.removeThumbUrlHack.bind(PlexQueries), // 5 -> 6. Remove Plex DB hack that commandeers thumb_url.
     ];
 
     /**
@@ -321,7 +349,7 @@ class MarkerBackupManager {
     static async CreateInstance(dataRoot) {
         if (Instance) {
             Log.warn(`Backup manager already initialized, we shouldn't be trying to do this again!`);
-            MarkerBackupManager.Close();
+            await MarkerBackupManager.Close();
         }
 
         Log.info('Initializing marker backup database...');
@@ -379,6 +407,9 @@ class MarkerBackupManager {
             // TODO: Do something similar for 1 -> 2?
             await manager.postUpgrade();
 
+            // Initialize once all of our upgrade steps have completed.
+            await manager.initialize();
+
             Log.info(fullPath, 'Initialized backup database');
             Instance = manager;
             return manager;
@@ -400,6 +431,10 @@ class MarkerBackupManager {
         this.#uuids = uuids;
         this.#sectionTypes = sectionTypes;
         this.#actions = actionsDatabase;
+    }
+
+    async initialize() {
+        this.#buildMarkerEditDataCache();
     }
 
     /** Closes the database connection. */
@@ -559,8 +594,8 @@ class MarkerBackupManager {
      * @param {number} markerOp
      * @param {MarkerData} marker
      * @param {{start: number, end: number}?} oldTimings
-     * @param {number?} restoresId */
-    #recordOp(transaction, markerOp, marker, oldTimings=null, restoresId=null) {
+     * @param {MarkerAction?} restoresAction */
+    #recordOp(transaction, markerOp, marker, oldTimings=null, restoresAction=null) {
         const query = `INSERT INTO actions (
 op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at,
 extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES (
@@ -574,9 +609,8 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const nowTime = `(strftime('%s', 'now'))`;
         switch (markerOp) {
             case MarkerOp.Add:
-                modifiedAt = nowTime;
+                modifiedAt = null;
                 createdAt = nowTime;
-                asRaw.add('$modifiedAt');
                 asRaw.add('$createdAt');
                 break;
             case MarkerOp.Edit:
@@ -586,7 +620,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
                 asRaw.add('$modifiedAt');
                 break;
             case MarkerOp.Restore:
-                modifiedAt = marker.modifiedDate;
+                modifiedAt = restoresAction.modified_at;
                 createdAt = marker.createDate;
                 break;
             default:
@@ -608,7 +642,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             $createdAt : createdAt,
             $extraData : ExtraData.get(marker.markerType, marker.isFinal),
             $sectionUUID : this.#uuids[marker.sectionId],
-            $restoresId : restoresId,
+            $restoresId : restoresAction?.marker_id ?? null,
             $parentGuid : marker.parentGuid,
             $markerType : marker.markerType,
             $final : marker.isFinal,
@@ -617,6 +651,34 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         };
 
         transaction.addStatement(query, parameters);
+
+        // Update our timestamp cache
+        switch (markerOp) {
+            case MarkerOp.Add:
+                MarkerEditCache.addMarker(marker.id, { userCreated : true, modifiedAt : null });
+                MarkerEditCache.updateInPlace(marker);
+                break;
+            case MarkerOp.Edit:
+                // Can theoretically be different than what we put in the database, but
+                // it will differ by several milliseconds in the worst case, which is fine.
+                MarkerEditCache.updateMarker(marker.id, Math.floor(Date.now() / 1000));
+                MarkerEditCache.updateInPlace(marker);
+                break;
+            case MarkerOp.Delete:
+                MarkerEditCache.deleteMarker(marker.id);
+                break;
+            case MarkerOp.Restore: {
+                // We'll throw if this assert fails, but the log can be helpful.
+                Log.assert(restoresAction, `recordOp - restoresAction should not be null for MarkerOp.Restore`);
+                MarkerEditCache.addMarker(marker.id,
+                    { userCreated : restoresAction.user_created, modifiedAt : restoresAction.modified_at });
+
+                // Note: this doesn't do anything right now, since the caller deals with raw markers, so this
+                // marker is just a copy that is discarded.
+                MarkerEditCache.updateInPlace(marker);
+                break;
+            }
+        }
     }
 
     /**
@@ -706,17 +768,18 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
 
     /**
      * Records a restore operation in the database.
-     * @param {{marker : RawMarkerData, oldMarkerId : number}[]} restores The markers to record
+     * @param {{marker : RawMarkerData, oldAction : MarkerAction}[]} restores The markers to record
      * @param {number} sectionId The id of the section this marker belongs to. */
     async recordRestores(restores, sectionId) {
         const transaction = new TransactionBuilder(this.#actions);
 
         for (const restore of restores) {
             const marker = new MarkerData(restore.marker);
-            this.#recordOp(transaction, MarkerOp.Restore, marker, null /*oldTimings*/, restore.oldMarkerId);
+            this.#recordOp(transaction, MarkerOp.Restore, marker, null /*oldTimings*/, restore.oldAction);
+            MarkerEditCache.updateInPlaceRaw(restore.marker);
 
             const updateQuery = 'UPDATE actions SET restored_id=? WHERE marker_id=? AND section_uuid=?;\n';
-            const updateParameters = [restore.marker.id, restore.oldMarkerId, this.#uuids[sectionId]];
+            const updateParameters = [restore.marker.id, restore.oldAction.marker_id, this.#uuids[sectionId]];
             transaction.addStatement(updateQuery, updateParameters);
         }
 
@@ -1236,7 +1299,7 @@ ORDER BY id DESC;`;
             }
 
             oldAction = oldAction[0];
-            restoredList.push({ marker : newMarker, oldMarkerId : oldAction.marker_id });
+            restoredList.push({ marker : newMarker, oldAction : oldAction });
 
             // We fire and forget the restoration action, so we're really just assuming we did
             // the right thing and preemptively remove it from the purge map.
@@ -1260,7 +1323,7 @@ ORDER BY id DESC;`;
 
             oldAction = oldAction[0];
             Log.tmi(`restoreMarkers: Identical marker found, setting it as the restored id.`);
-            restoredList.push({ marker : ignoredMarker, oldMarkerId : oldAction.marker_id });
+            restoredList.push({ marker : ignoredMarker, oldAction : oldAction });
             this.#removeFromPurgeMap(oldAction);
         }
 
@@ -1393,7 +1456,27 @@ ORDER BY id DESC;`;
             }
         }
 
+        // Rebuild marker edit cache from scratch. Not the most efficient,
+        // but usage doesn't warrant an optimized solution.
+        MarkerEditCache.clear();
+        await this.#buildMarkerEditDataCache();
+
         return deleteCount;
+    }
+
+    async #buildMarkerEditDataCache() {
+        // TODO: If/when extended marker stats cannot be turned off, combine with buildAllPurges
+        const allActionsQuery = this.#allActionsQuery();
+
+        /** @type {MarkerAction[]} */
+        const actions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+        for (const action of actions) {
+            if (action.op == MarkerOp.Delete) {
+                continue; // Last action was a delete, this marker doesn't exist anymore.
+            }
+
+            MarkerEditCache.addMarker(action.marker_id, { userCreated : !!action.user_created, modifiedAt : action.modified_at });
+        }
     }
 }
 

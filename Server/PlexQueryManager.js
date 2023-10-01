@@ -3,6 +3,7 @@ import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
+import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
@@ -14,7 +15,7 @@ import TransactionBuilder from './TransactionBuilder.js';
 /**
  * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number,
  *             parent_id : number, season_id : number, show_id : number, section_id : number, parent_guid : string,
- *             marker_type : string, final : number, user_created }} RawMarkerData
+ *             marker_type : string, final : number, user_created : boolean }} RawMarkerData
  *
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
@@ -142,10 +143,6 @@ class PlexQueryManager {
     /** @type {DatabaseWrapper} */
     #database;
 
-    /** Whether to commandeer the thumb_url column for extra marker information.
-     *  If "pure" mode is enabled, we don't use the field. */
-    #pureMode = false;
-
     /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
     #extendedEpisodeMarkerFields = `
     taggings.id,
@@ -153,7 +150,6 @@ class PlexQueryManager {
     taggings.text AS marker_type,
     taggings.time_offset AS start,
     taggings.end_time_offset AS end,
-    taggings.thumb_url AS modified_date,
     taggings.created_at,
     taggings.extra_data,
     episodes.id AS parent_id,
@@ -173,7 +169,6 @@ FROM taggings
     taggings.text AS marker_type,
     taggings.time_offset AS start,
     taggings.end_time_offset AS end,
-    taggings.thumb_url AS modified_date,
     taggings.created_at,
     taggings.extra_data,
     movies.id AS parent_id,
@@ -188,12 +183,11 @@ FROM taggings
     /**
      * Creates a new PlexQueryManager instance. This show always be used opposed to creating
      * a PlexQueryManager directly via 'new'.
-     * @param {string} databasePath The path to the Plex database.
-     * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data. */
-    static async CreateInstance(databasePath, pureMode) {
+     * @param {string} databasePath The path to the Plex database. */
+    static async CreateInstance(databasePath) {
         if (Instance) {
             Log.warn(`Query manager already initialized, we shouldn't be initializing it again`);
-            Instance.close();
+            await Instance.close();
         }
 
         Log.info(`Verifying database ${databasePath}...`);
@@ -225,7 +219,7 @@ FROM taggings
             }
 
             Log.info('Database verified');
-            Instance = new PlexQueryManager(db, pureMode, row.id);
+            Instance = new PlexQueryManager(db, row.id);
             return Instance;
         } catch (err) {
             Log.error(`Are you sure "${databasePath}" is the Plex database, and has at least one existing marker?`);
@@ -239,11 +233,9 @@ FROM taggings
     /**
      * Initializes the query manager. Should only be called via the static CreateInstance.
      * @param {DatabaseWrapper} database
-     * @param {boolean} pureMode Whether we should avoid writing to an unused database column to store extra data.
      * @param {markerTagId} markerTagId The database tag id that represents markers. */
-    constructor(database, pureMode, markerTagId) {
+    constructor(database, markerTagId) {
         this.#database = database;
-        this.#pureMode = pureMode;
         this.#markerTagId = markerTagId;
     }
 
@@ -589,8 +581,14 @@ ORDER BY e.\`index\` ASC;`;
         const markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
         for (const marker of markerArray) {
             marker.final = marker.extra_data?.indexOf('final=1') != -1; // extra_data should never be null, but better safe than sorry
-            marker.user_created = marker.modified_date < 0;
-            marker.modified_date = Math.abs(marker.modified_date);
+
+            // TODO: With newly added/edited markers, our cache is not yet updated,
+            // so there's a brief period where these values are incorrect, and we rely
+            // on the MarkerBackupManager to modify them as soon as the real values
+            // are known. Something should probably be done here instead so we aren't
+            // returning data that we know is incorrect.
+            marker.user_created = MarkerEditCache.getUserCreated(marker.id);
+            marker.modified_date = MarkerEditCache.getModifiedAt(marker.id);
             delete marker.extra_data;
         }
 
@@ -909,7 +907,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} final Whether this is the last credits marker that goes to the end of the episode
      * @param {number} modifiedAt What to set as the 'modified at' time. Used by bulkRestore to restore original timestamps.
      * @param {number} [createdAt] What to set as the 'created at' time. Used by bulkRestore to restore original timestamps. */
-    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, modifiedAt=undefined, createdAt=undefined) {
+    #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, createdAt=undefined) {
         const validNumber = (n, name) => {
             if (isNaN(newIndex) || (!newIndex && newIndex !== 0)) {
                 const realValue = n === undefined ? 'undefined' : n === null ? 'null' : n === '' ? '[Empty String]' : n;
@@ -933,27 +931,29 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError(`Unable to add one or more markers, invalid marker type given (${markerType})`, 500);
         }
 
-        let thumbUrl;
-        if (this.#pureMode) {
-            thumbUrl = '""';
-        } else {
-            thumbUrl = isNaN(modifiedAt) ? `(strftime('%s','now')) * -1` : modifiedAt;// negative == user created
+        const asRaw = new Set();
+        const created_at = isNaN(createdAt) ? `(strftime('%s','now'))` : createdAt;
+        if (isNaN(createdAt)) {
+            asRaw.add('$createdAt');
         }
 
-        const created_at = isNaN(createdAt) ? `(strftime('%s','now'))` : createdAt;
         const addQuery =
             'INSERT INTO taggings ' +
-                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
+                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, created_at, extra_data) ' +
             'VALUES ' +
-                `(?, ?, ?, ?, ?, ?, ${thumbUrl}, ${created_at}, ?);`;
-        const parameters = [
-            episodeId,
-            this.#markerTagId,
-            newIndex,
-            markerType,
-            startMs.toString(),
-            endMs,
-            ExtraData.get(markerType, final)];
+                `($metadataId, $tagId, $index, $text, $startMs, $endMs, $createdAt, $extraData);`;
+        const parameters = {
+            $metadataId : episodeId,
+            $tagId : this.#markerTagId,
+            $index : newIndex,
+            $text : markerType,
+            $startMs : startMs.toString(),
+            $endMs : endMs,
+            $createdAt : created_at,
+            $extraData : ExtraData.get(markerType, final),
+            _asRaw : asRaw,
+        };
+
         transaction.addStatement(addQuery, parameters);
     }
 
@@ -1070,6 +1070,12 @@ ORDER BY e.\`index\` ASC;`;
                             ignoredActions.add(action);
                             continue;
                         case MarkerConflictResolution.Merge:
+                        {
+                            let newModified = null;
+                            if (action.modified_at !== null || action.recorded_at !== null || overlappingMarker.modifiedDate !== null) {
+                                newModified = Math.max(action.modified_at || action.recorded_at || 0, overlappingMarker.modified_date);
+                            }
+
                             toModify[overlappingMarker.id] = {
                                 marker : overlappingMarker.getRaw(),
                                 newData : {
@@ -1077,12 +1083,13 @@ ORDER BY e.\`index\` ASC;`;
                                     newEnd      : Math.max(action.end, overlappingMarker.end),
                                     newType     : action.type == MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
                                     newFinal    : overlappingMarker.final || action.final,
-                                    newModified : Math.max(action.modified_at || action.recorded_at || 0, overlappingMarker.modified_date),
+                                    newModified : newModified,
                                 }
                             };
 
                             ignoredActions.add(action);
                             continue;
+                        }
                         case MarkerConflictResolution.Overwrite:
                         {
                             // Delete. However, potentially change the action type if the overlapping marker is a
@@ -1128,7 +1135,6 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 ++expectedInserts;
-                const modifiedAt = marker.modified_date * (marker.user_created ? -1 : 1);
                 this.#addMarkerStatement(transaction,
                     baseItemId,
                     marker.newIndex,
@@ -1136,7 +1142,6 @@ ORDER BY e.\`index\` ASC;`;
                     marker.end,
                     marker.marker_type,
                     marker.final,
-                    modifiedAt,
                     marker.created_at);
             }
 
@@ -1159,14 +1164,12 @@ ORDER BY e.\`index\` ASC;`;
 
         for (const markerInfo of Object.values(toModify)) {
             const newData = markerInfo.newData;
-            const thumbUrl = this.#pureMode ? '""' : newData.newModified * (markerInfo.marker.user_created ? -1 : 1);
             // Index is taken care of further down below.
             transaction.addStatement(
-                'UPDATE taggings SET text=?, time_offset=?, end_time_offset=?, thumb_url=?, extra_data=? WHERE id=?',
+                'UPDATE taggings SET text=?, time_offset=?, end_time_offset=?, extra_data=? WHERE id=?',
                 [newData.newType,
                     newData.newStart,
                     newData.newEnd,
-                    thumbUrl,
                     ExtraData.get(newData.newType, newData.newFinal),
                     markerInfo.marker.id]
             );
@@ -1311,16 +1314,14 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} index The marker's new index in the marker table.
      * @param {number} startMs The new start time, in milliseconds.
      * @param {number} endMs The new end time, in milliseconds.
-     * @param {boolean} userCreated Whether we're editing a marker the user created, or one that Plex created automatically.
      * @param {string} markerType The type of marker (intro/credits)
      * @param {number} final Whether this Credits marker goes to the end of the media item.
      * @returns {Promise<void>} */
-    async editMarker(markerId, index, startMs, endMs, userCreated, markerType, final) {
-        const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
+    async editMarker(markerId, index, startMs, endMs, markerType, final) {
 
         // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         return this.#database.run(
-            'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ', extra_data=? WHERE id=?;',
+            'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, extra_data=? WHERE id=?;',
             [index, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final), markerId]);
     }
 
@@ -1424,8 +1425,6 @@ ORDER BY e.\`index\` ASC;`;
         for (const episodeMarkers of Object.values(markers)) {
             for (const marker of episodeMarkers) {
                 ++expectedShifts;
-                const userCreated = marker.modified_date < 0;
-                const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${userCreated ? ' * -1' : ''}`;
                 const maxDuration = limits[marker.parent_id];
                 if (!maxDuration) {
                     throw new ServerError(`Unable to find max episode duration, ` +
@@ -1441,7 +1440,7 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 transaction.addStatement(
-                    'UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=' + thumbUrl + ' WHERE id=?',
+                    'UPDATE taggings SET time_offset=?, end_time_offset=? WHERE id=?',
                     [newStart, newEnd, marker.id]
                 );
             }
@@ -1649,9 +1648,8 @@ ORDER BY e.\`index\` ASC;`;
                         (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(nextMarker);
                     }
 
-                    const thumbUrl = this.#pureMode ? '""' : `(strftime('%s','now'))${episodeMarker.createdByUser ? ' * -1' : ''}`;
                     transaction.addStatement(
-                        `UPDATE taggings SET time_offset=?, end_time_offset=?, thumb_url=${thumbUrl} WHERE id=?;`,
+                        `UPDATE taggings SET time_offset=?, end_time_offset=? WHERE id=?;`,
                         [episodeMarker.start, episodeMarker.end, episodeMarker.id]);
                     episodeMarkerMap[episodeId].isAdd = false;
                     mergeEdited.add(episodeMarker.id);
@@ -1733,6 +1731,18 @@ WHERE metadata_item_id in (SELECT id FROM metadata_items WHERE library_section_i
         Log.tmi(params, deleteQuery + `\nParams`);
         await this.#database.run(deleteQuery, params);
         return deleteCount;
+    }
+
+    /**
+     * In previous versions of this application, the thumb_url column of the taggings table
+     * was commandeered to indicate when a marker had been last modified, and whether the marker
+     * was user-created. Remove that and rely on our own marker actions database. */
+    async removeThumbUrlHack() {
+        const hackCountQuery = `SELECT COUNT(*) AS count FROM taggings WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
+        const count = (await this.#database.get(hackCountQuery, [this.#markerTagId])).count;
+        Log.info(`removeThumbUrlHack - Removing ${count} hacked thumb_url entries.`);
+        const query = `UPDATE taggings SET thumb_url="" WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
+        await this.#database.run(query, [this.#markerTagId]);
     }
 }
 

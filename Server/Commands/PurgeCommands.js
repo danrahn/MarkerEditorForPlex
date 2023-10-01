@@ -2,7 +2,6 @@ import { MarkerConflictResolution, MarkerData } from '../../Shared/PlexTypes.js'
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { BackupManager } from '../MarkerBackupManager.js';
-import { Config } from '../IntroEditorConfig.js';
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
 import { PlexQueries } from '../PlexQueryManager.js';
@@ -19,8 +18,6 @@ class PurgeCommands {
      * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
      * @param {number} metadataId The episode/season/show id*/
     static async purgeCheck(metadataId) {
-        PurgeCommands.#checkBackupManagerEnabled();
-
         const markers = await BackupManager.checkForPurges(metadataId);
         return markers;
     }
@@ -29,8 +26,6 @@ class PurgeCommands {
      * Find all purged markers for the given library section.
      * @param {number} sectionId The library section */
     static async allPurges(sectionId) {
-        PurgeCommands.#checkBackupManagerEnabled();
-
         const purges = await BackupManager.purgesForSection(sectionId);
         return purges;
     }
@@ -41,8 +36,7 @@ class PurgeCommands {
      * @param {number} sectionId
      * @param {number} resolveType */
     static async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
-        PurgeCommands.#checkBackupManagerEnabled(); // TODO: Why does bulk overwrite keep the old markers around?
-
+        // TODO: Why does bulk overwrite keep the old markers around?
         if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {
             throw new ServerError(`Unexpected MarkerConflictResolution type: ${resolveType}`, 400);
         }
@@ -93,8 +87,6 @@ class PurgeCommands {
      * @param {number[]} oldMarkerIds
      * @param {number} sectionId */
     static async ignorePurgedMarkers(oldMarkerIds, sectionId) {
-        PurgeCommands.#checkBackupManagerEnabled();
-
         await BackupManager.ignorePurgedMarkers(oldMarkerIds, sectionId);
     }
 
@@ -104,7 +96,6 @@ class PurgeCommands {
      * @param {number} sectionId
      * @param {number} deleteType */
     static async nukeSection(sectionId, deleteType) {
-        PurgeCommands.#checkBackupManagerEnabled();
         if (!MarkerCache) {
             throw new ServerError('Action is not enabled due to a configuration setting.', 400);
         }
@@ -121,14 +112,6 @@ class PurgeCommands {
             deleted : dbDeleteCount,
             backupDeleted : backupDeleteCount,
             cacheDeleted : cacheRemoveCount, };
-    }
-
-    /**
-     * Throw a ServerError if the backup manager is not enabled. */
-    static #checkBackupManagerEnabled() {
-        if (!BackupManager || !Config.backupActions()) {
-            throw new ServerError('Action is not enabled due to configuration settings.', 400);
-        }
     }
 }
 

@@ -47,19 +47,15 @@ async function run() {
     const config = IntroEditorConfig.Create(testData, dataRoot);
 
     // Set up the database, and make sure it's the right one.
-    const queryManager = await PlexQueryManager.CreateInstance(config.databasePath(), config.pureMode());
-    if (config.backupActions()) {
-        await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
-    } else {
-        Log.warn('Marker backup not enabled. Any changes removed by Plex will not be recoverable.');
-    }
+    const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
+    await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
 
     await ThumbnailManager.Create(queryManager.database(), config.metadataPath());
     if (config.extendedMarkerStats()) {
         const markerCache = MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
         try {
             await markerCache.buildCache();
-            await BackupManager?.buildAllPurges();
+            await BackupManager.buildAllPurges();
         } catch (err) {
             Log.error(err.message, 'Failed to build marker cache:');
             Log.error('Continuing to server creating, but extended marker statistics will not be available.');

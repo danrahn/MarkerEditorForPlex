@@ -74,7 +74,6 @@ async function FirstRunConfig(dataRoot) {
     config.features = {};
     config.features.autoOpen = !isDocker && await askUserYesNo('Do you want the app to open in the browser automatically', true, rl);
     config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
-    config.features.backupActions = await askUserYesNo('Do you want to track/backup custom marker actions', true, rl);
     config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
     if (config.features.previewThumbnails && testFfmpeg()) {
         console.log();
@@ -86,7 +85,6 @@ async function FirstRunConfig(dataRoot) {
             !await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
     }
 
-    config.features.pureMode = await askUserYesNo('Do you want to enable pureMode (see wiki)', false, rl);
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');
     writeFileSync(configPath, JSON.stringify(config, null, 4) + '\n');

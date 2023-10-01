@@ -76,9 +76,6 @@ class PlexFeatures extends ConfigBase {
     /** Setting for gathering all markers before launch to compile additional statistics. */
     extendedMarkerStats = true;
 
-    /** Setting for logging all marker actions, for future use in restoring and/or purging user edited markers. */
-    backupActions = true;
-
     /** Setting for displaying timestamped preview thumbnails when editing or adding markers.
      * @type {boolean} */
     previewThumbnails = true;
@@ -86,10 +83,6 @@ class PlexFeatures extends ConfigBase {
     /** Setting for displaying precise ffmpeg-based preview thumbnails opposed to the pre-generated Plex BIF files.
      * @type {boolean} */
     preciseThumbnails = false;
-
-    /** Setting to control whether we use the unused thumb_url column of the Plex database to store
-     *  additional information about markers that are added/edited. */
-    pureMode = false;
 
     /** Sets the application features based on the given json.
      * @param {object} json */
@@ -104,10 +97,8 @@ class PlexFeatures extends ConfigBase {
 
         this.autoOpen = this.#getOrDefault('autoOpen', true);
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
-        this.backupActions = this.#getOrDefault('backupActions', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
         this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', false);
-        this.pureMode = this.#getOrDefault('pureMode', false);
 
         if (this.previewThumbnails && this.preciseThumbnails) {
             this.preciseThumbnails = testFfmpeg();
@@ -296,8 +287,6 @@ class IntroEditorConfig extends ConfigBase {
     metadataPath() { return this.#dataPath; }
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
-    backupActions() { return this.#features.backupActions; }
-    pureMode() { return this.#features.pureMode; }
     appVersion() { return this.#version; }
 }
 

@@ -535,13 +535,11 @@ class ShowResultRow extends ResultRow {
             return;
         }
 
-        if (ClientSettings.backupEnabled()) {
-            // Gather purge data before continuing
-            try {
-                await PurgedMarkers.getPurgedShowMarkers(this.show().metadataId);
-            } catch (err) {
-                Log.warn(errorMessage(err), `Unable to get purged marker info for show ${this.show().title}`);
-            }
+        // Gather purge data before continuing
+        try {
+            await PurgedMarkers.getPurgedShowMarkers(this.show().metadataId);
+        } catch (err) {
+            Log.warn(errorMessage(err), `Unable to get purged marker info for show ${this.show().title}`);
         }
 
         /*async*/ this.#getSeasons();
@@ -1441,13 +1439,11 @@ class MovieResultRow extends BaseItemResultRow {
                 mov.realMarkerCount = markerData[mov.metadataId].length;
             }
 
-            if (ClientSettings.backupEnabled()) {
-                // Gather purge data before continuing
-                try {
-                    await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
-                } catch (err) {
-                    Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
-                }
+            // Gather purge data before continuing
+            try {
+                await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
+            } catch (err) {
+                Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
             }
 
             mov.initializeMarkerTable(markerData[mov.metadataId]);

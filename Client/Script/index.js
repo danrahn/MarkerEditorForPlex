@@ -42,7 +42,7 @@ async function mainSetup() {
     }
 
     ClientSettings.parseServerConfig(config);
-    PurgedMarkerManager.CreateInstance(ClientSettings.backupEnabled() && ClientSettings.showExtendedMarkerInfo());
+    PurgedMarkerManager.CreateInstance(ClientSettings.showExtendedMarkerInfo());
     VersionManager.CheckForUpdates(config.version);
 
     try {

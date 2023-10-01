@@ -450,6 +450,7 @@ class PurgeRow {
             section_id : PlexClientState.activeSection(),
             marker_type : this.#markerAction.marker_type,
             final : this.#markerAction.final,
+            user_created : this.#markerAction.user_created,
         };
 
         return new MarkerData(rawMarkerData);

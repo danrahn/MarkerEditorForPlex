@@ -64,10 +64,9 @@ const ServerCommand = {
      * @param {number} id
      * @param {number} start
      * @param {number} end
-     * @param {boolean} userCreated true if user created, false if Plex generated
      * @param {boolean} [final=false]
      * @returns {Promise<SerializedMarkerData>} */
-    edit : async (markerType, id, start, end, userCreated, final=0) => jsonRequest('edit', { id : id, start : start, end : end, userCreated : userCreated ? 1 : 0, type : markerType, final : final ? 1 : 0 }),
+    edit : async (markerType, id, start, end, final=0) => jsonRequest('edit', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
 
     /**
      * Delete the marker with the given id.
@@ -176,7 +175,7 @@ const ServerCommand = {
 
     /**
      * Retrieve the configuration settings relevant to the client application.
-     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, backupActions: boolean, version: string }>} */
+     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, version: string }>} */
     getConfig : async () => jsonRequest('get_config'),
 
     /**

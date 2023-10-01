@@ -7,9 +7,7 @@
     "features" : {
         "autoOpen" : true,
         "extendedMarkerStats" : true,
-        "backupActions" : true,
         "previewThumbnails" : true,
-        "preciseThumbnails" : false,
-        "pureMode" : false
+        "preciseThumbnails" : false
     }
 }
