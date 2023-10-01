@@ -11,6 +11,7 @@ import { ClientSettings } from './ClientSettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import TableElements from './TableElements.js';
+import Tooltip from './inc/Tooltip.js';
 
 
 const Log = new ContextualLog('MarkerTableRow');
@@ -150,6 +151,10 @@ class ExistingMarkerRow extends MarkerRow {
             td(tableData[4], { class : 'centeredColumn topAligned' }));
 
         this.html = tr;
+        if (this.#markerData.isFinal) {
+            tr.children[0].classList.add('italic');
+            Tooltip.setTooltip(tr.children[0], 'Final');
+        }
     }
 
     /**

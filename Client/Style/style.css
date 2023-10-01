@@ -19,6 +19,10 @@ body {
     display: none !important;
 }
 
+.italic {
+  font-style: italic;
+}
+
 form label {
   float: left;
   padding: 3px;
