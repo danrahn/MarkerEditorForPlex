@@ -1,0 +1,13 @@
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 16 22">
+    <defs>
+        <style>.a{fill:FILL_COLOR;}</style>
+    </defs>
+    <path
+        class="a"
+        d="M17,3a1,1,0,0,1,1,1V20a1,1,0,0,1-1,1H6V3H17m0-2H5A1,1,0,0,0,4,2V22a1,1,0,0,0,1,1H17a3,3,0,0,0,3-3V4a3,3,0,0,0-3-3Z"
+        transform="translate(-4 -1)"/>
+    <rect class="a" x="4" y="2" width="4" height="14"/>
+    <polygon class="a" points="6 18 8 16 4 16 6 18"/>
+</svg>

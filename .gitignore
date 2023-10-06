@@ -24,3 +24,6 @@ dist/*
 
 # Ignore ffmpeg-generated cached thumbnails
 cache/*
+
+# Ignore non-minified/FILL_COLOR-hacked icons
+SVG/Raw/*

@@ -126,9 +126,13 @@ input:focus-visible {
   cursor: default;
 }
 
-.button:hover {
+.button:hover:not(.disabled) {
   transition: border .25s,box-shadow .5s;
   opacity: 1;
+}
+
+.button.disabled {
+  opacity: 50%;
 }
 
 .button:focus-visible {

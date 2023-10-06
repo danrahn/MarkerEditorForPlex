@@ -68,7 +68,7 @@ tr:nth-child(even):hover {
     background-color: #eda6;
 }
 
-.button:hover {
+.button:hover:not(.disabled) {
     border: 1px solid rgba(93,93,93,.67);
     box-shadow: 0 0 6px #414141;
 }

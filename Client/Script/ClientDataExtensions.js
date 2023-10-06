@@ -44,11 +44,11 @@ class ClientMovieData extends MovieData {
     }
 
     /**
-     * Creates the marker table for this episode.
-     * @param {MovieResultRow} parentRow The UI associated with this episode.
-     * @param {{[metadataId: number]: Object[]}} serializedMarkers Map of episode ids to an array of
-     * serialized {@linkcode MarkerData} for the episode. */
-    createMarkerTable(parentRow, serializedMarkers) {
+     * Creates the marker table for this movie. Note that for movies, we don't fully initialize the marker
+     * table yet for performance reasons, only grabbing the real marker data when the user explicitly
+     * clicks on a particular movie.
+     * @param {MovieResultRow} parentRow The UI associated with this movie. */
+    createMarkerTable(parentRow) {
         if (this.#markerTable != null) {
             // This is expected if the result has appeared in multiple search results.
             // Assume we're in a good state and ignore this, but reset the parent and make
@@ -58,19 +58,15 @@ class ClientMovieData extends MovieData {
             return;
         }
 
-        const markers = [];
-        for (const marker of serializedMarkers) {
-            markers.push(new MarkerData().setFromJson(marker));
-        }
-
         // Marker breakdown is currently overkill for movies, since it only ever has a single item inside of it.
         // If intros/credits are ever separated though, this will do the right thing.
-        this.#markerTable = new MarkerTable(markers, parentRow, true /*lazyLoad*/, parentRow.currentKey());
+        this.#markerTable = MarkerTable.CreateLazyInitMarkerTable(parentRow, parentRow.currentKey());
     }
 
     /**
-     * @param {SerializedMarkerData} serializedMarkers */
-    initializeMarkerTable(serializedMarkers) {
+     * @param {SerializedMarkerData} serializedMarkers
+     * @param {ChapterData[]} chapters The chapters (if any) associated with this movie. */
+    initializeMarkerTable(serializedMarkers, chapters) {
         if (this.#markerTable == null) {
             Log.error(`Can't initialize marker table if it hasn't been created yet.`);
             return;
@@ -81,7 +77,7 @@ class ClientMovieData extends MovieData {
             markers.push(new MarkerData().setFromJson(marker));
         }
 
-        this.#markerTable.lazyInit(markers);
+        this.#markerTable.lazyInit(markers, chapters);
     }
 
     /** @returns {MarkerTable} */
@@ -107,8 +103,9 @@ class ClientEpisodeData extends EpisodeData {
      * Creates the marker table for this episode.
      * @param {EpisodeResultRow} parentRow The UI associated with this episode.
      * @param {SerializedMarkerData[]} serializedMarkers Map of episode ids to an array of
-     * serialized {@linkcode MarkerData} for the episode. */
-    createMarkerTable(parentRow, serializedMarkers) {
+     * serialized {@linkcode MarkerData} for the episode.
+     * @param {ChapterData[]} chapters Chapter data for this episode. */
+    createMarkerTable(parentRow, serializedMarkers, chapters) {
         if (this.#markerTable != null) {
             Log.warn('The marker table already exists, we shouldn\'t be creating a new one!');
         }
@@ -119,7 +116,7 @@ class ClientEpisodeData extends EpisodeData {
         }
 
         parentRow.setCurrentKey(markers.reduce((acc, marker) => acc + MarkerBreakdown.deltaFromType(1, marker.markerType), 0));
-        this.#markerTable = new MarkerTable(markers, parentRow);
+        this.#markerTable = MarkerTable.CreateMarkerTable(markers, parentRow, chapters);
     }
 
     /** @returns {MarkerTable} */

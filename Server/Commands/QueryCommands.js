@@ -261,6 +261,13 @@ class QueryCommands {
 
         return data;
     }
+
+    /**
+     * Retrieve chapters for the given metadata id.
+     * @param {number} metadataId */
+    static async getChapters(metadataId) {
+        return PlexQueries.getMediaChapters(metadataId);
+    }
 }
 
 export default QueryCommands;

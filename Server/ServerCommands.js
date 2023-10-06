@@ -32,6 +32,7 @@ class ServerCommands {
         check_thumbs  : async (params) => await QueryCommands.checkForThumbs(params.i('id')),
         get_stats     : async (params) => await QueryCommands.allStats(params.i('id')),
         get_breakdown : async (params) => await QueryCommands.getMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
+        get_chapters  : async (params) => await QueryCommands.getChapters(params.i('id')),
 
         get_config    : async (_)      => await GeneralCommands.getConfig(),
         log_settings  : async (params) => await GeneralCommands.setLogSettings(...params.ints('level', 'dark', 'trace')),

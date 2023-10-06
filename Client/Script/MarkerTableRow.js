@@ -38,8 +38,8 @@ class MarkerRow {
     /**
      * Create a new base MarkerRow. This should not be instantiated on its own, only through its derived classes.
      * @param {BaseItemResultRow} parent The media item that owns this marker.
-     * @param {boolean} isMovie Whether this marker is for a movie. */
-    constructor(parent) {
+     * @param {ChapterData[]} [chapters] The chapter data (if any) for the media item associated with this marker. */
+    constructor(parent, chapters) {
         this.#parentRow = parent;
         const useThumbs = ClientSettings.useThumbnails();
         let hasThumbs = false;
@@ -57,9 +57,9 @@ class MarkerRow {
         }
 
         if (hasThumbs) {
-            this.#editor = new ThumbnailMarkerEdit(this);
+            this.#editor = new ThumbnailMarkerEdit(this, chapters);
         } else {
-            this.#editor = new MarkerEdit(this);
+            this.#editor = new MarkerEdit(this, chapters);
         }
     }
 
@@ -111,9 +111,10 @@ class ExistingMarkerRow extends MarkerRow {
 
     /**
      * @param {MarkerData} marker The marker to base this row off of.
-     * @param {BaseItemResultRow} parent The parent media item that owns this marker. */
-    constructor(marker, parent) {
-        super(parent);
+     * @param {BaseItemResultRow} parent The parent media item that owns this marker.
+     * @param {ChapterData[]} chapters The chapters (if any) associated with this marker's media item. */
+    constructor(marker, parent, chapters) {
+        super(parent, chapters);
         this.#markerData = marker;
         this.buildRow();
     }
@@ -182,7 +183,7 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', this.editor().onEdit.bind(this.editor())),
+            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', e => this.editor().onEdit(e.shiftKey)),
             ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red', this.#confirmMarkerDelete.bind(this))
         );
     }
@@ -249,9 +250,10 @@ class ExistingMarkerRow extends MarkerRow {
 class NewMarkerRow extends MarkerRow {
 
     /**
-     * @param {BaseItemResultRow} parent The parent metadata item that owns this row. */
-    constructor(parent) {
-        super(parent);
+     * @param {BaseItemResultRow} parent The parent metadata item that owns this row.
+     * @param {ChapterData[]} chapters */
+    constructor(parent, chapters) {
+        super(parent, chapters);
         this.buildRow();
     }
 

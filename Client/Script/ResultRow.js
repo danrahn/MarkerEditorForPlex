@@ -31,11 +31,14 @@ import { SeasonData } from '../../Shared/PlexTypes.js';
 import SectionOptionsOverlay from './SectionOptionsOverlay.js';
 import ThemeColors from './ThemeColors.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
+/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
@@ -894,8 +897,18 @@ class SeasonResultRow extends ResultRow {
 
     /**
      * Takes the given list of episodes and makes a request for marker details for each episode.
-     * @param {Object[]} episodes Array of episodes in a particular season of a show. */
+     * @param {SerializedEpisodeData[]} episodes Array of episodes in a particular season of a show. */
     async #parseEpisodes(episodes) {
+        // Grab chapters in bulk to avoid calling this for individual episodes. If we fail, continue without
+        // chapter data and hope that the individual queries pick up the slack.
+        /** @type {ChapterMap?} */
+        let chapterData;
+        try {
+            chapterData = await ServerCommand.getChapters(this.season().metadataId);
+        } catch (ex) {
+            Log.warn(ex.message, `parseEpisodes - could not get bulk chapter data`);
+        }
+
         const queryIds = [];
         for (const episode of episodes) {
             PlexClientState.addEpisode(new ClientEpisodeData().setFromJson(episode));
@@ -903,7 +916,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         try {
-            this.#showEpisodesAndMarkers(await ServerCommand.query(queryIds));
+            this.#showEpisodesAndMarkers(await ServerCommand.query(queryIds), chapterData);
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the markers for these episodes, please try again.`, err);
         }
@@ -912,8 +925,9 @@ class SeasonResultRow extends ResultRow {
     /**
      * Takes the given list of episode data and creates entries for each episode and its markers.
      * @param {{[metadataId: number]: SerializedMarkerData[]}} data Map of episode ids to an array of
-     * serialized {@linkcode MarkerData} for the episode. */
-    #showEpisodesAndMarkers(data) {
+     * serialized {@linkcode MarkerData} for the episode.
+     * @param {ChapterMap?} chapterData */
+    #showEpisodesAndMarkers(data, chapterData) {
         PlexUI.clearAndShowSections(UISection.Episodes);
         PlexUI.hideSections(UISection.Seasons);
         const addRow = row => PlexUI.addRow(UISection.Episodes, row);
@@ -934,7 +948,7 @@ class SeasonResultRow extends ResultRow {
             const episodeRow = new EpisodeResultRow(PlexClientState.getEpisode(metadataId), this);
 
             // Even if this row is filtered out, we want to build the row to seed the marker table.
-            episodeRow.buildRow(data[metadataId]);
+            episodeRow.buildRow(data[metadataId], chapterData?.[metadataId]);
             this.#episodes[metadataId] = episodeRow;
         }
 
@@ -943,11 +957,12 @@ class SeasonResultRow extends ResultRow {
         let firstRow = undefined;
         const episodeRows = this.#sortedEpisodes(); //episodeRows.sort((a, b) => a.episode().index - b.episode().index);
         for (const resultRow of episodeRows) {
-            const markers = data[resultRow.episode().metadataId];
+            const metadataId = resultRow.episode().metadataId;
+            const markers = data[metadataId];
             if (FilterSettings.shouldFilterEpisode(markers)) {
                 ++this.#episodesFiltered;
             } else {
-                const rowHtml = resultRow.html() || resultRow.buildRow(markers);
+                const rowHtml = resultRow.html() || resultRow.buildRow(markers, chapterData?.[metadataId]);
                 firstRow ??= rowHtml;
                 addRow(rowHtml);
             }
@@ -1205,10 +1220,11 @@ class EpisodeResultRow extends BaseItemResultRow {
     /**
      * Builds a row for an episode of the form '> ShowName - SXXEYY - EpisodeName | X Marker(s)'
      * with a collapsed marker table that appears when this row is clicked.
-     * @param {Object} markerData an array of serialized {@linkcode MarkerData} for the episode. */
-    buildRow(markerData) {
+     * @param {Object} markerData an array of serialized {@linkcode MarkerData} for the episode.
+     * @param {ChapterData[]} chapters */
+    buildRow(markerData, chapters=[]) {
         const ep = this.episode();
-        ep.createMarkerTable(this, markerData);
+        ep.createMarkerTable(this, markerData, chapters);
         const titleText = 'Click to expand/contract. Control+Click to expand/contract all';
         const sXeY = `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`;
         const episodeTitle = `${ep.showName} - ${sXeY} - ${ep.title || 'Episode ' + ep.index}`;
@@ -1361,7 +1377,7 @@ class MovieResultRow extends BaseItemResultRow {
         const tableExists = !!mov.markerTable();
         const tableInitialized = tableExists && mov.markerTable().table();
         if (!tableExists) {
-            mov.createMarkerTable(this, [] /*markerData*/);
+            mov.createMarkerTable(this);
         }
 
         const titleText = 'Click to expand/contract.';
@@ -1514,26 +1530,39 @@ class MovieResultRow extends BaseItemResultRow {
         }
 
         const mov = this.movie();
+        const metadataId = mov.metadataId;
         this.#markersGrabbed = true;
         try {
-            const markerData = await ServerCommand.query([mov.metadataId]);
+            const markerData = await ServerCommand.query([metadataId]);
             if (mov.hasThumbnails === undefined) {
-                mov.hasThumbnails = (await ServerCommand.checkForThumbnails(mov.metadataId)).hasThumbnails;
+                mov.hasThumbnails = (await ServerCommand.checkForThumbnails(metadataId)).hasThumbnails;
             }
 
-            markerData[mov.metadataId].sort((a, b) => a.start - b.start);
+            markerData[metadataId].sort((a, b) => a.start - b.start);
             if (mov.realMarkerCount == -1) {
-                mov.realMarkerCount = markerData[mov.metadataId].length;
+                mov.realMarkerCount = markerData[metadataId].length;
             }
 
             // Gather purge data before continuing
             try {
-                await PurgedMarkers.getPurgedMovieMarkers(this.movie().metadataId);
+                await PurgedMarkers.getPurgedMovieMarkers(metadataId);
             } catch (err) {
-                Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${this.movie().title}`);
+                Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${mov.title}`);
             }
 
-            mov.initializeMarkerTable(markerData[mov.metadataId]);
+            // Also need to grab chapter data.
+            let chapters = [];
+            try {
+                chapters = (await ServerCommand.getChapters(metadataId))[metadataId];
+                if (!chapters) {
+                    Log.warn(`Chapter query didn't return any data for ${metadataId}, that's not right!`);
+                    chapters = [];
+                }
+            } catch (ex) {
+                Log.warn(`Failed to get chapter data for ${metadataId}, cannot enable chapter edit.`);
+            }
+
+            mov.initializeMarkerTable(markerData[metadataId], chapters);
             this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
         } catch (ex) {
             this.#markersGrabbed = false;

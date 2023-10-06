@@ -7,6 +7,7 @@ import { MarkerEnum } from '../../Shared/MarkerType.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
+/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
@@ -249,6 +250,12 @@ const ServerCommand = {
      * @param {number} sectionId
      * @param {number} resolveType */
     importDatabase : async (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database : database, sectionId : sectionId, resolveType : resolveType }),
+
+    /**
+     * Retrieve chapter data (if any) for the given media item (supports shows, seasons, episodes, and movies).
+     * @param {number} metadataId
+     * @returns {Promise<ChapterMap>} */
+    getChapters : async (metadataId) => jsonRequest('get_chapters', { id : metadataId }),
 };
 /* eslint-enable */
 

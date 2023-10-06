@@ -139,6 +139,18 @@ table .buttonIconAndText {
   opacity: 0.7;
 }
 
+.editByChapter {
+  max-width: 230px;
+  margin: 5px auto 5px auto;
+}
+
+.chapterSelect {
+  display: inline-block;
+  width: 100%;
+  margin: auto;
+  text-align: center;
+}
+
 @media (min-width: 767px) { /* Probably not a phone */
   .tableHolder {
     display: flex;

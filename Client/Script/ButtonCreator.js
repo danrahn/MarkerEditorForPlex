@@ -36,8 +36,8 @@ class ButtonCreator {
      * @param {EventListener} clickHandler The button callback when its clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static iconButton(icon, altText, color, clickHandler, attributes={}) {
-        if (!attributes.title) {
-            attributes.title = altText;
+        if (!attributes.title && !attributes.tooltip) { // Don't let title and custom tooltip clash
+            attributes.tooltip = altText;
         }
 
         const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes);
@@ -87,7 +87,13 @@ class ButtonCreator {
         // We do this because sometimes we want to act on this button, and e.target might be an
         // inner element of this "button", and it's better to have direct access to it instead of
         // reaching into the internals of the button to grab the right button div.
-        button.addEventListener('click', (e) => { clickHandler(e, button); });
+        button.addEventListener('click', (e) => {
+            // Disabled buttons don't do anything.
+            if (!button.classList.contains('disabled')) {
+                clickHandler(e, button);
+            }
+        });
+
         for (const [attribute, value] of Object.entries(attributes)) {
             if (attribute == 'class') { // Don't clash with the other classes set above.
                 for (const className of value.split(' ')) {
@@ -96,7 +102,12 @@ class ButtonCreator {
             } else if (attribute == 'tooltip') {
                 Tooltip.setTooltip(button, value);
             } else if (attribute == 'auxclick') {
-                button.addEventListener('auxclick', (e) => { clickHandler(e, button); });
+                button.addEventListener('auxclick', (e) => {
+                    // Disabled buttons don't do anything.
+                    if (!button.classList.contains('disabled')) {
+                        clickHandler(e, button);
+                    }
+                });
             } else {
                 button.setAttribute(attribute, value);
             }
@@ -117,12 +128,22 @@ class ButtonCreator {
 
         // For now, click target is either the button itself or the inner image/text, if available.
         // Extract the "real" button based on those assumptions.
+        /** @type {HTMLElement} */
         let button = e.target;
         if (button.tagName.toLowerCase() != 'div') {
             button = button.parentNode;
         }
 
-        button.click();
+        // Don't send a raw .click(), but dispatch a new MouseEvent
+        // to ensure we properly capture any modifier key states.
+        const mouseEvent = new MouseEvent('click', {
+            ctrlKey : e.ctrlKey,
+            shiftKey : e.shiftKey,
+            altKey : e.altKey,
+            metaKey : e.metaKey
+        });
+
+        button.dispatchEvent(mouseEvent);
     }
 }
 

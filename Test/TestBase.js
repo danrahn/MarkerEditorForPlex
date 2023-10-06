@@ -415,6 +415,8 @@ class TestBase {
                                 (101,              600000),
                                 (102,              600000);`;
 
+        // TODO: media_parts for testing chapters
+
         return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + mediaInsert + this.defaultMarkers());
     }
 

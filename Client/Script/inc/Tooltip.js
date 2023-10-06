@@ -24,6 +24,7 @@ class Tooltip {
 
     /** @type {HTMLElement} The element whose tooltip is currently visible. */
     static #ttElement = null;
+
     static Setup() {
         if (Tooltip.#initialized) {
             return;
@@ -33,6 +34,7 @@ class Tooltip {
         const frame = $('#plexFrame');
         frame.appendChild(buildNode('div', { id : 'tooltip' }));
         frame.addEventListener('scroll', Tooltip.#onScroll);
+        frame.addEventListener('keydown', Tooltip.dismiss); // Any keyboard input dismisses tooltips.
     }
 
     /**
@@ -59,6 +61,8 @@ class Tooltip {
         if (!hasTT) {
             element.addEventListener('mousemove', Tooltip.#onMouseMove);
             element.addEventListener('mouseleave', Tooltip.dismiss);
+            element.addEventListener('focusin', Tooltip.#onFocus);
+            element.addEventListener('focusout', Tooltip.dismiss);
         }
     }
 
@@ -67,6 +71,29 @@ class Tooltip {
      * @param {MouseEvent} e */
     static #onMouseMove(e) {
         Tooltip.showTooltip(e, this.getAttribute('tt'), this.getAttribute('ttDelay'));
+    }
+
+    /**
+     * Simulate a MouseMove event when an element gains focus.
+     * Note: this can be annoying without the global keydown dismissal, so make sure if anything
+     *       changes there, we have a way of dismissing tooltips from focused elements.
+     * @param {FocusEvent} e */
+    static #onFocus(e) {
+        // Fill out values read by #showTooltipCore, as well as some sentinel values (focusX/Y)
+        // that indicates our target is focused, and we should avoid making adjustments that causes
+        // the tooltip to overlap the element itself.
+        const rect = e.target.getBoundingClientRect();
+        const fakeE = {
+            target : e.target,
+            clientY : rect.bottom,
+            clientX : rect.left,
+            focusY : rect.bottom - rect.top,
+            focusX : rect.right - rect.left,
+        };
+
+        // Focus delay is a bit more than the default value of 250ms
+        const delay = Math.max(500, parseInt(this.getAttribute('ttDelay')));
+        Tooltip.showTooltip(fakeE, this.getAttribute('tt'), delay);
     }
 
     /**
@@ -167,10 +194,11 @@ class Tooltip {
 
         tooltip.style.display = 'inline';
 
-        const heightAdjust = tooltip.clientHeight + 20 + windowMargin;
+        const extraMargin = e.focusY ? 5 : 20; // Focus triggers don't need as much of a margin
+        const heightAdjust = tooltip.clientHeight + extraMargin + windowMargin;
         const rawHeight = e.clientY + window.scrollY;
         const maxHeight = document.body.clientHeight + window.scrollY - heightAdjust;
-        tooltip.style.top = (Math.min(rawHeight, maxHeight) + 20) + 'px';
+        tooltip.style.top = (Math.min(rawHeight, maxHeight) + extraMargin) + 'px';
 
         const avoidOverlay = rawHeight > maxHeight ? 10 : 0;
         // Border isn't included in clientWidth, which can cause us to slowly shrink a tooltip that's on the right edge.
@@ -180,7 +208,7 @@ class Tooltip {
         tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + 'px';
         if (maxWidth < e.clientX + window.scrollX && rawHeight + heightAdjust > document.body.clientHeight + window.scrollY) {
             // Adjusting x & y, move tooltip completely above cursor
-            tooltip.style.top = (rawHeight - heightAdjust + 20) + 'px';
+            tooltip.style.top = (rawHeight - heightAdjust + extraMargin - (e.focusY ?? 0)) + 'px';
         }
     }
 

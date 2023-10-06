@@ -69,6 +69,9 @@ import { MarkerType } from './MarkerType.js';
  *
  * @typedef {{[metadataId: number]: MarkerData[] }} MarkerDataMap
  * @typedef {{[metadataId: number]: SerializedMarkerData[] }} SerializedMarkerDataMap
+ *
+ * @typedef {{ name : string, start : number, end : number }} ChapterData
+ * @typedef {{ [metadataId: number]: ChapterData[] }} ChapterMap
  */
 /**
  * @typedef {Object} BulkRestoreResponse

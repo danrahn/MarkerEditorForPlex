@@ -8,6 +8,7 @@ import ButtonCreator from './ButtonCreator.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import TableElements from './TableElements.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 /** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */
@@ -44,24 +45,71 @@ class MarkerTable {
     #rows = [];
 
     /**
+     * The chapters (if any) associated with the marker table's parent episode/movie.
+     * @type {ChapterData[]} */
+    #chapters = [];
+
+    /**
      * The number of markers we expect in this table before actually populating it.
      * Only used by movies.
      * @type {number?} */
     #cachedMarkerCountKey = undefined;
 
+    /** Tracks whether the marker table was created via static Create* methods or directly (which we shouldn't do) */
+    static #constructGuard = false;
+
     /**
+     * Creates a minimal MarkerTable that doesn't actually create the UI table, but has just enough
+     * data to provide the right information to callers that need marker count data.
+     * @param {BaseItemResultRow} parentRow The media item this table is associated with.
+     * @param {number} cachedMarkerCountKey The number of credits and intros we expect this table to have. */
+    static CreateLazyInitMarkerTable(parentRow, cachedMarkerCountKey) {
+        MarkerTable.#constructGuard = true;
+        const markerTable = new MarkerTable(parentRow);
+        MarkerTable.#constructGuard = false;
+        markerTable.#minimalInit(cachedMarkerCountKey);
+        return markerTable;
+    }
+
+    /**
+     * Creates a full MarkerTable with UI already initialized.
      * @param {MarkerData[]} markers The markers to add to this table.
-     * @param {BaseItemResultRow} parentRow The episode/movie UI that this table is attached to.
-     * @param {boolean} [lazyLoad=false] Whether we expect our marker data to come in later, so don't populate the table yet.
-     * @param {number} [cachedMarkerCountKey] If we're lazy loading, this captures the number of credits and intros that
-     *                                        we expect the table to have. */
-    constructor(markers, parentRow, lazyLoad=false, cachedMarkerCountKey=0) {
-        this.#parentRow = parentRow;
-        if (lazyLoad) {
-            this.#cachedMarkerCountKey = cachedMarkerCountKey;
-        } else {
-            this.#initCore(markers);
+     * @param {BaseItemResultRow} parentRow The media item this table is associated with.
+     * @param {ChapterData[]} chapterData The chapters, if any, associated with this media item. */
+    static CreateMarkerTable(markers, parentRow, chapterData=[]) {
+        MarkerTable.#constructGuard = true;
+        const markerTable = new MarkerTable(parentRow);
+        MarkerTable.#constructGuard = false;
+        markerTable.#fullInit(markers, chapterData);
+        return markerTable;
+    }
+
+    /**
+     * Instantiates a MarkerTable. Should only be called via the static MarkerTable.Create* methods.
+     * @param {BaseItemResultRow} parentRow The episode/movie UI that this table is attached to. */
+    constructor(parentRow) {
+        if (!MarkerTable.#constructGuard) {
+            Log.warn(`Created a MarkerTable outside of the static Create methods.`);
         }
+
+        this.#parentRow = parentRow;
+    }
+
+    /**
+     * Minimally initializes the marker table with a cached marker key count.
+     * @param {number} cachedMarkerCountKey The number of credits and intros we expect this table to have. */
+    #minimalInit(cachedMarkerCountKey) {
+        this.#cachedMarkerCountKey = cachedMarkerCountKey;
+    }
+
+    /**
+     * Fully initializes this marker table with the given marker data and chapter info.
+     * @param {MarkerData[]} markers The markers to add to this table.
+     * @param {ChapterData[]} [chapterData] The chapters associated with this table's media item (if any). If undefined,
+     *                                      indicates that we haven't determined whether chapters are available. */
+    #fullInit(markers, chapterData) {
+        this.#chapters = chapterData;
+        this.#initCore(markers);
     }
 
     /**
@@ -89,7 +137,7 @@ class MarkerTable {
         }
 
         for (const marker of markers) {
-            const markerRow = new ExistingMarkerRow(marker, this.#parentRow);
+            const markerRow = new ExistingMarkerRow(marker, this.#parentRow, this.#chapters);
             this.#rows.push(markerRow);
             rows.appendChild(markerRow.row());
         }
@@ -114,14 +162,16 @@ class MarkerTable {
     }
 
     /**
-     * @param {MarkerData[]} markers */
-    lazyInit(markers) {
+     * @param {MarkerData[]} markers
+     * @param {ChapterData[]} chapters */
+    lazyInit(markers, chapters) {
         if (this.#markers.length !== 0) {
             // Reset data
             Log.warn(`Attempting to lazy-init a marker table that already has markers!`);
             clearEle(this.#tbody());
         }
 
+        this.#chapters = chapters;
         this.#initCore(markers);
         this.#cachedMarkerCountKey = undefined;
         this.#parentRow.updateMarkerBreakdown();
@@ -248,7 +298,7 @@ class MarkerTable {
             ++newIndex;
         }
 
-        const newRow = new ExistingMarkerRow(newMarker, this.#parentRow);
+        const newRow = new ExistingMarkerRow(newMarker, this.#parentRow, this.#chapters);
         this.#rows.splice(newIndex, 0, newRow);
         this.#markers.splice(newIndex, 0, newMarker);
         tableBody.insertBefore(newRow.row(), tableBody.children[newIndex]);
@@ -364,13 +414,14 @@ class MarkerTable {
     }
 
     /**
-     * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row. */
-    #onMarkerAdd() {
-        const addRow = new NewMarkerRow(this.#parentRow);
+     * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row.
+     * @param {KeyboardEvent|MouseEvent} e */
+    #onMarkerAdd(e) {
+        const addRow = new NewMarkerRow(this.#parentRow, this.#chapters);
         const tbody = this.#tbody();
         tbody.insertBefore(addRow.row(), tbody.lastChild);
         this.#rows.push(addRow);
-        addRow.editor().onEdit();
+        addRow.editor().onEdit(e.shiftKey);
     }
 
     /**

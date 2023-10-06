@@ -19,6 +19,7 @@ import { ClientSettings } from './ClientSettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
@@ -38,16 +39,25 @@ class MarkerEdit {
     /** Whether the marker is currently being edited. */
     editing = false;
 
-    /** @param {MarkerRow} markerRow The marker row to edit. */
-    constructor(markerRow) {
+    /**
+     * Chapters associated with this marker's media item.
+     * @type {ChapterData[]} */
+    #chapters;
+
+    /**
+     * @param {MarkerRow} markerRow The marker row to edit.
+     * @param {ChapterData[]} chapters Chapter data (if any) for the media item associated with this marker. */
+    constructor(markerRow, chapters) {
         this.markerRow = markerRow;
+        this.#chapters = chapters;
     }
 
     /**
      * Start the edit process for a marker, switching out the static UI for editable elements,
      * and replacing the modified date for confirm/cancel buttons.
+     * @param {boolean} startInChapterMode Whether to initialize chapter-edit UI (if we have chapter data).
      * @returns {boolean} Whether we actually started editing the marker (i.e. it wasn't already being edited). */
-    onEdit() {
+    onEdit(startInChapterMode) {
         if (this.editing) {
             return false;
         }
@@ -56,6 +66,11 @@ class MarkerEdit {
         this.#buildMarkerType();
         this.#buildTimeEdit();
         this.#buildConfirmCancel();
+        this.#buildChapterSwitch();
+        if (startInChapterMode && this.#chapters.length > 0) {
+            this.#toggleChapterEntry();
+        }
+
         return true;
     }
 
@@ -337,6 +352,129 @@ class MarkerEdit {
     }
 
     /**
+     * Initializes the Chapter Edit button, and if chapters are available, the chapter dropdowns. */
+    #buildChapterSwitch() {
+        // Always hide non-edit options, but don't add anything if we have no chapter data.
+        const options = this.markerRow.row().children[4];
+        for (const child of options.children) {
+            child.classList.add('hidden');
+        }
+
+        const btn = ButtonCreator.fullButton(
+            'Chapters',
+            'chapter',
+            'Chapter Mode Toggle',
+            'standard',
+            this.#toggleChapterEntry.bind(this),
+            {
+                class : 'chapterToggle',
+                tooltip : 'Enter Chapter Mode'
+            }
+        );
+
+        options.appendChild(btn);
+        if (this.#chapters.length === 0) {
+            btn.classList.add('disabled');
+            Tooltip.setTooltip(btn, `No chapter data found, can't enter chapter edit mode.`);
+        } else {
+            // Relies on time inputs already existing
+            const start = this.markerRow.row().children[1];
+            start.insertBefore(this.#chapterSelect(false /*end*/), start.firstChild);
+            const end = this.markerRow.row().children[2];
+            end.insertBefore(this.#chapterSelect(true /*end*/), end.firstChild);
+        }
+    }
+
+    /**
+     * Handler that toggles the visibility of raw time inputs versus chapter dropdowns when the chapter icon is clicked. */
+    #toggleChapterEntry() {
+        if (this.#chapters.length < 1) {
+            Log.warn(`Called toggleChapterEntry when we don't have any chapter data to show! Ignoring call.`);
+            return;
+        }
+
+        const row = this.markerRow.row();
+        $('.timeInput', row).forEach(r => {
+            r.classList.toggle('hidden');
+        });
+
+        $('.chapterSelect', row).forEach(r => {
+            r.classList.toggle('hidden');
+
+            // In addition to toggling, set the raw input to the most recently selected chapter.
+            // TODO: this is mostly covered by #onChapterInputChanged, only relevant for the initial
+            // switch into Chapter mode. In that case, do we even want to immediately edit the raw value,
+            // or keep it unaffected? Especially in the case of editing exiting markers.
+            const select = $$('select', r);
+            const valueFromChapter = msToHms(this.#chapters[select.value][select.getAttribute('data-chapterFn')]);
+            $$('.timeInput', r.parentElement).value = valueFromChapter;
+        });
+
+        const toggle = $$('.chapterToggle', row);
+        if ($('.timeInput', row)?.[0].classList.contains('hidden')) {
+            Tooltip.setText(toggle, 'Exit Chapter Mode');
+        } else {
+            Tooltip.setText(toggle, 'Enter Chapter Mode');
+        }
+    }
+
+    /**
+     * Build and return a dropdown containing the available chapters for the media item associated with this marker.
+     * @param {boolean} end Whether we're building a dropdown for the end of a marker. */
+    #chapterSelect(end) {
+        // A11y - All inputs should have a label (even if hidden), but since there can be an arbitrary number
+        // of marker edits active, we need to generate a unique ID to link the two (I think).
+        const id = (base => {
+            let post;
+            do { post = crypto.getRandomValues(new Uint32Array(1))[0].toString(16); } while ($(`#${base}${post}`));
+
+            return base + post;
+        })('chapterSelectContainer');
+
+        const select = buildNode(
+            'select',
+            { class : 'editByChapter', 'data-chapterFn' : end ? 'end' : 'start' },
+            0,
+            { change : this.#onChapterInputChanged.bind(this) });
+
+        // If we're editing an exiting marker, start out with chapters that are closest to the original marker value.
+        let currentValue = $$('.timeInput', this.markerRow.row().children[end ? 2 : 1]);
+        currentValue = currentValue ? timeToMs(currentValue.value) : 0;
+        let bestValue = 0;
+        let bestDiff = Math.abs(this.#chapters[0][end ? 'end' : 'start'] - currentValue);
+        for (const [index, chapter] of Object.entries(this.#chapters)) {
+            const timestamp = end ? chapter.end : chapter.start;
+            const displayTime = msToHms(timestamp);
+            const displayTitle = `${chapter.name || 'Chapter ' + (parseInt(index) + 1)} (${displayTime})`;
+            const diff = Math.abs(timestamp - currentValue);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                bestValue = index;
+            }
+
+            select.appendChild(buildNode('option', { value : index }, displayTitle));
+        }
+
+        select.value = bestValue;
+        select.title = select.children[bestValue].innerText;
+
+        return appendChildren(buildNode('span', { class : 'chapterSelect hidden' }),
+            buildNode('label', { for : id, class : 'hidden' }, end ? 'End Chapter' : 'Start Chapter'),
+            select);
+    }
+
+    /**
+     * Update the underlying time inputs when chapters change.
+     * @param {Event} e */
+    #onChapterInputChanged(e) {
+        // TODO: Logic to enable/disable options to prevent selecting a start timestamp greater than the end.
+        const index = e.target.value;
+        const valueFromChapter = msToHms(this.#chapters[index][e.target.getAttribute('data-chapterFn')]);
+        $$('.timeInput', e.target.parentElement.parentElement).value = valueFromChapter;
+        e.target.title = e.target.children[index].innerText;
+    }
+
+    /**
      * Callback after a marker has been successfully edited. Replace input fields with the new times, and adjust indexes as necessary.
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
@@ -355,6 +493,14 @@ class MarkerEdit {
     /**
      * Removes the editable input fields from a marker that was in edit mode, reverting back to static values. */
     resetAfterEdit() {
+        const options = this.markerRow.row().children[4];
+        const chapterToggle = $$('.chapterToggle', options);
+        chapterToggle?.parentElement.removeChild(chapterToggle);
+
+        for (const child of options.children) {
+            child.classList.remove('hidden');
+        }
+
         this.markerRow.reset();
         this.editing = false;
         Tooltip.dismiss();
@@ -389,9 +535,11 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #thumbnailsCollapsed = ClientSettings.collapseThumbnails();
     #cachedHeight = 0;
 
-    /** @param {MarkerRow} markerRow The marker row to edit. */
-    constructor(markerRow) {
-        super(markerRow);
+    /**
+     * @param {MarkerRow} markerRow The marker row to edit.
+     * @param {ChapterData} chapters The chapter data (if any) for this marker's media item. */
+    constructor(markerRow, chapters) {
+        super(markerRow, chapters);
     }
 
     /**
@@ -434,18 +582,13 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, img);
     }
 
-    onEdit() {
-        if (!super.onEdit()) {
+    onEdit(startInChapterMode) {
+        if (!super.onEdit(startInChapterMode)) {
             return;
         }
 
-        const options = this.markerRow.row().children[4];
-        for (const child of options.children) {
-            child.classList.add('hidden');
-        }
-
         const startCollapsed = ClientSettings.collapseThumbnails();
-        const startText = `${startCollapsed ? 'Show' : 'Hide'} Thumbs`;
+        const startText = startCollapsed ? 'Show' : 'Hide';
         const btn = ButtonCreator.fullButton(
             startText,
             'imgIcon',
@@ -454,7 +597,10 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             this.#expandContractThumbnails.bind(this));
 
         btn.classList.add('thumbnailShowHide');
-        options.appendChild(btn);
+        const options = this.markerRow.row().children[4];
+
+        // We want this as the first option. insertBefore properly handles the case where firstChild is null
+        options.insertBefore(btn, options.firstChild);
     }
 
     resetAfterEdit() {
@@ -465,10 +611,6 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         const parent = span.parentNode;
         parent.removeChild(span);
-        for (const child of parent.children) {
-            child.classList.remove('hidden');
-        }
-
         super.resetAfterEdit();
     }
 
@@ -603,7 +745,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             thumb.classList.toggle('hiddenThumb');
             thumb.style.height = this.#thumbnailsCollapsed ? '0' : thumb.getAttribute('realheight') + 'px';
             thumb.classList.toggle('visibleThumb');
-            $$('span', button).innerText = `${hidden ? 'Hide' : 'Show'} Thumbs`;
+            $$('span', button).innerText = hidden ? 'Hide' : 'Show';
             if (!this.#thumbnailsCollapsed) {
                 this.#refreshImage(thumb.parentNode);
             }

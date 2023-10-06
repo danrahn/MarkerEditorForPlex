@@ -9,6 +9,8 @@ import TransactionBuilder from './TransactionBuilder.js';
 
 /** @typedef {!import('../Shared/PlexTypes').BulkAddResultEntry} BulkAddResultEntry */
 /** @typedef {!import('../Shared/PlexTypes').BulkAddResult} BulkAddResult */
+/** @typedef {!import('../Shared/PlexTypes').ChapterData} ChapterData */
+/** @typedef {!import('../Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('../Shared/PlexTypes').LibrarySection} LibrarySection */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 
@@ -1743,6 +1745,95 @@ WHERE metadata_item_id in (SELECT id FROM metadata_items WHERE library_section_i
         Log.info(`removeThumbUrlHack - Removing ${count} hacked thumb_url entries.`);
         const query = `UPDATE taggings SET thumb_url="" WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
         await this.#database.run(query, [this.#markerTagId]);
+    }
+
+    /**
+     * Retrieve chapters.
+     * @param {number} metadataId
+     * @returns {Promise<ChapterMap>} */
+    async getMediaChapters(metadataId) {
+        let query = `
+SELECT media_parts.extra_data AS extra_data, b.id AS id FROM media_parts
+INNER JOIN media_items ON media_parts.media_item_id=media_items.id
+INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
+
+        let where = '';
+        const mediaInfo = await this.#mediaTypeFromId(metadataId);
+        switch (mediaInfo.metadata_type) {
+            case MetadataType.Show:
+                query += `\nINNER JOIN metadata_items p ON b.parent_id=p.id`;
+                where = `p.parent_id`;
+                break;
+            case MetadataType.Season:
+                where = `b.parent_id`;
+                break;
+            case MetadataType.Episode:
+                where = `b.id`;
+                break;
+            case MetadataType.Movie:
+                where = `b.id`;
+                break;
+            default: throw new ServerError(`Unexpected metadata type ${mediaInfo.metadata_type} in getMediaChapters`, 400);
+        }
+
+        query += ` WHERE ${where}=?;`;
+
+        // TODO: Better multi-version/stacked items. Currently, the last media item we parse
+        // that has chapter data wins.
+        const data = (await this.#database.all(query, [metadataId]));
+        if (!data) {
+            throw new ServerError(`No underlying media items found for metadata id ${metadataId}`, 400);
+        }
+
+        /** @type {ChapterMap} */
+        const result = {};
+        for (const baseItem of data) {
+            const baseId = baseItem.id;
+            if (!baseItem.extra_data) {
+                // Last version wins, but don't overwrite with empty data if we already have something set.
+                result[baseId] ??= [];
+                continue;
+            }
+
+            /** @type {string} */
+            const extraData = baseItem.extra_data;
+            const chapterStart = extraData.indexOf('pv%3Achapters=');
+            if (chapterStart === -1) {
+                result[baseId] ??= [];
+                continue;
+            }
+
+            let chapterEnd = extraData.indexOf('&', chapterStart);
+            if (chapterEnd === -1) {
+                chapterEnd = extraData.length;
+            }
+
+            /** @type {{ Chapters : { Chapter : { name : string, start : number, end : number }[] }}} */
+            let json = {};
+            /** @type {ChapterData[]} */
+            const chapters = [];
+            try {
+                json = JSON.parse(decodeURIComponent(extraData.substring(chapterStart + 14, chapterEnd)));
+                if (!json.Chapters.Chapter || json.Chapters.Chapter.length === 0) {
+                    result[baseId] ??= [];
+                    continue;
+                }
+
+                for (const chapter of json.Chapters.Chapter) {
+                    chapters.push({
+                        name : chapter.name,
+                        start : parseInt(chapter.start * 1000), // Stored as decimal seconds, convert to ms.
+                        end : parseInt(chapter.end * 1000)
+                    });
+                }
+
+                result[baseId] = chapters;
+            } catch (e) {
+                throw new ServerError(`Unexpected chapter data, could not convert to object`, 500);
+            }
+        }
+
+        return result;
     }
 }
 
