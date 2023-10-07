@@ -19,8 +19,10 @@ class BulkAddTest extends TestBase {
             this.bulkAddOverlapResolveTypeFailFailsTest,
             this.bulkAddOverlapResolveTypeFailWithIgnoreSucceedsTest,
             this.bulkAddOverlapResolveTypeMergeSucceedsTest,
+            this.bulkAddOverlapResolveTypeOverwriteSucceedsTest,
             this.bulkAddOverlapSwallows1Test,
             this.bulkAddOverlapSwallows2Test,
+            this.bulkAddOverlapOverwriteDeletesMultipleTest,
             this.bulkAddOverlapResolveTypeIgnoreSucceedsTest,
             this.bulkAddTruncatedTest,
         ];
@@ -180,6 +182,36 @@ class BulkAddTest extends TestBase {
     }
 
     /**
+     * Ensure existing markers are deleted when bulk add markers overlap with existing
+     * markers and the resolve type is Overwrite. */
+    async bulkAddOverlapResolveTypeOverwriteSucceedsTest() {
+        const season = TestBase.DefaultMetadata.Show3.Season1;
+        const newStart = 330000;
+        const newEnd = 350000;
+
+        // Two new markers (S01E01/S01E02), and delete the existing S01E02 marker that overlaps.
+        const expectedMarkers = [
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 1 },
+            this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
+            this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
+            { id : TestBase.NextMarkerIndex + 1, start : newStart, end : newEnd, index : 1 },
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 2),
+        ];
+
+        return this.#verifyBulkAdd(
+            season.Id,
+            newStart,
+            newEnd,
+            BulkMarkerResolveType.Overwrite,
+            [],
+            true,
+            false,
+            expectedMarkers,
+            { [season.Episode2.Id] : [{ id : season.Episode2.Marker2.Id, deleted : true }] }
+        );
+    }
+
+    /**
      * Ensure a bulk add that swallows two markers expands the first and deletes the second
      * when the resolve type is Merge. Bulk add start after first marker's start. */
     async bulkAddOverlapSwallows1Test() {
@@ -229,6 +261,37 @@ class BulkAddTest extends TestBase {
         );
     }
 
+    /**
+     * Ensure a bulk add that swallows two markers deletes both when the resolve type is Overwrite. */
+    async bulkAddOverlapOverwriteDeletesMultipleTest() {
+        const season = TestBase.DefaultMetadata.Show3.Season1;
+        const newStart = 16000;
+        const newEnd = 350000;
+
+        // Two new markers, three deleted.
+        const expectedMarkers = [
+            { id : TestBase.NextMarkerIndex, start : newStart, end : newEnd, index : 0 },
+            this.#testMarkerFromTestData(season.Episode2.Marker3, 1),
+            { id : TestBase.NextMarkerIndex + 1, start : newStart, end : newEnd, index : 0 },
+        ];
+        return this.#verifyBulkAdd(
+            season.Id,
+            newStart,
+            newEnd,
+            BulkMarkerResolveType.Overwrite,
+            [],
+            true,
+            false,
+            expectedMarkers,
+            {
+                [season.Episode1.Id] : [{ id : season.Episode1.Marker1.Id, deleted : true }],
+                [season.Episode2.Id] : [
+                    { id : season.Episode2.Marker1.Id, deleted : true },
+                    { id : season.Episode2.Marker2.Id, deleted : true },
+                ]
+            }
+        );
+    }
 
     /**
      * Ensure episodes are ignored when existing markers conflict with the bulk

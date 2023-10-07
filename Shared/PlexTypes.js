@@ -568,7 +568,8 @@ class MarkerData extends PlexData {
 }
 
 /**
- * Behavior of bulk marker actions that might conflict with existing markers. */
+ * Behavior of bulk marker actions that might conflict with existing markers.
+ * TODO: Share with MarkerConflictResolution, potentially ShiftApplyType as well. */
 const BulkMarkerResolveType = {
     /** Don't apply anything, just check existing markers and whether there are any conflicts */
     DryRun : 0,
@@ -578,6 +579,8 @@ const BulkMarkerResolveType = {
     Merge  : 2,
     /** Apply if there aren't any overlapping markers, skipping episodes that do have overlap. */
     Ignore : 3,
+    /** Delete any existing markers that conflict with the marker we're adding/adjusting. */
+    Overwrite : 4,
 };
 
 /**

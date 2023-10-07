@@ -1635,11 +1635,15 @@ ORDER BY e.\`index\` ASC;`;
                 }
 
                 if (baseStart <= episodeMarker.start ? episodeEnd >= episodeMarker.start : baseStart <= episodeMarker.end) {
-                    // If we have a conflict here, resolve type better be merge.
-                    if (resolveType != BulkMarkerResolveType.Merge) {
-                        throw new ServerError(`Attempted to merge markers during a bulk add when the user didn't request it`, 500);
+                    const isMerge = resolveType === BulkMarkerResolveType.Merge;
+                    // If we have a conflict here, we better be merging or overwriting.
+                    if (!isMerge && resolveType !== BulkMarkerResolveType.Overwrite) {
+                        throw new ServerError(`Attempted to touch existing markers during a bulk add when the user didn't request it`, 500);
                     }
 
+                    // In the overwrite case there's no need to adjust the start/end bounds, but it helps
+                    // with detecting overlapping markers, so let it happen and revert at the end.
+                    const startSav = episodeMarker.start, endSav = episodeMarker.end;
                     episodeMarker.start = Math.min(baseStart, episodeMarker.start);
                     episodeMarker.end = Math.max(episodeEnd, episodeMarker.end);
                     while (i < episodeMarkers.length - 1 && episodeMarkers[i + 1].start <= episodeMarker.end) {
@@ -1650,12 +1654,19 @@ ORDER BY e.\`index\` ASC;`;
                         (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(nextMarker);
                     }
 
-                    transaction.addStatement(
-                        `UPDATE taggings SET time_offset=?, end_time_offset=? WHERE id=?;`,
-                        [episodeMarker.start, episodeMarker.end, episodeMarker.id]);
-                    episodeMarkerMap[episodeId].isAdd = false;
-                    mergeEdited.add(episodeMarker.id);
-                    break;
+                    if (resolveType === BulkMarkerResolveType.Merge) {
+                        transaction.addStatement(
+                            `UPDATE taggings SET time_offset=?, end_time_offset=? WHERE id=?;`,
+                            [episodeMarker.start, episodeMarker.end, episodeMarker.id]);
+                        episodeMarkerMap[episodeId].isAdd = false;
+                        mergeEdited.add(episodeMarker.id);
+                        break;
+                    } else {
+                        episodeMarker.start = startSav;
+                        episodeMarker.end = endSav;
+                        transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [episodeMarker.id]);
+                        (episodeMarkerMap[episodeId].deletedMarkers ??= []).push(episodeMarker);
+                    }
                 }
 
                 this.#addMarkerStatement(transaction, episodeId, i, baseStart, episodeEnd, markerType, finalActual);

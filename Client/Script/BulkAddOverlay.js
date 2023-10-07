@@ -55,7 +55,8 @@ class BulkAddOverlay {
         '',
         'If any added marker conflicts with existing markers, fail the entire operation',
         'If any added markers conflict with existing markers, merge them with into the existing marker(s)',
-        'If any added marker conflicts with existing markers, don\'t add the marker to the episode'
+        'If any added marker conflicts with existing markers, don\'t add the marker to the episode',
+        'If any added marker conflicts with existing markers, delete the existing markers',
     ];
 
     /**
@@ -100,8 +101,7 @@ class BulkAddOverlay {
                 )),
             appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
                 buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
-                appendChildren(
-                    buildNode('select', { id : 'markerTypeSelect' }),
+                appendChildren(buildNode('select', { id : 'markerTypeSelect' }),
                     buildNode('option', { value : 'intro', selected : 'selected' }, 'Intro'),
                     buildNode('option', { value : 'credits' }, 'Credits'))
             ),
@@ -110,6 +110,7 @@ class BulkAddOverlay {
                 appendChildren(
                     buildNode('select', { id : 'applyTypeSelect' }, 0, { change : this.#onApplyTypeChange.bind(this) }),
                     buildNode('option', { value : 1, selected : 'selected' }, 'Fail'),
+                    buildNode('option', { value : 4 }, 'Overwrite'),
                     buildNode('option', { value : 2 }, 'Merge'),
                     buildNode('option', { value : 3 }, 'Ignore')),
                 buildNode('div', { id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[BulkMarkerResolveType.Fail])
