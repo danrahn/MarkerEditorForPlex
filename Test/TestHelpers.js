@@ -221,7 +221,17 @@ class TestHelpers {
         CREATE INDEX 'index_media_items_on_channel_id' ON 'media_items' ('channel_id');
         CREATE INDEX 'index_media_items_on_channel_id_and_begins_at' ON 'media_items' ('channel_id','begins_at');`;
 
-        return taggings + tags + sections + metadataItems + mediaItems;
+        // .schema media_parts
+        const mediaParts = `
+        CREATE TABLE IF NOT EXISTS "media_parts" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "media_item_id" integer, "directory_id" integer, "hash" varchar(255), "open_subtitle_hash" varchar(255), "file" varchar(255), "index" integer, "size" integer(8), "duration" integer, "created_at" dt_integer(8), "updated_at" dt_integer(8), "deleted_at" dt_integer(8), "extra_data" varchar(255));
+        CREATE INDEX "index_media_parts_on_directory_id" ON "media_parts" ("directory_id" );
+        CREATE INDEX "index_media_parts_on_media_item_id" ON "media_parts" ("media_item_id" );
+        CREATE INDEX "index_media_parts_on_hash" ON "media_parts" ("hash" );
+        CREATE INDEX "index_media_parts_on_file" ON "media_parts" ("file" );
+        CREATE INDEX "index_media_parts_on_deleted_at" ON "media_parts" ("deleted_at" );
+        CREATE INDEX "index_media_parts_on_size" ON "media_parts" ("size" );`;
+
+        return taggings + tags + sections + metadataItems + mediaItems + mediaParts;
     }
 }
 

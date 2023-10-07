@@ -10,6 +10,7 @@ import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { GetServerState, ServerState } from '../Server/ServerState.js';
 import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
+import ChapterTest from './TestClasses/ChapterTest.js';
 import ClientTests from './TestClasses/ClientTests.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import ImportExportTest from './TestClasses/ImportExportTest.js';
@@ -74,7 +75,8 @@ class TestRunner {
         BulkAddTest : BulkAddTest,
         DeleteAllTest : DeleteAllTest,
         ClientTests : ClientTests,
-        ImportExportTest : ImportExportTest
+        ImportExportTest : ImportExportTest,
+        ChapterTest : ChapterTest,
     };
 
     constructor() {

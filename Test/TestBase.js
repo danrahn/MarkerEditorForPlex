@@ -398,26 +398,77 @@ class TestBase {
                                    (201,3,                  9,             200,       "Album1",   1,        "04"),
                                    (202,3,                  10,            201,       "Track1",   1,        "05");`;
 
-        // Need existing media, but only the metadata_item_id and duration field (for now)
+        // Need existing media, but only the id, metadata_item_id and duration field (for now). id isn't
+        // necessary, but makes it easier to correlate values at a glance.
         // Make them all 10 minutes (10*60*1000=6000000)
-        const mediaInsert = `
-        INSERT INTO media_items (metadata_item_id, duration)
-        VALUES                  (3,                600000),
-                                (4,                600000),
-                                (5,                600000),
-                                (7,                600000),
-                                (10,               600000),
-                                (13,               600000),
-                                (14,               600000),
-                                (16,               600000),
-                                (19,               600000),
-                                (100,              600000),
-                                (101,              600000),
-                                (102,              600000);`;
+        const mediaItemInsert = `
+        INSERT INTO media_items (id, metadata_item_id, duration)
+        VALUES                  (1,  3,                600000),
+                                (2,  3,                600000),
+                                (3,  4,                600000),
+                                (4,  4,                600000),
+                                (5,  5,                600000),
+                                (6,  7,                600000),
+                                (7,  10,               600000),
+                                (8,  13,               600000),
+                                (9,  14,               600000),
+                                (10, 16,               600000),
+                                (11, 19,               600000),
+                                (12, 100,              600000),
+                                (13, 101,              600000),
+                                (14, 102,              600000);`;
 
-        // TODO: media_parts for testing chapters
+        // media_parts for testing chapters. Only need parent id and extra data
+        const buildChapterObject = chapters => 'pv%3Achapters=' +
+            encodeURIComponent(JSON.stringify({ Chapters : (chapters?.length > 0 ? { Chapter : chapters } : { }) }));
+        const buildChapters = (prefix, count) => {
+            const result = [];
+            for (let i = 0; i < count; ++i) {
+                result.push({
+                    name : prefix ? `${prefix}${i}` : '',
+                    start : count * 10000,
+                    end : (count + 1) * 10000,
+                });
+            }
 
-        return this.testDb.exec(tables + introInsert + sectionInsert + metadataInsert + mediaInsert + this.defaultMarkers());
+            return result;
+        };
+
+        const testChapters = [
+            [],                       // Placeholder so this array lines up with indexes below
+            [],                       // First media item of Show1, S01E01 has no chapters
+            buildChapters('ch', 4),   // Second media item of Show1, S01E01 has named chapters
+            buildChapters('part', 5), // First media item of Show1, S01E02 has named chapters
+            [],                       // Second media item of Show1, S01E02 has no chapters
+            buildChapters('', 6),     // Show1, S01E03 has unnamed chapters
+            buildChapters('PART', 7), // Show1, S02E01 has named chapters
+            [],                       // Show2, S01E01 has no chapters
+        ];
+
+        const tc = i => buildChapterObject(testChapters[i]);
+
+        // Extra bits to potentially add before/after chapter data to test index calculation.
+        const containerData = 'ma%3Acontainer=mkv';
+        const daDate = 'pv%3AdeepAnalysisDate=1421106410';
+
+        const mediaPartInsert = `
+        INSERT INTO media_parts (media_item_id, extra_data)
+        VALUES                  (1, "${tc(1)}"),
+                                (2, "${containerData}&${tc(2)}"),
+                                (3, "${containerData}&${tc(3)}&${daDate}"),
+                                (4, "${tc(4)}&${daDate}"),
+                                (5, "${tc(5)}"),
+                                (6, "${tc(6)}"),
+                                (7, "${tc(7)}");`;
+
+        return this.testDb.exec(
+            tables +
+            introInsert +
+            sectionInsert +
+            metadataInsert +
+            mediaItemInsert +
+            mediaPartInsert +
+            this.defaultMarkers());
     }
 
     /**
