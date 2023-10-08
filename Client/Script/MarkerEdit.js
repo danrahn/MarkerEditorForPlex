@@ -407,7 +407,9 @@ class MarkerEdit {
             // or keep it unaffected? Especially in the case of editing exiting markers.
             const select = $$('select', r);
             const valueFromChapter = msToHms(this.#chapters[select.value][select.getAttribute('data-chapterFn')]);
-            $$('.timeInput', r.parentElement).value = valueFromChapter;
+            const input = $$('.timeInput', r.parentElement);
+            input.value = valueFromChapter;
+            input.dispatchEvent(new KeyboardEvent('keyup', { key : 'Enter', keyCode : 13 }));
         });
 
         const toggle = $$('.chapterToggle', row);
@@ -474,8 +476,12 @@ class MarkerEdit {
         // TODO: Logic to enable/disable options to prevent selecting a start timestamp greater than the end.
         const index = e.target.value;
         const valueFromChapter = msToHms(this.#chapters[index][e.target.getAttribute('data-chapterFn')]);
-        $$('.timeInput', e.target.parentElement.parentElement).value = valueFromChapter;
+        const input = $$('.timeInput', e.target.parentElement.parentElement);
+        input.value = valueFromChapter;
         e.target.title = e.target.children[index].innerText;
+
+        // Simulate an 'Enter' key to ensure thumbnails are updated if present.
+        input.dispatchEvent(new KeyboardEvent('keyup', { key : 'Enter', keyCode : 13 }));
     }
 
     /**
