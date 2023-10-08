@@ -226,7 +226,10 @@ class BulkAddOverlay {
      * When the baseline episode changes, populate the chapter dropdown with the new chapters
      * and update the customization table. */
     #onChapterEpisodeBaselineChanged() {
-        const id = $('#baselineEpisode').value;
+        /** @type {HTMLSelectElement} */
+        const select = $('#baselineEpisode');
+        const id = select.value;
+        select.title = select.options[select.selectedIndex].innerText;
         const chapters = this.#chapterMap[id];
         if (!chapters) {
             Log.warn(`Invalid episode specified in baseline episode dropdown. That's not right!`);
@@ -248,6 +251,8 @@ class BulkAddOverlay {
 
         this.#cachedChapterStart = chapters[startChapter.firstChild.value];
         this.#cachedChapterEnd = chapters[endChapter.firstChild.value];
+        startChapter.title = startChapter.options[0].innerText;
+        endChapter.title = endChapter.options[0].innerText;
 
         startChapter.removeAttribute('data-switching-episode');
         endChapter.removeAttribute('data-switching-episode');
@@ -264,6 +269,7 @@ class BulkAddOverlay {
             return;
         }
 
+        e.target.title = e.target.options[e.target.selectedIndex].innerText;
         const eid = $('#baselineEpisode').value;
         if (e.target.id == 'addStartChapter') {
             this.#cachedChapterStart = this.#chapterMap[eid][e.target.value];

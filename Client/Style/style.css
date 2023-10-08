@@ -509,6 +509,10 @@ input:focus-visible {
   padding-bottom: 10px;
 }
 
+#chapterZone select {
+  max-width: 250px; /** Don't get too crazy with extremely long episode/chapter titles */
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
