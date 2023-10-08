@@ -184,7 +184,8 @@ class ExistingMarkerRow extends MarkerRow {
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
             ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', e => this.editor().onEdit(e.shiftKey)),
-            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red', this.#confirmMarkerDelete.bind(this))
+            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red',
+                this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn' })
         );
     }
 
@@ -199,13 +200,18 @@ class ExistingMarkerRow extends MarkerRow {
         const okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
 
         const cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
-        const cancelButton = ButtonCreator.textButton('Cancel', this.#dismissAndFocus.bind(this, true /*forCancel*/), cancelAttr);
+        const cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
 
         const outerButtonContainer = buildNode('div', { class : 'formInput', style : 'text-align: center' });
         const buttonContainer = buildNode('div', { style : 'float: right; overflow: auto; width: 100%; margin: auto' });
         outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
         appendChildren(container, header, subtext, outerButtonContainer);
-        Overlay.build({ dismissible : true, centered : false, setup : { fn : () => $('#deleteMarkerCancel').focus() } }, container);
+        Overlay.build({
+            dismissible : true,
+            centered : false,
+            setup : { fn : () => $('#deleteMarkerCancel').focus() },
+            focusBack : $$('.deleteMarkerBtn', this.parent().html()),
+        }, container);
     }
 
     /** Makes a request to delete a marker, removing it from the marker table on success. */
@@ -217,30 +223,14 @@ class ExistingMarkerRow extends MarkerRow {
 
         try {
             const rawMarkerData = await ServerCommand.delete(this.markerId());
-            this.#dismissAndFocus(false /*forCancel*/);
+            Overlay.setFocusBackElement($$('.tabbableRow', this.parent().html()));
+            Overlay.dismiss();
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
             /** @type {MediaItemWithMarkerTable} */
             const mediaItem = this.parent().mediaItem();
             mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
             errorResponseOverlay('Failed to delete marker.', err);
-        }
-    }
-
-    /**
-     * Dismisses the delete marker overlay, setting focus back to the right location.
-     * If the delete was successful, focus on the parent episode/movie row. If it was
-     * canceled, focus back on the delete button.
-     * @param {Event} _e
-     * @param {boolean} forCancel Whether the marker delete was canceled. */
-    #dismissAndFocus(_e, forCancel) {
-        Overlay.dismiss();
-        if (forCancel) {
-            // TODO: Not this. Find a way to hook into Overlay.setFocusBackElement, or keep
-            //       a reference to the delete button so we don't rely on alt text.
-            $$('[alt="Delete Marker"]', this.html)?.parentElement.focus();
-        } else {
-            $$('.tabbableRow', this.parent().html())?.focus();
         }
     }
 }

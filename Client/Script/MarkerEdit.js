@@ -401,10 +401,8 @@ class MarkerEdit {
         $('.chapterSelect', row).forEach(r => {
             r.classList.toggle('hidden');
 
-            // In addition to toggling, set the raw input to the most recently selected chapter.
-            // TODO: this is mostly covered by #onChapterInputChanged, only relevant for the initial
-            // switch into Chapter mode. In that case, do we even want to immediately edit the raw value,
-            // or keep it unaffected? Especially in the case of editing exiting markers.
+            // In addition to toggling, set the raw input to the most recently selected chapter. While
+            // not necessarily in all cases, it does ensure we properly adjust any preview thumbnails.
             const select = $$('select', r);
             const valueFromChapter = msToHms(this.#chapters[select.value][select.getAttribute('data-chapterFn')]);
             const input = $$('.timeInput', r.parentElement);
@@ -474,6 +472,11 @@ class MarkerEdit {
      * @param {Event} e */
     #onChapterInputChanged(e) {
         // TODO: Logic to enable/disable options to prevent selecting a start timestamp greater than the end.
+        // That can get tricky though, e.g. I want to immediately change the intro chapter, but can't because
+        // it's larger than the current end. A better approach may be a 'link' option that allows users to
+        // just specify a single chapter, and it updates the start and end. That's the more natural approach,
+        // but clashes with the marker table's concept of separate starts and ends, and it was easier to keep
+        // them separate for chapters as well in this initial implementation.
         const index = e.target.value;
         const valueFromChapter = msToHms(this.#chapters[index][e.target.getAttribute('data-chapterFn')]);
         const input = $$('.timeInput', e.target.parentElement.parentElement);

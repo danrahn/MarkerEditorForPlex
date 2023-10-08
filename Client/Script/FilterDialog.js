@@ -105,11 +105,7 @@ class FilterSettings {
         // Just build a temporary breakdown and test that.
         const breakdown = new MarkerBreakdown();
         breakdown.initBase();
-        let markerKey = 0;
-        for (const marker of markers) {
-            markerKey += MarkerBreakdown.deltaFromType(1, marker.markerType);
-        }
-
+        const markerKey = markers.reduce((acc, m) => acc + MarkerBreakdown.deltaFromType(1, m.markerType), 0);
         breakdown.delta(0, markerKey);
         return FilterSettings.shouldFilter(breakdown);
     }

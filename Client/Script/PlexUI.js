@@ -23,7 +23,7 @@ const BaseLog = new ContextualLog('PlexUI');
  * sections at once to relevant methods.
  * @enum */
 const UISection = {
-    MoviesOrShows : 0x1, // TODO: is there any value in a separate movie vs show hierarchy?
+    MoviesOrShows : 0x1,
     Seasons       : 0x2,
     Episodes      : 0x4
 };

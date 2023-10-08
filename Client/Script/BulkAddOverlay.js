@@ -587,7 +587,7 @@ class BulkAddOverlay {
     endTime() { return this.#cachedEnd; }
     resolveType() { return this.#cachedApplyType; }
     /** @returns {string} */
-    markerType() { return $('#markerTypeSelect').value; } // TODO: store main container and scope to that.
+    markerType() { return $('#markerTypeSelect').value; }
     /** @returns {boolean} */
     chapterMode() { return $('#timeZone').classList.contains('hidden'); }
     chapterStart() { return this.#cachedChapterStart; }

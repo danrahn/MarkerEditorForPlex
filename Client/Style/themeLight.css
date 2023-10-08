@@ -48,6 +48,10 @@ input:focus {
     border-color: #aa4f00 !important;
 }
 
+#bulkActionCustomizeTable input[type=checkbox]:focus {
+    outline: 1px solid #aa4f00;
+}
+
 thead {
     border-bottom: 1px solid #21212166;
 }
@@ -90,7 +94,7 @@ tr:nth-child(even):hover {
 
 .topLevelResult:hover,
 .seasonResult:hover,
-.episodeResult:hover,
+.baseItemResult:hover,
 .bulkResultRow:hover {
     background-color: rgba(0,0,0,0.2);
 }

@@ -115,7 +115,7 @@ class BulkActionRow {
      * @param {*} attributes Dictionary of extra attributes to apply to the checkbox. */
     createCheckbox(checked, mid, eid, attributes={}) {
         this.enabled = checked;
-        const checkboxName = `mid_check_${mid}`;
+        const checkboxName = `mid_check_${mid || eid}`;
         const checkbox = buildNode('input', {
             type : 'checkbox',
             name : checkboxName,

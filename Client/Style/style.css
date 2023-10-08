@@ -174,7 +174,7 @@ input:focus-visible {
 
 .topLevelResult,
 .seasonResult,
-.episodeResult,
+.baseItemResult,
 .bulkResultRow,
 .sectionOptionsResultRow {
   display: flex;
@@ -194,7 +194,7 @@ input:focus-visible {
 
 .topLevelResult:hover,
 .seasonResult:hover,
-.episodeResult:hover,
+.baseItemResult:hover,
 .bulkResultRow:hover {
   font-weight: bold;
 }
@@ -260,7 +260,7 @@ input:focus-visible {
   flex: 1;
 }
 
-.episodeResult {
+.baseItemResult {
   padding: 5px 10px 5px 10px;
   justify-content: space-between;
 }

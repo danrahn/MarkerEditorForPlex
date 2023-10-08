@@ -660,7 +660,7 @@ class ShowResultRow extends ResultRow {
         const addRow = row => PlexUI.addRow(UISection.Seasons, row);
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
-        addRow(new BulkActionResultRow(this.show()).buildRow()); // TODO: Make this a class var too?
+        addRow(new BulkActionResultRow(this.show()).buildRow());
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
         const seasons = this.#sortedSeasons();
         this.#seasonsFiltered = 0;
@@ -1208,7 +1208,7 @@ class EpisodeResultRow extends BaseItemResultRow {
     #seasonRow;
 
     constructor(episode, seasonRow) {
-        super(episode, 'episodeResult');
+        super(episode, 'baseItemResult');
         this.#seasonRow = seasonRow;
     }
 
@@ -1232,12 +1232,11 @@ class EpisodeResultRow extends BaseItemResultRow {
         appendChildren(row,
             appendChildren(
                 buildNode('div',
-                    { class : 'episodeResult tabbableRow',
+                    { class : 'baseItemResult tabbableRow',
                       title : titleText,
                       tabindex : 0 },
                     0,
                     { click : this.#showHideMarkerTableEvent.bind(this),
-                      // TODO: worth sharing with ResultRow.onKeydown, with a separate event for table actions?
                       keydown :  [
                           this.onBaseItemResultRowKeydown.bind(this),
                           this.#onEpisodeRowKeydown.bind(this) ] }),
@@ -1360,7 +1359,7 @@ class MovieResultRow extends BaseItemResultRow {
     /**
      * @param {ClientMovieData} mediaItem */
     constructor(mediaItem) {
-        super(mediaItem, 'topLevelResult movieResultRow');
+        super(mediaItem, 'topLevelResult baseItemResult');
         this.#markersGrabbed = this.movie().markerTable()?.hasRealData();
     }
     /**
@@ -1397,7 +1396,7 @@ class MovieResultRow extends BaseItemResultRow {
         appendChildren(row,
             appendChildren(
                 buildNode('div',
-                    { class : 'episodeResult tabbableRow', tabindex : 0 }, // TODO: generalized class name
+                    { class : 'baseItemResult tabbableRow', tabindex : 0 },
                     0,
                     { click : this.#showHideMarkerTableEvent.bind(this),
                       keydown : this.onBaseItemResultRowKeydown.bind(this) }),
@@ -1425,8 +1424,6 @@ class MovieResultRow extends BaseItemResultRow {
 
         return row;
     }
-
-    // TODO: Share with Episode?
 
     /**
      * Builds the "X Marker(s)" span for this movie, including a tooltip if purged markers are present.

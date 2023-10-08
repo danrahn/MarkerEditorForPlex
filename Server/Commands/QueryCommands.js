@@ -180,8 +180,8 @@ class QueryCommands {
     }
 
     /**
-     * Gather marker information for all episodes in the given library,
-     * returning the number of episodes that have X markers associated with it.
+     * Gather marker information for all episodes/movies in the given library,
+     * returning the number of items that have X markers associated with it.
      * @param {number} sectionId The library section id to parse. */
     static async allStats(sectionId) {
         // If we have global marker data, forego the specialized markerBreakdownCache

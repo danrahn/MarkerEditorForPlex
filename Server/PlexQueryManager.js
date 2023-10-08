@@ -1148,7 +1148,7 @@ ORDER BY e.\`index\` ASC;`;
                     marker.created_at);
             }
 
-            // updateMarkerIndex, without actually executing it.
+            // Adjust marker index if necessary.
             for (const marker of Object.values(existingMarkers[baseItemId])) {
                 if (marker.index != marker.newIndex && marker.existing()) {
                     Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
@@ -1336,19 +1336,6 @@ ORDER BY e.\`index\` ASC;`;
         return this.#database.run('DELETE FROM taggings WHERE id=?;', [markerId]);
     }
 
-    /** Update the given marker's index to `newIndex`.
-     * We don't throw if this fails, only logging an error message. TODO: this should probably change.
-     * @param {number} markerId
-     * @param {number} newIndex */
-    async updateMarkerIndex(markerId, newIndex) {
-        // Fire and forget. Fingers crossed this does the right thing.
-        try {
-            await this.#database.run('UPDATE taggings SET `index`=? WHERE id=?;', [newIndex, markerId]);
-        } catch (err) {
-            Log.error(`Failed to update marker index for marker ${markerId} (new index: ${newIndex})`);
-        }
-    }
-
     /**
      * Retrieve a marker that was just added to the database.
      *
@@ -1366,10 +1353,9 @@ ORDER BY e.\`index\` ASC;`;
     }
 
     /**
-     * Retrieve all episodes and their markers (if any) in the given section.
+     * Retrieve all base items (episodes/movies) and their markers (if any) in the given section.
      *
      * Fields returned: `parent_id`, `tag_id`
-     * TODO: Movies
      * @param {number} sectionId
      * @returns {Promise<{parent_id: number, tag_id: number, marker_type: string}[]>} */
     async markerStatsForSection(sectionId) {
@@ -1449,7 +1435,6 @@ ORDER BY e.\`index\` ASC;`;
             }
         }
 
-        // TODO: Movies? Do we want to surface bulk actions? Makes less sense for movies versus all episodes of a season.
         await transaction.exec();
         const newMarkers = await this.getMarkersForItems(episodeIds, markers[episodeIds[0]].section_id);
         // No ignored markers, no need to prune
