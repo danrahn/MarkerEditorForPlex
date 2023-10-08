@@ -8,6 +8,7 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
+/** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
 /** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
@@ -112,7 +113,7 @@ const ServerCommand = {
      * Retrieve episode and marker information relevant to a bulk_add operation.
      * @param {number} id Show/Season metadata id.
      * @returns {Promise<SerializedBulkAddResult>} */
-    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro', final : 0 }),
+    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro' }),
 
     /**
      * Bulk adds a marker to the given metadata id.
@@ -121,10 +122,18 @@ const ServerCommand = {
      * @param {number} start Start time of the marker, in milliseconds.
      * @param {number} end End time of the marker, in milliseconds.
      * @param {number} resolveType The BulkMarkerResolveType.
-     * @param {boolean} [final=false] Whether this is the last marker of the episode (credits only)
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : async (markerType, id, start, end, resolveType, final=false, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0, resolveType : resolveType, ignored : ignored.join(',') }),
+    bulkAdd : async (markerType, id, start, end, resolveType, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, resolveType : resolveType, ignored : ignored.join(',') }),
+
+    /**
+     * Bulk adds multiple markers with custom timestamps.
+     * @param {number} markerType The type of marker (intro/credits)
+     * @param {number} id The Show/Season metadata id.
+     * @param {number} resolveType The BulkMarkerResolveType.
+     * @param {CustomBulkAddMap} newMarkerData The new markers to add.
+     * @returns {Promise<SerializedBulkAddResult>} */
+    bulkAddCustom : async (markerType, id, resolveType, newMarkerData) => jsonBodyRequest('add_custom', { type : markerType, id : id, resolveType : resolveType, markers : JSON.stringify(newMarkerData) }),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.
@@ -708,6 +717,23 @@ function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
         onDismiss);
 }
 
+/**
+ * Waits for the given condition to be true, timing out after a specified number of milliseconds.
+ * @param {() => boolean} condition The condition to test until it returns true.
+ * @param {number} timeout Number of milliseconds before giving up. */
+async function waitFor(condition, timeout) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { clearInterval(interval); reject(); }, timeout);
+        const interval = setInterval(() => {
+            if (condition()) {
+                clearInterval(interval);
+                clearTimeout(timer);
+                resolve();
+            }
+        }, 50);
+    });
+}
+
 export {
     $,
     $$,
@@ -724,5 +750,6 @@ export {
     roundDelta,
     ServerCommand,
     timeInputShortcutHandler,
-    timeToMs
+    timeToMs,
+    waitFor,
 };

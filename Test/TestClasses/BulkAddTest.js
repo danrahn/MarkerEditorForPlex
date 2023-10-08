@@ -1,3 +1,6 @@
+import FormData from 'form-data';
+import { gunzipSync } from 'zlib';
+
 import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
@@ -25,6 +28,8 @@ class BulkAddTest extends TestBase {
             this.bulkAddOverlapOverwriteDeletesMultipleTest,
             this.bulkAddOverlapResolveTypeIgnoreSucceedsTest,
             this.bulkAddTruncatedTest,
+            this.bulkAddCustomTest,
+            this.bulkAddCustomImplicitIgnoreTest,
         ];
     }
 
@@ -340,6 +345,48 @@ class BulkAddTest extends TestBase {
         );
     }
 
+    async bulkAddCustomTest() {
+        const season = TestBase.DefaultMetadata.Show1.Season1;
+        return this.#verifyCustomBulkAdd(
+            season.Id,
+            {
+                [season.Episode1.Id] : { start : 0, end : 20000 },
+                [season.Episode2.Id] : { start : 1000, end : 12000 },
+                [season.Episode3.Id] : { start : 0, end : 15000 },
+            },
+            BulkMarkerResolveType.Fail,
+            true /*expectApply*/,
+            false /*expectConflict*/,
+            [
+                { id : TestBase.NextMarkerIndex,     start : 0, end : 20000, index : 0 },
+                { id : TestBase.NextMarkerIndex + 1, start : 1000, end : 12000, index : 0 },
+                this.#testMarkerFromTestData(season.Episode2.Marker1, 1),
+                { id : TestBase.NextMarkerIndex + 2, start : 0, end : 15000, index : 0 }
+            ]
+        );
+    }
+
+    /**
+     * Verify that leaving out data for a given episode results in that episode being ignored. */
+    async bulkAddCustomImplicitIgnoreTest() {
+        const season = TestBase.DefaultMetadata.Show1.Season1;
+        return this.#verifyCustomBulkAdd(
+            season.Id,
+            {
+                [season.Episode1.Id] : { start : 20000, end : 100000 },
+                [season.Episode3.Id] : { start : 0, end : 120000 },
+            },
+            BulkMarkerResolveType.Fail,
+            true /*expectApply*/,
+            false /*expectConflict*/,
+            [
+                { id : TestBase.NextMarkerIndex,     start : 20000, end : 100000, index : 0 },
+                this.#testMarkerFromTestData(season.Episode2.Marker1, 0),
+                { id : TestBase.NextMarkerIndex + 1, start : 0, end : 120000, index : 0 }
+            ]
+        );
+    }
+
     /**
      * Returns minimal marker data from a DefaultMetadata marker.
      * @param {{Id : number, Start : number, End : number, Index : number}} marker
@@ -367,24 +414,66 @@ class BulkAddTest extends TestBase {
      * @param {any[]} markersToCheck
      * @param {{[episodeId: number]: any[]}} expectedDeletes */
     async #verifyBulkAdd(metadataId, start, end, resolveType, ignored, expectApply, expectConflict, markersToCheck, expectedDeletes={}) {
-        /* eslint-disable max-len */
-        let totalMarkerCount = 0;
-        const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         /** @type {SerializedBulkAddResult} // TODO: credits */
-        const result = await this.send('bulk_add', { id : metadataId, start : start, end : end, type : 'intro', final : 0, resolveType : resolveType, ignored : ignored.join(',') });
+        const result = await this.send('bulk_add', {
+            id : metadataId,
+            start : start,
+            end : end,
+            type : 'intro',
+            final : 0,
+            resolveType : resolveType,
+            ignored : ignored.join(',')
+        });
+        return this.#verifyBulkAddCore(result, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes);
+    }
+
+    async #verifyCustomBulkAdd(metadataId, markerData, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes={}) {
+        const form = new FormData();
+        form.append('id', metadataId);
+        form.append('type', 'intro');
+        form.append('resolveType', resolveType);
+        form.append('markers', JSON.stringify(markerData));
+
+        /** @type {SerializedBulkAddResult} // TODO: credits */
+        const response = await new Promise(resolve => {
+            form.submit('http://localhost:3233/add_custom', (err, res) => {
+                if (err) throw err;
+                resolve(res);
+            });
+        });
+
+        const rawData = await new Promise((resolve, _) => {
+            const chunks = [];
+            response.on('data', chunk => chunks.push(chunk));
+            response.on('end', () => resolve(gunzipSync(Buffer.concat(chunks)).toString('utf8')));
+        });
+
+        const result = JSON.parse(rawData);
+        return this.#verifyBulkAddCore(result, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes);
+    }
+
+    /**
+     * @param {SerializedBulkAddResult} result */
+    async #verifyBulkAddCore(result, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes) {
+        /* eslint-disable max-len */
+        const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
         TestHelpers.verify(result.applied === true || result.applied === false, `Expected result.applied to be true or false, found ${result.applied}`);
         const c = result.conflict;
         TestHelpers.verify(expectConflict ? c === true : (c === false || !Object.prototype.hasOwnProperty.call(result, 'conflict')), `Expected result.conflict to be true, false, or not present, found ${result.conflict}`);
         TestHelpers.verify(result.episodeMap, `Expected episodeMap in bulk_add response, found nothing.`);
         const episodeMap = result.episodeMap;
+        let totalMarkerCount = 0;
         for (const episodeApplyInfo of Object.values(episodeMap)) {
             TestHelpers.verify(episodeApplyInfo.episodeData, `Expected episodeMap to have episodeData, found ${episodeApplyInfo.episodeData}`);
             TestHelpers.verify(episodeApplyInfo.existingMarkers instanceof Array, `Expected episodeMap to have an array of existingMarkers, found ${episodeApplyInfo.existingMarkers}`);
             totalMarkerCount += episodeApplyInfo.existingMarkers.length;
-            if (expectApply && resolveType != BulkMarkerResolveType.Ignore) {
+            const expectChanged = result.ignoredEpisodes?.indexOf(episodeApplyInfo.episodeData.metadataId) === -1 ?? true;
+            if (expectApply && expectChanged && resolveType != BulkMarkerResolveType.Ignore) {
                 TestHelpers.verify(episodeApplyInfo.changedMarker, `Expected a changed marker to be present after bulk_add apply, found ${episodeApplyInfo.changedMarker}`);
                 TestHelpers.verify(episodeApplyInfo.isAdd === true || episodeApplyInfo.isAdd === false, `Expected isAdd to be true or false after bulk_add apply, found ${episodeApplyInfo.isAdd}`);
+            } else if (!expectChanged) {
+                TestHelpers.verify(!episodeApplyInfo.changedMarker, `Episode is in ignore list, but found a changed marker: ${episodeApplyInfo.changedMarker}`);
             }
 
             if (expectedDeletes[episodeApplyInfo.episodeData.metadataId]) {

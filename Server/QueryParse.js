@@ -1,6 +1,10 @@
 import { parse } from 'url';
 
+import FormDataParse from './FormDataParse.js';
 import ServerError from './ServerError.js';
+
+/** @typedef {!import('http').IncomingMessage} IncomingMessage */
+/** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
 
 /**
  * Identical to a regular Error. Used to differentiate between "user bad"
@@ -14,9 +18,15 @@ class QueryParameterException extends ServerError {
 
 /*Small helper class to handle query parameters. */
 class QueryParser {
+    /** @type {IncomingMessage} */
+    #request;
+    /** @type {ParsedFormData} */
+    #formData;
+
     constructor(request) {
         /** @type {ParsedUrlQuery} */
         this.params = parse(request.url, true /*parseQueryString*/).query;
+        this.#request = request;
     }
 
     /**
@@ -82,6 +92,44 @@ class QueryParser {
         }
 
         return this.params[key];
+    }
+
+    /**
+     * Retrieve a value from the request's form-data.
+     * @param {string} key */
+    async formInt(key) {
+        const value = parseInt(await this.formRaw(key));
+        if (isNaN(value)) {
+            throw new QueryParameterException(`Expected an integer for '${key}', found something else.`);
+        }
+
+        return value;
+    }
+
+    /**
+     * Retrieve a custom object from the request's form data.
+     * @param {string} key The form field to retrieve.
+     * @param {(v: string) => any} transform The function that transforms the raw string to a custom object. */
+    async formCustom(key, transform) {
+        // transform should take care of any exceptions.
+        return transform(await this.formRaw(key));
+    }
+
+    /**
+     * Retrieve the raw string associated with the given key from the request's form data.
+     * @param {string} key The form field to retrieve */
+    async formRaw(key) {
+        // All data starts as a string, so just return raw.
+        if (!this.#formData) {
+            this.#formData = await FormDataParse.parseRequest(this.#request, 1024 * 1024 * 32);
+        }
+
+        const value = this.#formData[key];
+        if (value === undefined) {
+            throw new QueryParameterException(`Form data field '${key} not found.`);
+        }
+
+        return value.data;
     }
 }
 

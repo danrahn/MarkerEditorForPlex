@@ -1175,9 +1175,12 @@ class PurgedMarkerManager {
             }
         }.bind(this));
 
-        this.#inBulkRestoration = true;
-        await PlexClientState.notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
-        this.#inBulkRestoration = false;
+        PlexClientState.setInBulkOperation(true);
+        try {
+            await PlexClientState.notifyPurgeChange(purgedSection, newMarkers, deletedMarkers, modifiedMarkers);
+        } finally {
+            PlexClientState.setInBulkOperation(false);
+        }
 
         // After everything's updated, reapply the current filter in case the new/removed items affected anything
         PlexUI.onFilterApplied();
@@ -1328,8 +1331,6 @@ class PurgedMarkerManager {
 
         new PurgeOverlay(this.#serverPurgeInfo.get(activeSection), activeSection).show();
     }
-
-    inBulkOperation() { return this.#inBulkRestoration; }
 }
 
 export { PurgedMarkerManager, PurgeManagerSingleton as PurgedMarkers };

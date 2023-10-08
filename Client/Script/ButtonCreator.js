@@ -72,6 +72,20 @@ class ButtonCreator {
     }
 
     /**
+     * Sets the icon of the given button.
+     * @param {HTMLElement} button
+     * @param {string} newIcon
+     * @param {string} theme */
+    static setIcon(button, newIcon, theme) {
+        const img = $$('img', button);
+        if (!img) {
+            Log.warn('Called setIcon on non-icon button!');
+        }
+
+        img.src = ThemeColors.getIcon(newIcon, theme);
+    }
+
+    /**
      * Returns an empty button with the given class
      * @param {string} className The class name to give this button.
      * @param {EventListener} clickHandler The callback function when the button is clicked.

@@ -79,6 +79,11 @@ class Tooltip {
      *       changes there, we have a way of dismissing tooltips from focused elements.
      * @param {FocusEvent} e */
     static #onFocus(e) {
+        // Don't do anything if we're already showing the tooltip for this item
+        if (Tooltip.#showingTooltip && Tooltip.#ttElement === this) {
+            return;
+        }
+
         // Fill out values read by #showTooltipCore, as well as some sentinel values (focusX/Y)
         // that indicates our target is focused, and we should avoid making adjustments that causes
         // the tooltip to overlap the element itself.
@@ -181,6 +186,10 @@ class Tooltip {
         }
 
         Tooltip.#ttElement = e.target;
+        while (Tooltip.#ttElement && !Tooltip.#ttElement.hasAttribute('tt')) {
+            Tooltip.#ttElement = Tooltip.#ttElement.parentElement;
+        }
+
         Tooltip.#showingTooltip = true;
         const tooltip = $('#tooltip');
 

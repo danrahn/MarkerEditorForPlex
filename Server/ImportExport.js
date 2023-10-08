@@ -5,6 +5,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
+import FormDataParse from './FormDataParse.js';
 import { MarkerConflictResolution } from '../Shared/PlexTypes.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import { ProjectRoot } from './IntroEditorConfig.js';
@@ -16,6 +17,7 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
+/** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
 /** @typedef {!import('./MarkerCacheManager').MarkerQueryResult} MarkerQueryResult */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 
@@ -202,7 +204,8 @@ WHERE t.tag_id=$tagId`;
      * @param {ServerResponse} response */
     static async importDatabase(request, response) {
         try {
-            const formData = rebuildFormData(await DatabaseImportExport.#awaitImport(request));
+            // 32 MiB max
+            const formData = await FormDataParse.parseRequest(request, 1024 * 1024 * 32);
             if (!formData.database
                 || !formData.database.filename
                 || !formData.database.data
@@ -389,36 +392,6 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
     }
 
     /**
-     * Waits for all the data from the request to load, returning a promise
-     * that resolves to the complete text.
-     *
-     * Note: There's a hard 32MB limit. If anything larger is needed in the future,
-     *       this data should probably get streamed to a file first, and then read in chunks.
-     * @param {IncomingMessage} request
-     * @returns {Promise<string>} */
-    static async #awaitImport(request) {
-        return new Promise((resolve, reject) => {
-            let body = '';
-            request.on('data', chunk => {
-                if (Buffer.isBuffer(chunk)) {
-                    body += chunk.toString('binary');
-                } else {
-                    body += chunk;
-                }
-
-                if (body.length > 1024 * 1024 * 32) {
-                    Log.error(`Import upload failed - File too large.`);
-                    reject('File is too large.');
-                }
-            });
-            request.on('end', () => {
-                Log.verbose(`File uploaded (${body.length} bytes)`);
-                resolve(body);
-            });
-        });
-    }
-
-    /**
      * On server close, clear out any exported/imported databases that are still lying around, if we can. */
     static Close(fullShutdown) {
         if (!fullShutdown) {
@@ -438,80 +411,6 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
         } catch (err) {
             Log.warn(err.message, 'Failed to clear cached databases.');
         }
-    }
-}
-
-/** Regex that looks for expected 'Content-Disposition: form-data' key/value pairs */
-const headerRegex = /\b(?<key>\w+)="(?<value>[^"]+)"/g;
-
-/**
- * Takes raw form input and rebuilds a key-value dictionary.
- * Note: I _really_ should use a library. There's probably a built-in one I
- *       should be using, but a very quick search didn't bring up anything.
- * @param {string} raw */
-function rebuildFormData(raw) {
-    const data = {};
-
-    const sentinelBase = raw.substring(0, raw.indexOf('\r\n'));
-    if (!sentinelBase) {
-        throw new ServerError('Malformed response, did not find form data sentinel', 500);
-    }
-
-    const sentinel = sentinelBase + '\r\n';
-    const responseEnd = '\r\n' + sentinelBase + '--\r\n';
-
-    let index = sentinel.length;
-    for (;;) {
-        const headerStart = index;
-        const headerEnd = raw.indexOf('\r\n\r\n', index) + 4;
-        index = headerEnd;
-        if (!sentinel || headerEnd === 3) {
-            return data;
-        }
-
-        const rawHeaders = raw.substring(headerStart, headerEnd).split('\r\n').filter(h => !!h);
-        let name = '';
-        // We specifically are looking for form-data
-        // Also make our lives easier and assume no double quotes in names
-        for (const header of rawHeaders) {
-            const headerNorm = header.toLowerCase();
-            if (headerNorm.startsWith('content-disposition:') && headerNorm.includes('form-data;')) {
-                const fields = {};
-                for (const match of header.matchAll(headerRegex)) {
-                    fields[match.groups.key] = match.groups.value;
-                }
-
-                if (!fields['name']) {
-                    throw new ServerError('Invalid form data - no name for field', 500);
-                }
-
-                name = fields['name'];
-                data[name] = fields;
-
-                // Are any other fields relevant? If so, parse those as well instead of breaking
-                break;
-            }
-        }
-
-        const dataStart = index;
-        const dataEnd = raw.indexOf(sentinelBase, index);
-        if (dataEnd === -1) {
-            throw new ServerError('Invalid form input - could not find data sentinel', 500);
-        }
-
-        data[name].data = raw.substring(dataStart, dataEnd - 2); // Don't include CRLF before sentinel
-        index = raw.indexOf(sentinel, dataEnd);
-        if (index === -1) {
-            // If we don't find the sentinel, we better be at the end
-            if (raw.indexOf(responseEnd, dataEnd - 2) != dataEnd - 2) {
-                Log.warn('Unexpected response end, returning what we have.');
-            }
-
-            Log.verbose(`Parsed POST body. Found ${Object.keys(data).length} fields.`);
-            return data;
-        }
-
-        index += sentinel.length;
     }
 }
 

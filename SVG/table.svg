@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+	<style>
+		.s1{fill:none;stroke:FILL_COLOR;stroke-width:9;stroke-miterlimit:10}
+		.s2{fill:#319131;fill-opacity:.4}
+	</style>
+	<path fill-rule="evenodd" clip-rule="evenodd" fill="none" stroke="FILL_COLOR" stroke-width="9" stroke-miterlimit="10" d="M9 9h110v110H9z"/>
+	<path class="s1" d="M64 115V13M13 82.5h102M13 46.5h102"/>
+	<path class="s2" d="M13.5 13.5h46V42h-46zM68.5 13.5h46V42h-46z"/>
+</svg>

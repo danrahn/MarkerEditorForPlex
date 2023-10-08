@@ -72,6 +72,7 @@ import { MarkerType } from './MarkerType.js';
  *
  * @typedef {{ name : string, start : number, end : number }} ChapterData
  * @typedef {{ [metadataId: number]: ChapterData[] }} ChapterMap
+ * @typedef {{ [episodeId: number]: { start : number, end : number } }} CustomBulkAddMap
  */
 /**
  * @typedef {Object} BulkRestoreResponse

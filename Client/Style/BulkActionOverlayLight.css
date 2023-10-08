@@ -32,3 +32,8 @@
 #bulkActionContainer tr:hover {
     background-color: #4AF8;
 }
+
+/** Icon-based buttons don't have a border by default, but we want one in the overlay. */
+#bulkActionButtons > .buttonIconAndText {
+    border: 1px solid rgba(93,93,93,.67);
+}

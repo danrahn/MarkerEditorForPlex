@@ -8,7 +8,6 @@ import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 /** @typedef {!import('../../Shared/PlexTypes').MovieMap} MovieMap */
@@ -56,6 +55,8 @@ class PlexClientStateManager {
     #activeShow;
     /** @type {SeasonResultRow} */
     #activeSeason;
+    /** Whether we're currently bulk adding/deleting/restoring markers. */
+    #inBulkOperation = false;
 
     /** Create the singleton PlexClientState instance. */
     static CreateInstance() {
@@ -217,6 +218,19 @@ class PlexClientStateManager {
     }
 
     /**
+     * Whether we're in the middle of applying a bulk action/purge restoration. */
+    inBulkOperation() {
+        return this.#inBulkOperation;
+    }
+
+    /**
+     * Set whether we're in the middle of a bulk operation.
+     * @param {boolean} inBulkOperation */
+    setInBulkOperation(inBulkOperation) {
+        this.#inBulkOperation = inBulkOperation;
+    }
+
+    /**
      * Update any necessary season/episode lists based on a new filter. */
     onFilterApplied() {
         this.#activeShow?.onFilterApplied();
@@ -236,7 +250,7 @@ class PlexClientStateManager {
         // A better approach would probably be to properly calculate all the deltas client-side,
         // not relying on server-side queries that might result in the double-updates that
         // this hacked call to inBulkOperation prevents.
-        if (delta != 0 && !PurgedMarkers.inBulkOperation()) {
+        if (delta != 0 && !this.inBulkOperation()) {
             this.#updateBreakdownCacheInternal(episode, delta);
         }
 

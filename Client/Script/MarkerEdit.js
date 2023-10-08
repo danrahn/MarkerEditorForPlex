@@ -412,8 +412,12 @@ class MarkerEdit {
 
         const toggle = $$('.chapterToggle', row);
         if ($('.timeInput', row)?.[0].classList.contains('hidden')) {
-            Tooltip.setText(toggle, 'Exit Chapter Mode');
+            ButtonCreator.setText(toggle, 'Manual');
+            ButtonCreator.setIcon(toggle, 'cursor', 'standard');
+            Tooltip.setText(toggle, 'Enter Manual Mode');
         } else {
+            ButtonCreator.setText(toggle, 'Chapters');
+            ButtonCreator.setIcon(toggle, 'chapter', 'standard');
             Tooltip.setText(toggle, 'Enter Chapter Mode');
         }
     }

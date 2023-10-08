@@ -17,11 +17,16 @@ class ServerCommands {
         delete        : async (params) => await CoreCommands.deleteMarker(params.i('id')),
         check_shift   : async (params) => await CoreCommands.shiftMarkers(params.i('id'), 0, 0, params.i('applyTo'), ShiftApplyType.DontApply, []),
         shift         : async (params) => await CoreCommands.shiftMarkers(
-                                                                 ...params.ints('id', 'startShift', 'endShift', 'applyTo'),
-                                                                 params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
-                                                                 params.ia('ignored', true)),
+                                                                ...params.ints('id', 'startShift', 'endShift', 'applyTo'),
+                                                                params.i('force') ? ShiftApplyType.ForceApply : ShiftApplyType.TryApply,
+                                                                params.ia('ignored', true)),
         bulk_delete   : async (params) => await CoreCommands.bulkDelete(...params.ints('id', 'dryRun', 'applyTo'), params.ia('ignored', true)),
-        bulk_add      : async (params) => await CoreCommands.bulkAdd(params.raw('type'), ...params.ints('id', 'start', 'end', 'final', 'resolveType'), params.ia('ignored')),
+        bulk_add      : async (params) => await CoreCommands.bulkAdd(params.raw('type'), ...params.ints('id', 'start', 'end', 'resolveType'), params.ia('ignored')),
+        add_custom    : async (params) => await CoreCommands.bulkAddCustom(
+                                                                await params.formInt('id'),
+                                                                await params.formRaw('type'),
+                                                                await params.formCustom('markers', CoreCommands.parseCustomMarkerData),
+                                                                await params.formInt('resolveType')),
 
 
         query         : async (params) => await QueryCommands.queryIds(params.ia('keys')),

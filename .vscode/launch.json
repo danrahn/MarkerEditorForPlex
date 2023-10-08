@@ -32,6 +32,14 @@
         {
             "type" : "node",
             "request" : "launch",
+            "name" : "Run Custom Test(s)",
+            "skipFiles": [ "<node_internals>/**" ],
+            "args": [ "--test", "-tc", "[testClassName]", "-tm", "[testMethodName]" ],
+            "program": "${workspaceFolder}\\Test\\Test.js"
+        },
+        {
+            "type" : "node",
+            "request" : "launch",
             "name" : "Run Specific Test",
             "console": "integratedTerminal",
             "skipFiles": [ "<node_internals>/**" ],

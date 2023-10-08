@@ -9,6 +9,7 @@ import { MarkerCache } from '../MarkerCacheManager.js';
 import ServerError from '../ServerError.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkAddResult} BulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
@@ -341,10 +342,9 @@ class CoreCommands {
      * @param {number} start
      * @param {number} end
      * @param {number} resolveType The `BulkMarkerResolveType`
-     * @param {number} final
      * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
      * @returns {Promise<BulkAddResult>>} */
-    static async bulkAdd(markerType, metadataId, start, end, final, resolveType, ignored=[]) {
+    static async bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
         if (resolveType != BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
             throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`);
         }
@@ -353,72 +353,128 @@ class CoreCommands {
             throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
         }
 
-        if (markerType !== MarkerType.Credits && final) {
-            // TODO: If a marker is final, and one is added after it, final should be removed.
-            // That really shouldn't be possible though, since 'final' implies it goes to the end of the episode.
-            Log.warn(`Got a request for a 'final' marker bulk add that isn't a credit marker!`);
-            final = 0;
-        }
-
         const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
-        const addResult = await PlexQueries.bulkAdd(currentMarkers, metadataId, start, end, markerType, final, resolveType, ignored);
-        if (addResult.applied) {
-            const episodes = Object.values(addResult.episodeMap);
-            /** @type {MarkerData[]} */
-            const adds = [];
-            episodes.forEach(episodeData => {
-                if (episodeData.changedMarker && episodeData.isAdd) adds.push(episodeData.changedMarker);
-            });
-
-            /** @type {MarkerData[]} */
-            const edits = [];
-            episodes.forEach(episodeData => {
-                if (episodeData.changedMarker && !episodeData.isAdd) edits.push(episodeData.changedMarker);
-            });
-
-            /** @type {MarkerData[]} */
-            const deletes = [];
-            episodes.forEach(episodeData => {
-                if (episodeData.deletedMarkers) deletes.push(...episodeData.deletedMarkers);
-            });
-
-            /** @type {{[episodeId: number]: RawMarkerData[]}} */
-            const markerCounts = {};
-            const oldMarkerTimings = {};
-            for (const marker of currentMarkers.markers) {
-                markerCounts[marker.parent_id] ??= 0;
-                ++markerCounts[marker.parent_id];
-                oldMarkerTimings[marker.id] = { start : marker.start, end : marker.end };
-            }
-
-            for (const add of adds) {
-                LegacyMarkerBreakdown.Update(add, markerCounts[add.parentId]++, 1);
-                MarkerCache?.addMarkerToCache({
-                    // Gross, but need to convert from MarkerData to RawMarkerData
-                    id : add.id,
-                    section_id : add.sectionId,
-                    show_id : add.showId,
-                    season_id : add.seasonId,
-                    parent_id : add.parentId,
-                    marker_type : add.markerType,
-                });
-            }
-
-            for (const deleted of deletes) {
-                MarkerCache?.removeMarkerFromCache(deleted.id);
-                // TODO: Remove LegacyMarkerBreakdown. Forcing full marker enumeration makes things much easier,
-                //       but I don't have a large enough real-world database to test this on (100K+ episodes)
-                LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.parentId]--, -1);
-            }
-
-            await BackupManager.recordAdds(adds);
-            await BackupManager.recordEdits(edits, oldMarkerTimings);
-            await BackupManager.recordDeletes(deletes);
-        }
+        const addResult = await PlexQueries.bulkAddSimple(currentMarkers, metadataId, start, end, markerType, resolveType, ignored);
+        await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
 
         Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);
 
         return addResult;
+    }
+
+    /**
+     * Bulk adds markers specified in newMarkers. Unlike bulkAdd, allows for custom per-marker timings.
+     * @param {number} metadataId
+     * @param {string} markerType
+     * @param {CustomBulkAddMap} newMarkers
+     * @param {number} resolveType */
+    static async bulkAddCustom(metadataId, markerType, newMarkers, resolveType) {
+        if (Object.values(MarkerType).indexOf(markerType) === -1) {
+            throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
+        }
+
+        const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
+        const addResult = await PlexQueries.bulkAddCustom(currentMarkers, metadataId, markerType, resolveType, newMarkers);
+        await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
+
+        const ignored = addResult.ignoredEpisodes?.length || 0;
+        Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly or implicitly ignored ${ignored})`);
+        return addResult;
+    }
+
+    /**
+     * @param {BulkAddResult} addResult
+     * @param {RawMarkerData[]} previousMarkers */
+    static async #bulkAddPostProcess(addResult, previousMarkers) {
+        if (!addResult.applied) {
+            // Nothing applied, nothing to do.
+            return;
+        }
+
+        const episodes = Object.values(addResult.episodeMap);
+        /** @type {MarkerData[]} */
+        const adds = [];
+        episodes.forEach(episodeData => {
+            if (episodeData.changedMarker && episodeData.isAdd) adds.push(episodeData.changedMarker);
+        });
+
+        /** @type {MarkerData[]} */
+        const edits = [];
+        episodes.forEach(episodeData => {
+            if (episodeData.changedMarker && !episodeData.isAdd) edits.push(episodeData.changedMarker);
+        });
+
+        /** @type {MarkerData[]} */
+        const deletes = [];
+        episodes.forEach(episodeData => {
+            if (episodeData.deletedMarkers) deletes.push(...episodeData.deletedMarkers);
+        });
+
+        /** @type {{[episodeId: number]: RawMarkerData[]}} */
+        const markerCounts = {};
+        const oldMarkerTimings = {};
+        for (const marker of previousMarkers) {
+            markerCounts[marker.parent_id] ??= 0;
+            ++markerCounts[marker.parent_id];
+            oldMarkerTimings[marker.id] = { start : marker.start, end : marker.end };
+        }
+
+        for (const add of adds) {
+            LegacyMarkerBreakdown.Update(add, markerCounts[add.parentId]++, 1);
+            MarkerCache?.addMarkerToCache({
+                // Gross, but need to convert from MarkerData to RawMarkerData
+                id : add.id,
+                section_id : add.sectionId,
+                show_id : add.showId,
+                season_id : add.seasonId,
+                parent_id : add.parentId,
+                marker_type : add.markerType,
+            });
+        }
+
+        for (const deleted of deletes) {
+            MarkerCache?.removeMarkerFromCache(deleted.id);
+            // TODO: Remove LegacyMarkerBreakdown. Forcing full marker enumeration makes things much easier,
+            //       but I don't have a large enough real-world database to test this on (100K+ episodes)
+            LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.parentId]--, -1);
+        }
+
+        await BackupManager.recordAdds(adds);
+        await BackupManager.recordEdits(edits, oldMarkerTimings);
+        await BackupManager.recordDeletes(deletes);
+    }
+
+    /**
+     * Verify that custom marker data retrieved from form-data is correctly formatted.
+     * @param {string} markers
+     * @returns {CustomBulkAddMap} */
+    static parseCustomMarkerData(markers) {
+        if (!markers) {
+            throw new ServerError('No marker data found', 400);
+        }
+
+        try {
+            const parsed = JSON.parse(markers);
+            for (const [key, value] of Object.entries(parsed)) {
+                if (isNaN(parseInt(key))) {
+                    throw new ServerError(`Non-integer episode id in custom marker data.`, 400);
+                }
+
+                const start = parseInt(value.start);
+                const end = parseInt(value.end);
+                if (Object.values(value).length !== 2 || isNaN(start) || isNaN(end)) {
+                    throw new ServerError(`Unexpected marker timestamp data in custom marker data.`, 400);
+                }
+
+                if (start < 0 || end <= start) {
+                    throw new ServerError(`Invalid marker timestamp data given [start=${start}, end=${end}]`);
+                }
+            }
+
+            return parsed;
+        } catch (err) {
+            throw new ServerError(`Failed to parse marker data: ${err.message}`, 400);
+        }
     }
 
     /**

@@ -37,3 +37,7 @@
     background-color: #04C7;
 }
 
+/** Icon-based buttons don't have a border by default, but we want one in the overlay. */
+#bulkActionButtons > .buttonIconAndText {
+    border: 1px solid rgba(133,133,133,.67);
+}
