@@ -289,37 +289,6 @@ async function userReload(res) {
     run();
 }
 
-/**
- * Do a soft internal restart to rebuild all internal caches
- * and reconnect to databases, usually after a large operation where
- * it's easier to just rebuild everything from scratch.
- *
- * TODO: How much of this can be moved to a different file instead of Main?
- *
- * @param {ServerResponse?} response The response to send when the reload completes.
- * @param {*?} data The data to send alongside the response, if any. */
-async function softRestart(response, data) {
-    Log.info('Soft reset started. Rebuilding everything.');
-    if (GetServerState() != ServerState.Running) {
-        Log.warn(`Attempting a soft reset when the server isn't running. Ignoring it.`);
-        return;
-    }
-
-    SetServerState(ServerState.Suspended);
-    await cleanupForShutdown(false /*fullShutdown*/);
-    Log.assert(GetServerState() == ServerState.Suspended, 'Server state changed during cleanup, that\'s not right!');
-    SetServerState(ServerState.SoftBoot);
-    if (response) {
-        ResumeResponse = response;
-    }
-
-    if (data) {
-        ResumeData = data;
-    }
-
-    run();
-}
-
 /** Creates the server. Called after verifying the config file and database. */
 async function launchServer() {
     if (!shouldCreateServer()) {
@@ -422,14 +391,6 @@ const ServerActionMap = {
 };
 
 /**
- * Map of actions that require more direct access to the underlying request and response.
- * Instead of adjusting ServerCommands to accommodate these, have a separate map.
- * @type {[endpoint: string]: (req: IncomingMessage, res: ServerResponse) => Promise<any>} */
-const RawActions = {
-    import_db : async (req, res) => await DatabaseImportExport.importDatabase(req, res),
-};
-
-/**
  * Handle POST requests, used to return JSON data queried by the client.
  * @param {IncomingMessage} req
  * @param {ServerResponse} res */
@@ -444,14 +405,6 @@ async function handlePost(req, res) {
     if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
         && typeof ServerActionMap[endpoint] === 'function') {
         return ServerActionMap[endpoint](res);
-    }
-
-    if (RawActions[endpoint]) {
-        try {
-            return await RawActions[endpoint](req, res);
-        } catch (err) {
-            return sendJsonError(res, err);
-        }
     }
 
     try {
@@ -494,5 +447,3 @@ function checkTestData() {
 
     return testData;
 }
-
-export { softRestart };

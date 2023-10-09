@@ -178,6 +178,11 @@ class MarkerCacheManager {
         return Instance;
     }
 
+    /** Clear out any cached data and rebuild it from scratch. */
+    static async Reinitialize() {
+        Instance?.reinitialize();
+    }
+
     static Close() { Instance = null; }
 
     /** All markers in the database.
@@ -206,6 +211,15 @@ class MarkerCacheManager {
     constructor(database, tagId) {
         this.#database = database;
         this.#tagId = tagId;
+    }
+
+    /**
+     * Clear out and rebuild the marker cache. */
+    async reinitialize() {
+        this.#allMarkers = {};
+        this.#markerHierarchy = {};
+        this.#allBaseItems = new Set();
+        await this.buildCache();
     }
 
     /**

@@ -9,6 +9,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 // Server dependencies/typedefs
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
+import { Config } from './IntroEditorConfig.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
@@ -423,6 +424,12 @@ class MarkerBackupManager {
     static async Close() { await Instance?.close(); Instance = null; }
 
     /**
+     * Clear out and rebuild purged marker information. */
+    static async Reinitialize() {
+        await Instance?.reinitialize();
+    }
+
+    /**
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
      * @param {{[sectionId: number]: number}} sectionTypes A map of section ids to the type of library it is.
      *                                                     Used to differentiate hierarchies in the purge map.
@@ -435,6 +442,17 @@ class MarkerBackupManager {
 
     async initialize() {
         this.#buildMarkerEditDataCache();
+    }
+
+    /**
+     * Clear out and rebuild purged marker information. */
+    async reinitialize() {
+        MarkerEditCache.clear();
+        await this.#buildMarkerEditDataCache();
+        this.#purgeCache = null;
+        if (Config.extendedMarkerStats()) {
+            await this.buildAllPurges();
+        }
     }
 
     /** Closes the database connection. */

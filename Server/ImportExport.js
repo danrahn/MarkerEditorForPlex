@@ -3,21 +3,22 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
+import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
+import { MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import DatabaseWrapper from './DatabaseWrapper.js';
-import FormDataParse from './FormDataParse.js';
-import { MarkerConflictResolution } from '../Shared/PlexTypes.js';
+import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
+import { MarkerCacheManager } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import { ProjectRoot } from './IntroEditorConfig.js';
-import { sendJsonError } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
-import { softRestart } from './IntroEditor.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
 /** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
+/** @typedef {!import('./FormDataParse.js').ParsedFormField} ParsedFormField */
 /** @typedef {!import('./MarkerCacheManager').MarkerQueryResult} MarkerQueryResult */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 
@@ -199,53 +200,39 @@ WHERE t.tag_id=$tagId`;
     }
 
     /**
-     * Import the markers in the database uploaded in the request.
-     * @param {IncomingMessage} request
-     * @param {ServerResponse} response */
-    static async importDatabase(request, response) {
-        try {
-            // 32 MiB max
-            const formData = await FormDataParse.parseRequest(request, 1024 * 1024 * 32);
-            if (!formData.database
-                || !formData.database.filename
-                || !formData.database.data
-                || !formData.sectionId
-                || isNaN(parseInt(formData.sectionId.data))
-                || !formData.resolveType
-                || isNaN(parseInt(formData.resolveType.data))
-                || Object.keys(MarkerConflictResolution).filter(
-                    k => MarkerConflictResolution[k] == parseInt(formData.resolveType.data)).length == 0) {
-                throw new ServerError(`Invalid parameters for import_db`);
-            }
-
-            // Form data looks good. Write the database to a real file.
-            const backupDir = join(ProjectRoot(), 'Backup', 'MarkerExports');
-            mkdirSync(backupDir, { recursive : true });
-            const dbData = Buffer.from(formData.database.data, 'binary');
-            const fullPath = join(backupDir, `Import-${formData.database.filename}`);
-            writeFileSync(fullPath, dbData);
-
-            const stats = await DatabaseImportExport.#doImport(
-                fullPath,
-                parseInt(formData.sectionId.data),
-                parseInt(formData.resolveType.data));
-
-            // Try to delete the temporarily uploaded file. Not a big deal if we can't though
-            try {
-                rmSync(fullPath);
-            } catch (err) {
-                Log.warn(err.message, `Unable to clean up uploaded database file`);
-            }
-
-            // Force a mini-reload, as it's easier than trying to perfectly account for the right
-            // marker deltas, and import isn't expected to be a common scenario, so I don't really care
-            // about the slightly worse user experience. Wait until the reload completes before sending
-            // the response.
-            await softRestart(response, stats);
-
-        } catch (err) {
-            return sendJsonError(response, err);
+     * @param {ParsedFormField} database
+     * @param {number} sectionId
+     * @param {number} resolveType */
+    static async importDatabase(database, sectionId, resolveType) {
+        if (!database.filename) {
+            throw new ServerError(`importDatabase: no filename provided for database`);
         }
+
+        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {
+            throw new ServerError(`importDatabase: resolveType must be a MarkerConflictResolution type, found ${resolveType}`);
+        }
+
+        const backupDir = join(ProjectRoot(), 'Backup', 'MarkerExports');
+        mkdirSync(backupDir, { recursive : true });
+        const dbData = Buffer.from(database.data, 'binary');
+        const fullPath = join(backupDir, `Import-${database.filename}`);
+        writeFileSync(fullPath, dbData);
+
+        const stats = await DatabaseImportExport.#doImport(fullPath, sectionId, resolveType);
+
+        // Try to delete the temporarily uploaded file. Not a big deal if we can't though
+        try {
+            rmSync(fullPath);
+        } catch (err) {
+            Log.warn(err.message, `Unable to clean up uploaded database file`);
+        }
+
+        // Success. Instead of trying to properly adjust everything, rebuild necessary caches from
+        // scratch, since this shouldn't be a common action, so efficiency isn't super important.
+        LegacyMarkerBreakdown.Clear();
+        await Promise.all([MarkerCacheManager.Reinitialize(), MarkerBackupManager.Reinitialize()]);
+
+        return stats;
     }
 
     /**
@@ -374,6 +361,28 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
                 parseInt(sectionId),
                 sectionInfo.sectionType,
                 resolveType);
+
+            // Add changed markers to the backup database. While we'll clear out the BackupManager after this
+            // action, we still want the database to know about these changes so they can be restored if needed.
+            await BackupManager.recordAdds(restoredMarkerData.newMarkers.map(x => new MarkerData(x)));
+            await BackupManager.recordDeletes(restoredMarkerData.deletedMarkers.map(x => new MarkerData(x)));
+            const oldMarkerTimings = {};
+            const editedMarkers = [];
+            // Copied from MarkerBackupManager. Can this be shared?
+            for (const mod of restoredMarkerData.modifiedMarkers) {
+                const edited = mod.marker;
+                const newData = mod.newData;
+                oldMarkerTimings[edited.id] = { start : edited.start, end : edited.end };
+                edited.start = newData.newStart;
+                edited.end = newData.newEnd;
+                edited.modified_date = newData.newModified;
+                edited.marker_type = newData.newType;
+                edited.final = newData.newFinal;
+                editedMarkers.push(new MarkerData(edited));
+            }
+
+            await BackupManager.recordEdits(editedMarkers, oldMarkerTimings);
+
             stats.added += restoredMarkerData.newMarkers.length;
             stats.identical += restoredMarkerData.identicalMarkers.length;
             stats.deleted += restoredMarkerData.deletedMarkers.length;

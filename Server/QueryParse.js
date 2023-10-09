@@ -98,7 +98,7 @@ class QueryParser {
      * Retrieve a value from the request's form-data.
      * @param {string} key */
     async formInt(key) {
-        const value = parseInt(await this.formRaw(key));
+        const value = parseInt((await this.formRaw(key)).data);
         if (isNaN(value)) {
             throw new QueryParameterException(`Expected an integer for '${key}', found something else.`);
         }
@@ -112,7 +112,14 @@ class QueryParser {
      * @param {(v: string) => any} transform The function that transforms the raw string to a custom object. */
     async formCustom(key, transform) {
         // transform should take care of any exceptions.
-        return transform(await this.formRaw(key));
+        return transform((await this.formRaw(key)).data);
+    }
+
+    /**
+     * Retrieve a string from the request's form data.
+     * @param {string} key The form field to retrieve. */
+    async formString(key) {
+        return (await this.formRaw(key)).data;
     }
 
     /**
@@ -129,7 +136,7 @@ class QueryParser {
             throw new QueryParameterException(`Form data field '${key} not found.`);
         }
 
-        return value.data;
+        return value;
     }
 }
 

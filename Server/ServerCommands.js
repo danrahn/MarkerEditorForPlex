@@ -1,6 +1,7 @@
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
+import DatabaseImportExport from './ImportExport.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import QueryParser from './QueryParse.js';
 import ServerError from './ServerError.js';
@@ -24,7 +25,7 @@ class ServerCommands {
         bulk_add      : async (params) => await CoreCommands.bulkAdd(params.raw('type'), ...params.ints('id', 'start', 'end', 'resolveType'), params.ia('ignored')),
         add_custom    : async (params) => await CoreCommands.bulkAddCustom(
                                                                 await params.formInt('id'),
-                                                                await params.formRaw('type'),
+                                                                await params.formString('type'),
                                                                 await params.formCustom('markers', CoreCommands.parseCustomMarkerData),
                                                                 await params.formInt('resolveType')),
 
@@ -47,6 +48,7 @@ class ServerCommands {
         restore_purge : async (params) => await PurgeCommands.restoreMarkers(params.ia('markerIds'), ...params.ints('sectionId', 'resolveType')),
         ignore_purge  : async (params) => await PurgeCommands.ignorePurgedMarkers(params.ia('markerIds'), params.i('sectionId')),
 
+        import_db     : async (params) => await DatabaseImportExport.importDatabase(await params.formRaw('database'), await params.formInt('sectionId'), await params.formInt('resolveType')),
         nuke_section  : async (params) => await PurgeCommands.nukeSection(...params.ints('sectionId', 'deleteType')),
     };
     /* eslint-enable */

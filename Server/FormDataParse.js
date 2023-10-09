@@ -3,7 +3,8 @@ import ServerError from './ServerError.js';
 
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 
-/** @typedef {{ [name: string]: { name : string, data : string, [optionalKeys: string]: string? } }} ParsedFormData */
+/** @typedef {{ name : string, data : string, [optionalKeys: string]: string? }} ParsedFormField */
+/** @typedef {{ [name: string]: ParsedFormField }} ParsedFormData */
 
 const Log = new ContextualLog('FormData');
 
