@@ -86,7 +86,7 @@ async function toExe() {
 }
 
 /**
- * Full pipeline to create IntroEditorForPlex.exe. */
+ * Full pipeline to create MarkerEditorForPlex.exe. */
 async function buildWin() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous dist folder');

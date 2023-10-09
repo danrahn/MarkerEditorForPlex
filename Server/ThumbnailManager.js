@@ -4,7 +4,7 @@ import { execFileSync } from 'child_process';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './IntroEditorConfig.js';
+import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
 
 /** @typedef {!import('./DatabaseWrapper'.default) DatabaseWrapper} */

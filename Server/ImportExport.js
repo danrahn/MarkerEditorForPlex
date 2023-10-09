@@ -10,7 +10,7 @@ import DatabaseWrapper from './DatabaseWrapper.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
-import { ProjectRoot } from './IntroEditorConfig.js';
+import { ProjectRoot } from './MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
 import TransactionBuilder from './TransactionBuilder.js';
 

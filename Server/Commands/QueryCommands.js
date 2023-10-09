@@ -2,7 +2,7 @@ import { EpisodeData, MarkerData, MovieData, SeasonData, SectionType, ShowData }
 import { MarkerType, supportedMarkerType } from '../../Shared/MarkerType.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { Config } from '../IntroEditorConfig.js';
+import { Config } from '../MarkerEditorConfig.js';
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
 import { PlexQueries } from '../PlexQueryManager.js';

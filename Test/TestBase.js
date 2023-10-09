@@ -10,7 +10,7 @@ import { BaseLog, ConsoleLog } from '../Shared/ConsoleLog.js';
 import { GetServerState, ServerState } from '../Server/ServerState.js';
 import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ExtraData } from '../Server/PlexQueryManager.js';
-import { run as mainRun } from '../Server/IntroEditor.js';
+import { run as mainRun } from '../Server/MarkerEditor.js';
 import TestHelpers from './TestHelpers.js';
 import { TestLog } from './TestRunner.js';
 

@@ -7,7 +7,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch IntroEditor",
+            "name": "Launch MarkerEditor",
             "skipFiles": [
                 "<node_internals>/**"
             ],

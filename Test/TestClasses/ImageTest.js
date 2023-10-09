@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { readdirSync } from 'fs';
 
-import { ProjectRoot } from '../../Server/IntroEditorConfig.js';
+import { ProjectRoot } from '../../Server/MarkerEditorConfig.js';
 
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';

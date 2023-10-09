@@ -12,7 +12,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 /** Server dependencies */
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
-import { Config, IntroEditorConfig, ProjectRoot } from './IntroEditorConfig.js';
+import { Config, MarkerEditorConfig, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import DatabaseImportExport from './ImportExport.js';
@@ -44,7 +44,7 @@ async function run() {
         await FirstRunConfig(dataRoot);
     }
 
-    const config = IntroEditorConfig.Create(testData, dataRoot);
+    const config = MarkerEditorConfig.Create(testData, dataRoot);
 
     // Set up the database, and make sure it's the right one.
     const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
@@ -67,8 +67,6 @@ async function run() {
     Log.info('Creating server...');
     return launchServer();
 }
-
-export { run };
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
@@ -118,7 +116,7 @@ function writeErrorToFile(message) {
         const time = `${now.getFullYear()}.${padLeft(now.getMonth() + 1)}.${padLeft(now.getDate())}.` +
             `${padLeft(now.getHours())}.${padLeft(now.getMinutes())}.${padLeft(now.getSeconds())}.` +
             `${padLeft(now.getMilliseconds(), 3)}`;
-        const filename = `IntroEditor.${time}.err`;
+        const filename = `MarkerEditor.${time}.err`;
         writeFileSync(join(logDir, filename), message);
         Log.verbose(`Wrote error file to ${join(logDir, filename)}`);
     } catch (ex) {
@@ -186,7 +184,7 @@ async function cleanupForShutdown(fullShutdown) {
 
     // Ensure this is always last, as some classes
     // above may rely on values here.
-    IntroEditorConfig.Close();
+    MarkerEditorConfig.Close();
 
     // Either we failed to resume the server, or we got a shutdown request in the middle of
     // resuming. Send a failure response now so the server can close cleanly.
@@ -447,3 +445,5 @@ function checkTestData() {
 
     return testData;
 }
+
+export { run };

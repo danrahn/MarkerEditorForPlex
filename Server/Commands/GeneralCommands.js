@@ -1,6 +1,6 @@
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { Config } from '../IntroEditorConfig.js';
+import { Config } from '../MarkerEditorConfig.js';
 import ServerError from '../ServerError.js';
 
 

@@ -47,7 +47,7 @@ class VersionManager {
             return;
         }
 
-        const releaseUrl = `https://api.github.com/repos/danrahn/IntroEditorForPlex/releases`;
+        const releaseUrl = `https://api.github.com/repos/danrahn/MarkerEditorForPlex/releases`;
         const headers = { accept : `application/vnd.github+json` };
         try {
             /** @type {any[]} */

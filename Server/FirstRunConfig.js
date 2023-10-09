@@ -5,7 +5,7 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { IntroEditorConfig } from './IntroEditorConfig.js';
+import { MarkerEditorConfig } from './MarkerEditorConfig.js';
 import { testFfmpeg } from './ServerHelpers.js';
 
 
@@ -47,7 +47,7 @@ async function FirstRunConfig(dataRoot) {
     console.log('If you are asked to provide a path, provide it without quotes or other escaped characters.');
     console.log();
     /* eslint-disable-next-line max-len */
-    console.log('For more information about what these settings control, see https://github.com/danrahn/IntroEditorForPlex/wiki/Configuration');
+    console.log('For more information about what these settings control, see https://github.com/danrahn/MarkerEditorForPlex/wiki/Configuration');
     console.log();
     await rl.question('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ');
     console.log();
@@ -62,7 +62,7 @@ async function FirstRunConfig(dataRoot) {
         config.host = '0.0.0.0';
         config.port = 3232;
     } else {
-        const defaultPath = IntroEditorConfig.getDefaultPlexDataPath();
+        const defaultPath = MarkerEditorConfig.getDefaultPlexDataPath();
         config.dataPath = await askUserPath('Plex data directory path', rl, defaultPath);
         const defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
         config.database = await askUserPath('Plex database path', rl, defaultDb);

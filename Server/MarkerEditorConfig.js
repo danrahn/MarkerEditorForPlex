@@ -24,7 +24,7 @@ const Log = new ContextualLog('EditorConfig');
  * required (i.e. the private method itself uses private members of the base class).
  *
  * It's not super clean, and probably much easier to just make the base members public, or
- * duplicate the code between PlexFeatures and IntroEditorConfig, but where's the fun in that?
+ * duplicate the code between PlexFeatures and MarkerEditorConfig, but where's the fun in that?
  */
 class ConfigBase {
     /** The raw configuration file.
@@ -117,24 +117,24 @@ class PlexFeatures extends ConfigBase {
 
 /**
  * Singleton editor config instance.
- * @type {IntroEditorConfig}
+ * @type {MarkerEditorConfig}
  * @readonly */ // Externally readonly
 let Instance;
 
 /**
  * Provides read-only access to the users application configuration.
  */
-class IntroEditorConfig extends ConfigBase {
+class MarkerEditorConfig extends ConfigBase {
     /**
      * Create the singleton config instance.
      * @param {*} testData
      * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
     static Create(testData, dataRoot) {
         if (Instance != null) {
-            Log.warn(`Singleton IntroEditorConfig already exists, we shouldn't be creating it again!`);
+            Log.warn(`Singleton MarkerEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
-        Instance = new IntroEditorConfig(testData, dataRoot);
+        Instance = new MarkerEditorConfig(testData, dataRoot);
         return Instance;
     }
 
@@ -169,7 +169,7 @@ class IntroEditorConfig extends ConfigBase {
      * @type {string} */
     #version;
 
-    /** Creates a new IntroEditorConfig. */
+    /** Creates a new MarkerEditorConfig. */
     constructor(testData, dataRoot) {
         Log.info('Reading configuration...');
         const baseClass = {};
@@ -200,7 +200,7 @@ class IntroEditorConfig extends ConfigBase {
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', IntroEditorConfig.getDefaultPlexDataPath());
+            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
@@ -298,8 +298,8 @@ let globalProjectRoot = undefined;
 /**
  * Retrieve the root path of this application.
  *
- * Doesn't live in IntroEditorConfig directly because it occasionally needs to be
- * accessed before IntroEditorConfig is completely set up. */
+ * Doesn't live in MarkerEditorConfig directly because it occasionally needs to be
+ * accessed before MarkerEditorConfig is completely set up. */
 const ProjectRoot = () => (globalProjectRoot ??= dirname(dirname(fileURLToPath(import.meta.url))));
 
-export { IntroEditorConfig, Instance as Config, ProjectRoot };
+export { MarkerEditorConfig, Instance as Config, ProjectRoot };

@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './IntroEditorConfig.js';
+import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import DatabaseImportExport from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
