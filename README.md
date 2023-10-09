@@ -10,9 +10,9 @@ Plex does not let users modify or manually add markers, relying solely on their 
 
 ## Installation
 
-For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/IntroEditorForPlex/wiki/installation).
+For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/MarkerEditorForPlex/wiki/installation).
 
-If running Windows, download the latest [release](https://github.com/danrahn/IntroEditorForPlex/releases), extract the contents to a new folder, and double click MarkerEditorForPlex.exe.
+If running Windows, download the latest [release](https://github.com/danrahn/MarkerEditorForPlex/releases), extract the contents to a new folder, and double click MarkerEditorForPlex.exe.
 
 In Docker:
 
@@ -26,17 +26,19 @@ docker run -p 3233:3232 \
 For all other platforms (or to run from source):
 
 1. Install [Node.js](https://nodejs.org/en/)
-2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/IntroEditorForPlex/archive/refs/heads/main.zip)
+2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/MarkerEditorForPlex/archive/refs/heads/main.zip)
 3. Install dependencies by running `npm install` from the root of the project
 
 ## Configuration
 
-See [Configuring Marker Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/configuration) for details on the various settings within `config.json`.
+See [Configuring Marker Editor for Plex](https://github.com/danrahn/MarkerEditorForPlex/wiki/configuration) for details on the various settings within `config.json`.
 
-## Using the Application
+## Using Marker Editor
 
-For full usage instruction, see [Using Marker Editor for Plex](https://github.com/danrahn/IntroEditorForPlex/wiki/usage).
+Before using Marker Editor, it's _strongly_ encouraged to shut down PMS. On some systems, this is required. It's also strongly encouraged to make sure you have a recent database backup available in case something goes wrong. While core functionality been tested fairly extensively, there are no guarantees that something won't go wrong, or that an update to PMS will break this applications.
 
-0. (Strongly encouraged, required on some systems) Shut down PMS
-1. Back up your Plex database
-2. Run `node app.js` from the root of the project
+For more information on how to use Marker Editor, see [Using Marker Editor for Plex](https://github.com/danrahn/MarkerEditorForPlex/wiki/usage).
+
+## Notes
+
+Due to how Plex generates and stores markers, reanalyzing items in Plex (potentially indirectly by adding a new episode to an existing season) will result in any marker customizations being wiped out and set back to values based on Plex's analyzed data. This application has [a system to detect and restore manual edits](https://github.com/danrahn/MarkerEditorForPlex/wiki/usage#purged-markers), but it's not an automated process.
