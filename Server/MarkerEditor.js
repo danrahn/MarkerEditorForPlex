@@ -77,13 +77,13 @@ function setupTerminateHandlers() {
     }
 
     // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
-    process.on('uncaughtException', (err) => {
+    process.on('uncaughtException', async (err) => {
         Log.critical(err.message);
         const stack = err.stack ? err.stack : '(Could not find stack trace)';
         IsTest ? Log.error(stack) : Log.verbose(stack);
         Log.error('The server ran into an unexpected problem, exiting...');
         writeErrorToFile(err.message + '\n' + stack);
-        cleanupForShutdown(true /*fullShutdown*/);
+        await cleanupForShutdown(true /*fullShutdown*/);
         process.exit(1);
     });
 
@@ -128,7 +128,7 @@ function writeErrorToFile(message) {
  * Shut down the server and exit the process (if we're not restarting).
  * @param {String} signal The signal that initiated this shutdown.
  * @param {boolean} [restart=false] Whether we should restart the server after closing */
-function handleClose(signal, restart=false) {
+async function handleClose(signal, restart=false) {
     SetServerState(ServerState.ShuttingDown);
     if (restart) {
         Log.info(`${signal} detected, attempting shut down for a reboot...`);
@@ -136,7 +136,7 @@ function handleClose(signal, restart=false) {
         Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
     }
 
-    cleanupForShutdown(!restart);
+    await cleanupForShutdown(!restart);
     const exitFn = (error, restart) => {
         if (restart) {
             Log.info('Restarting server...');
@@ -213,7 +213,7 @@ async function userShutdown(res) {
     // Make sure we're in a stable state before shutting down
     await waitForStable();
     sendJsonSuccess(res);
-    handleClose('User Shutdown');
+    await handleClose('User Shutdown');
 }
 
 /** Restarts the server after a user-initiated restart request.
@@ -221,7 +221,7 @@ async function userShutdown(res) {
 async function userRestart(res) {
     await waitForStable();
     sendJsonSuccess(res);
-    handleClose('User Restart', true /*restart*/);
+    await handleClose('User Restart', true /*restart*/);
 }
 
 /** Suspends the server, keeping the HTTP server running, but disconnects from the Plex database. */
@@ -230,7 +230,7 @@ async function userSuspend(res) {
     await waitForStable();
 
     SetServerState(ServerState.Suspended);
-    cleanupForShutdown(false /*fullShutdown*/);
+    await cleanupForShutdown(false /*fullShutdown*/);
     Log.info('Server successfully suspended.');
     sendJsonSuccess(res);
 }
@@ -436,8 +436,10 @@ function checkTestData() {
     if (configIndex != -1) {
         if (process.argv.length <= configIndex - 1) {
             Log.critical('Invalid config override file detected, aborting...');
-            cleanupForShutdown(true /*fullShutdown*/);
-            process.exit(1);
+            cleanupForShutdown(true /*fullShutdown*/).then(() => {
+                process.exit(1);
+            });
+            return;
         }
 
         testData.configOverride = process.argv[configIndex + 1];
