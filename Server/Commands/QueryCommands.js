@@ -133,42 +133,29 @@ class QueryCommands {
     static async getEpisodes(metadataId) {
         const rows = await PlexQueries.getEpisodes(metadataId);
 
-        // There's definitely a better way to do this, but determining whether an episode
-        // has thumbnails attached is asynchronous, so keep track of how many results have
-        // come in, and only return once we've processed all rows.
-        let waitingFor = rows.length;
         /** @type {EpisodeData[]} */
-        const episodes = [];
-        return new Promise((resolve, _) => {
-            const useThumbnails = Config.useThumbnails();
-            rows.forEach((episode, index) => {
-                const metadataId = episode.id;
-                episodes.push(new EpisodeData(episode));
-
-                if (useThumbnails) {
-                    Thumbnails.hasThumbnails(metadataId).then(hasThumbs => {
-                        episodes[index].hasThumbnails = hasThumbs;
-                        --waitingFor;
-                        if (waitingFor == 0) {
-                            resolve(episodes);
-                        }
-                    }).catch((err) => {
-                        Log.warn(err.message, `Failed to determine if episode has thumbnails`);
-                        Log.verbose(err.stack ? err.stack : '[Stack not available]');
-                        --waitingFor;
-                        episodes[index].hasThumbnails = false;
-                        if (waitingFor == 0) {
-                            // We failed, but for auxillary thumbnails, so nothing to completely fail over.
-                            resolve(episodes);
-                        }
-                    });
+        const promises = [];
+        const useThumbnails = Config.useThumbnails();
+        rows.forEach(rawEpisode => {
+            promises.push(new Promise(resolve => {
+                const episode = new EpisodeData(rawEpisode);
+                if (!useThumbnails) {
+                    resolve(episode);
                 }
-            });
 
-            if (!useThumbnails) {
-                resolve(episodes);
-            }
+                Thumbnails.hasThumbnails(episode.metadataId).then(hasThumbs => {
+                    episode.hasThumbnails = hasThumbs;
+                    resolve(episode);
+                }).catch((err) => {
+                    Log.warn(err.message, `Failed to determine if episode has thumbnails`);
+                    Log.verbose(err.stack ? err.stack : '[Stack not available]');
+                    episode.hasThumbnails = false;
+                    resolve(episode);
+                });
+            }));
         });
+
+        return Promise.all(promises);
     }
 
     /**
