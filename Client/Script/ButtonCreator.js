@@ -59,6 +59,22 @@ class ButtonCreator {
     }
 
     /**
+     * Return a loading icon animation. Doesn't belong here, since we don't wrap
+     * this in our button logic, returning a "raw" image.
+     * @param {number} size
+     * @param {string} color */
+    static loadingIcon(size=20, attributes={}, color='standard') {
+        return buildNode('img', {
+            width : size,
+            height : size,
+            theme : color,
+            src : ThemeColors.getIcon('loading', color),
+            alt : 'Loading',
+            ...attributes
+        });
+    }
+
+    /**
      * Sets the text of the given button.
      * @param {HTMLElement} button
      * @param {string} newText */

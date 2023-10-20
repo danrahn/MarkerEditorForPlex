@@ -509,6 +509,11 @@ input:focus-visible {
   padding-bottom: 10px;
 }
 
+.inlineLoadingIcon {
+  margin-right: 10px;
+  vertical-align: bottom;
+}
+
 #chapterZone select {
   max-width: 250px; /** Don't get too crazy with extremely long episode/chapter titles */
 }

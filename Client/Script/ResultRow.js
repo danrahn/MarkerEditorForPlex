@@ -888,10 +888,15 @@ class SeasonResultRow extends ResultRow {
     /** Make a request for all episodes in this season. */
     async #getEpisodes() {
         const season = this.season();
+        const stats = $$('.showResultEpisodes', this.html());
+        const load = stats ? ButtonCreator.loadingIcon(18, { class : 'inlineLoadingIcon' }) : null;
         try {
+            stats?.insertBefore(load, stats.firstChild);
             await this.#parseEpisodes(await ServerCommand.getEpisodes(season.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the episodes for ${season.title}.`, err);
+        } finally {
+            stats?.removeChild(load);
         }
     }
 
