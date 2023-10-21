@@ -7,6 +7,7 @@ import { MarkerCache } from '../MarkerCacheManager.js';
 import { PlexQueries } from '../PlexQueryManager.js';
 import ServerError from '../ServerError.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 
 
@@ -34,7 +35,8 @@ class PurgeCommands {
      * Attempts to restore the last known state of the markers with the given ids.
      * @param {number[]} oldMarkerIds
      * @param {number} sectionId
-     * @param {number} resolveType */
+     * @param {number} resolveType
+     * @returns {BulkRestoreResponse} */
     static async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
         // TODO: Why does bulk overwrite keep the old markers around?
         if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {

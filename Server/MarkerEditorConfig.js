@@ -5,6 +5,23 @@ import { fileURLToPath } from 'url';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { testFfmpeg } from './ServerHelpers.js';
 
+/**
+ * @typedef {{
+ *  autoOpen?: boolean,
+ *  extendedMarkerStats?: boolean,
+ *  previewThumbnails?: boolean,
+ *  preciseThumbnails?: boolean
+ * }} RawConfigFeatures
+ *
+ * @typedef {{
+ *  dataPath?: string,
+ *  database?: string,
+ *  host?: string,
+ *  port?: number,
+ *  logLevel?: string,
+ *  features?: RawConfigFeatures
+ * }} RawConfig
+ */
 
 const Log = new ContextualLog('EditorConfig');
 
@@ -28,15 +45,15 @@ const Log = new ContextualLog('EditorConfig');
  */
 class ConfigBase {
     /** The raw configuration file.
-     * @type {Object} */
+     * @type {object} */
     #json;
 
     /**
-     * @param {Object} json
+     * @param {object} json
      * @param {ConfigBaseProtected} protectedFields Out parameter - contains private members and methods
      * to share with the derived class that called us, making them "protected" */
     constructor(json, protectedFields) {
-        this.#json = json;
+        this.#json = json || {};
         protectedFields['getOrDefault'] = this.#getOrDefault;
         protectedFields['json'] = this.#json;
         protectedFields['baseInstance'] = this;
@@ -85,7 +102,7 @@ class PlexFeatures extends ConfigBase {
     preciseThumbnails = false;
 
     /** Sets the application features based on the given json.
-     * @param {object} json */
+     * @param {RawConfigFeatures} json */
     constructor(json) {
         const baseClass = {};
         super(json, baseClass);
@@ -181,9 +198,10 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         const configPath = join(dataRoot, configFile);
+        /** @type {RawConfig} */
         let config = {};
         if (testData.isTest || existsSync(configPath)) {
-            config = JSON.parse(readFileSync(configPath));
+            config = JSON.parse(readFileSync(configPath, { encoding : 'utf-8' }));
         } else {
             Log.warn('Unable to find config.json, attempting to use default values for everything.');
         }
@@ -196,7 +214,7 @@ class MarkerEditorConfig extends ConfigBase {
             // Config _should_ have the right values in Docker, but "help" the user out
             // by forcing it in case they were altered afterwards.
             this.#dataPath = '/PlexDataDirectory';
-            this.#dbPath = join(config.dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
+            this.#dbPath = join(this.#dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
@@ -227,6 +245,7 @@ class MarkerEditorConfig extends ConfigBase {
                 this.#version = JSON.parse(readFileSync(packagePath).toString()).version;
             } catch (err) {
                 Log.warn(`Unable to parse package.json for version, can't check for updates.`);
+                this.#version = '0.0.0';
             }
         }
     }

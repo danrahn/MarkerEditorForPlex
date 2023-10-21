@@ -5,7 +5,7 @@ import { MarkerType } from './MarkerType.js';
 const IntroMask =   0x0000FFFF;
 const CreditsShift = 16;
 
-/** @typedef {!import('./PlexTypes').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap */
 
 
 const Log = new ContextualLog('MarkerBreakdown');
@@ -19,6 +19,9 @@ class MarkerBreakdown {
 
     constructor() {}
 
+    /**
+     * @param {number} delta
+     * @param {string} markerType */
     static deltaFromType(delta, markerType) {
         switch (markerType) {
             case MarkerType.Intro:
@@ -32,10 +35,15 @@ class MarkerBreakdown {
         }
     }
 
+    /**
+     * @param {number} key */
     static markerCountFromKey(key) {
         return (key >> CreditsShift) + (key & IntroMask);
     }
 
+    /**
+     * @param {number} intros
+     * @param {number} credits */
     static keyFromMarkerCount(intros, credits) {
         return MarkerBreakdown.deltaFromType(intros, MarkerType.Intro) + MarkerBreakdown.deltaFromType(credits, MarkerType.Credits);
     }
@@ -56,6 +64,7 @@ class MarkerBreakdown {
     /**
      * @returns {MarkerBreakdownMap} */
     collapsedBuckets() {
+        /** @type {MarkerBreakdownMap} */
         const collapsed = {};
         let minify = false;
         for (const [key, value] of Object.entries(this.#counts)) {
@@ -79,6 +88,7 @@ class MarkerBreakdown {
     /**
      * @returns {MarkerBreakdownMap} */
     introBuckets() {
+        /** @type {MarkerBreakdownMap} */
         const collapsed = {};
         for (const [key, value] of Object.entries(this.#counts)) {
             if (value === 0) {
@@ -110,8 +120,8 @@ class MarkerBreakdown {
         return collapsed;
     }
 
-    #ic(v) { return v & IntroMask; }
-    #cc(v) { return v >> CreditsShift; }
+    #ic(v) { return +v & IntroMask; }
+    #cc(v) { return +v >> CreditsShift; }
 
     /**
      * Return the total count of markers in this breakdown. */
@@ -183,7 +193,7 @@ class MarkerBreakdown {
         // Remove episode counts that have no episodes.
         const keys = Object.keys(this.#counts);
         for (const key of keys) {
-            if (this.#counts[key] == 0) {
+            if (this.#counts[key] === 0) {
                 delete this.#counts[key];
             }
         }

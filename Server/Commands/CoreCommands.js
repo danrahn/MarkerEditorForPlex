@@ -9,7 +9,9 @@ import { MarkerCache } from '../MarkerCacheManager.js';
 import ServerError from '../ServerError.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkAddResult} BulkAddResult */
+/** @typedef {!import('../../Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
 /** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
+/** @typedef {!import('../../Shared/PlexTypes').OldMarkerTimings} OldMarkerTimings */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
@@ -222,15 +224,16 @@ class CoreCommands {
 
         // Now make sure all indexes are in order
         const reindexResult = await PlexQueries.reindex(metadataId);
+        /** @type {Record<number, RawMarkerData>} */
         const reindexMap = {};
         for (const marker of reindexResult.markers) {
             reindexMap[marker.id] = marker;
         }
 
         const markerData = [];
-        /** @type {{[markerId: number]: RawMarkerData}} */
+        /** @type {OldMarkerTimings} */
         const oldMarkerMap = {};
-        markerInfo.markers.forEach(m => oldMarkerMap[m.id] = m);
+        markerInfo.markers.forEach(m => oldMarkerMap[m.id] = { start : m.start, end : m.end });
         for (const marker of shifted) {
             if (reindexMap[marker.id]) {
                 marker.index = reindexMap[marker.id].index; // TODO: indexRemove: remove
@@ -257,11 +260,7 @@ class CoreCommands {
      * @param {boolean} dryRun Whether we should just gather data about what we would delete.
      * @param {number} applyTo The type of marker(s) to delete.
      * @param {number[]} ignoredMarkerIds List of marker ids to not delete.
-     * @returns {Promise<{
-     *               markers: SerializedMarkerData,
-     *               deletedMarkers: SerializedMarkerData[],
-     *               episodeData?: SerializedEpisodeData[]}>}
-     */
+     * @returns {Promise<BulkDeleteResult>} */
     static async bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
         if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
@@ -290,12 +289,13 @@ class CoreCommands {
         if (dryRun) {
             // All we really do for a dry run is grab all markers for the given metadata item,
             // and associated episode data for the customization table
-
+            /** @type {SerializedMarkerData[]} */
             const serializedMarkers = [];
             for (const marker of markerInfo.markers) {
                 serializedMarkers.push(new MarkerData(marker));
             }
 
+            /** @type {{ [episodeId: number]: EpisodeData }} */
             const serializedEpisodeData = {};
             const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
             rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
@@ -317,8 +317,10 @@ class CoreCommands {
             newMarkerInfo.markers.length == ignoredMarkerIds.length,
             `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
 
+        /** @type {MarkerData[]} */
         const serializedMarkers = [];
         newMarkerInfo.markers.forEach(m => serializedMarkers.push(new MarkerData(m)));
+        /** @type {MarkerData[]} */
         const deleted = [];
         for (const deletedMarker of toDelete) {
             const nonRaw = new MarkerData(deletedMarker);
@@ -346,7 +348,7 @@ class CoreCommands {
      * @returns {Promise<BulkAddResult>>} */
     static async bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
         if (resolveType != BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
-            throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`);
+            throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`, 500);
         }
 
         if (Object.values(MarkerType).indexOf(markerType) === -1) {
@@ -412,6 +414,7 @@ class CoreCommands {
 
         /** @type {{[episodeId: number]: RawMarkerData[]}} */
         const markerCounts = {};
+        /** @type {OldMarkerTimings} */
         const oldMarkerTimings = {};
         for (const marker of previousMarkers) {
             markerCounts[marker.parent_id] ??= 0;
@@ -454,6 +457,7 @@ class CoreCommands {
         }
 
         try {
+            /** @type {{ [key: string]: any }} */
             const parsed = JSON.parse(markers);
             for (const [key, value] of Object.entries(parsed)) {
                 if (isNaN(parseInt(key))) {
@@ -467,7 +471,7 @@ class CoreCommands {
                 }
 
                 if (start < 0 || end <= start) {
-                    throw new ServerError(`Invalid marker timestamp data given [start=${start}, end=${end}]`);
+                    throw new ServerError(`Invalid marker timestamp data given [start=${start}, end=${end}]`, 400);
                 }
             }
 
@@ -483,6 +487,7 @@ class CoreCommands {
      * @param {number} startShift
      * @param {number} endShift */
     static #checkOverflow(seen, rawEpisodeData, startShift, endShift) {
+        /** @type {{ [baseId: number]: number }} */
         const limits = {};
         for (const episode of rawEpisodeData) {
             limits[episode.id] = episode.duration;

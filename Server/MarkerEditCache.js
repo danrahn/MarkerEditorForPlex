@@ -47,7 +47,7 @@ class MarkerTimestamps {
     }
 
     /**
-     * Return the marker modified date, or undefined if the marker has not been edited.
+     * Return the marker modified date, or null if the marker has not been edited.
      * @param {number} markerId */
     getModifiedAt(markerId) {
         if (!this.#cache.has(markerId)) {

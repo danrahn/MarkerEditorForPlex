@@ -31,6 +31,12 @@ class GETHandler {
      * @param {ServerResponse} res */
     static async handleRequest(req, res) {
         let url = req.url;
+
+        // GET requests should always have a URL
+        if (!url) {
+            return res.writeHead(400).end(`Invalid request - no URL found`);
+        }
+
         if (url == '/') {
             url = '/index.html';
         }
@@ -99,10 +105,7 @@ class ImageHandler {
         }
 
         try {
-            let contents = readFileSync(join(ProjectRoot(), 'SVG', icon));
-            if (Buffer.isBuffer(contents)) {
-                contents = contents.toString('utf-8');
-            }
+            let contents = readFileSync(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' });
 
             // Raw file has FILL_COLOR in place of hardcoded values. Replace
             // it with the requested hex color (after decoding the contents)
@@ -121,9 +124,9 @@ class ImageHandler {
      * @param {string} url Thumbnail url
      * @param {ServerResponse} res */
     static async GetThumbnail(url, res) {
-        const badRequest = (msg) => {
+        const badRequest = (msg, errorCode=400) => {
             Log.error(msg, `Unable to retrieve thumbnail`);
-            res.writeHead(400).end(msg);
+            res.writeHead(errorCode).end(msg);
         };
 
         if (!Config.useThumbnails()) {
@@ -150,10 +153,7 @@ class ImageHandler {
             // The 'timestamp' is actually the height of the SVG we want to generate that has
             // a generic 'Error' text in the middle of it.
             try {
-                let contents = readFileSync(join(ProjectRoot(), 'SVG', 'badThumb.svg'));
-                if (Buffer.isBuffer(contents)) {
-                    contents = contents.toString('utf-8');
-                }
+                let contents = readFileSync(join(ProjectRoot(), 'SVG', 'badThumb.svg'), { encoding : 'utf-8' });
 
                 // Raw file has IMAGE_HEIGHT to be replaced with our desired height, as
                 // width is constant, so height will depend on the aspect ratio.

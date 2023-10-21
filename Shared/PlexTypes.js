@@ -6,7 +6,7 @@ import MarkerBreakdown from './MarkerBreakdown.js';
 import { MarkerType } from './MarkerType.js';
 
 /**
- * @typedef {!import('../Server/MarkerCacheManager').MarkerBreakdownMap} MarkerBreakdownMap
+ * @typedef {!import('./MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap
  * @typedef {{id: number, type: number, name: string}} LibrarySection A library in the Plex database.
  * @typedef {{[metadataId: number]: MovieData}} MovieMap A map of movie metadata ids to the movie itself.
  * @typedef {{[metadataId: number]: ShowData}} ShowMap A map of show metadata ids to the show itself.
@@ -35,15 +35,17 @@ import { MarkerType } from './MarkerType.js';
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
  *
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
- * @typedef {{ [showId: number] : PurgeShow }} PurgeSection
+ * @typedef {{ [showId: number]: PurgeShow }} PurgeShowSection
+ * @typedef {{ [movieId: number]: { [markerId: number] : MarkerAction } }} PurgeMovieSection
+ * @typedef {PurgeShowSection|PurgeMovieSection} PurgeSection
  *
  * @typedef {{
- *          episodeData: EpisodeData,
- *          existingMarkers: MarkerData[],
- *          changedMarker: MarkerData?,
- *          isAdd: boolean?,
- *          deletedMarkers: MarkerData[]?
- *      }} BulkAddResultEntry
+ *      episodeData: EpisodeData,
+ *      existingMarkers: MarkerData[],
+ *      changedMarker: MarkerData?,
+ *      isAdd: boolean?,
+ *      deletedMarkers: MarkerData[]?
+ * }} BulkAddResultEntry
  *
  * @typedef {{
  *      applied: boolean,
@@ -53,12 +55,12 @@ import { MarkerType } from './MarkerType.js';
  * }} BulkAddResult
  *
  * @typedef {{
- *          episodeData: SerializedEpisodeData,
- *          existingMarkers: SerializedMarkerData[],
- *          changedMarker: SerializedMarkerData?,
- *          isAdd: boolean?,
- *          deletedMarkers: SerializedMarkerData[]?
- *      }} SerializedBulkAddResultEntry
+ *      episodeData: SerializedEpisodeData,
+ *      existingMarkers: SerializedMarkerData[],
+ *      changedMarker: SerializedMarkerData?,
+ *      isAdd: boolean?,
+ *      deletedMarkers: SerializedMarkerData[]?
+ * }} SerializedBulkAddResultEntry
  *
  * @typedef {{
  *      applied: boolean,
@@ -67,12 +69,20 @@ import { MarkerType } from './MarkerType.js';
  *      ignoredEpisodes: number[]?
  * }} SerializedBulkAddResult
  *
+ * @typedef {{
+ *      markers: SerializedMarkerData[],
+ *      deletedMarkers: SerializedMarkerData[],
+ *      episodeData?: { [episodeId: number]: SerializedEpisodeData }
+ * }} BulkDeleteResult
+ *
  * @typedef {{[metadataId: number]: MarkerData[] }} MarkerDataMap
  * @typedef {{[metadataId: number]: SerializedMarkerData[] }} SerializedMarkerDataMap
  *
  * @typedef {{ name : string, start : number, end : number }} ChapterData
  * @typedef {{ [metadataId: number]: ChapterData[] }} ChapterMap
  * @typedef {{ [episodeId: number]: { start : number, end : number } }} CustomBulkAddMap
+ *
+ * @typedef {{ [markerId: number]: { start: number|null, end: number|null }}} OldMarkerTimings
  */
 /**
  * @typedef {Object} BulkRestoreResponse
@@ -86,9 +96,9 @@ import { MarkerType } from './MarkerType.js';
  */
 /**
  * A full row in the Actions table
- * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: boolean, parent_id: number,
+ * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: number, parent_id: number,
  *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
- *            old_end: number?, modified_at: number?, created_at: number, recorded_at: number, extra_data: string,
+ *            old_end: number?, modified_at: number|null, created_at: number, recorded_at: number, extra_data: string,
  *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
  *            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
  */
@@ -118,17 +128,17 @@ class PlexData {
 
     /**
      * The breakdown of how many episodes have X markers, as a raw dictionary of values.
-     * @type {MarkerBreakdownMap} */
+     * @type {MarkerBreakdownMap|undefined} */
     rawMarkerBreakdown;
 
     /**
      * The "real" marker breakdown class based on the raw marker breakdown.
      * Should only be used client-side.
-     * @type {MarkerBreakdown} */
+     * @type {MarkerBreakdown|undefined} */
     #markerBreakdown;
 
     /**
-     * @param {PlexDataBaseData} [data]
+     * @param {PlexDataBaseData|null} data
      */
     constructor(data) {
         if (data) {
@@ -165,7 +175,7 @@ class PlexData {
         this.#markerBreakdown = newBreakdown;
     }
 
-    /** @returns {MarkerBreakdown} */
+    /** @returns {MarkerBreakdown|undefined} */
     markerBreakdown() { return this.#markerBreakdown; }
 }
 
@@ -255,7 +265,7 @@ class ShowData extends TopLevelData {
 
     /**
      * Constructs ShowData based on the given database row, or an empty show if not provided.
-     * @param {Object<string, any>} [show] */
+     * @param {Record<string, any>} [show] */
     constructor(show) {
         super(show);
         if (!show) {
@@ -316,7 +326,7 @@ class SeasonData extends PlexData {
 
     /**
      * Constructs SeasonData based on the given database row, or an empty season if not provided.
-     * @param {Object<string, any>} [season] */
+     * @param {Record<string, any>} [season] */
     constructor(season) {
         super(getBaseData(season));
         if (!season) {

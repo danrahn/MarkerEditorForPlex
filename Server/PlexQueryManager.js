@@ -14,11 +14,17 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
 /** @typedef {!import('../Shared/PlexTypes').LibrarySection} LibrarySection */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
+/** @typedef {!import('./DatabaseWrapper').DbDictParameters} DbDictParameters */
 
 /**
- * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number, created_at : number,
+ * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number|null, created_at : number,
  *             parent_id : number, season_id : number, show_id : number, section_id : number, parent_guid : string,
- *             marker_type : string, final : number, user_created : boolean }} RawMarkerData
+ *             marker_type : string, final : number, user_created : boolean, extra_data?: string }} RawMarkerData
+ *
+ * @typedef {{ id: number, title: string, title_sort: string, original_title: string, season_count: number,
+ *             episode_count: number }} RawShowData
+ *
+ * @typedef {{ id: number, title: string, index: number, episode_count: number }} RawSeasonData
  *
  * @typedef {{ title: string, index: number, id: number, season: string, season_index: number,
  *             show: string, duration: number, parts: number}} RawEpisodeData
@@ -34,10 +40,12 @@ import TransactionBuilder from './TransactionBuilder.js';
  * @typedef {{ metadata_type : number, section_id : number}} MetadataItemTypeInfo
  * @typedef {{ markers : RawMarkerData[], typeInfo : MetadataItemTypeInfo }} MarkersWithTypeInfo
  * @typedef {{ marker: RawMarkerData, newData: { newStart: number, newEnd: number,
- *             newType: string, newFinal: boolean, newModified: number }}} ModifiedMarkerDetails
+ *             newType: string, newFinal: number, newModified: number }}} ModifiedMarkerDetails
  *
  * @typedef {{newMarkers: RawMarkerData[], identicalMarkers: RawMarkerData[], deletedMarkers: RawMarkerData[],
  *            modifiedMarkers: ModifiedMarkerDetails[], ignoredActions: MarkerAction[]}} BulkRestoreResult
+ *
+ * @typedef {{ start: number, end: number, marker_type: string, final: number, modified_at: number|null }} MinimalMarkerAction
  */
 
 
@@ -56,7 +64,7 @@ const ExtraData = {
     /**
      * Convert marker type string and final flag to ExtraData type
      * @param {string} markerType Value from MarkerType
-     * @param {boolean} final */
+     * @param {number} final */
     get : (markerType, final) => markerType == MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
 };
 
@@ -88,7 +96,7 @@ class TrimmedMarker {
     /** @type {number} */ newIndex;
     /** @type {string} */ marker_type;
     /** @type {number} */ final;
-    /** @type {number} */ modified_date;
+    /** @type {number|null} */ modified_date;
     /** @type {boolean} */ user_created;
     /** @type {number} */ created_at;
     /** @type {boolean} */ #isRaw = false;
@@ -101,8 +109,8 @@ class TrimmedMarker {
 
     constructor(id, pid, start, end, index, markerType, final, modified_date, user_created, created_at) {
         this.id = id; this.parent_id = pid; this.start = start; this.end = end; this.index = index;
-        this.newIndex = -1; this.marker_type = markerType; this.final = final; this.modified_date = modified_date;
-        this.user_created = user_created; this.created_at = created_at;
+        this.newIndex = -1; this.marker_type = markerType; this.final = final ? 1 : 0; this.modified_date = modified_date;
+        this.user_created = !!user_created; this.created_at = created_at;
     }
 
     /** Return whether this is an existing marker */
@@ -290,22 +298,12 @@ SELECT movies.id AS id,
     }
 
     /**
-     * Retrieve a single movie
-     * @param {number} metadataId
-     * @returns {Promise<{ id: number, title: string, title_sort: string, original_title: string, year: string }>} */
-    async getMovie(metadataId) {
-        const query = `
-SELECT id, title, title_sort, original_title, year FROM metadata_items WHERE metadata_type=1 AND id=?`;
-        return this.#database.get(query, [metadataId]);
-    }
-
-    /**
      * Retrieve all shows in the given library section.
      *
      * Fields returned: `id`, `title`, `title_sort`, `original_title`, `season_count`, `episode_count`.
      * Requires the caller to validate that the given section id is a TV show library.
      * @param {number} sectionId
-     * @returns {Promise<{id:number,title:string,title_sort:string,original_title:string,season_count:number,episode_count:number}[]>} */
+     * @returns {Promise<RawShowData[]>} */
     async getShows(sectionId) {
         // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
         // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
@@ -335,7 +333,7 @@ GROUP BY shows.id;`;
      *
      * Fields returned: `id`, `title`, `index`, `episode_count`.
      * @param {number} showMetadataId
-     * @returns {Promise<{id:number,title:string,index:number,episode_count:number}[]>} */
+     * @returns {Promise<RawSeasonData[]>} */
     async getSeasons(showMetadataId) {
         const query = `
 SELECT
@@ -410,7 +408,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} metadataId The parent id for all episodes
      * @returns {Promise<RawEpisodeData[]>}*/
     async getEpisodesFromList(episodeMetadataIds, metadataId) {
-        if (episodeMetadataIds.length == 0) {
+        if (episodeMetadataIds.size === 0) {
             Log.warn('Why are we calling getEpisodesFromList with an empty list?');
             return [];
         }
@@ -421,10 +419,11 @@ ORDER BY e.\`index\` ASC;`;
             if (!metadataId) {
                 Log.warn(`Too many episodes in getEpisodesFromList without a fallback metadata id, batching calls`);
                 let index = 0;
+                /** @type {RawEpisodeData[]} */
                 const episodes = [];
                 const ids = Array.from(episodeMetadataIds);
                 while (index <= ids.length) {
-                    episodes.concat(await this.getEpisodesFromList(ids.slice(index, Math.min(index + 500, ids.length))));
+                    episodes.concat(await this.getEpisodesFromList(new Set(ids.slice(index, Math.min(index + 500, ids.length)))));
                     index += 500;
                 }
 
@@ -453,14 +452,12 @@ ORDER BY e.\`index\` ASC;`;
 
         const parameters = [];
         for (const episodeId of episodeMetadataIds) {
-            // We should have already ensured only integers are passed in here, but be safe.
-            const metadataId = parseInt(episodeId);
-            if (isNaN(metadataId)) {
+            if (isNaN(episodeId)) {
                 Log.warn(`Can't get episode information for non-integer id ${episodeId}`);
                 continue;
             }
 
-            parameters.push(metadataId);
+            parameters.push(episodeId);
             query += `e.id=? OR `;
         }
 
@@ -481,6 +478,7 @@ ORDER BY e.\`index\` ASC;`;
         // For large queries, do it in batches to get around SQLite's condition limits
         if (movieMetadataIds.length > 500) {
             let index = 0;
+            /** @type {RawMovieData[]} */
             const movies = [];
             while (index < movieMetadataIds.length) {
                 movies.concat(await this.getMoviesFromList(movieMetadataIds.slice(index, Math.min(movieMetadataIds.length, index + 500))));
@@ -529,11 +527,7 @@ ORDER BY e.\`index\` ASC;`;
     FROM metadata_items e
         INNER JOIN metadata_items p on e.parent_id=p.id
     WHERE e.guid=?;`;
-        try {
-            return this.#database.get(query, [guid]);
-        } catch (_) {
-            return undefined;
-        }
+        return this.#database.get(query, [guid]);
     }
 
     /**
@@ -541,14 +535,11 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} guid
      * @returns {Promise<{ id: number, season_id: -1, show_id: -1 }>} */
     async getMovieFromGuid(guid) {
-        try {
-            return {
-                id : (await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid])).id,
-                season_id : -1,
-                show_id : -1 };
-        } catch (_) {
-            return undefined;
-        }
+        return {
+            id : (await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid])).id,
+            season_id : -1,
+            show_id : -1
+        };
     }
 
     /**
@@ -583,7 +574,8 @@ ORDER BY e.\`index\` ASC;`;
     #postProcessExtendedMarkerFields(markerData) {
         const markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
         for (const marker of markerArray) {
-            marker.final = marker.extra_data?.indexOf('final=1') != -1; // extra_data should never be null, but better safe than sorry
+            // extra_data should never be null, but better safe than sorry
+            marker.final = marker.extra_data?.indexOf('final=1') !== -1 ? 1 : 0;
 
             // TODO: With newly added/edited markers, our cache is not yet updated,
             // so there's a brief period where these values are incorrect, and we rely
@@ -595,7 +587,7 @@ ORDER BY e.\`index\` ASC;`;
             delete marker.extra_data;
         }
 
-        return markerData;
+        return markerArray;
     }
 
     /**
@@ -697,7 +689,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         if (MetadataBaseTypes.indexOf(baseType) === -1) {
-            throw new ServerError(`Attempting to get markers for a base type that isn't actually a base type (${baseType})`);
+            throw new ServerError(`Attempting to get markers for a base type that isn't actually a base type (${baseType})`, 500);
         }
 
         return this.#getMarkersForMetadataItem(metadataId, `taggings.metadata_item_id`, this.#extendedFieldsFromMediaType(baseType));
@@ -795,7 +787,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve the media type and section id for the item associated with the given marker.
      * @param {number} markerId
-     * @returns {Promise<MetadataItemTypeInfo} */
+     * @returns {Promise<MetadataItemTypeInfo>} */
     async #mediaTypeFromMarkerId(markerId) {
         const row = await this.#database.get(
             `SELECT metadata_type, library_section_id AS section_id
@@ -831,9 +823,11 @@ ORDER BY e.\`index\` ASC;`;
      * @returns {Promise<RawMarkerData>} */
     async getSingleMarker(markerId) {
         const markerFields = this.#extendedFieldsFromMediaType((await this.#mediaTypeFromMarkerId(markerId)).metadata_type);
-        return this.#postProcessExtendedMarkerFields(await this.#database.get(
+        const marker = this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${markerFields} WHERE taggings.id=? AND taggings.tag_id=?;`,
             [markerId, this.#markerTagId]));
+        Log.assert(marker.length === 1, `getSingleMarker should return a single marker, found ${marker.length}`);
+        return marker[0];
     }
 
     /**
@@ -885,7 +879,7 @@ ORDER BY e.\`index\` ASC;`;
             transaction,
             metadataId,
             newIndex,
-            startMs.toString(),
+            startMs,
             endMs,
             markerType,
             final);
@@ -908,7 +902,6 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} endMs End time of the new marker, in milliseconds.
      * @param {string} markerType The type of marker (intro/credits)
      * @param {number} final Whether this is the last credits marker that goes to the end of the episode
-     * @param {number} modifiedAt What to set as the 'modified at' time. Used by bulkRestore to restore original timestamps.
      * @param {number} [createdAt] What to set as the 'created at' time. Used by bulkRestore to restore original timestamps. */
     #addMarkerStatement(transaction, episodeId, newIndex, startMs, endMs, markerType, final, createdAt=undefined) {
         const validNumber = (n, name) => {
@@ -945,12 +938,14 @@ ORDER BY e.\`index\` ASC;`;
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, created_at, extra_data) ' +
             'VALUES ' +
                 `($metadataId, $tagId, $index, $text, $startMs, $endMs, $createdAt, $extraData);`;
+
+        /** @type {DbDictParameters} */
         const parameters = {
             $metadataId : episodeId,
             $tagId : this.#markerTagId,
             $index : newIndex,
             $text : markerType,
-            $startMs : startMs.toString(),
+            $startMs : startMs,
             $endMs : endMs,
             $createdAt : created_at,
             $extraData : ExtraData.get(markerType, final),
@@ -992,6 +987,7 @@ ORDER BY e.\`index\` ASC;`;
         const identicalMarkers = [];
         let potentialRestores = 0;
 
+        /** @type {Set<MarkerAction>} */
         const ignoredActions = new Set();
         /** @type {RawMarkerData[]} */
         const toDelete = [];
@@ -1000,7 +996,8 @@ ORDER BY e.\`index\` ASC;`;
         const transaction = new TransactionBuilder(this.#database);
         for (const [baseItemId, markerActions] of Object.entries(actions)) {
             markerActions.sort((a, b) => a.start - b.start);
-            let lastAction = { start : -2, end : -1, marker_type : 'intro', final : false, modified_at : 0 };
+            /** @type {MinimalMarkerAction} */
+            let lastAction = { start : -2, end : -1, marker_type : 'intro', final : 0, modified_at : 0 };
             // Need a first loop to trim our actions based on overlap with ourselves
             for (const action of markerActions) {
                 if (action.start <= lastAction.start ? action.end >= lastAction.start : action.start <= lastAction.end) {
@@ -1020,7 +1017,7 @@ ORDER BY e.\`index\` ASC;`;
                             lastAction.end = Math.max(lastAction.end, action.end);
                             lastAction.marker_type = action.marker_type == MarkerType.Credits ? MarkerType.Credits : lastAction.marker_type;
                             lastAction.final = lastAction.final || action.final;
-                            lastAction.modified_at = Math.max(lastAction.modified_at, action.modified_at);
+                            lastAction.modified_at = Math.max(lastAction.modified_at, action.modified_at) || null;
                             break;
                         case MarkerConflictResolution.Overwrite:
                             // Similar to Ignore.
@@ -1039,6 +1036,7 @@ ORDER BY e.\`index\` ASC;`;
                     continue; // We're already ignoring this one.
                 }
 
+                /** @type {(m: TrimmedMarker) => boolean} */
                 const getOverlapping = m => action.start <= m.start ? action.end >= m.start : action.start <= m.end;
 
                 ++potentialRestores;
@@ -1075,8 +1073,11 @@ ORDER BY e.\`index\` ASC;`;
                         case MarkerConflictResolution.Merge:
                         {
                             let newModified = null;
-                            if (action.modified_at !== null || action.recorded_at !== null || overlappingMarker.modifiedDate !== null) {
-                                newModified = Math.max(action.modified_at || action.recorded_at || 0, overlappingMarker.modified_date);
+                            if (action.modified_at !== null || action.recorded_at !== null || overlappingMarker.modified_date !== null) {
+                                newModified = Math.max(
+                                    action.modified_at || action.recorded_at || 0,
+                                    overlappingMarker.modified_date || 0)
+                                    || null;
                             }
 
                             toModify[overlappingMarker.id] = {
@@ -1084,7 +1085,8 @@ ORDER BY e.\`index\` ASC;`;
                                 newData : {
                                     newStart    : Math.min(action.start, overlappingMarker.start),
                                     newEnd      : Math.max(action.end, overlappingMarker.end),
-                                    newType     : action.type == MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
+                                    newType     : action.marker_type ==
+                                                    MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
                                     newFinal    : overlappingMarker.final || action.final,
                                     newModified : newModified,
                                 }
@@ -1139,7 +1141,7 @@ ORDER BY e.\`index\` ASC;`;
 
                 ++expectedInserts;
                 this.#addMarkerStatement(transaction,
-                    baseItemId,
+                    parseInt(baseItemId),
                     marker.newIndex,
                     marker.start,
                     marker.end,
@@ -1294,7 +1296,7 @@ ORDER BY e.\`index\` ASC;`;
      * TODO: indexRemove: With the introduction of credits, it's apparent that the index
      * itself doesn't matter, it just needs to be 0 to N, making this step unnecessary.
      * Is it worth ripping out?
-     * @param {[]} markers
+     * @param {RawMarkerData[]} markers
      * @param {number} newStart The start time of the new marker, in milliseconds.
      * @param {number} newEnd The end time of the new marker, in milliseconds.*/
     #reindexForAdd(markers, newStart, newEnd) {
@@ -1321,11 +1323,9 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} final Whether this Credits marker goes to the end of the media item.
      * @returns {Promise<void>} */
     async editMarker(markerId, index, startMs, endMs, markerType, final) {
-
-        // Use startMs.toString() to ensure we properly set '0' instead of a blank value if we're starting at the very beginning of the file
         return this.#database.run(
             'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, extra_data=? WHERE id=?;',
-            [index, markerType, startMs.toString(), endMs, ExtraData.get(markerType, final), markerId]);
+            [index, markerType, startMs, endMs, ExtraData.get(markerType, final), markerId]);
     }
 
     /**
@@ -1347,9 +1347,14 @@ ORDER BY e.\`index\` ASC;`;
      * @returns {Promise<RawMarkerData>} */
     async #getNewMarker(metadataId, startMs, endMs, baseType) {
         const fields = this.#extendedFieldsFromMediaType(baseType);
-        return this.#postProcessExtendedMarkerFields(await this.#database.get(
+        const marker = this.#postProcessExtendedMarkerFields(await this.#database.get(
             `SELECT ${fields} WHERE metadata_item_id=? AND tag_id=? AND taggings.time_offset=? AND taggings.end_time_offset=?;`,
             [metadataId, this.#markerTagId, startMs, endMs]));
+        if (marker.length !== 1) {
+            Log.warn(`Expected a single marker in #getNewMarker, found ${marker.length}`);
+        }
+
+        return marker[0];
     }
 
     /**
@@ -1404,6 +1409,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} endShift The time to shift marker ends by, in milliseconds */
     async shiftMarkers(markers, episodeData, startShift, endShift) {
         const episodeIds = Object.keys(markers).map(eid => parseInt(eid));
+        /** @type {{ [episodeId: number|string]: number }} */
         const limits = {};
         for (const episode of episodeData) {
             limits[episode.id] = episode.duration;
@@ -1411,13 +1417,15 @@ ORDER BY e.\`index\` ASC;`;
 
         const transaction = new TransactionBuilder(this.#database);
         let expectedShifts = 0;
+        let backupSection = undefined;
         for (const episodeMarkers of Object.values(markers)) {
             for (const marker of episodeMarkers) {
                 ++expectedShifts;
+                backupSection ??= marker.section_id;
                 const maxDuration = limits[marker.parent_id];
                 if (!maxDuration) {
                     throw new ServerError(`Unable to find max episode duration, ` +
-                        `the episode id ${marker.parent_id} doesn't appear to be valid.`);
+                        `the episode id ${marker.parent_id} doesn't appear to be valid.`, 400);
                 }
 
                 const newStart = Math.max(0, Math.min(marker.start + startShift, maxDuration));
@@ -1436,7 +1444,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         await transaction.exec();
-        const newMarkers = await this.getMarkersForItems(episodeIds, markers[episodeIds[0]].section_id);
+        const newMarkers = await this.getMarkersForItems(episodeIds, backupSection);
         // No ignored markers, no need to prune
         if (newMarkers.length == expectedShifts) {
             return newMarkers;
@@ -1608,7 +1616,8 @@ ORDER BY e.\`index\` ASC;`;
             const newMarker = newMarkers[episodeId];
             const newStart = newMarker.start;
             const newEnd = Math.min(episodeMarkerMap[episodeId].episodeData.duration, newMarker.end);
-            const final = markerType === MarkerType.Credits && newMarker.end >= newEnd;
+            // bool vs number shouldn't matter, since it only really matters for backup db purposes, but be consistent.
+            const final = (markerType === MarkerType.Credits && newMarker.end >= newEnd) ? 1 : 0;
             const episodeMarkers = episodeMarkerMap[episodeId].existingMarkers;
             if (!episodeMarkers || episodeMarkers.length === 0) {
                 this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, newStart, newEnd, markerType, final);

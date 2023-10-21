@@ -10,7 +10,7 @@ import { PlexUI } from './PlexUI.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 
 const Log = new ContextualLog('SortFilter');

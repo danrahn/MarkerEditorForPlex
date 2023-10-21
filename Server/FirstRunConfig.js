@@ -8,6 +8,8 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEditorConfig } from './MarkerEditorConfig.js';
 import { testFfmpeg } from './ServerHelpers.js';
 
+/** @typedef {!import('./MarkerEditorConfig.js').RawConfigFeatures} RawConfigFeatures */
+/** @typedef {!import('./MarkerEditorConfig.js').RawConfig} RawConfig */
 
 const Log = new ContextualLog('FirstRun');
 
@@ -52,6 +54,7 @@ async function FirstRunConfig(dataRoot) {
     await rl.question('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ');
     console.log();
 
+    /** @type {RawConfig} */
     const config = {};
 
     const isDocker = process.env.IS_DOCKER;
@@ -67,7 +70,7 @@ async function FirstRunConfig(dataRoot) {
         const defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
         config.database = await askUserPath('Plex database path', rl, defaultDb);
         config.host = await askUser('Editor host', 'localhost', rl);
-        config.port = await askUser('Editor port', '3232', rl, validPort, 'Invalid port number');
+        config.port = parseInt(await askUser('Editor port', '3232', rl, validPort, 'Invalid port number'));
     }
 
     config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info', rl);

@@ -20,17 +20,31 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
 /** @typedef {!import('./FormDataParse.js').ParsedFormField} ParsedFormField */
 /** @typedef {!import('./MarkerCacheManager').MarkerQueryResult} MarkerQueryResult */
+/** @typedef {!import('./DatabaseWrapper.js').DbDictParameters} DbDictParameters */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
+/** @typedef {!import('../Shared/PlexTypes').OldMarkerTimings} OldMarkerTimings */
 
 /**
  * @typedef {Object} BackupRow
+ * @property {number} id
  * @property {string} marker_type
  * @property {number} start
  * @property {number} end
- * @property {number} modified_at
+ * @property {number|null} modified_at
  * @property {number} created_at
  * @property {string} extra
  * @property {string} guid
+ */
+
+/**
+ * @typedef {{
+ *  id: number,
+ *  season_id: number,
+ *  show_id: number,
+ *  guid: string,
+ *  section_id: number,
+ *  metadata_type: number
+ * }} MinimalBaseItem
  */
 
 /*
@@ -134,6 +148,7 @@ class DatabaseImportExport {
         await db.exec(CheckVersionTable);
         await db.exec(ExportTable);
 
+        /** @type {DbDictParameters} */
         const params = { $tagId : PlexQueries.markerTagId() };
         let query =
 `SELECT t.id AS id,
@@ -160,6 +175,12 @@ WHERE t.tag_id=$tagId`;
 
         const txn = new TransactionBuilder(db);
         for (const marker of markers) {
+            // TODO: Update the schema to add user_created instead of this current disconnect.
+            let modifiedAt = MarkerEditCache.getModifiedAt(marker.id);
+            if (modifiedAt === null && MarkerEditCache.getUserCreated(marker.id)) {
+                modifiedAt = -marker.created_at;
+            }
+
             txn.addStatement(
                 `INSERT INTO markers
                     (marker_type, start, end, modified_at, created_at, extra, guid) VALUES
@@ -168,7 +189,7 @@ WHERE t.tag_id=$tagId`;
                     $markerType : marker.marker_type,
                     $start : marker.start,
                     $end : marker.end,
-                    $modifiedAt : MarkerEditCache.getModifiedAt(marker.id),
+                    $modifiedAt : modifiedAt,
                     $createdAt : marker.created_at,
                     $extra : marker.extra,
                     $guid : marker.guid,
@@ -273,6 +294,7 @@ WHERE t.tag_id=$tagId`;
             (backupGuidMap[backupMarker.guid] ??= []).push(backupMarker);
         }
 
+        /** @type {DbDictParameters} */
         const params = {};
         let allMedia =
 `SELECT
@@ -280,7 +302,7 @@ WHERE t.tag_id=$tagId`;
     (CASE WHEN season.id IS NULL THEN -1 ELSE season.id END) AS season_id,
     (CASE WHEN season.id IS NULL THEN -1 ELSE season.parent_id END) AS show_id,
     base.guid AS guid,
-    base.library_section_id AS library_section_id,
+    base.library_section_id AS section_id,
     base.metadata_type AS metadata_type
 FROM metadata_items base
 LEFT JOIN metadata_items season ON base.parent_id=season.id
@@ -295,16 +317,16 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
 
         /**
          * @param {BackupRow[]} backupRows
-         * @param {MarkerQueryResult} baseItem Not actually a MarkerQueryResult, but very close */
+         * @param {MinimalBaseItem} baseItem Not actually a MarkerQueryResult, but close */
         const backupRowToMarkerAction = (backupRows, baseItem) => {
             const markerActions = [];
             for (const backupRow of backupRows) {
                 markerActions.push({
                     marker_type : backupRow.marker_type,
-                    final : backupRow.extra.includes('%3Afinal=1'),
+                    final : backupRow.extra.includes('%3Afinal=1') ? 1 : 0,
                     start : backupRow.start,
                     end : backupRow.end,
-                    modified_at : Math.abs(backupRow.modified_at) || '',
+                    modified_at : backupRow.modified_at === null ? null : Math.abs(backupRow.modified_at),
                     created_at : backupRow.created_at,
                     extra_data : backupRow.extra,
                     user_created : backupRow.modified_at < 0,
@@ -312,7 +334,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
                     parent_id : baseItem.id,
                     season_id : baseItem.season_id,
                     show_id : baseItem.show_id,
-                    section_id : baseItem.library_section_id,
+                    section_id : baseItem.section_id,
                 });
             }
 
@@ -326,6 +348,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
 
         /** @type {{[sectionId: number]: {sectionType: number, items : {[baseId: number]: MarkerAction[]}}}} */
         const sectionsToUpdate = {};
+        /** @type {MinimalBaseItem[]} */
         const plexItems = await PlexQueries.database().all(allMedia, params);
         for (const item of plexItems) {
             if (!sectionsToUpdate[item.library_section_id]) {
@@ -366,7 +389,9 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
             // action, we still want the database to know about these changes so they can be restored if needed.
             await BackupManager.recordAdds(restoredMarkerData.newMarkers.map(x => new MarkerData(x)));
             await BackupManager.recordDeletes(restoredMarkerData.deletedMarkers.map(x => new MarkerData(x)));
+            /** @type {OldMarkerTimings} */
             const oldMarkerTimings = {};
+            /** @type {MarkerData[]} */
             const editedMarkers = [];
             // Copied from MarkerBackupManager. Can this be shared?
             for (const mod of restoredMarkerData.modifiedMarkers) {
@@ -401,7 +426,8 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
     }
 
     /**
-     * On server close, clear out any exported/imported databases that are still lying around, if we can. */
+     * On server close, clear out any exported/imported databases that are still lying around, if we can.
+     * @param {boolean} fullShutdown */
     static Close(fullShutdown) {
         if (!fullShutdown) {
             // We can wait until server shutdown to clean everything up

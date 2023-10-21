@@ -1,6 +1,7 @@
 import { EpisodeData, MarkerData, MovieData, SeasonData, SectionType, ShowData } from '../../Shared/PlexTypes.js';
-import { MarkerType, supportedMarkerType } from '../../Shared/MarkerType.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import { supportedMarkerType } from '../../Shared/MarkerType.js';
 
 import { Config } from '../MarkerEditorConfig.js';
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
@@ -10,6 +11,7 @@ import ServerError from '../ServerError.js';
 import { Thumbnails } from '../ThumbnailManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
+/** @typedef {!import('../MarkerCacheManager').TreeStats} TreeStats */
 
 
 const Log = new ContextualLog('QueryCommands');
@@ -133,7 +135,7 @@ class QueryCommands {
     static async getEpisodes(metadataId) {
         const rows = await PlexQueries.getEpisodes(metadataId);
 
-        /** @type {EpisodeData[]} */
+        /** @type {Promise<EpisodeData>[]} */
         const promises = [];
         const useThumbnails = Config.useThumbnails();
         rows.forEach(rawEpisode => {
@@ -169,7 +171,8 @@ class QueryCommands {
     /**
      * Gather marker information for all episodes/movies in the given library,
      * returning the number of items that have X markers associated with it.
-     * @param {number} sectionId The library section id to parse. */
+     * @param {number} sectionId The library section id to parse.
+     * @returns {Promise<Record<number, number>>} */
     static async allStats(sectionId) {
         // If we have global marker data, forego the specialized markerBreakdownCache
         // and build the statistics using the cache manager.
@@ -182,6 +185,8 @@ class QueryCommands {
             }
 
             // Something went wrong with our global cache. Fall back to markerBreakdownCache.
+            Log.warn(`Extended marker stats are enabled, but we couldn't find cached section data. ` +
+                `Falling back to the legacy marker cache.`);
         }
 
         if (LegacyMarkerBreakdown.Cache[sectionId]) {
@@ -191,12 +196,11 @@ class QueryCommands {
 
         const rows = await PlexQueries.markerStatsForSection(sectionId);
 
+        /** @type {Record<number, number>} */
         const buckets = {};
         Log.verbose(`Parsing ${rows.length} tags`);
         let idCur = rows.length > 0 ? rows[0].parent_id : -1;
         let countCur = 0;
-        // See MarkerBreakdown.js
-        const bucketDelta = (markerType) => markerType == MarkerType.Intro ? 1 : (1 << 16);
 
         for (const row of rows) {
             // TODO: better handing of non intros/credits (i.e. commercials)
@@ -204,16 +208,14 @@ class QueryCommands {
                 continue;
             }
 
+            const isMarker = row.tag_id == PlexQueries.markerTagId();
             if (row.parent_id == idCur) {
-                if (row.tag_id == PlexQueries.markerTagId()) {
-                    // See MarkerBreakdown.js
-                    countCur += bucketDelta(row.marker_type);
-                }
+                countCur += isMarker ? MarkerBreakdown.deltaFromType(1, row.marker_type) : 0;
             } else {
                 buckets[countCur] ??= 0;
                 ++buckets[countCur];
                 idCur = row.parent_id;
-                countCur = row.tag_id == PlexQueries.markerTagId() ? bucketDelta(row.marker_type) : 0;
+                countCur = isMarker ? MarkerBreakdown.deltaFromType(1, row.marker_type) : 0;
             }
         }
 
@@ -227,23 +229,27 @@ class QueryCommands {
      * optionally with breakdowns for each season attached.
      * Only async to conform to command method signature.
      * @param {number} metadataId The metadata id of the show/movie to grab the breakdown for.
-     * @param {number} includeSeasons 1 to include season data, 0 to leave it out. Ignored if metadataId is a movie. */
+     * @param {number} includeSeasons 1 to include season data, 0 to leave it out. Ignored if metadataId is a movie.
+     * @returns {Promise<TreeStats>} */
     static async getMarkerBreakdownTree(metadataId, includeSeasons) {
         if (!MarkerCache) {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }
 
         includeSeasons = includeSeasons != 0;
-        let data = null;
+        /** @type {TreeStats|false} */
+        let data = false;
         if (includeSeasons) {
             data = MarkerCache.getTreeStats(metadataId);
         } else {
-            data = MarkerCache.getTopLevelStats(metadataId);
-            data = { mainData : data, seasonData : {} };
+            const mainData = MarkerCache.getTopLevelStats(metadataId);
+            if (mainData) {
+                data = { mainData : data, seasonData : {} };
+            }
         }
 
         if (!data) {
-            throw new ServerError(`No marker data found for showId ${metadataId}.`, 400);
+            throw new ServerError(`No marker data found for id ${metadataId}.`, 400);
         }
 
         return data;

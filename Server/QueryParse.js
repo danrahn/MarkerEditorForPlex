@@ -4,6 +4,7 @@ import FormDataParse from './FormDataParse.js';
 import ServerError from './ServerError.js';
 
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
+/** @typedef {!import('querystring').ParsedUrlQuery} ParsedUrlQuery */
 /** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
 
 /**
@@ -11,6 +12,7 @@ import ServerError from './ServerError.js';
  * exceptions (HTTP 4XX) and unexpected internal errors (HTTP 5XX).
  */
 class QueryParameterException extends ServerError {
+    /** @param {string} message */
     constructor(message) {
         super(message, 400);
     }
@@ -20,25 +22,29 @@ class QueryParameterException extends ServerError {
 class QueryParser {
     /** @type {IncomingMessage} */
     #request;
-    /** @type {ParsedFormData} */
+    /** @type {ParsedFormData|undefined} */
     #formData;
 
+    /** @type {ParsedUrlQuery} */
+    #params;
+
+    /**
+     * @param {IncomingMessage} request */
     constructor(request) {
         /** @type {ParsedUrlQuery} */
-        this.params = parse(request.url, true /*parseQueryString*/).query;
+        this.#params = parse(request.url, true /*parseQueryString*/).query;
         this.#request = request;
     }
 
     /**
      * @param {string} key A string that can be parsed as an integer.
      * @returns The integer value of `key`.
-     * @throws {QueryParameterException} if `key` doesn't exist or is not an integer.
-     */
+     * @throws {QueryParameterException} if `key` doesn't exist or is not an integer. */
     i(key) {
         const value = this.raw(key);
         const intVal = parseInt(value);
         if (isNaN(intVal)) {
-            throw new QueryParameterException(`Expected integer parameter for ${key}, found ${this.params[key]}`);
+            throw new QueryParameterException(`Expected integer parameter for ${key}, found ${this.#params[key]}`);
         }
 
         return intVal;
@@ -47,8 +53,7 @@ class QueryParser {
     /**
      * @param {...string} keys Strings that can be parsed as integers.
      * @returns An array of query parameters parsed as integers.
-     * @throws {QueryParameterException} if any string in `keys` is not an integer.
-     */
+     * @throws {QueryParameterException} if any string in `keys` is not an integer. */
     ints(...keys) {
         const result = [];
         for (const key of keys) {
@@ -84,14 +89,13 @@ class QueryParser {
     /**
      * @param {string} key The query parameter to retrieve.
      * @returns {string} The value associated with `key`.
-     * @throws {QueryParameterException} if `key` is not present in the query parameters.
-     */
+     * @throws {QueryParameterException} if `key` is not present in the query parameters. */
     raw(key) {
-        if (!(key in this.params)) {
+        if (!(key in this.#params)) {
             throw new QueryParameterException(`Parameter '${key}' not found.`);
         }
 
-        return this.params[key];
+        return this.#params[key];
     }
 
     /**

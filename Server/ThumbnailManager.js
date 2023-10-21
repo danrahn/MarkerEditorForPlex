@@ -49,6 +49,7 @@ class ThumbnailManager {
      * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
     static Close(fullShutdown) { Instance?.close(fullShutdown); Instance = null; }
 
+    /** @param {DatabaseWrapper} db */
     constructor(db) {
         this.database = db;
     }
@@ -58,7 +59,8 @@ class ThumbnailManager {
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) {
-        Log.error(`getThumbnail: This should not be called on the base class ${metadataId}`);
+        Log.error(`hasThumbnail: This should not be called on the base class ${metadataId}`);
+        return Promise.reject(false);
     }
 
     /**
@@ -68,14 +70,16 @@ class ThumbnailManager {
      * check that before looking for the thumbnail itself.
      * @param {number} metadataId The metadata id for the episode.
      * @param {number} timestamp The timestamp of the thumbnail, in milliseconds.
-     * @returns A `Promise` that will resolve to the thumbnail `Buffer` if the thumbnail
+     * @returns {Promise<Buffer>} A `Promise` that will resolve to the thumbnail `Buffer` if the thumbnail
      * retrieval was successful, and `reject`ed if the thumbnail doesn't exist or we were
      * otherwise unable to retrieve it. */
     async getThumbnail(metadataId, timestamp) {
         Log.error(`getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
+        return Promise.reject();
     }
 
-    close() {}
+    /** @param {boolean} _fullShutdown */
+    close(_fullShutdown) {}
 }
 
 /**
@@ -192,9 +196,8 @@ class BifThumbnailManager extends ThumbnailManager {
             throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }
 
-        let index;
         if (thumbCache.interval != 0) {
-            index = Math.floor(timestamp / thumbCache.interval);
+            const index = Math.floor(timestamp / thumbCache.interval);
             const cachedData = this.#cache.tryGet(metadataId, index);
             if (cachedData) {
                 Log.verbose(`Found cached thumbnail for ${metadataId}:${timestamp}.`);
@@ -202,7 +205,7 @@ class BifThumbnailManager extends ThumbnailManager {
             }
         }
 
-        return this.#readThumbnail(metadataId, timestamp);
+        return this.#readThumbnail(metadataId, timestamp, thumbCache);
     }
 
     /**
@@ -210,9 +213,9 @@ class BifThumbnailManager extends ThumbnailManager {
      * closest to the given timestamp (rounded down).
      * @param {number} metadataId The metadata id for the episode.
      * @param {number} timestamp The timestamp of the thumbnail, in seconds.
+     * @param {BifMediaItemCache} thumbCache
      * @returns {Promise<Buffer>}*/
-    async #readThumbnail(metadataId, timestamp) {
-        const thumbCache = this.#cache.getItem(metadataId);
+    async #readThumbnail(metadataId, timestamp, thumbCache) {
         return new Promise((resolve, reject) => {
 
             // File layout:
@@ -327,23 +330,29 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId Episode metadata id.
      * @param {number} timestamp Timestamp, in milliseconds. */
     async getThumbnail(metadataId, timestamp) {
-        if (!this.#cache.getItem(metadataId)) {
+        let thumbCache = this.#cache.getItem(metadataId);
+        if (!thumbCache) {
             await this.hasThumbnails(metadataId);
+            thumbCache = this.#cache.getItem(metadataId);
+            if (!thumbCache) {
+                throw new ServerError('Expected thumb cache to exist after hasThumbnails, but no entry found!', 500);
+            }
         }
 
-        return this.#getThumbnailCore(metadataId, timestamp);
+        return this.#getThumbnailCore(metadataId, timestamp, thumbCache);
     }
 
     /**
      * Extract a precise thumbnail from the given file.
      * @param {number} metadataId Metadata id of the episode
-     * @param {number} timestamp Timestamp, in milliseconds */
-    async #getThumbnailCore(metadataId, timestamp) {
-        if (!this.#cache.getItem(metadataId)?.hasThumbs) {
+     * @param {number} timestamp Timestamp, in milliseconds
+     * @param {FfmpegMediaItemCache} thumbCache */
+    async #getThumbnailCore(metadataId, timestamp, thumbCache) {
+        if (!thumbCache.hasThumbs) {
             throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }
 
-        const maxDuration = this.#cache.getItem(metadataId).duration;
+        const maxDuration = thumbCache.duration;
 
         // Don't get _too_ accurate, round to the nearest tenth, which might help with caching too.
         // Also don''t get too close to the supposed end. There are a fair number of cases where our max
@@ -357,15 +366,16 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             return cachedThumb;
         }
 
-        return this.#fileCacheOrGenerate(metadataId, timestamp);
+        return this.#fileCacheOrGenerate(metadataId, timestamp, thumbCache);
     }
 
     /**
      * Looks for a cached thumbnail file for the given timestamp, and if not found,
      * generates the thumbnail with ffmpeg.
      * @param {number} metadataId
-     * @param {number} timestamp Timestamp, in milliseconds */
-    #fileCacheOrGenerate(metadataId, timestamp) {
+     * @param {number} timestamp Timestamp, in milliseconds
+     * @param {FfmpegMediaItemCache} episodeCache */
+    #fileCacheOrGenerate(metadataId, timestamp, episodeCache) {
         const savePath = join(ProjectRoot(), 'cache', `${metadataId}`);
         const saveFile = join(savePath, `${timestamp}.jpg`);
         if (existsSync(saveFile)) {
@@ -376,7 +386,6 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         }
 
         mkdirSync(savePath, { recursive : true });
-        const episodeCache = this.#cache.getItem(metadataId);
         const execStart = performance.now();
         execFileSync('ffmpeg',
             [   '-loglevel', 'error',        // We don't care about the output
@@ -478,9 +487,10 @@ class CacheMap {
 
     /**
      * Retrieve episode thumbnail information.
-     * @param {number} metadataId Episode metadata id. */
+     * @param {number} metadataId Episode metadata id.
+     * @returns {MediaItemCache|undefined} */
     getItem(metadataId) {
-        return this.#cacheMap[metadataId] || false;
+        return this.#cacheMap[metadataId];
     }
 
     /**
@@ -529,6 +539,7 @@ class CacheMap {
  * Map of episodes to cached Plex-generated BIF thumbnails.
  */
 class BifCacheMap extends CacheMap {
+    /** @param {number} maxCache */
     constructor(maxCache) {
         super(maxCache);
     }
@@ -539,7 +550,7 @@ class BifCacheMap extends CacheMap {
 
     /**
      * @param {number} metadataId
-     * @returns {BifMediaItemCache} */
+     * @returns {BifMediaItemCache|undefined} */
     getItem(metadataId) { return super.getItem(metadataId); } // Just for intellisense
 }
 
@@ -547,6 +558,7 @@ class BifCacheMap extends CacheMap {
  * Map of episodes to cached ffmpeg JPG thumbnails.
  */
 class FfmpegCacheMap extends CacheMap {
+    /** @param {number} maxCache */
     constructor(maxCache) {
         super(maxCache);
     }
@@ -557,7 +569,7 @@ class FfmpegCacheMap extends CacheMap {
 
     /**
      * @param {number} metadataId
-     * @returns {FfmpegMediaItemCache} */
+     * @returns {FfmpegMediaItemCache|undefined} */
     getItem(metadataId) { return super.getItem(metadataId); } // Just for intellisense
 }
 

@@ -57,20 +57,28 @@ function sendJsonSuccess(res, data) {
  * @param {ServerResponse} res
  * @param {number} status HTTP status code.
  * @param {*} data The data to compress and return.
- * @param {string} contentType The MIME type of `data`. */
+ * @param {string|false} contentType The MIME type of `data`. */
 function sendCompressedData(res, status, data, contentType) {
+    // It's technically possible for contentType to be false if we attempt to read an unknown file type.
+    // Allow sniffing in that case;
+    /** @type {{ [header: string]: string }} */
+    const headers = {};
+    if (contentType !== false) {
+        headers['Content-Type'] = contentType;
+        headers['x-content-type-options'] = 'nosniff';
+    }
+
     gzip(data, (err, buffer) => {
         if (err) {
             Log.warn('Failed to compress data, sending uncompressed');
-            res.writeHead(status, { 'Content-Type' : contentType, 'x-content-type-options' : 'nosniff' });
+            res.writeHead(status, headers);
             res.end(data);
             return;
         }
 
         res.writeHead(status, {
             'Content-Encoding' : 'gzip',
-            'Content-Type' : contentType,
-            'x-content-type-options' : 'nosniff'
+            ...headers
         });
 
         res.end(buffer);

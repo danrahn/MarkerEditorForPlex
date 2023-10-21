@@ -23,6 +23,7 @@ class FormDataParse {
      * @param {IncomingMessage} request
      * @param {number} maxSize Maximum number of bytes in the body before we bail out. */
     static async parseRequest(request, maxSize) {
+        /** @type {string} */
         const data = await new Promise((resolve, reject) => {
             let body = '';
             request.on('data', chunk => {
@@ -54,6 +55,7 @@ class FormDataParse {
      * @param {string} raw
      * @returns {ParsedFormData} */
     static rebuildFormData(raw) {
+        /** @type {ParsedFormData} */
         const data = {};
 
         const sentinelBase = raw.substring(0, raw.indexOf('\r\n'));

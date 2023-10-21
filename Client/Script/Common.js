@@ -6,6 +6,7 @@ import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
 /** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
@@ -17,6 +18,7 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 /** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedShowData} SerializedShowData */
 /** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
+/** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 
 const Log = new ContextualLog('ClientCommon');
 
@@ -98,7 +100,7 @@ const ServerCommand = {
     /**
      * Query for all markers that would be deleted for the given metadata id.
      * @param {number} id
-     * @returns {Promise<{markers: SerializedMarkerData[], episodeData?: SerializedEpisodeData[]}>} */
+     * @returns {Promise<BulkDeleteResult>} */
     checkBulkDelete : async (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
 
     /**
@@ -106,7 +108,7 @@ const ServerCommand = {
      * @param {number} id
      * @param {number} applyTo The marker type(s) to apply the delete to.
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
-     * @returns {Promise<{markers: SerializedMarkerData[], deletedMarkers: SerializedMarkerData[]}>} */
+     * @returns {Promise<BulkDeleteResult>} */
     bulkDelete : async (id, applyTo, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
 
     /**

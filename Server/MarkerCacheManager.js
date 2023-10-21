@@ -5,6 +5,7 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
 
 /** @typedef {!import('./DatabaseWrapper').default} DatabaseWrapper */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
+/** @typedef {!import('../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 
 /**
  * @typedef {{[markerId: number] : MarkerQueryResult}} MarkerMap
@@ -23,7 +24,7 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
  *     tag_id : number,
  *     section_id : number}} MarkerQueryResult
  * @typedef {{ id: number, season_id: number, show_id: number, section_id: number }} MediaItemQueryResult
- * @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap
+ * @typedef {{ mainData: MarkerBreakdownMap, seasonData: { [seasonId: number]: MarkerBreakdownMap } }} TreeStats
  */
 
 
@@ -33,10 +34,10 @@ const Log = new ContextualLog('MarkerCache');
  * Extension of MarkerBreakdown to handle the parent hierarchy that the client-side breakdown doesn't have.
  */
 class ServerMarkerBreakdown extends MarkerBreakdown {
-    /** @type {MarkerNodeBase} */
+    /** @type {MarkerNodeBase|null} */
     #parent;
 
-    /** @param {MarkerNodeBase} parent */
+    /** @param {MarkerNodeBase|null} parent */
     constructor(parent=null) {
         super();
         this.#parent = parent;
@@ -55,8 +56,9 @@ class ServerMarkerBreakdown extends MarkerBreakdown {
 
 /** Base class for a node in the {@linkcode MarkerCacheManager}'s hierarchical data. */
 class MarkerNodeBase {
+    /** @type {ServerMarkerBreakdown} */
     markerBreakdown;
-    /** @param {MarkerNodeBase} parent */
+    /** @param {MarkerNodeBase|null} parent */
     constructor(parent=null) {
         this.markerBreakdown = new ServerMarkerBreakdown(parent);
     }
@@ -78,6 +80,8 @@ class BaseItemNode extends MarkerNodeBase {
     markers = [];
     /** The current bucket key for this breakdown, which indicates the number of both intros and credits. */
     #currentKey = 0;
+
+    /** @param {MarkerNodeBase} */
     constructor(parent) {
         super(parent);
         this.markerBreakdown.initBase();
@@ -92,7 +96,7 @@ class BaseItemNode extends MarkerNodeBase {
 
     /**
      * Remove the given marker to the breakdown cache.
-     * @param {number} oldCount */
+     * @param {MarkerQueryResult} markerData */
     remove(markerData) {
         this.#deltaBase(markerData, -1);
     }
@@ -104,7 +108,7 @@ class BaseItemNode extends MarkerNodeBase {
     #deltaBase(markerData, multiplier) {
         // TODO: temporary. Make sure that base items only have a single "active" bucket, it doesn't
         //       make sense for a single episode/movie to have multiple buckets.
-        Log.assert(this.markerBreakdown.buckets() == 1);
+        Log.assert(this.markerBreakdown.buckets() == 1, 'A base item should only have a single bucket.');
         // Silently ignore unsupported marker types.
         // TODO: better support for unsupported types (i.e. commercials)
         if (!supportedMarkerType(markerData.marker_type)) {
@@ -197,7 +201,8 @@ class MarkerCacheManager {
      * @type {Set<number>} */
     #allBaseItems = new Set();
 
-    /** The tag_id in the Plex database that corresponds to markers. */
+    /** The tag_id in the Plex database that corresponds to markers.
+     * @type {number} */
     #tagId;
 
     /** The connection to the Plex database.
@@ -229,10 +234,13 @@ class MarkerCacheManager {
         const start = Date.now();
         // Note: Creating separate queries for relevant markers and all media items, then combining them
         //       ourselves is _significantly_ faster than combining it into a single query.
+        /** @type {MarkerQueryResult[]} */
         const markers = await this.#database.all(MarkerCacheManager.#markerOnlyQuery, [this.#tagId]);
+        /** @type {MediaItemQueryResult[]} */
         const media = await this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
         const end = Date.now();
         Log.verbose(`Queried all markers (${markers.length} in ${((end- start) / 1000).toFixed(2)} seconds), analyzing...`);
+        /** @type {{ [mediaId: number]: MediaItemQueryResult }} */
         const mediaMap = {};
         for (const mediaItem of media) {
             mediaMap[mediaItem.id] = mediaItem;
@@ -280,7 +288,7 @@ class MarkerCacheManager {
     /**
      * Add a new marker to the cache with the given marker id.
      * Assumes the marker has already been added to the database.
-     * @param {RawMarkerData} marker */
+     * @param {MarkerQueryResult} marker */
     addMarkerToCache(marker) {
         marker.tag_id = this.#tagId;
         this.#addMarkerData(marker);
@@ -289,7 +297,7 @@ class MarkerCacheManager {
     /**
      * Retrieve {@link MarkerBreakdown} statistics for the given library section.
      * @param {number} sectionId The library section to iterate over.
-     * @returns {MarkerBreakdown} */
+     * @returns {MarkerBreakdown|false} */
     getSectionOverview(sectionId) {
         try { // This _really_ shouldn't fail, but ¯\_(ツ)_/¯
             return this.#markerHierarchy[sectionId].markerBreakdown.data();
@@ -302,14 +310,15 @@ class MarkerCacheManager {
 
     /**
      * Retrieve marker breakdown stats for a top-level library item (i.e. a movie or an entire show).
-     * @param {number} metadataId The metadata id for the TV Show/movie */
+     * @param {number} metadataId The metadata id for the TV Show/movie
+     * @returns {MarkerBreakdownMap|false} */
     getTopLevelStats(metadataId) {
         const item = this.#topLevelItemFromId(metadataId);
         if (!item) {
             Log.error(`Didn't find the right section for show:${metadataId}. Marker breakdown will not be available`);
             // Attempt to update the cache after the fact.
             this.#tryUpdateCache(MarkerCacheManager.#showMarkerQuery, metadataId);
-            return null;
+            return false;
         }
 
         return item.markerBreakdown.data();
@@ -321,6 +330,7 @@ class MarkerCacheManager {
      * @param {number} seasonId The metadata id of the season. */
     getSeasonStats(showId, seasonId) {
         // Like topLevelItemFromId, just the show's metadataId is okay.
+        /** @type {MarkerShowNode} */
         const show = this.#topLevelItemFromId(showId);
         if (!show) {
             Log.error(`Didn't find the right section for show:${showId}. Marker breakdown will not be available`);
@@ -338,8 +348,10 @@ class MarkerCacheManager {
 
     /**
      * Retrieve marker breakdown stats for a given show, along with individual season stats.
-     * @param {number} showId The metadata id of the show to retrieve data for. */
+     * @param {number} showId The metadata id of the show to retrieve data for.
+     * @returns {TreeStats|false} */
     getTreeStats(showId) {
+        /** @type {MarkerShowNode} */
         const show = this.#topLevelItemFromId(showId);
         if (!show) { return null; }
 
@@ -395,12 +407,10 @@ class MarkerCacheManager {
      * after the initial startup of this server.
      * @param {string} query The query to run on the database
      * @param {number} metadataId */
-    #tryUpdateCache(query, metadataId) {
-        this.#database.all(query, [metadataId], (err, rows) => {
-            if (err) {
-                return Log.error(`Unable to update marker cache for metadata item ${metadataId}`);
-            }
-
+    async #tryUpdateCache(query, metadataId) {
+        try {
+            /** @type {MarkerQueryResult[]} */
+            const rows = await this.#database.all(query, [metadataId]);
             if (this.#topLevelItemFromId(metadataId)) {
                 return Log.verbose('tryUpdateCache: Multiple update requests fired for this item, ignoring this one.');
             }
@@ -416,9 +426,13 @@ class MarkerCacheManager {
             }
 
             Log.info(`tryUpdateCache: Cached ${markerCount} markers for metadata item ${metadataId}`);
-        });
+        } catch (err) {
+            Log.error(`Unable to update marker cache for metadata item ${metadataId}`);
+        }
     }
 
+    /**
+     * @param {number} metadataId */
     #topLevelItemFromId(metadataId) {
         // Just a metadataId is okay. Someone would need thousands of libraries before
         // the perf hit of looking for the right section was noticeable.
@@ -460,6 +474,7 @@ class MarkerCacheManager {
         if (isMovie) {
             base = thisSection.items[tag.parent_id] ??= new MarkerMovieNode(thisSection);
         } else {
+            /** @type {MarkerShowNode} */
             const show = thisSection.items[tag.show_id] ??= new MarkerShowNode(thisSection);
             const season = show.seasons[tag.season_id] ??= new MarkerSeasonNode(show);
             base = season.episodes[tag.parent_id] ??= new MarkerEpisodeNode(season);
@@ -492,6 +507,7 @@ class MarkerCacheManager {
         if (isMovie) {
             thisSection.items[mediaItem.id] ??= new MarkerMovieNode(thisSection);
         } else {
+            /** @type {MarkerShowNode} */
             const show = thisSection.items[mediaItem.show_id] ??= new MarkerShowNode(thisSection);
             const season = show.seasons[mediaItem.season_id] ??= new MarkerSeasonNode(show);
             season.episodes[mediaItem.id] ??= new MarkerEpisodeNode(season);

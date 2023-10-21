@@ -3,7 +3,11 @@ import ServerError from './ServerError.js';
 
 /** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
 
-/** @typedef {[number|string|boolean|null]|{[parameter: string]: number|string|boolean|null}} QueryParameters */
+/**
+ * @typedef {(number|string|boolean|null)[]} DbArrayParameters
+ * @typedef {{ _asRaw: Set<string>?, [parameter: string]: number|string|boolean|null }} DbDictParameters
+ * @typedef {DbArrayParameters|DbDictParameters} DbQueryParameters
+ */
 
 /**
  * A wrapper around a Sqlite3 database that allows for async/await interaction,
@@ -33,7 +37,7 @@ class DatabaseWrapper {
     /**
      * Run the given query, returning no rows.
      * @param {string} query
-     * @param {QueryParameters} [parameters=[]]
+     * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<void>} */
     async run(query, parameters=[]) {
         return this.#action(this.#db.run.bind(this.#db), query, parameters);
@@ -42,7 +46,7 @@ class DatabaseWrapper {
     /**
      * Retrieves a single row from the given query.
      * @param {string} query
-     * @param {QueryParameters} [parameters=[]]
+     * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<any>} */
     async get(query, parameters=[]) {
         return this.#action(this.#db.get.bind(this.#db), query, parameters);
@@ -51,7 +55,7 @@ class DatabaseWrapper {
     /**
      * Retrieves all rows from the given query.
      * @param {string} query
-     * @param {QueryParameters} parameters
+     * @param {DbQueryParameters} parameters
      * @returns {Promise<any[]>} */
     async all(query, parameters=[]) {
         return this.#action(this.#db.all.bind(this.#db), query, parameters);
@@ -81,7 +85,7 @@ class DatabaseWrapper {
      * instead of dealing with callbacks.
      * @param {(sql : string, ...args : any) => Database} fn
      * @param {string} query
-     * @param {*} parameters
+     * @param {DbQueryParameters|null} parameters
      * @returns {Promise<any>} */
     async #action(fn, query, parameters=null) {
         return new Promise((resolve, reject) => {
@@ -100,7 +104,7 @@ class DatabaseWrapper {
      * of the expected use-case, but it's slightly safer than writing raw queries and hoping for
      * the best, which is currently the case for exec, as it doesn't accept parameterized queries
      * @param {string} query Query with a '?' for each parameter.
-     * @param {QueryParameters} parameters The parameters to insert. Only expects numbers and strings
+     * @param {DbQueryParameters} parameters The parameters to insert. Only expects numbers and strings
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static parameterize(query, parameters) {
         if (parameters instanceof Array) {
@@ -117,7 +121,7 @@ class DatabaseWrapper {
 
     /**
      * Parameterize the given query of unnamed parameters.
-     * @param {[number|string|boolean|null]} parameters The parameters to insert. Only expects numbers and strings
+     * @param {DbArrayParameters} parameters The parameters to insert. Only expects numbers and strings
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static #parameterizeArray(query, parameters) {
         let startSearch = 0;
@@ -163,7 +167,7 @@ class DatabaseWrapper {
     /**
      * Parameterize the given query of named parameters.
      * @param {string} query The query with named parameter placeholders.
-     * @param {{[parameterName: string]: number|string|boolean}} parameters The parameters to insert. Only expects number, string, bool
+     * @param {DbDictParameters} parameters The parameters to insert. Only expects number, string, bool
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static #parameterizeNamed(query, parameters) {
         let newQuery = query;
@@ -176,7 +180,7 @@ class DatabaseWrapper {
         for (const [parameter, value] of Object.entries(parameters)) {
             const regexFind = new RegExp(`\\${parameter}\\b`, 'g');
             if (!regexFind.test(newQuery)) {
-                throw new ServerError(`Unable to parameterize query, parameter "${parameter}" not found!`);
+                throw new ServerError(`Unable to parameterize query, parameter "${parameter}" not found!`, 500);
             }
 
             let escapedValue = value;

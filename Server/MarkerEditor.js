@@ -18,6 +18,7 @@ import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import DatabaseImportExport from './ImportExport.js';
 import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
+import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
 import { PlexQueryManager } from './PlexQueryManager.js';
 import ServerCommands from './ServerCommands.js';
@@ -164,7 +165,7 @@ async function handleClose(signal, restart=false) {
         });
     } else {
         // Didn't even get to server creation, immediately terminate/restart
-        exitFn(0, restart);
+        exitFn(new Error('Error before server creation'), restart);
     }
 }
 
@@ -172,7 +173,7 @@ async function handleClose(signal, restart=false) {
  * Properly close out open resources in preparation for shutting down the process.
  * @param {boolean} fullShutdown Whether we're _really_ shutting down the process, or just suspending/restarting it. */
 async function cleanupForShutdown(fullShutdown) {
-    ServerCommands.clear();
+    LegacyMarkerBreakdown.Clear();
     MarkerCacheManager.Close();
     ThumbnailManager.Close(fullShutdown);
     DatabaseImportExport.Close(fullShutdown);
@@ -238,8 +239,8 @@ async function userSuspend(res) {
 /**
  * The response to our resume event. Kept at the global scope
  * to avoid passing it through the mess of init callbacks initiated by `run()`.
- * @type {ServerResponse} */
-let ResumeResponse;
+ * @type {ServerResponse|null} */
+let ResumeResponse = null;
 
 /**
  * The response data to send once we're ready to resume. If not set, a
@@ -287,7 +288,8 @@ async function userReload(res) {
     run();
 }
 
-/** Creates the server. Called after verifying the config file and database. */
+/** Creates the server. Called after verifying the config file and database.
+ * @returns {Promise<void>} */
 async function launchServer() {
     if (!shouldCreateServer()) {
         return;
@@ -379,7 +381,7 @@ async function serverMain(req, res) {
 /**
  * Map of server actions (shutdown/restart/etc) to their corresponding functions.
  * Split from EndpointMap as some of these require direct access to the ServerResponse.
- * @type {[endpoint: string]: (res : ServerResponse) => void} */
+ * @type {{[endpoint: string]: (res : ServerResponse) => any}} */
 const ServerActionMap = {
     shutdown : (res) => userShutdown(res),
     restart  : (res) => userRestart(res),
@@ -436,10 +438,8 @@ function checkTestData() {
     if (configIndex != -1) {
         if (process.argv.length <= configIndex - 1) {
             Log.critical('Invalid config override file detected, aborting...');
-            cleanupForShutdown(true /*fullShutdown*/).then(() => {
-                process.exit(1);
-            });
-            return;
+            // We're very early into boot. Just get out of here.
+            process.exit(1);
         }
 
         testData.configOverride = process.argv[configIndex + 1];

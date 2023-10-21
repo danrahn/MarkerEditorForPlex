@@ -2,7 +2,6 @@
 
 import { CoreCommands, GeneralCommands, PurgeCommands, QueryCommands } from './Commands/AllCommands.js';
 import DatabaseImportExport from './ImportExport.js';
-import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import QueryParser from './QueryParse.js';
 import ServerError from './ServerError.js';
 import { ShiftApplyType } from './Commands/CoreCommands.js';
@@ -52,12 +51,6 @@ class ServerCommands {
         nuke_section  : async (params) => await PurgeCommands.nukeSection(...params.ints('sectionId', 'deleteType')),
     };
     /* eslint-enable */
-
-    /**
-     * Reset the state of the command controller. */
-    static clear() {
-        LegacyMarkerBreakdown.Clear();
-    }
 
     /**
      * Run the given command.

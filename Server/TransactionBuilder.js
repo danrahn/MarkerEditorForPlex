@@ -2,6 +2,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import DatabaseWrapper from './DatabaseWrapper.js';
 
+/** @typedef {!import('./DatabaseWrapper').DbQueryParameters} DbQueryParameters */
 
 const Log = new ContextualLog('SQLiteTxn');
 
@@ -10,7 +11,7 @@ class TransactionBuilder {
     #commands = [];
     /** @type {DatabaseWrapper} */
     #db;
-    /** @type {string} */
+    /** @type {string|undefined} */
     #cache;
 
     /**
@@ -22,7 +23,7 @@ class TransactionBuilder {
     /**
      * Adds the given statement to the current transaction.
      * @param {string} statement A single SQL query
-     * @param {[*]} parameters Query parameters */
+     * @param {DbQueryParameters} parameters Query parameters */
     addStatement(statement, parameters=[]) {
         statement = statement.trim();
         if (statement[statement.length - 1] != ';') {
