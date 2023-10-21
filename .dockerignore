@@ -12,5 +12,7 @@ Backup
 dist
 Logs
 Test
+cache
+SVG/Raw
 npm-debug.log
 config.json
