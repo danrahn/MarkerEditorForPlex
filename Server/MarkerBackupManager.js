@@ -464,6 +464,7 @@ class MarkerBackupManager {
 
     /** Closes the database connection. */
     async close() {
+        MarkerEditCache.clear();
         Log.verbose('Shutting down backup database connection...');
         try {
             await this.#actions?.close();
