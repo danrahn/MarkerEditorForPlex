@@ -357,9 +357,11 @@ class CoreCommands {
 
         const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
         const addResult = await PlexQueries.bulkAddSimple(currentMarkers, metadataId, start, end, markerType, resolveType, ignored);
-        await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
+        const adds = await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
 
-        Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);
+        if (resolveType !== BulkMarkerResolveType.DryRun) {
+            Log.info(`Added ${adds} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);
+        }
 
         return addResult;
     }
@@ -377,10 +379,13 @@ class CoreCommands {
 
         const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
         const addResult = await PlexQueries.bulkAddCustom(currentMarkers, metadataId, markerType, resolveType, newMarkers);
-        await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
+        const adds = await CoreCommands.#bulkAddPostProcess(addResult, currentMarkers.markers);
 
-        const ignored = addResult.ignoredEpisodes?.length || 0;
-        Log.info(`Added ${addResult.applied} markers to item ${metadataId} (explicitly or implicitly ignored ${ignored})`);
+        if (resolveType !== BulkMarkerResolveType.DryRun) {
+            const ignored = addResult.ignoredEpisodes?.length || 0;
+            Log.info(`Added ${adds} markers to item ${metadataId} (explicitly or implicitly ignored ${ignored})`);
+        }
+
         return addResult;
     }
 
@@ -390,7 +395,7 @@ class CoreCommands {
     static async #bulkAddPostProcess(addResult, previousMarkers) {
         if (!addResult.applied) {
             // Nothing applied, nothing to do.
-            return;
+            return 0;
         }
 
         const episodes = Object.values(addResult.episodeMap);
@@ -445,6 +450,7 @@ class CoreCommands {
         await BackupManager.recordAdds(adds);
         await BackupManager.recordEdits(edits, oldMarkerTimings);
         await BackupManager.recordDeletes(deletes);
+        return adds.length;
     }
 
     /**
