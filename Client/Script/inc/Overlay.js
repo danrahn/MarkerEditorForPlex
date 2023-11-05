@@ -1,7 +1,6 @@
-import { $, buildNode, clearEle } from '../Common.js';
+import { $, $$, buildNode, clearEle } from '../Common.js';
 import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
-import Animation from './Animate.js';
 import Tooltip from './Tooltip.js';
 
 import ButtonCreator from '../ButtonCreator.js';
@@ -30,8 +29,6 @@ const Log = new ContextualLog('Overlay');
  * Class to display overlays on top of a webpage.
  *
  * Taken from PlexWeb/script/overlay.js
- * CSS animations should probably be used instead of my home-grown Animate.js,
- * but I'm too lazy to change things right now.
  */
 const Overlay = new function() {
     /**
@@ -41,9 +38,9 @@ const Overlay = new function() {
      * @param {Function} [buttonFunc=Overlay.dismiss] The function to invoke when the button is pressed.
      * Defaults to dismissing the overlay.
      * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
-     */
+     * @returns {Promise<void>} */
     this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
-        this.build({ dismissible : dismissible, centered : false, focusBack : null },
+        return this.build({ dismissible : dismissible, centered : false, focusBack : null },
             buildNode('div', { id : 'overlayMessage', class : 'overlayDiv' }, message),
             ButtonCreator.textButton(
                 buttonText,
@@ -83,13 +80,37 @@ const Overlay = new function() {
     };
 
     /**
+     * Returns a promise that resolve when the given element has finished animating its opacity.
+     * NOTE: Could probably be a Common.js method that generalizes "awaitable animate" if/when I get
+     * around to removing more usage of Animate.js
+     * @param {HTMLElement} ele The element to animate
+     * @param {number} start The starting opacity for the element
+     * @param {number} end The end opacity for the element
+     * @param {number} duration The length of the animation
+     * @param {(...any) => any} [callback] A custom call to invoke when the animation ends, if any. */
+    const animateOpacity = async (ele, start, end, duration, callback) =>
+        new Promise(resolve => {
+            ele.animate({
+                opacity : [start, end]
+            }, {
+                duration
+            }).addEventListener('finish', () => {
+                callback?.();
+                resolve();
+            });
+        });
+
+    /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist.
      * @param {...any} args Function parameters. Ignored unless a boolean is found, in which case it's used to determine whether
      *                      we should reset our focusBack element. We don't want to in overlay chains.
      */
     this.dismiss = function(...args) {
-        Animation.queue({ opacity : 0 }, Overlay.get(), 250, true /*deleteAfterTransition*/);
+        const main = Overlay.get();
+        const ret = animateOpacity(main, 1, 0, 250, () => {
+            main.parentElement.removeChild(main);
+        });
         Tooltip.dismiss();
         let forReshow = false;
         for (const arg of args) {
@@ -110,16 +131,10 @@ const Overlay = new function() {
 
             dismissCallbacks = [];
         }
-    };
 
-    /** Immediately remove the overlay from the screen without animation. */
-    const destroyExistingOverlay = function() {
-        const overlay = $('#mainOverlay');
-        if (overlay) {
-            Log.verbose('Destroying existing overlay to display a new one.');
-            overlay.parentNode.removeChild(overlay);
-            Tooltip.dismiss();
-        }
+        window.removeEventListener('keydown', overlayKeyListener);
+        return ret;
+
     };
 
     /**
@@ -138,12 +153,45 @@ const Overlay = new function() {
      * @param {OverlayOptions} options Options that define how the overlay is shown.
      * @param {...HTMLElement} children A list of elements to append to the overlay.
      */
-    this.build = function(options, ...children) {
-        // Immediately remove any existing overlays
-        destroyExistingOverlay();
-        const overlayNode = _overlayNode(options);
+    // eslint-disable-next-line complexity
+    this.build = async function(options, ...children) {
 
-        const container = buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' });
+        // If we have an existing overlay, fade it out, remove it, then fade in the new content.
+        const replaceInline = this.showing();
+        /** @type {HTMLDivElement} */
+        let overlayNode;
+        /** @type {HTMLDivElement} */
+        let container;
+
+        /** @type {number} */
+        let initialOpacity = 0;
+        const delay = options.delay === 0 ? 0 : (options.delay || 250);
+
+        if (replaceInline) {
+            Log.verbose('Replacing existing overlay to display a new one.');
+            overlayNode = this.get();
+            container = $('#overlayContainer', overlayNode);
+
+            initialOpacity = Math.min(
+                parseFloat(getComputedStyle(container).opacity),
+                parseFloat(getComputedStyle(overlayNode).opacity));
+            if (options.delay === 0) {
+                container.classList.remove('fadeOut');
+            } else if (initialOpacity === 1) {
+                await animateOpacity(container, 1, 0, delay);
+            } else {
+                // If the initial opacity isn't 1, assume we're in the middle of showing the overlay,
+                // and don't interrupt that initial animation, attempting to smoothly replace the contents.
+                Log.info(`Attempting to show an overlay when another is in the middle of being shown/hidden. ` +
+                            `Are you sure this is what you wanted?`);
+            }
+
+            clearEle(container);
+        } else {
+            overlayNode = _overlayNode(options);
+            container = buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' });
+        }
+
         if (!options.noborder) {
             container.classList.add('darkerOverlay');
         }
@@ -152,15 +200,13 @@ const Overlay = new function() {
             container.appendChild(element);
         });
 
-        overlayNode.appendChild(container);
-        document.body.appendChild(overlayNode);
-        if ($('#tooltip')) {
-            Tooltip.dismiss();
+        if (!replaceInline) {
+            overlayNode.appendChild(container);
+            document.body.appendChild(overlayNode);
         }
 
-        const delay = options.delay || 250;
-        if (delay !== 0) {
-            Animation.fireNow({ opacity : 1 }, overlayNode, delay);
+        if ($('#tooltip')) {
+            Tooltip.dismiss();
         }
 
         if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7) {
@@ -185,7 +231,20 @@ const Overlay = new function() {
             dismissCallbacks.push(options.onDismiss);
         }
 
-        window.addEventListener('keydown', overlayKeyListener, false);
+        if (replaceInline) {
+            if (initialOpacity === 1) {
+                await animateOpacity(container, 0, 1, delay);
+            }
+        } else {
+            // Note: This could be a static listener that's never removed, but tie it to the lifetime
+            // of the overlay to avoid unnecessary processing, even though it's likely a micro optimization.
+            window.addEventListener('keydown', overlayKeyListener, false);
+            if (delay !== 0) {
+                await animateOpacity(overlayNode, 0, 1, delay, () => {
+                    overlayNode.style.removeProperty('opacity');
+                });
+            }
+        }
     };
 
     /**
@@ -208,7 +267,7 @@ const Overlay = new function() {
                     if (overlayElement
                         && overlayElement.getAttribute('dismissible') === '1'
                         && (e.target.id === 'mainOverlay' || (options.noborder && e.target.id === 'overlayContainer'))
-                        && overlayElement.style.opacity === '1') {
+                        && getComputedStyle(overlayElement).opacity === '1') {
                         Overlay.dismiss();
                     }
                 }
@@ -271,7 +330,7 @@ const Overlay = new function() {
                 keyup : (e) => { if (e.key === 'Enter') Overlay.dismiss(); },
             });
         Tooltip.setTooltip(close, 'Close');
-        $('#mainOverlay').appendChild(close);
+        Overlay.get().appendChild(close);
     };
 
     /**
@@ -282,9 +341,8 @@ const Overlay = new function() {
     const overlayKeyListener = function(e) {
         if (e.keyCode === 27 /*esc*/) {
             /** @type {HTMLElement} */
-            const overlayNode = $('#mainOverlay');
-            if (overlayNode && !!overlayNode.getAttribute('dismissible') && overlayNode.style.opacity === '1') {
-                window.removeEventListener('keydown', overlayKeyListener, false);
+            const overlayNode = Overlay.get();
+            if (overlayNode && !!overlayNode.getAttribute('dismissible')) {
                 Overlay.dismiss();
             }
         }
@@ -293,14 +351,14 @@ const Overlay = new function() {
     /**
      * Return whether an overlay is currently showing. */
     this.showing = function() {
-        return !!$('#mainOverlay');
+        return !!this.get();
     };
 
     /**
      * Returns the current overlay HTML, if any.
      * @returns {HTMLElement} */
     this.get = function() {
-        return $('#mainOverlay');
+        return $$('body>#mainOverlay');
     };
 }();
 

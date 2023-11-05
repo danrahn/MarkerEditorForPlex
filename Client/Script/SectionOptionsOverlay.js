@@ -29,14 +29,13 @@ class SectionOptionsOverlay {
      * @param {HTMLElement} focusBack */
     show(focusBack) {
         this.#focusBack = focusBack;
-        this.#showMain(false /*needsTransition*/);
+        this.#showMain();
     }
 
     /**
      * Display the main overlay, either for the first time, or as the result of
-     * canceling out of a specific option.
-     * @param {boolean} needsTransition Whether an overlay is already showing, so we should smoothly transition between overlays. */
-    #showMain(needsTransition) {
+     * canceling out of a specific option. */
+    #showMain() {
         const container = buildNode('div', { class : 'sectionOptionsOverlayContainer' });
         appendChildren(container,
             buildNode('h1', {}, 'Section Options'),
@@ -54,11 +53,7 @@ class SectionOptionsOverlay {
         );
 
         const options = { dismissible : true, focusBack : this.#focusBack, noborder : true, closeButton : true };
-        if (needsTransition) {
-            this.#transitionOverlay(container, options);
-        } else {
-            Overlay.build(options, container);
-        }
+        Overlay.build(options, container);
     }
 
     /**
@@ -81,11 +76,11 @@ class SectionOptionsOverlay {
                     { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
                 ButtonCreator.textButton(
                     'Back',
-                    function () { this.#showMain(true); }.bind(this),
+                    this.#showMain.bind(this),
                     { class : 'overlayButton' })));
 
         Tooltip.setTooltip($$('label', container), 'Export markers from the entire server, not just the active library.');
-        this.#transitionOverlay(container, { dismissible : true, focusBack : this.#focusBack });
+        Overlay.build({ dismissible : true, focusBack : this.#focusBack }, container);
     }
 
     /**
@@ -129,11 +124,11 @@ class SectionOptionsOverlay {
                     { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
                 ButtonCreator.textButton(
                     'Back',
-                    function () { this.#showMain(true); }.bind(this),
+                    this.#showMain.bind(this),
                     { class : 'overlayButton' }))
         );
 
-        this.#transitionOverlay(container, { dismissible : true, focusBack : this.#focusBack });
+        Overlay.build({ dismissible : true, focusBack : this.#focusBack }, container);
     }
 
     /**
@@ -164,21 +159,18 @@ class SectionOptionsOverlay {
                 $('#applyGlobally').checked ? -1 : PlexClientState.activeSection(),
                 $('#resolutionType').value);
 
-            Overlay.dismiss(true /*forReshow*/);
-            setTimeout(() => {
-                Overlay.show(
-                    `<h2>Marker Import Succeeded</h2><hr>` +
-                        `Markers Added: ${result.added}<br>` +
-                        `Ignored Markers (identical): ${result.identical}<br>` +
-                        `Ignored Markers (merge/ignore/self-overlap): ${result.ignored}<br>` +
-                        `Existing Markers Deleted (overwritten): ${result.deleted}<br>` +
-                        `Existing Markers Modified (merged): ${result.modified}<br>`,
-                    'Reload',
-                    // Easier to just reload the page instead of reconciling all the newly deleted markers
-                    () => { window.location.reload(); },
-                    false /*dismissible*/);
-                Overlay.setFocusBackElement(this.#focusBack);
-            }, 250);
+            await Overlay.show(
+                `<h2>Marker Import Succeeded</h2><hr>` +
+                    `Markers Added: ${result.added}<br>` +
+                    `Ignored Markers (identical): ${result.identical}<br>` +
+                    `Ignored Markers (merge/ignore/self-overlap): ${result.ignored}<br>` +
+                    `Existing Markers Deleted (overwritten): ${result.deleted}<br>` +
+                    `Existing Markers Modified (merged): ${result.modified}<br>`,
+                'Reload',
+                // Easier to just reload the page instead of reconciling all the newly deleted markers
+                () => { window.location.reload(); },
+                false /*dismissible*/);
+            Overlay.setFocusBackElement(this.#focusBack);
         } catch (err) {
             errorResponseOverlay('Failed to upload and apply markers', err);
         }
@@ -197,7 +189,7 @@ class SectionOptionsOverlay {
 
         const cancelButton = ButtonCreator.textButton(
             'Back',
-            function () { this.#showMain(true); }.bind(this),
+            this.#showMain.bind(this),
             { id : 'deleteMarkerCancel', class : 'overlayButton' });
 
         warnText.appendChild(
@@ -223,9 +215,7 @@ class SectionOptionsOverlay {
             buildNode('h2', {}, 'DANGER ZONE'),
             buildNode('hr'),
             warnText);
-        this.#transitionOverlay(
-            container,
-            { dismissible : true, focusBack : this.#focusBack });
+        Overlay.build({ dismissible : true, focusBack : this.#focusBack }, container);
     }
 
     /**
@@ -241,30 +231,18 @@ class SectionOptionsOverlay {
         const deleteType = parseInt($('#deleteAllTypeSelect').value);
         try {
             const result = await ServerCommand.sectionDelete(PlexClientState.activeSection(), deleteType);
-            Overlay.dismiss(true /*forReshow*/);
-            setTimeout(() => {
-                Overlay.show(
-                    `<h2>Section Delete Succeeded</h2><hr>` +
-                        `Markers Deleted: ${result.deleted}<br>` +
-                        `Backup Entries Removed: ${result.backupDeleted}<br>`,
-                    'Reload',
-                    // Easier to just reload the page instead of reconciling all the newly deleted markers
-                    () => { window.location.reload(); },
-                    false /*dismissible*/);
-                Overlay.setFocusBackElement(this.#focusBack);
-            }, 250);
+            await Overlay.show(
+                `<h2>Section Delete Succeeded</h2><hr>` +
+                    `Markers Deleted: ${result.deleted}<br>` +
+                    `Backup Entries Removed: ${result.backupDeleted}<br>`,
+                'Reload',
+                // Easier to just reload the page instead of reconciling all the newly deleted markers
+                () => { window.location.reload(); },
+                false /*dismissible*/);
+            Overlay.setFocusBackElement(this.#focusBack);
         } catch (err) {
             errorResponseOverlay('Failed to delete section markers.', err);
         }
-    }
-
-    /**
-     * Dismiss the current overlay and immediately replace it with a new one.
-     * @param {HTMLElement} container
-     * @param {OverlayOptions} options */
-    #transitionOverlay(container, options) {
-        Overlay.dismiss(true /*forReshow*/);
-        setTimeout(() => { Overlay.build(options, container); }, 250);
     }
 
     /**

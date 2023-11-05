@@ -620,14 +620,13 @@ class ClientSettingsUI {
     }
 
     /**
-     * Dismisses the current overlay and brings in a new one.
+     * Replace the current overlay with a new one.
      * @param {HTMLElement} newOverlayContainer The new overlay to display.
      * @param {OverlayOptions?} [options={}] The new overlay's options, if any. */
     #transitionOverlay(newOverlayContainer, options={}) {
         // Don't mess with focusBack. null == don't overwrite, undefined == reset.
         options.focusBack = null;
-        Overlay.dismiss(true /*forReshow*/);
-        setTimeout(() => Overlay.build(options, newOverlayContainer), 250);
+        Overlay.build(options, newOverlayContainer);
     }
 
     /** Enables or disabled a dialog setting
