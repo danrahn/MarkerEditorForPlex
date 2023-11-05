@@ -413,7 +413,7 @@ class BulkAddOverlay {
 
             await this.#postProcessBulkAdd(result);
         } catch (err) {
-            await BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
+            await BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
     }
@@ -467,7 +467,7 @@ class BulkAddOverlay {
 
             await this.#postProcessBulkAdd(result);
         } catch (err) {
-            await BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
+            await BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
     }
@@ -477,7 +477,7 @@ class BulkAddOverlay {
      * @param {SerializedBulkAddResult} result */
     async #postProcessBulkAdd(result) {
         if (!result.applied) {
-            BulkActionCommon.flashButton('bulkAddApply', 'red', 250);
+            BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
             return;
         }
 
@@ -509,7 +509,7 @@ class BulkAddOverlay {
             episodeInfo.isAdd ? ++addCount : ++editCount;
         }
 
-        BulkActionCommon.flashButton('bulkAddApply', 'green', 250).then(() => {
+        BulkActionCommon.flashButton('bulkAddApply', 'green', 500).then(() => {
             Overlay.show(`<h2>Bulk Add Succeeded</h2><hr>` +
                 `Markers Added: ${addCount}<br>` +
                 `Markers Edited: ${editCount}<br>` +

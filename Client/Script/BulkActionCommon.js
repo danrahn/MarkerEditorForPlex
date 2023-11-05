@@ -1,8 +1,7 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Animation from './inc/Animate.js';
-
+import { flashBackground } from './AnimationHelpers.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './inc/Overlay.js';
@@ -512,14 +511,8 @@ class BulkActionCommon {
      * @param {string|HTMLElement} buttonId
      * @param {string} color
      * @param {number} [duration=500] */
-    static async flashButton(buttonId, color, duration=500) {
-        const button = typeof buttonId === 'string' ? $(`#${buttonId}`) : buttonId;
-        if (!button) { Log.warn(`BulkActionCommon::flashButton - Didn't find button`); return Promise.resolve(); }
-
-        Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, duration);
-        return new Promise((resolve, _) => {
-            Animation.queueDelayed({ backgroundColor : 'transparent' }, button, duration, duration, true, resolve);
-        });
+    static async flashButton(buttonId, color, duration=1000) {
+        return flashBackground(buttonId, ThemeColors.getHex(color, 4), duration);
     }
 
     /**

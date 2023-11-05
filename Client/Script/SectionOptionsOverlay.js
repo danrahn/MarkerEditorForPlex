@@ -1,11 +1,11 @@
 import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 import ThemeColors from './ThemeColors.js';
 
 import ButtonCreator from './ButtonCreator.js';
+import { flashBackground } from './AnimationHelpers.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -249,10 +249,7 @@ class SectionOptionsOverlay {
      * Flash the background of the given element.
      * @param {HTMLElement} input */
     #flashInput(input) {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}8` }, input, 500);
-        return new Promise((resolve, _) => {
-            Animation.queueDelayed({ backgroundColor : 'transparent' }, input, 500, 500, true, resolve);
-        });
+        return flashBackground(input, ThemeColors.getHex('red', 8), 1000);
     }
 }
 

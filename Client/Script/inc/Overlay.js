@@ -3,6 +3,7 @@ import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
 import Tooltip from './Tooltip.js';
 
+import { animateOpacity } from '../AnimationHelpers.js';
 import ButtonCreator from '../ButtonCreator.js';
 import ThemeColors from '../ThemeColors.js';
 
@@ -80,27 +81,6 @@ const Overlay = new function() {
     };
 
     /**
-     * Returns a promise that resolve when the given element has finished animating its opacity.
-     * NOTE: Could probably be a Common.js method that generalizes "awaitable animate" if/when I get
-     * around to removing more usage of Animate.js
-     * @param {HTMLElement} ele The element to animate
-     * @param {number} start The starting opacity for the element
-     * @param {number} end The end opacity for the element
-     * @param {number} duration The length of the animation
-     * @param {(...any) => any} [callback] A custom call to invoke when the animation ends, if any. */
-    const animateOpacity = async (ele, start, end, duration, callback) =>
-        new Promise(resolve => {
-            ele.animate({
-                opacity : [start, end]
-            }, {
-                duration
-            }).addEventListener('finish', () => {
-                callback?.();
-                resolve();
-            });
-        });
-
-    /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist.
      * @param {...any} args Function parameters. Ignored unless a boolean is found, in which case it's used to determine whether
@@ -108,9 +88,7 @@ const Overlay = new function() {
      */
     this.dismiss = function(...args) {
         const main = Overlay.get();
-        const ret = animateOpacity(main, 1, 0, 250, () => {
-            main.parentElement.removeChild(main);
-        });
+        const ret = animateOpacity(main, 1, 0, 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
         let forReshow = false;
         for (const arg of args) {

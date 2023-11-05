@@ -123,7 +123,7 @@ class BulkDeleteOverlay {
 
             this.#showCustomizationTable();
         } catch (err) {
-            await BulkActionCommon.flashButton('deleteApply', 'red', 250);
+            await BulkActionCommon.flashButton('deleteApply', 'red', 500);
             errorResponseOverlay('Unable to bulk delete, please try again later', err, this.show.bind(this));
         }
     }

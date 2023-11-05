@@ -1,8 +1,7 @@
 import { $, $$, appendChildren, buildNode, plural } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Animation from './inc/Animate.js';
-
+import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 
 /** @typedef {{[version: string]: { ignoreType : number, ignoreDate : number}}} UpdateCheckSettings */
@@ -176,7 +175,7 @@ class VersionManager {
      * Open the latest release URL when the user clicks 'go to release' */
     #updateCallback() {
         window.open(this.#latestVersion.html_url, '_blank', 'noreferrer');
-        Animation.queue({ opacity : 0 }, this.#updateBar, 500, true /*deleteAfterTransition*/);
+        animateOpacity(this.#updateBar, 1, 0, 500, true /*deleteAfterTransition*/);
     }
 
     /**
@@ -186,7 +185,7 @@ class VersionManager {
         const info = this.#getIgnoreInfo();
         info[this.#currentVersion.toString()] = { ignoreType : ignoreType, ignoreDate : Date.now() };
         this.#setIgnoreInfo(info);
-        Animation.queue({ opacity : 0 }, this.#updateBar, 500, true /*deleteAfterTransition*/);
+        animateOpacity(this.#updateBar, 1, 0, 500, true /*deleteAfterTransition*/);
     }
 }
 

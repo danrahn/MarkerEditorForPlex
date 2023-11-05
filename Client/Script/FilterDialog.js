@@ -1,10 +1,10 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 
-import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { flashBackground } from './AnimationHelpers.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { PlexUI } from './PlexUI.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
@@ -390,10 +390,7 @@ class FilterDialog {
      * Flash the background of the given element.
      * @param {HTMLElement} input */
     #flashInput(input) {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}8` }, input, 500);
-        return new Promise((resolve, _) => {
-            Animation.queueDelayed({ backgroundColor : 'transparent' }, input, 500, 500, true, resolve);
-        });
+        return flashBackground(input, ThemeColors.getHex('red', 8), 1000);
     }
 
     /**

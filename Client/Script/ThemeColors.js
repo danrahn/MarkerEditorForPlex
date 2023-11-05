@@ -1,3 +1,7 @@
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
+
+const Log = new ContextualLog('ThemeColors');
+
 /** Static class of colors used for icons, which may vary depending on the current theme. */
 class ThemeColors {
     static #dict = {
@@ -30,6 +34,26 @@ class ThemeColors {
      */
     static get(category) {
         return ThemeColors.#dict[this.#isDark ? 0 : 1][category];
+    }
+
+    /**
+     * Return the full hex string for the given color category, with an optional
+     * opacity applied.
+     * @param {string} category The color category
+     * @param {string} [opacity] The hex opacity (0-F, cannot be two characters)
+     */
+    static getHex(category, opacity='F') {
+        if (!/^[0-9A-Fa-f]$/.test(opacity)) {
+            Log.warn(`getHex: invalid opacity "${opacity}", defaulting to opaque`);
+            opacity = 'F';
+        }
+
+        const color = ThemeColors.#dict[this.#isDark ? 0 : 1][category];
+        if (color.length > 3) {
+            opacity += String(opacity);
+        }
+
+        return '#' + color + opacity;
     }
 
     /**

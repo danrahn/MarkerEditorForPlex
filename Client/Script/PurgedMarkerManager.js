@@ -1,7 +1,6 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Animation from './inc/Animate.js';
 import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
@@ -15,6 +14,7 @@ import {
     PurgedServer,
     PurgedShow,
     PurgedTVSection } from './PurgedMarkerCache.js';
+import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js';
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -343,27 +343,46 @@ class PurgeRow {
      * @param {MarkerDataMap} _mod Array of edited markers as a result of the restore (or null as above) */
     notifyPurgeChange(_new=null, _del=null, _mod=null) { Log.error(`notifyPurgeChange should not be called on the base class.`); }
 
+    /**
+     * Animation triggered after a table row is successfully restored/ignored.
+     * The row is deleted after the animation completes.
+     * @param {string} successColor The color to flash the table row. */
+    #animateRowActionSuccess(successColor) {
+        // Three phases to the animation, since table rows are limited in how their height can be adjusted:
+        // 1. Flash row green for 750ms
+        // 2. Fade out row for 250ms, starting at 500ms
+        // 3. Clear out row content, slide up row in 250ms.
+
+        // First need to explicitly set tr height so it doesn't immediately shrink when we clear the element
+        this.#html.style.height = this.#html.getBoundingClientRect().height + 'px';
+        flashBackground(this.#html, successColor, 750);
+        animateOpacity(this.#html, 1, 0, { duration : 250, delay : 500 }, () => {
+            clearEle(this.#html);
+            slideUp(this.#html, 250, this.#removeSelfAfterAnimation.bind(this));
+        });
+    }
+
     /** Callback when a marker was successfully restored. Flashes the row and then removes itself.
      * @param {MarkerDataMap} newMarker The newly restored marker, in the form of a single-element array.
      * @param {MarkerDataMap} deletedMarkers Any markers deleted as a result of this restore.
      * @param {MarkerDataMap} modifiedMarkers Any modified existing markers as a result of this restore. */
     #onRestoreSuccess(newMarker, deletedMarkers, modifiedMarkers) {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 500);
-        Animation.queueDelayed(
-            {
-                color : 'transparent',
-                backgroundColor : 'transparent',
-                height : '0px'
-            },
-            this.#html, 500, 500, false, this.#removeSelfAfterAnimation.bind(this));
+        this.#animateRowActionSuccess(ThemeColors.getHex('green', 6));
         this.notifyPurgeChange(newMarker, deletedMarkers, modifiedMarkers);
+    }
+
+    /**
+     * Flash the background color of this row.
+     * @param {string} color Color category to flash
+     * @param {(any) => any} [callback] Optional callback to invoke after the animation completes. */
+    #flashHtml(color, callback) {
+        return flashBackground(this.#html, ThemeColors.getHex(color, 4), 1000, callback);
     }
 
     /** Callback when a marker failed to be restored. Flashes the row and then resets back to its original state. */
     #onRestoreFail() {
         this.#showRowMessage('Restoration failed. Please try again later.');
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 500);
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#resetSelfAfterAnimation.bind(this));
+        this.#flashHtml('red', this.#resetSelfAfterAnimation.bind(this));
     }
 
     /** After an animation completes, remove itself from the table. */
@@ -392,16 +411,14 @@ class PurgeRow {
 
     /** Callback when a marker was successfully ignored. Flash the row and remove it. */
     #onIgnoreSuccess() {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}4` }, this.#html, 500);
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#removeSelfAfterAnimation.bind(this));
+        this.#animateRowActionSuccess(ThemeColors.getHex('green', 4));
         this.notifyPurgeChange({}, {}, {});
     }
 
     /** Callback when a marker failed to be ignored. Flash the row and reset it back to its original state. */
     #onIgnoreFailed() {
         this.#html.children[0].innerText = 'Sorry, something went wrong. Please try again later.';
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 500);
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 500, true, this.#resetSelfAfterAnimation.bind(this));
+        this.#flashHtml('red', this.#resetSelfAfterAnimation.bind(this));
     }
 
     #showRowMessage(message) {
@@ -552,7 +569,7 @@ class BulkPurgeAction {
         this.#options.addButtons(
             new PurgeActionInfo(restoreText, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
             new PurgeNonActionInfo(ignoreText),
-            new PurgeActionInfo('Confirm', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed),
+            new PurgeActionInfo('Confirm', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
             new PurgeNonActionInfo('Cancel'),
             this.#getMarkersFn);
     }
@@ -572,8 +589,7 @@ class BulkPurgeAction {
     /** Callback invoked when markers were unsuccessfully restored. */
     #onRestoreFail() {
         this.#options.resetViewState();
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 250);
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true);
+        flashBackground(this.#html, ThemeColors.getHex('red', 4), 750);
     }
 
     /** Callback invoked when markers were successfully ignored. */
@@ -584,18 +600,13 @@ class BulkPurgeAction {
 
     /** Callback invoked when we failed to ignore this marker group. */
     #onIgnoreFailed() {
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('red')}4` }, this.#html, 500);
-        Animation.queueDelayed(
-            { backgroundColor : 'transparent' },
-            this.#html, 500, 500, true, this.#options.resetViewState.bind(this.#options));
+        flashBackground(this.#html, ThemeColors.getHex('red', 4), 1000, this.#options.resetViewState.bind(this.#options));
     }
 
     /** Common actions done when markers were successfully restored or ignored. */
     #onActionSuccess(newMarkers, deletedMarkers, modifiedMarkers, _ignoredMarkers) {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
-        Animation.queue({ backgroundColor : `#${ThemeColors.get('green')}6` }, this.#html, 250);
-
-        const wrappedCallback = /**@this {BulkPurgeAction}*/ function() {
+        flashBackground(this.#html, ThemeColors.getHex('green', 6), 750, function() {
             // TODO: find a different way to show stats, since getting here doesn't necessarily mean
             //       all markers in the overlay are taken care of, and we don't want to interrupt with an overlay.
             // const arrLen = (x) => x ? Object.values(x).reduce((sum, arr) => sum + arr.length, 0) : 0;
@@ -606,9 +617,7 @@ class BulkPurgeAction {
             //     `Replaced Markers: ${arrLen(deletedMarkers)}<br>` +
             //     `Ignored Markers: ${ignoredMarkers}`);
             this.#successCallback(newMarkers, deletedMarkers, modifiedMarkers);
-        }.bind(this);
-
-        Animation.queueDelayed({ backgroundColor : 'transparent' }, this.#html, 500, 250, true, wrappedCallback);
+        }.bind(this));
     }
 }
 
@@ -743,9 +752,12 @@ class PurgeTable {
 
     /**
      * Animate the removal of this row */
-    #onRowRemoved() {
+    async #onRowRemoved() {
         this.#removed = true;
-        Animation.queue({ opacity : 0, height : '0px' }, this.#html, 250, true, this.#removedCallback);
+        return slideUp(this.#html, 500, () => {
+            this.#html.parentElement.removeChild(this.#html);
+            this.#removedCallback();
+        });
     }
 
     /**
@@ -903,8 +915,6 @@ class PurgeOverlay {
      * The list of tables in this overlay, one per top-level item (movie/show).
      * @type {PurgeTable[]} */
     #tables = [];
-    /** @type {HTMLElement} */
-    #html;
 
     /**
      * Initialize a new purge overlay.
@@ -943,9 +953,8 @@ class PurgeOverlay {
             container.appendChild(table.html());
         }
 
-        this.#html = container;
         if (this.#purgedSection.count <= 0) {
-            this.#clearOverlayAfterPurge(true /*emptyOnInit*/);
+            this.#noMorePurges(true /*emptyOnInit*/);
         }
 
         Overlay.build({ dismissible : true, closeButton : true, focusBack : focusBack }, container);
@@ -959,7 +968,7 @@ class PurgeOverlay {
             }
         }
 
-        this.#onTableRemoved();
+        this.#noMorePurges();
     }
 
     /** Callback invoked when all tables in the overlay have been handled.
@@ -967,24 +976,17 @@ class PurgeOverlay {
      * @param {MarkerData[]} deletedMarkers Array of deleted markers as a result of the restoration (or null as above)
      * @param {MarkerData[]} modifiedMarkers Array of edited markers as a result of the restore (or null as above) */
     #onBulkActionSuccess(newMarkers=null, deletedMarkers=null, modifiedMarkers=null) {
-        this.#onTableRemoved();
+        this.#noMorePurges();
         PurgeManagerSingleton.onPurgedMarkerAction(this.#purgedSection.deepClone(), newMarkers, deletedMarkers, modifiedMarkers);
     }
 
-    /**
-     * Animate the removal of all items in this overlay */
-    #onTableRemoved() {
-        Animation.queue({ opacity : 0 }, this.#html, 500, false, this.#clearOverlayAfterPurge.bind(this));
-    }
-
     /** Clears out the now-useless overlay and lets the user know there are no more purged markers to handle. */
-    #clearOverlayAfterPurge(emptyOnInit=false) {
-        clearEle(this.#html);
-        appendChildren(this.#html,
+    #noMorePurges(emptyOnInit=false) {
+        const container = appendChildren(buildNode('div', { id : 'purgeContainer' }),
             buildNode('h1', {}, emptyOnInit ? 'No Purged Markers Found' : 'No More Purged Markers'),
             appendChildren(buildNode('div', { class : 'buttonContainer' }),
                 ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' })));
-        Animation.queue({ opacity : 1 }, this.#html, 500);
+        Overlay.build({ dismissible : true, closeButton : true, focusBack : null }, container);
     }
 
     /** @returns {number[]} The list of marker ids this overlay applies to. */
