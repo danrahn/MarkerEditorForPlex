@@ -186,7 +186,7 @@ const MarkerOp = {
     Restore : 4
 };
 
-/* eslint-disable indent */
+/* eslint-disable indent */ /* eslint-disable no-useless-concat */
 /** The main table. See above for details. */
 const ActionsTable = `
 CREATE TABLE IF NOT EXISTS actions (
@@ -385,10 +385,10 @@ class MarkerBackupManager {
 
         const fullPath = joinPath(dbPath, 'markerActions.db');
         const dbExists = existsSync(fullPath);
-        if (!dbExists) {
-            Log.info(`No backup marker database found, creating it (${fullPath}).`);
-        } else {
+        if (dbExists) {
             Log.tmi(`Backup database found, attempting to open...`);
+        } else {
+            Log.info(`No backup marker database found, creating it (${fullPath}).`);
         }
 
         try {
@@ -402,8 +402,8 @@ class MarkerBackupManager {
             const row = await db.get('SELECT version FROM schema_version;');
             const version = row ? row.version : 0;
             const manager = new MarkerBackupManager(uuids, sectionTypes, db);
-            if (version != CurrentSchemaVersion) {
-                if (version != 0) {
+            if (version !== CurrentSchemaVersion) {
+                if (version !== 0) {
                     // Only log if this isn't a new database, i.e. version isn't 0.
                     Log.info(`Old database schema detected (${version}), attempting to upgrade.`);
                 }
@@ -419,6 +419,8 @@ class MarkerBackupManager {
             await manager.initialize();
 
             Log.info(fullPath, 'Initialized backup database');
+            // Something's gone terribly wrong if we're making multiple asynchronous calls to CreateInstance
+            // eslint-disable-next-line require-atomic-updates
             Instance = manager;
             return manager;
         } catch (err) {
@@ -428,7 +430,12 @@ class MarkerBackupManager {
     }
 
     /** Clear out the singleton backup manager instance. */
-    static async Close() { await Instance?.close(); Instance = null; }
+    static async Close() {
+        await Instance?.close();
+        // Something's gone terribly wrong if there are multiple active calls to Close
+        // eslint-disable-next-line require-atomic-updates
+        Instance = null;
+    }
 
     /**
      * Clear out and rebuild purged marker information. */
@@ -482,11 +489,11 @@ class MarkerBackupManager {
         Log.info(`Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
         await this.#actions.exec(SchemaUpgrades[oldVersion]);
         await this.#schemaUpgradeCallbacks[oldVersion]();
-        if (nextVersion != CurrentSchemaVersion) {
-            await this.upgradeSchema(nextVersion);
-        } else {
+        if (nextVersion === CurrentSchemaVersion) {
             Log.info('Successfully upgraded database schema.');
             Log.info('Initialized backup database');
+        } else {
+            await this.upgradeSchema(nextVersion);
         }
     }
 
@@ -549,7 +556,7 @@ class MarkerBackupManager {
      * @param {MarkerAction[]} actions The actions to inspect
      * @returns Whether section ids need to be updated */
     async #verifySectionIds(actions) {
-        if (actions.length <= 0 || actions[0].section_id != -1) {
+        if (actions.length <= 0 || actions[0].section_id !== -1) {
             return false;
         }
 
@@ -576,7 +583,7 @@ class MarkerBackupManager {
         const allActionsQuery = this.#allActionsQuery(true);
         /** @type {MarkerAction[]} */
         const allActions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
-        if (!allActions || allActions.length == 0) {
+        if (!allActions || allActions.length === 0) {
             Log.verbose('No active actions missing episode guid.');
             return;
         }
@@ -630,7 +637,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         let modifiedAt;
         let createdAt;
         const asRaw = new Set();
-        oldTimings = oldTimings || { start : null, end : null };
+        oldTimings ||= { start : null, end : null };
         const nowTime = `(strftime('%s', 'now'))`;
         switch (markerOp) {
             case MarkerOp.Add:
@@ -838,14 +845,14 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
-            if (!markerMap[action.marker_id] && action.op != MarkerOp.Delete) {
+            if (!markerMap[action.marker_id] && action.op !== MarkerOp.Delete) {
                 // Note: while this is "cleaner", it's a bit gross since it doesn't work with
                 // primitives, only objects due to reference semantics.
                 (baseItemMap[action.parent_id] ??= []).push(action);
             }
         }
 
-        if (typeInfo.metadata_type == MetadataType.Movie) {
+        if (typeInfo.metadata_type === MetadataType.Movie) {
             await this.#populateMovieData(baseItemMap);
         } else {
             await this.#populateEpisodeData(baseItemMap);
@@ -853,8 +860,8 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
 
         /** @type {MarkerAction[]} */
         let pruned = [];
-        for (const actions of Object.values(baseItemMap)) {
-            pruned = pruned.concat(actions);
+        for (const baseItemActions of Object.values(baseItemMap)) {
+            pruned = pruned.concat(baseItemActions);
         }
 
         return pruned;
@@ -864,7 +871,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * Find and attach episode data for the given episodes.
      * @param {{ [episodeId: number]: MarkerAction[] }} episodeMap  */
     async #populateEpisodeData(episodeMap) {
-        if (Object.keys(episodeMap).length == 0) {
+        if (Object.keys(episodeMap).length === 0) {
             return;
         }
 
@@ -897,7 +904,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * TODO: can markerAction.episodeData and markerAction.movieData be combined?
      * @param {{[movieId: number]: MarkerAction[] }} movieMap */
     async #populateMovieData(movieMap) {
-        if (Object.keys(movieMap).length == 0) {
+        if (Object.keys(movieMap).length === 0) {
             return;
         }
 
@@ -943,8 +950,8 @@ GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`;
 
         return {
-            query : query,
-            parameters : parameters
+            query,
+            parameters
         };
     }
 
@@ -966,7 +973,7 @@ ORDER BY id DESC;`;
         /** @type {{ [sectionId: number]: number[] }} */
         const disconnected = {};
         for (const action of actions) {
-            if (action.op == MarkerOp.Delete) {
+            if (action.op === MarkerOp.Delete) {
                 continue; // Last action was a user delete, ignore it.
             }
 
@@ -981,9 +988,9 @@ ORDER BY id DESC;`;
                     continue;
                 }
 
-                const fromGuid = await (action.show_id != -1 ?
-                    PlexQueries.getEpisodeFromGuid(action.parent_guid) :
-                    PlexQueries.getMovieFromGuid(action.parent_guid));
+                const fromGuid = await (action.show_id === -1 ?
+                    PlexQueries.getMovieFromGuid(action.parent_guid) :
+                    PlexQueries.getEpisodeFromGuid(action.parent_guid));
                 if (!fromGuid) {
                     Log.verbose(`No episode found for marker id ${action.id}, ` +
                         `but keeping around in case the episode guid is added in the future.`);
@@ -1036,7 +1043,7 @@ ORDER BY id DESC;`;
         // Each instance of this application is tied to a single server's database,
         // so it's okay to use the section_id instead of the globally unique section_uuid.
         const section = this.#purgeCache[action.section_id] ??= {};
-        if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
+        if (this.#sectionTypes[action.section_id] === MetadataType.Movie) {
             (section[action.parent_id] ??= {})[action.marker_id] = action;
         } else {
             const show = section[action.show_id] ??= {};
@@ -1053,12 +1060,12 @@ ORDER BY id DESC;`;
         if (!this.#purgeCache) { return; }
         if (!this.#purgeCache[action.section_id]) { return; }
         const section = this.#purgeCache[action.section_id];
-        if (this.#sectionTypes[action.section_id] == MetadataType.Movie) {
+        if (this.#sectionTypes[action.section_id] === MetadataType.Movie) {
             if (!section[action.parent_id]) { return; }
             const movie = section[action.parent_id];
             if (!movie[action.marker_id]) { return; }
             delete movie[action.marker_id];
-            if (Object.keys(movie).length == 0) { delete section[action.parent_id]; }
+            if (Object.keys(movie).length === 0) { delete section[action.parent_id]; }
         } else {
             if (!section[action.show_id]) { return; }
             /** @type {PurgeShow} */
@@ -1071,12 +1078,12 @@ ORDER BY id DESC;`;
 
             if (episode[action.marker_id]) { delete episode[action.marker_id]; }
 
-            if (Object.keys(episode).length == 0) { delete season[action.parent_id]; }
-            if (Object.keys(season).length == 0) { delete show[action.season_id]; }
-            if (Object.keys(show).length == 0) { delete section[action.show_id]; }
+            if (Object.keys(episode).length === 0) { delete season[action.parent_id]; }
+            if (Object.keys(season).length === 0) { delete show[action.season_id]; }
+            if (Object.keys(show).length === 0) { delete section[action.show_id]; }
         }
 
-        if (Object.keys(section).length == 0) { delete this.#purgeCache[action.section_id]; }
+        if (Object.keys(section).length === 0) { delete this.#purgeCache[action.section_id]; }
         /* eslint-enable */
     }
 
@@ -1088,7 +1095,7 @@ ORDER BY id DESC;`;
 
         let count = 0;
         for (const [sectionId, section] of Object.entries(this.#purgeCache)) {
-            if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+            if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
                 // Movies don't have the hierarchy
                 for (const movie of Object.values(section)) {
                     count += Object.keys(movie).length;
@@ -1276,7 +1283,7 @@ ORDER BY id DESC;`;
 
         Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
         const rows = await this.#getActionsForIds(oldMarkerIds, sectionId);
-        if (rows.length == 0) {
+        if (rows.length === 0) {
             throw new ServerError(`No markers found with ids ${oldMarkerIds} to restore.`, 400);
         }
 
@@ -1330,8 +1337,8 @@ ORDER BY id DESC;`;
         let restoredList = [];
 
         for (const newMarker of newMarkers) {
-            const oldAction = toRestore[newMarker.parent_id].filter(a => a.start == newMarker.start && a.end == newMarker.end);
-            if (oldAction.length != 1) {
+            const oldAction = toRestore[newMarker.parent_id].filter(a => a.start === newMarker.start && a.end === newMarker.end);
+            if (oldAction.length !== 1) {
                 Log.warn(`Unable to match new marker against old marker action, some things may be out of sync.`);
                 continue;
             }
@@ -1353,8 +1360,8 @@ ORDER BY id DESC;`;
 
         // Essentially the same loop as above, but separate to distinguish between newly added and existing markers
         for (const ignoredMarker of ignoredMarkers) {
-            let oldAction = toRestore[ignoredMarker.parent_id].filter(a => a.start == ignoredMarker.start && a.end == ignoredMarker.end);
-            if (oldAction.length != 1) {
+            let oldAction = toRestore[ignoredMarker.parent_id].filter(a => a.start === ignoredMarker.start && a.end === ignoredMarker.end);
+            if (oldAction.length !== 1) {
                 Log.warn(`Unable to match identical marker against old marker action, some things may be out of sync.`);
                 continue;
             }
@@ -1416,7 +1423,7 @@ ORDER BY id DESC;`;
         }
 
         // Inefficient, but I'm lazy
-        if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+        if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
             for (const movie of Object.values(this.#purgeCache[sectionId])) {
                 for (const markerAction of Object.values(movie)) {
                     if (idSet.has(markerAction.marker_id)) {
@@ -1476,7 +1483,7 @@ ORDER BY id DESC;`;
 
         // Now clear out any purged markers that we just deleted.
         // Inefficient, and copy/paste but I'm lazy
-        if (this.#sectionTypes[sectionId] == MetadataType.Movie) {
+        if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
             for (const movie of Object.values(this.#purgeCache[sectionId])) {
                 for (const markerAction of Object.values(movie)) {
                     if (MarkerEnum.typeMatch(markerAction.marker_type, deleteType)) {
@@ -1513,7 +1520,7 @@ ORDER BY id DESC;`;
         /** @type {MarkerAction[]} */
         const actions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
         for (const action of actions) {
-            if (action.op == MarkerOp.Delete) {
+            if (action.op === MarkerOp.Delete) {
                 continue; // Last action was a delete, this marker doesn't exist anymore.
             }
 

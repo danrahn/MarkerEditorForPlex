@@ -108,7 +108,7 @@ class BaseItemNode extends MarkerNodeBase {
     #deltaBase(markerData, multiplier) {
         // TODO: temporary. Make sure that base items only have a single "active" bucket, it doesn't
         //       make sense for a single episode/movie to have multiple buckets.
-        Log.assert(this.markerBreakdown.buckets() == 1, 'A base item should only have a single bucket.');
+        Log.assert(this.markerBreakdown.buckets() === 1, 'A base item should only have a single bucket.');
         // Silently ignore unsupported marker types.
         // TODO: better support for unsupported types (i.e. commercials)
         if (!supportedMarkerType(markerData.marker_type)) {
@@ -282,7 +282,7 @@ class MarkerCacheManager {
         delete this.#allMarkers[markerId];
         const baseItem = this.#drillDown(markerData);
         baseItem.remove(markerData);
-        baseItem.markers = baseItem.markers.filter(marker => marker != markerId);
+        baseItem.markers = baseItem.markers.filter(marker => marker !== markerId);
     }
 
     /**
@@ -418,7 +418,7 @@ class MarkerCacheManager {
             let markerCount = 0;
             for (const row of rows) {
                 this.#addMarkerData(row);
-                if (row.tag_id != this.#tagId) {
+                if (row.tag_id !== this.#tagId) {
                     continue;
                 }
 
@@ -466,8 +466,8 @@ class MarkerCacheManager {
      * If it doesn't, we still want to create an entry for the episode the row represents.
      * @param {MarkerQueryResult} tag The row to (potentially) add to our cache. */
     #addMarkerData(tag) {
-        const isMarker = tag.tag_id == this.#tagId;
-        const isMovie = tag.show_id == -1;
+        const isMarker = tag.tag_id === this.#tagId;
+        const isMovie = tag.show_id === -1;
         const thisSection = this.#markerHierarchy[tag.section_id] ??= new MarkerSectionNode();
         /** @type {BaseItemNode} */
         let base;
@@ -501,7 +501,7 @@ class MarkerCacheManager {
      * we track all base media items, even if they currently don't have markers.
      * @param {MediaItemQueryResult} mediaItem */
     #initializeHierarchy(mediaItem) {
-        const isMovie = mediaItem.show_id == -1;
+        const isMovie = mediaItem.show_id === -1;
         const thisSection = this.#markerHierarchy[mediaItem.section_id] ??= new MarkerSectionNode();
         /** @type {BaseItemNode} */
         if (isMovie) {

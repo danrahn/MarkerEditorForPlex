@@ -53,13 +53,13 @@ class MarkerBreakdown {
      * @param {MarkerBreakdownMap} rawMarkerBreakdown */
     initFromRawBreakdown(rawMarkerBreakdown) {
         Log.assert(
-            this.buckets() == 0 && this.#counts[0] === 0,
+            this.buckets() === 0 && this.#counts[0] === 0,
             `Trying to initialize a marker breakdown from raw data, but we've already set some data!`);
         this.#counts = rawMarkerBreakdown;
         return this;
     }
 
-    buckets() { return Object.keys(this.#counts).filter(c => this.#counts[c] != 0).length; }
+    buckets() { return Object.keys(this.#counts).filter(c => this.#counts[c] !== 0).length; }
 
     /**
      * @returns {MarkerBreakdownMap} */

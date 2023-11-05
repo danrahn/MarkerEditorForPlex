@@ -163,7 +163,7 @@ class BulkShiftOverlay {
             return;
         }
 
-        if (e.key == 'Enter') {
+        if (e.key === 'Enter') {
             this.#adjustNewTimes();
             return;
         }
@@ -176,17 +176,17 @@ class BulkShiftOverlay {
      * @param {HTMLInputElement} checkbox */
     #onSeparateShiftChange(checkbox) {
         this.#separateShift = checkbox.checked;
-        if (!this.#separateShift) {
-            $('#shiftStartTimeLabel').innerText = 'Time shift: ';
-            $('#shiftEndTimeLabel').classList.add('hidden');
-            this.#endTimeInput.classList.add('hidden');
-        } else {
+        if (this.#separateShift) {
             $('#shiftStartTimeLabel').innerText = 'Start shift: ';
             $('#shiftEndTimeLabel').classList.remove('hidden');
             this.#endTimeInput.classList.remove('hidden');
             if (!this.#endTimeInput.value) { this.#endTimeInput.value = this.#startTimeInput.value; }
 
             this.#checkShiftValue();
+        } else {
+            $('#shiftStartTimeLabel').innerText = 'Time shift: ';
+            $('#shiftEndTimeLabel').classList.add('hidden');
+            this.#endTimeInput.classList.add('hidden');
         }
 
         this.#adjustNewTimes();
@@ -335,25 +335,23 @@ class BulkShiftOverlay {
 
         // If we've already shown the warning
         const existingMessage = this.#getMessageType();
-        if (existingMessage && existingMessage != 'unresolvedPlus' && (ignoreInfo.hasCutoff || ignoreInfo.hasCutoff)) {
+        if (existingMessage && existingMessage !== 'unresolvedPlus' && (ignoreInfo.hasCutoff || ignoreInfo.hasCutoff)) {
             return this.#showMessage('unresolvedPlus', true);
         }
 
-        if (existingMessage && existingMessage != 'unresolvedAgain') {
+        if (existingMessage && existingMessage !== 'unresolvedAgain') {
             return this.#showMessage('unresolvedAgain', true);
         }
 
         // If we are already showing the force shift subdialog, just flash the button
-        if (existingMessage == 'unresolvedAgain' || existingMessage == 'unresolvedPlus') {
+        if (existingMessage === 'unresolvedAgain' || existingMessage === 'unresolvedPlus') {
             return BulkActionCommon.flashButton('shiftApply', 'red');
         }
 
         this.#showMessage('unresolved');
         if (!this.#table) {
-            this.#check();
+            await this.#check();
         }
-
-        return;
     }
 
     /**
@@ -454,7 +452,7 @@ class BulkShiftOverlay {
 
         const overlapping = [];
         for (const marker of data.inactive) {
-            if (marker.id == markerId) {
+            if (marker.id === markerId) {
                 continue; // This should be impossible for inactive markers.
             }
 
@@ -464,7 +462,7 @@ class BulkShiftOverlay {
         }
 
         for (const row of data.active) {
-            if (row.markerId() == markerId) {
+            if (row.markerId() === markerId) {
                 continue;
             }
 
@@ -482,10 +480,8 @@ class BulkShiftOverlay {
                     markerCopy.end = linkEnd;
                     overlapping.push(markerCopy);
                 }
-            } else {
-                if (start <= marker.start && end >= marker.start || start > marker.start && start <= marker.end) {
-                    overlapping.push(marker);
-                }
+            } else if (start <= marker.start && end >= marker.start || start > marker.start && start <= marker.end) {
+                overlapping.push(marker);
             }
         }
 
@@ -523,7 +519,7 @@ class BulkShiftOverlay {
                 inactive.push(sortedMarkers[i]);
             }
 
-            while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId == eInfo.metadataId) {
+            while (i < sortedMarkers.length - 1 && sortedMarkers[i+1].parentId === eInfo.metadataId) {
                 if (MarkerEnum.typeMatch(sortedMarkers[++i].markerType, markerTypeSelected)) {
                     checkGroup.push(sortedMarkers[i]);
                 } else {
@@ -532,16 +528,16 @@ class BulkShiftOverlay {
             }
 
             const multiple = checkGroup.length > 1;
-            const rows = [];
+            const active = [];
             for (const marker of checkGroup) {
                 const row = new BulkShiftRow(this, marker, eInfo, multiple);
                 this.#table.addRow(row, multiple);
-                rows.push(row);
+                active.push(row);
             }
 
             this.#episodeMap[eInfo.metadataId] = {
-                inactive : inactive,
-                active : rows,
+                inactive,
+                active,
             };
         }
 
@@ -569,9 +565,10 @@ class BulkShiftOverlay {
         let hasUnresolved = false;
         let hasCutoff = false;
         let hasError = false;
+        const tableVisible = true;
         for (const row of this.#tableRows()) {
-            hasUnresolved = hasUnresolved || row.isUnresolved();
-            hasCutoff = hasCutoff || row.isCutoff();
+            hasUnresolved ||= row.isUnresolved();
+            hasCutoff ||= row.isCutoff();
             if (row.isError()) {
                 hasError = true;
                 ignored.push(row.markerId());
@@ -579,11 +576,11 @@ class BulkShiftOverlay {
         }
 
         return {
-            ignored : ignored,
-            tableVisible : true,
-            hasUnresolved : hasUnresolved,
-            hasCutoff : hasCutoff,
-            hasError  : hasError,
+            ignored,
+            tableVisible,
+            hasUnresolved,
+            hasCutoff,
+            hasError,
         };
     }
 }
@@ -691,11 +688,11 @@ class BulkShiftRow extends BulkActionRow {
         const enabledChanged = this.enabled !== this.#enabledLastUpdate;
         if (enabledChanged) {
             this.#markActive(!this.enabled, this.row.children[2], this.row.children[3]);
-            if (!this.enabled) {
+            if (this.enabled) {
+                this.#markActive(this.enabled, this.row.children[4], this.row.children[5]);
+            } else {
                 BulkShiftClasses.set(this.row.children[4], BulkShiftClasses.Type.Reset, false);
                 BulkShiftClasses.set(this.row.children[5], BulkShiftClasses.Type.Reset, false);
-            } else {
-                this.#markActive(this.enabled, this.row.children[4], this.row.children[5]);
             }
 
             this.#enabledLastUpdate = this.enabled;
@@ -715,9 +712,9 @@ class BulkShiftRow extends BulkActionRow {
         let anyChecked = this.enabled;
         for (const row of this.#parent.table().rows()) {
             Log.assert(row instanceof BulkShiftRow, `How did a non-shift row get here?`);
-            if (row.episodeId() == this.episodeId()) {
+            if (row.episodeId() === this.episodeId()) {
                 linkedRows.push(row);
-                anyChecked = anyChecked || row.enabled;
+                anyChecked ||= row.enabled;
             }
         }
 
@@ -827,7 +824,7 @@ const BulkShiftClasses = {
     set : (node, idx, active, tooltip='') => {
         const names = BulkShiftClasses.classNames;
         active ? node.classList.remove('bulkActionInactive') : node.classList.add('bulkActionInactive');
-        if (idx == -1) {
+        if (idx === -1) {
             node.classList.remove(names[0]);
             node.classList.remove(names[1]);
             node.classList.remove(names[2]);
@@ -836,7 +833,7 @@ const BulkShiftClasses = {
 
         if (!node.classList.contains(names[idx])) {
             for (let i = 0; i < names.length; ++i) {
-                i == idx ? node.classList.add(names[i]) : node.classList.remove(names[i]);
+                i === idx ? node.classList.add(names[i]) : node.classList.remove(names[i]);
             }
         }
 

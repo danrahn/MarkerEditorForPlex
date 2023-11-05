@@ -36,10 +36,10 @@ class PurgeCommands {
      * @param {number[]} oldMarkerIds
      * @param {number} sectionId
      * @param {number} resolveType
-     * @returns {BulkRestoreResponse} */
+     * @returns {Promise<BulkRestoreResponse>} */
     static async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
         // TODO: Why does bulk overwrite keep the old markers around?
-        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {
+        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] === resolveType).length === 0) {
             throw new ServerError(`Unexpected MarkerConflictResolution type: ${resolveType}`, 400);
         }
 
@@ -48,7 +48,7 @@ class PurgeCommands {
         const deletedMarkers = restoredMarkerData.deletedMarkers;
         const modifiedMarkers = restoredMarkerData.modifiedMarkers;
 
-        if (restoredMarkers.length == 0) {
+        if (restoredMarkers.length === 0) {
             Log.verbose(`restoreMarkers: No markers to restore, likely because they all already existed.`);
         }
 

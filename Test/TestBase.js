@@ -154,7 +154,7 @@ class TestBase {
      * Starts the marker editor. Expects to have been run via launch.json's "Run Tests"
      * configuration, which will pass in the right command line arguments to mainRun. */
     async startService() {
-        if (GetServerState() == ServerState.FirstBoot) {
+        if (GetServerState() === ServerState.FirstBoot) {
             return mainRun();
         }
 
@@ -175,7 +175,7 @@ class TestBase {
         TestLog.info(`Ran ${this.testMethods.length} tests`);
         TestLog.info(`\tPASSED: ${successCount}`);
         TestLog.info(`\tFAILED: ${failureCount}`);
-        if (failureCount != 0) {
+        if (failureCount !== 0) {
             TestLog.error(`FAILED! One or more tests in ${this.className()} did not pass!`);
         }
 
@@ -241,7 +241,7 @@ class TestBase {
     /**
      * Resumes the test server after being suspended for cleanup. */
     async resume() {
-        if (GetServerState() != ServerState.Suspended) {
+        if (GetServerState() !== ServerState.Suspended) {
             return;
         }
 
@@ -275,7 +275,7 @@ class TestBase {
      * @param {*} headers Any additional headers to add to the request
      * @param {boolean} raw */
     async #fetchInternal(endpoint, params, method, headers, raw) {
-        if (GetServerState() == ServerState.FirstBoot || GetServerState() == ServerState.ShuttingDown) {
+        if (GetServerState() === ServerState.FirstBoot || GetServerState() === ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
         }
@@ -286,11 +286,11 @@ class TestBase {
         }
 
         if (raw) {
-            return fetch(url, { method : method, headers : headers });
-        } else {
-            TestHelpers.verify(method == 'POST', `We shouldn't be making non-raw GET requests`);
-            return fetch(url, { method : method, headers : headers }).then(r => r.json());
+            return fetch(url, { method, headers });
         }
+
+        TestHelpers.verify(method === 'POST', `We shouldn't be making non-raw GET requests`);
+        return fetch(url, { method, headers }).then(r => r.json());
     }
 
     /* eslint-disable indent */

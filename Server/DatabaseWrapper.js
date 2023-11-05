@@ -109,13 +109,13 @@ class DatabaseWrapper {
     static parameterize(query, parameters) {
         if (parameters instanceof Array) {
             return DatabaseWrapper.#parameterizeArray(query, parameters);
-        } else {
-            if (!(parameters instanceof Object)) {
-                throw new ServerError(`Cannot parameterize query, expected an array or object of parameters`);
-            }
-
-            return DatabaseWrapper.#parameterizeNamed(query, parameters);
         }
+
+        if (!(parameters instanceof Object)) {
+            throw new ServerError(`Cannot parameterize query, expected an array or object of parameters`);
+        }
+
+        return DatabaseWrapper.#parameterizeNamed(query, parameters);
     }
 
 
@@ -128,7 +128,7 @@ class DatabaseWrapper {
         let newQuery = '';
         for (const parameter of parameters) {
             const idx = query.indexOf('?', startSearch);
-            if (idx == -1) {
+            if (idx === -1) {
                 throw new ServerError(`Unable to parameterize query, not enough '?'!`, 500);
             }
 
@@ -139,22 +139,20 @@ class DatabaseWrapper {
                 newQuery += parameter.toString();
             } else if (typeof parameter === 'boolean') {
                 newQuery += parameter ? '1' : '0';
-            } else {
+            } else if (parameter === null) {
                 // Allow null, since that's more likely to be intentional than undefined.
-                if (parameter === null) {
-                    newQuery += 'NULL';
-                } else {
-                    throw new ServerError(
-                        `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
-                        500);
-                }
+                newQuery += 'NULL';
+            } else {
+                throw new ServerError(
+                    `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
+                    500);
             }
 
             startSearch = idx + 1;
         }
 
         if (startSearch < query.length) {
-            if (query.indexOf('?', startSearch) != -1) {
+            if (query.indexOf('?', startSearch) !== -1) {
                 throw new ServerError(`Unable to parameterize query, too many '?'!`, 500);
             }
 
@@ -191,15 +189,13 @@ class DatabaseWrapper {
                     escapedValue = value.toString();
                 } else if (typeof value === 'boolean') {
                     escapedValue = value ? '1' : '0';
-                } else {
+                } else if (value === null) {
                     // Allow null, since that's more likely to be intentional than undefined.
-                    if (value === null) {
-                        escapedValue = 'NULL';
-                    } else {
-                        throw new ServerError(
-                            `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
-                            500);
-                    }
+                    escapedValue = 'NULL';
+                } else {
+                    throw new ServerError(
+                        `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
+                        500);
                 }
             }
 

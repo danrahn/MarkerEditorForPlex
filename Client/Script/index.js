@@ -49,6 +49,5 @@ async function mainSetup() {
         PlexUI.init(await ServerCommand.getSections());
     } catch (err) {
         errorResponseOverlay('Error getting libraries, please verify you have provided the correct database path and try again.', err);
-        return;
     }
 }

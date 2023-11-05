@@ -26,7 +26,7 @@ class ChapterTest extends TestBase {
         // Show2, S01E01 has no chapters (see setupPlexDbTestTables)
         const id = TestBase.DefaultMetadata.Show2.Season1.Episode1.Id;
         /** @type {ChapterMap} */
-        const data = await this.send('get_chapters', { id : id });
+        const data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [id]);
         TestHelpers.verify(data[id].length === 0, `Expected an empty chapter array, found ${data[id].length}.`);
     }
@@ -34,7 +34,7 @@ class ChapterTest extends TestBase {
     async testNamedChapters() {
         const id = TestBase.DefaultMetadata.Show1.Season2.Episode1.Id;
         /** @type {ChapterMap} */
-        const data = await this.send('get_chapters', { id : id });
+        const data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [id]);
 
         // Based on setupPlexDbTestTables's testChapters
@@ -45,7 +45,7 @@ class ChapterTest extends TestBase {
     async testUnnamedChapters() {
         const id = TestBase.DefaultMetadata.Show1.Season1.Episode3.Id;
         /** @type {ChapterMap} */
-        const data = await this.send('get_chapters', { id : id });
+        const data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [id]);
         this.#verifyChapters(data[id], 6);
     }
@@ -56,12 +56,12 @@ class ChapterTest extends TestBase {
         // we pick up the item with chapters.
         let id = TestBase.DefaultMetadata.Show1.Season1.Episode1.Id;
         /** @type {ChapterMap} */
-        let data = await this.send('get_chapters', { id : id });
+        let data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [id]);
         this.#verifyChapters(data[id], 4, 'ch');
 
         id = TestBase.DefaultMetadata.Show1.Season1.Episode2.Id;
-        data = await this.send('get_chapters', { id : id });
+        data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [id]);
         this.#verifyChapters(data[id], 5, 'part');
     }
@@ -70,7 +70,7 @@ class ChapterTest extends TestBase {
         const season = TestBase.DefaultMetadata.Show1.Season1;
         const id = season.Id;
         /** @type {ChapterMap} */
-        const data = await this.send('get_chapters', { id : id });
+        const data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [season.Episode1.Id, season.Episode2.Id, season.Episode3.Id]);
         this.#verifyChapters(data[season.Episode1.Id], 4, 'ch');
         this.#verifyChapters(data[season.Episode2.Id], 5, 'part');
@@ -81,7 +81,7 @@ class ChapterTest extends TestBase {
         const show = TestBase.DefaultMetadata.Show1;
         const id = show.Id;
         /** @type {ChapterMap} */
-        const data = await this.send('get_chapters', { id : id });
+        const data = await this.send('get_chapters', { id });
         this.#verifyResultKeys(data, [
             show.Season1.Episode1.Id,
             show.Season1.Episode2.Id,
@@ -123,7 +123,7 @@ class ChapterTest extends TestBase {
             if (prefix) {
                 TestHelpers.verify(chapter.name.startsWith(prefix), `Unexpected chapter name`);
             } else {
-                TestHelpers.verify(chapter.name.length == 0, `Expected unnamed chapter, found a name`);
+                TestHelpers.verify(chapter.name.length === 0, `Expected unnamed chapter, found a name`);
             }
 
             TestHelpers.verify(chapter.start !== undefined, `Each chapter should have a start timestamp, but none was found.`);

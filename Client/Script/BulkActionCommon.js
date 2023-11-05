@@ -46,14 +46,14 @@ class BulkActionRow {
      * @param {MouseEvent} e */
     onRowClick(e) {
         const checkbox = $$('input[type=checkbox]', this.row);
-        if (e.target == checkbox) {
+        if (e.target === checkbox) {
             // Just let the checkbox change event do its thing.
             return;
         }
 
         // Clicking outside the checkbox but inside its td counts as a check.
         // Checkbox is in a div, so both the parent and grandparent should be checked
-        if (e.target == checkbox.parentNode || e.target == checkbox.parentNode.parentNode) {
+        if (e.target === checkbox.parentNode || e.target === checkbox.parentNode.parentNode) {
             checkbox.click();
             return;
         }
@@ -85,7 +85,7 @@ class BulkActionRow {
      * Directly set the checkbox value
      * @param {boolean} checked */
     setChecked(checked) {
-        if (this.enabled != checked) {
+        if (this.enabled !== checked) {
             $$('input[type=checkbox]', this.row).click();
         }
     }
@@ -94,7 +94,7 @@ class BulkActionRow {
      * Set whether this row is selected as part of multiselect.
      * @param {boolean} selected */
     setSelected(selected) {
-        if (selected == this.selected) {
+        if (selected === this.selected) {
             return;
         }
 
@@ -289,7 +289,7 @@ class BulkActionTable {
      * @param {MouseEvent} e */
     #onMultiSelectClick(checkbox, e) {
         e.preventDefault(); // Don't change the check state
-        const select = checkbox.id == 'multiSelectSelect';
+        const select = checkbox.id === 'multiSelectSelect';
         for (const row of this.#selected.values()) {
             row.setChecked(select);
         }
@@ -375,12 +375,7 @@ class BulkActionTable {
             this.#selected.clear();
             this.#setSelectState(toggledRow, true);
         } else if (e.ctrlKey && e.shiftKey) {
-            // If we previously weren't selecting anything, this
-            // just sets last selected without selecting this row.
-            if (!this.#lastSelected) {
-                this.#setSelectState(toggledRow, false);
-            } else {
-
+            if (this.#lastSelected) {
                 // Iterate from the last selected row to this row. If the last
                 // selected row was a deselect, deselect everything, otherwise select everything.
                 // This does _not_ change lastSelected. Not sure if I quite like that behavior,
@@ -397,6 +392,10 @@ class BulkActionTable {
                         row.setSelected(true);
                     }
                 }
+            } else {
+                // If we previously weren't selecting anything, this
+                // just sets last selected without selecting this row.
+                this.#setSelectState(toggledRow, false);
             }
         } else if (e.shiftKey) {
             // Select everything from start to end, unselecting everything else.
@@ -443,9 +442,9 @@ class BulkActionCommon {
             const aEd = episodeData[a.parentId];
             /** @type {SerializedEpisodeData} */
             const bEd = episodeData[b.parentId];
-            if (aEd.seasonIndex != bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
+            if (aEd.seasonIndex !== bEd.seasonIndex) { return aEd.seasonIndex - bEd.seasonIndex; }
 
-            if (aEd.index != bEd.index) { return aEd.index - bEd.index; }
+            if (aEd.index !== bEd.index) { return aEd.index - bEd.index; }
 
             return a.start - b.start;
         });
@@ -515,7 +514,7 @@ class BulkActionCommon {
      * @param {number} [duration=500] */
     static async flashButton(buttonId, color, duration=500) {
         const button = typeof buttonId === 'string' ? $(`#${buttonId}`) : buttonId;
-        if (!button) { Log.warn(`BulkActionCommon::flashButton - Didn't find button`); return; }
+        if (!button) { Log.warn(`BulkActionCommon::flashButton - Didn't find button`); return Promise.resolve(); }
 
         Animation.queue({ backgroundColor : `#${ThemeColors.get(color)}4` }, button, duration);
         return new Promise((resolve, _) => {

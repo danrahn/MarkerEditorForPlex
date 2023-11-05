@@ -4,6 +4,8 @@ import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
 const Log = new ContextualLog('Animation');
 
+/* eslint-disable no-invalid-this */ // Remove if Animation becomes a proper class
+
 /**
  * A lightweight class to animate various element properties. Performance is questionable at best,
  * especially since everything here could probably be done with CSS transitions.
@@ -60,8 +62,8 @@ const Animation = new function() {
 
         /*@__PURE__*/Log.tmi(animationQueue[element.id], 'Firing animation for ' + element.id + ' immediately', true /*freeze*/);
         for (let i = 0; i < animations.length; ++i) {
-            setTimeout(function(func, element, prop, ...args) {
-                func(element, prop, ...args);
+            setTimeout(function(fn, ele, prop, ...extraArgs) {
+                fn(ele, prop, ...extraArgs);
             }, delay, animations[i].func, element, animations[i].prop, ...animations[i].args);
         }
     };
@@ -128,7 +130,7 @@ const Animation = new function() {
         /** @type {AnimationParams[][]} */
         const queue = animationQueue[element.id];
         const justFired = queue[0].shift();
-        if (queue[0].length == 0) {
+        if (queue[0].length === 0) {
             Log.tmi(justFired.args, 'Just executed');
             // Clear it from our dictionary to save some space
             /*@__PURE__*/Log.tmi(`No more animations in the current group for ${element.id}, removing it from the queue`);
@@ -147,15 +149,15 @@ const Animation = new function() {
             return;
         }
 
-        if (queue.length == 0) {
+        if (queue.length === 0) {
             /*@__PURE__*/Log.tmi(`no more animations for ${element.id}`);
             delete animationQueue[element.id];
         } else {
             /*@__PURE__*/Log.tmi(`Firing next animation for ${element.id}`);
             const nextAnimations = queue[0];
             for (let i = 0; i < nextAnimations.length; ++i) {
-                setTimeout((element, nextAnimation) => {
-                    nextAnimation.func(element, nextAnimation.prop, ...nextAnimation.args);
+                setTimeout((ele, nextAnimation) => {
+                    nextAnimation.func(ele, nextAnimation.prop, ...nextAnimation.args);
                 }, nextAnimations[i].delay, element, nextAnimations[i]);
             }
         }
@@ -206,7 +208,7 @@ const Animation = new function() {
 
         // If newColor is a string, try to parse a hex value. Otherwise it needs to be 'transparent'
         if (typeof(newColor) == 'string') {
-            if ((newColor = newColor.toLowerCase()) == 'transparent') {
+            if ((newColor = newColor.toLowerCase()) === 'transparent') {
                 newColor = new Color(oldColor.s());
                 newColor.a = 0;
             } else {
@@ -226,26 +228,26 @@ const Animation = new function() {
 
         /*@__PURE__*/Log.tmi(`Animating ${prop} of ${element.id} from ${oldColor.s()} to ${newColor.s()} in ${duration}ms`);
 
-        const animationFunc = (func, element, oldColor, newColor, i, steps, prop, deleteAfterTransition) => {
-            if (animationQueue[element.id][0].canceled) {
-                i = steps;
+        const animationFunc = (func, ele, colorOld, colorNew, i, totalSteps, property, deleteWhenDone) => {
+            if (animationQueue[ele.id][0].canceled) {
+                i = totalSteps;
             } else {
-                element.style[prop] = new Color(
-                    oldColor.r + (((newColor.r - oldColor.r) / steps) * i),
-                    oldColor.g + (((newColor.g - oldColor.g) / steps) * i),
-                    oldColor.b + (((newColor.b - oldColor.b) / steps) * i),
-                    oldColor.a + (((newColor.a - oldColor.a) / steps) * i)).s();
+                ele.style[property] = new Color(
+                    colorOld.r + (((colorNew.r - colorOld.r) / totalSteps) * i),
+                    colorOld.g + (((colorNew.g - colorOld.g) / totalSteps) * i),
+                    colorOld.b + (((colorNew.b - colorOld.b) / totalSteps) * i),
+                    colorOld.a + (((colorNew.a - colorOld.a) / totalSteps) * i)).s();
             }
 
-            if (i == steps) {
-                if (deleteAfterTransition) {
-                    element.style[prop] = null;
+            if (i === totalSteps) {
+                if (deleteWhenDone) {
+                    ele.style[property] = null;
                 }
 
                 // Always need to call this once a particular animation is done!
-                fireNext(element);
+                fireNext(ele);
             } else {
-                setTimeout(func, 50 / 3, func, element, oldColor, newColor, i + 1, steps, prop, deleteAfterTransition);
+                setTimeout(func, 50 / 3, func, ele, colorOld, colorNew, i + 1, totalSteps, property, deleteWhenDone);
             }
         };
 
@@ -265,8 +267,8 @@ const Animation = new function() {
     const animateFloat = (element, prop, newValue, duration, deleteAfterTransition = false) => {
         const steps = (duration / (50 / 3) + 0.5) | 0 || 1;
         const lastChar = newValue[newValue.length - 1];
-        const percent = lastChar == '%';
-        const px = lastChar == 'x';
+        const percent = lastChar === '%';
+        const px = lastChar === 'x';
         const newVal = parseFloat(newValue);
 
         let oldVal = parseFloat(getStyle(element)[prop]);
@@ -275,18 +277,18 @@ const Animation = new function() {
         }
 
         /*@__PURE__*/Log.tmi('Animating ' + prop + ' of ' + element.id + ' from ' + oldVal + ' to ' + newVal + ' in ' + duration + 'ms');
-        const animationFunc = (func, element, prop, oldVal, newVal, percent, px, i, steps, deleteAfterTransition) => {
-            if (animationQueue[element.id][0].canceled) {
-                i = steps;
+        const animationFunc = (func, ele, property, valOld, valNew, isPercent, isPixels, i, totalSteps, deleteWhenDone) => {
+            if (animationQueue[ele.id][0].canceled) {
+                i = totalSteps;
             } else {
-                element.style[prop] = oldVal + (((newVal - oldVal) / steps) * i) + (percent ? '%' : px ? 'px' : '');
+                ele.style[property] = valOld + (((valNew - valOld) / totalSteps) * i) + (isPercent ? '%' : isPixels ? 'px' : '');
             }
 
-            if (i == steps) {
+            if (i === totalSteps) {
                 // Always need to call this once a particular animation is done!
-                fireNext(element, deleteAfterTransition);
+                fireNext(ele, deleteWhenDone);
             } else {
-                setTimeout(func, 50 / 3, func, element, prop, oldVal, newVal, percent, px, i + 1, steps, deleteAfterTransition);
+                setTimeout(func, 50 / 3, func, ele, property, valOld, valNew, isPercent, isPixels, i + 1, totalSteps, deleteWhenDone);
             }
         };
 
@@ -302,14 +304,14 @@ const Animation = new function() {
  * @param {number} [a=1] The Alpha value of the color, 0-1 (if `r` is not a hex string).
  */
 function Color(r, g, b, a) {
-    const parse = (a, b) => parseInt(a, b);
+    const parse = (v, x) => parseInt(v, x);
     // If g is undefined, r better be a string
-    if (g === undefined && r[0] == '#') {
+    if (g === undefined && r[0] === '#') {
         // Better be a hex string!
-        if (r.length == 4) {
+        if (r.length === 4) {
             // Cheap (character-count-wise) conversion from "#ABC" to "#AABBCC"
             r = r[0] + r[1] + r[1] + r[2] + r[2] + r[3] + r[3];
-        } else if (r.length == 5) {
+        } else if (r.length === 5) {
             // Alpha-channel #ABCD to #AABBCCDD
             r = r[0] + r[1] + r[1] + r[2] + r[2] + r[3] + r[3] + r[4] + r[4];
         }

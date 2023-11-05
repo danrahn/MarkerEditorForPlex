@@ -1,3 +1,5 @@
+/* eslint-disable no-invalid-this */ // Remove if DateUtil becomes a proper class
+
 /**
  * Pretty-print date functions.
  *
@@ -31,16 +33,16 @@ const DateUtil = new function() {
 
         if (dateDiff <= 28) {
             const weeks = Math.floor(dateDiff / 7);
-            return `${weeks} week${weeks == 1 ? '' : 's'} ago`;
+            return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
         }
 
         if (dateDiff < 365) {
-            const months = (now.getMonth() + (now.getFullYear() == date.getFullYear() ? 0 : 12)) - date.getMonth();
-            return `${months == 0 ? 1 : months} month${months == 1 ? '' : 's'} ago`;
+            const months = (now.getMonth() + (now.getFullYear() === date.getFullYear() ? 0 : 12)) - date.getMonth();
+            return `${months === 0 ? 1 : months} month${months === 1 ? '' : 's'} ago`;
         }
 
         const yearDiff = now.getFullYear() - date.getFullYear();
-        return `${yearDiff == 0 ? 1 : yearDiff} year${yearDiff == 1 ? '' : 's'} ago`;
+        return `${yearDiff === 0 ? 1 : yearDiff} year${yearDiff === 1 ? '' : 's'} ago`;
     };
 
     /**
@@ -75,7 +77,7 @@ const DateUtil = new function() {
     const _checkDate = function(value, cutoff, stringVal) {
         if (value < cutoff) {
             const count = Math.floor(value);
-            return `${count} ${stringVal}${count == 1 ? '' : 's'} ago`;
+            return `${count} ${stringVal}${count === 1 ? '' : 's'} ago`;
         }
 
         return '';

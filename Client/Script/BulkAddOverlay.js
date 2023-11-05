@@ -189,7 +189,7 @@ class BulkAddOverlay {
         isNaN(this.#cachedStart) ? start.classList.add('badInput') : start.classList.remove('badInput');
         isNaN(this.#cachedEnd) ? end.classList.add('badInput') : end.classList.remove('badInput');
         clearTimeout(this.#inputTimer);
-        if (e.key == 'Enter') {
+        if (e.key === 'Enter') {
             this.#updateTableStats();
         }
 
@@ -271,7 +271,7 @@ class BulkAddOverlay {
 
         e.target.title = e.target.options[e.target.selectedIndex].innerText;
         const eid = $('#baselineEpisode').value;
-        if (e.target.id == 'addStartChapter') {
+        if (e.target.id === 'addStartChapter') {
             this.#cachedChapterStart = this.#chapterMap[eid][e.target.value];
         } else {
             this.#cachedChapterEnd = this.#chapterMap[eid][e.target.value];
@@ -553,7 +553,7 @@ class BulkAddOverlay {
         this.#table.buildTableHead('Episode', 'Title', TableElements.shortTimeColumn('Start'), TableElements.shortTimeColumn('End'));
 
         const episodeData = Object.values(this.#serverResponse.episodeMap).sort((a, b) => {
-            if (a.episodeData.seasonIndex != b.episodeData.seasonIndex) {
+            if (a.episodeData.seasonIndex !== b.episodeData.seasonIndex) {
                 return a.episodeData.seasonIndex - b.episodeData.seasonIndex;
             }
 
@@ -753,7 +753,7 @@ class BulkAddRow extends BulkActionRow {
         const startTimeBase = startData.time;
         const endTimeBase = endData.time;
         const resolveType = this.#parent.resolveType();
-        const warnClass = resolveType == BulkMarkerResolveType.Merge ? 'bulkActionSemi' : 'bulkActionOff';
+        const warnClass = resolveType === BulkMarkerResolveType.Merge ? 'bulkActionSemi' : 'bulkActionOff';
         this.#clear();
         let start = startTimeBase;
         let end = endTimeBase;
@@ -779,7 +779,7 @@ class BulkAddRow extends BulkActionRow {
 
                 tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
 
-                if (resolveType == BulkMarkerResolveType.Merge) {
+                if (resolveType === BulkMarkerResolveType.Merge) {
                     start = existingMarker.start;
                     end = Math.max(end, existingMarker.end);
                 }
@@ -789,7 +789,7 @@ class BulkAddRow extends BulkActionRow {
                 semiWarn = false;
                 this.#setSingleClass(this.#endTd, warnClass);
                 tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
-                if (resolveType == BulkMarkerResolveType.Merge) {
+                if (resolveType === BulkMarkerResolveType.Merge) {
                     start = Math.min(start, existingMarker.start);
                 }
 
@@ -825,20 +825,20 @@ class BulkAddRow extends BulkActionRow {
             tooltip = `<br>Marker is beyond the end of the episode.`;
         }
 
-        if (tooltip.length != 0) {
+        if (tooltip.length === 0) {
+            Tooltip.removeTooltip(this.#startTd);
+            Tooltip.removeTooltip(this.#endTd);
+        } else {
             tooltip = tooltip.substring(4);
             Tooltip.setTooltip(this.#startTd, tooltip);
             Tooltip.setTooltip(this.#endTd, tooltip);
-        } else {
-            Tooltip.removeTooltip(this.#startTd);
-            Tooltip.removeTooltip(this.#endTd);
         }
 
         if (!isWarn) {
             this.#setClassBoth('bulkActionOn');
         }
 
-        if (resolveType == BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
+        if (resolveType === BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
             this.row.classList.add('bulkActionInactive');
         } else {
             this.row.classList.remove('bulkActionInactive');

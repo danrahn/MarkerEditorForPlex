@@ -132,7 +132,7 @@ class MarkerTable {
         );
 
         const rows = buildNode('tbody');
-        if (markers.length == 0) {
+        if (markers.length === 0) {
             rows.appendChild(TableElements.noMarkerRow());
         }
 
@@ -250,8 +250,8 @@ class MarkerTable {
                 continue; // Ignore any rows that are not committed.
             }
 
-            if (row.markerId() != markerId && row.endTime() > startTime && row.startTime() <= endTime) {
-                const message = markerId == -1 ?
+            if (row.markerId() !== markerId && row.endTime() > startTime && row.startTime() <= endTime) {
+                const message = markerId === -1 ?
                     `Consider expanding the range of the existing marker.` :
                     `Adjust this marker's timings or delete the other marker first to avoid overlap.`;
                 Overlay.show(
@@ -283,7 +283,7 @@ class MarkerTable {
         }
 
         const tableBody = this.#tbody();
-        if (this.#markers.length == 0) {
+        if (this.#markers.length === 0) {
             // This is the first marker for the episode, which means we also have
             // to remove the placeholder 'No markers found' row.
             tableBody.removeChild(tableBody.firstChild);
@@ -311,7 +311,7 @@ class MarkerTable {
       * Not a "real" marker, but a partial representation of one that has
       * all the fields required to successfully edit the real marker it represents. */
     editMarker(editedMarker, forceReset=false) {
-        const oldIndex = this.#markers.findIndex(x => x.id == editedMarker.id);
+        const oldIndex = this.#markers.findIndex(x => x.id === editedMarker.id);
         const updatedItem = this.#markers.splice(oldIndex, 1)[0];
         updatedItem.start = editedMarker.start;
         updatedItem.end = editedMarker.end;
@@ -329,7 +329,7 @@ class MarkerTable {
             ++newIndex;
         }
 
-        if (newIndex == oldIndex) {
+        if (newIndex === oldIndex) {
             if (forceReset) {
                 this.#rows[oldIndex].reset(); // Still want to reset timings even if the index is the same.
             }
@@ -367,15 +367,15 @@ class MarkerTable {
             return;
         }
 
-        const oldIndex = this.#markers.findIndex(x => x.id == deletedMarker.id);
+        const oldIndex = this.#markers.findIndex(x => x.id === deletedMarker.id);
         const tableBody = this.#tbody();
-        if (this.#markers.length == 1) {
+        if (this.#markers.length === 1) {
             tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
         }
 
         if (!row) {
             for (const markerRow of this.#rows) {
-                if (markerRow.markerId() == deletedMarker.id) {
+                if (markerRow.markerId() === deletedMarker.id) {
                     row = markerRow.row();
                     break;
                 }
@@ -399,12 +399,12 @@ class MarkerTable {
     removeTemporaryMarkerRow(markerRow) {
         let index = this.#markers.length;
         for (; index < this.#rows.length; ++index) {
-            if (this.#rows[index].row() == markerRow) {
+            if (this.#rows[index].row() === markerRow) {
                 break;
             }
         }
 
-        if (index == this.#rows.length) {
+        if (index === this.#rows.length) {
             Log.warn('removeTemporaryMarkerRow: Unable to find marker to remove');
             return;
         }

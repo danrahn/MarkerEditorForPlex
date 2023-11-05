@@ -49,7 +49,7 @@ class ClientMovieData extends MovieData {
      * clicks on a particular movie.
      * @param {MovieResultRow} parentRow The UI associated with this movie. */
     createMarkerTable(parentRow) {
-        if (this.#markerTable != null) {
+        if (this.#markerTable !== null) {
             // This is expected if the result has appeared in multiple search results.
             // Assume we're in a good state and ignore this, but reset the parent and make
             // sure the table is in its initial hidden state.
@@ -67,7 +67,7 @@ class ClientMovieData extends MovieData {
      * @param {SerializedMarkerData} serializedMarkers
      * @param {ChapterData[]} chapters The chapters (if any) associated with this movie. */
     initializeMarkerTable(serializedMarkers, chapters) {
-        if (this.#markerTable == null) {
+        if (this.#markerTable === null) {
             Log.error(`Can't initialize marker table if it hasn't been created yet.`);
             return;
         }
@@ -106,7 +106,7 @@ class ClientEpisodeData extends EpisodeData {
      * serialized {@linkcode MarkerData} for the episode.
      * @param {ChapterData[]} chapters Chapter data for this episode. */
     createMarkerTable(parentRow, serializedMarkers, chapters) {
-        if (this.#markerTable != null) {
+        if (this.#markerTable !== null) {
             Log.warn('The marker table already exists, we shouldn\'t be creating a new one!');
         }
 

@@ -44,7 +44,7 @@ class ImageTest extends TestBase {
         this.expectFailure();
         const endpoint = `i/CCC/_BADIMAGE.svg`;
         const result = await this.get(endpoint);
-        TestHelpers.verify(result.status == 404, `Expected request for "${endpoint}" to return 404, found ${result.status}`);
+        TestHelpers.verify(result.status === 404, `Expected request for "${endpoint}" to return 404, found ${result.status}`);
     }
 
     /**
@@ -103,7 +103,7 @@ class ImageTest extends TestBase {
      * @param {Response} response
      * @param {string} color */
     async #ensureValidSVG(endpoint, response, color) {
-        TestHelpers.verify(response.status == 200, `Expected 200 when retrieving ${endpoint}, got ${response.status}.`);
+        TestHelpers.verify(response.status === 200, `Expected 200 when retrieving ${endpoint}, got ${response.status}.`);
         TestHelpers.verifyHeader(response.headers, 'Content-Type', 'img/svg+xml', endpoint);
 
         if (ImageTest.#colorExceptions.has(endpoint.substring(endpoint.lastIndexOf('/') + 1).toLowerCase())) {
@@ -111,7 +111,7 @@ class ImageTest extends TestBase {
         }
 
         const text = await response.text();
-        TestHelpers.verify(text.indexOf(`#${color}`) != -1, `Expected to see color "${color}" in "${endpoint}", didn't find it!`);
+        TestHelpers.verify(text.indexOf(`#${color}`) !== -1, `Expected to see color "${color}" in "${endpoint}", didn't find it!`);
     }
 }
 

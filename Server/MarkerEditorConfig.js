@@ -54,9 +54,9 @@ class ConfigBase {
      * to share with the derived class that called us, making them "protected" */
     constructor(json, protectedFields) {
         this.#json = json || {};
-        protectedFields['getOrDefault'] = this.#getOrDefault;
-        protectedFields['json'] = this.#json;
-        protectedFields['baseInstance'] = this;
+        protectedFields.getOrDefault = this.#getOrDefault;
+        protectedFields.json = this.#json;
+        protectedFields.baseInstance = this;
     }
 
     /**
@@ -66,7 +66,7 @@ class ConfigBase {
      * @throws if `value` is not in the config and `defaultValue` is not set. */
     #getOrDefault(key, defaultValue=null) {
         if (!Object.prototype.hasOwnProperty.call(this.#json, key)) {
-            if (defaultValue == null) {
+            if (defaultValue === null) {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
             }
 
@@ -74,8 +74,60 @@ class ConfigBase {
             return defaultValue;
         }
 
-        Log.verbose(`Setting ${key} to ${this.#json[key]}`);
-        return this.#json[key];
+        // If we have a default value and its type doesn't match what's in the config, reset it to default.
+        const value = this.#json[key];
+        return this.#checkType(key, value, defaultValue);
+    }
+
+    /**
+     * @param {string} key
+     * @param {any} value
+     * @param {any} defaultValue */
+    #checkType(key, value, defaultValue) {
+        const vt = typeof value;
+        const dt = typeof defaultValue;
+        if (defaultValue === null || vt === dt) {
+            Log.verbose(`Setting ${key} to ${value}`);
+            return value;
+        }
+
+        Log.warn(`Type Mismatch: '${key}' should have a type of '${dt}', found '${vt}'. Attempting to coerce...`);
+        const space = '                ';
+        // Allow some simple conversions
+        switch (dt) {
+            case 'boolean':
+                // Intentionally don't allow for things like tRuE, just the standard lower- or title-case.
+                if (value === 'true' || value === 'True' || value === '1' || value === 1) {
+                    Log.warn(`${space}Coerced to boolean value 'true'`);
+                    return true;
+                }
+
+                if (value === 'false' || value === 'False' || value === '0' || value === 0) {
+                    Log.warn(`${space}Coerced to boolean value 'false'`);
+                    return false;
+                }
+
+                break;
+            case 'string':
+                switch (vt) {
+                    case 'boolean':
+                    case 'number':
+                        Log.warn(`${space}Coerced to string value '${value.toString()}'`);
+                        return value.toString();
+                }
+                break;
+            case 'number': {
+                const asNum = +value;
+                if (!isNaN(asNum)) {
+                    Log.warn(`${space}Coerced to number value '${asNum}'`);
+                    return asNum;
+                }
+                break;
+            }
+        }
+
+        Log.error(`${space}Could not coerce. Ignoring value '${value}' and setting to '${defaultValue}'`);
+        return defaultValue;
     }
 }
 
@@ -147,7 +199,7 @@ class MarkerEditorConfig extends ConfigBase {
      * @param {*} testData
      * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
     static Create(testData, dataRoot) {
-        if (Instance != null) {
+        if (Instance) {
             Log.warn(`Singleton MarkerEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
@@ -237,16 +289,16 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         const packagePath = join(ProjectRoot(), 'package.json');
-        if (!existsSync(packagePath)) {
-            Log.warn(`Unable to find package.json, can't check for new version.`);
-            this.#version = '0.0.0';
-        } else {
+        if (existsSync(packagePath)) {
             try {
                 this.#version = JSON.parse(readFileSync(packagePath).toString()).version;
             } catch (err) {
                 Log.warn(`Unable to parse package.json for version, can't check for updates.`);
                 this.#version = '0.0.0';
             }
+        } else {
+            Log.warn(`Unable to find package.json, can't check for new version.`);
+            this.#version = '0.0.0';
         }
     }
 
@@ -268,22 +320,22 @@ class MarkerEditorConfig extends ConfigBase {
         const platform = process.platform;
         switch (platform) {
             case 'win32':
-                if (!process.env['LOCALAPPDATA']) {
+                if (!process.env.LOCALAPPDATA) {
                     return '';
                 }
 
-                return join(process.env['LOCALAPPDATA'], 'Plex Media Server');
+                return join(process.env.LOCALAPPDATA, 'Plex Media Server');
             case 'darwin':
                 return '~/Library/Application Support/Plex Media Server';
             case 'linux':
             case 'aix':
             case 'openbsd':
             case 'sunos':
-                if (!process.env['PLEX_HOME']) {
+                if (!process.env.PLEX_HOME) {
                     return '';
                 }
 
-                return join(process.env['PLEX_HOME'], 'Library/Application Support/Plex Media Server');
+                return join(process.env.PLEX_HOME, 'Library/Application Support/Plex Media Server');
             case 'freebsd':
                 return '/usr/local/plexdata/Plex Media Server';
             default:

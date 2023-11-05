@@ -171,7 +171,7 @@ class ShiftTest extends TestBase {
 
         // Fake marker data to verify that the second marker wasn't changed
         const marker2 = episode.Marker2;
-        TestHelpers.verify(marker2.Index == 1, `This test assumes marker2 has an index of 1, test data has changed!`);
+        TestHelpers.verify(marker2.Index === 1, `This test assumes marker2 has an index of 1, test data has changed!`);
         const fakeMarkerData = { id : marker2.Id, start : marker2.Start, end : marker2.End, index : 0 };
         return TestHelpers.validateMarker(fakeMarkerData, null, null, null, null, marker2.Start, marker2.End, 0, null, this.testDb);
     }
@@ -306,7 +306,7 @@ class ShiftTest extends TestBase {
 
     /**
      * Helper that validates a successfully applied shift with separate start and end shifts.
-     * @param {number} metadataId The show/season/episode metadata id.
+     * @param {number} id The show/season/episode metadata id.
      * @param {number} startShift The ms to shift the start of markers.
      * @param {number} endShift The ms to shift the end of markers.
      * @param {number} expectedLength The expected number of shifted markers.
@@ -315,15 +315,15 @@ class ShiftTest extends TestBase {
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
      * @param {boolean} force Whether the shift operation should be forced.
      * @returns {Promise<ShiftResult>} */
-    async #verifySplitShift(metadataId, startShift, endShift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
+    async #verifySplitShift(id, startShift, endShift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
         const params = {
-            id : metadataId,
-            startShift : startShift,
-            endShift : endShift,
-            applyTo : applyTo,
-            force : force
+            id,
+            startShift,
+            endShift,
+            applyTo,
+            force
         };
-        if (ignoreList.length != 0) {
+        if (ignoreList.length !== 0) {
             params.ignored = ignoreList.join(',');
         }
 
@@ -332,12 +332,12 @@ class ShiftTest extends TestBase {
 
         TestHelpers.verify(result, `Expected successful 'shift' to return an object, found nothing.`);
         TestHelpers.verify(result.applied === true, `Expected successful 'shift' to return applied=true, found ${result.applied}.`);
-        TestHelpers.verify(result.conflict == expectConflict, `Expected shift.conflict to be ${expectConflict}, found ${result.conflict}.`);
+        TestHelpers.verify(result.conflict === expectConflict, `Expected shift.conflict to be ${expectConflict}, found ${result.conflict}.`);
         TestHelpers.verify(result.overflow === false, `Expected successful 'shift' to have overflow bit unset, found ${result.overflow}.`);
 
         const newMarkers = result.allMarkers;
         TestHelpers.verify(newMarkers instanceof Array, `Expected successful 'shift' to have an allMarkers field with an array of shifted markers.`);
-        TestHelpers.verify(newMarkers.length == expectedLength, `Expected ${expectedLength} shifted marker(s), found ${newMarkers.length}`);
+        TestHelpers.verify(newMarkers.length === expectedLength, `Expected ${expectedLength} shifted marker(s), found ${newMarkers.length}`);
         return result;
     }
 
@@ -363,10 +363,10 @@ class ShiftTest extends TestBase {
         TestHelpers.verify(result.applied === false, `Expected result.applied to be false, found ${result.applied}.`);
         TestHelpers.verify(result.conflict === expectConflict, `Expected result.conflict to be true, found ${result.conflict}.`);
         TestHelpers.verify(result.allMarkers instanceof Array, `Expected result.allMarkers to be an array.`);
-        TestHelpers.verify(result.allMarkers.length == expectedMarkerCount, `Expected result.allMarkers.length to be ${expectedMarkerCount}, found ${result.allMarkers.length}.`);
+        TestHelpers.verify(result.allMarkers.length === expectedMarkerCount, `Expected result.allMarkers.length to be ${expectedMarkerCount}, found ${result.allMarkers.length}.`);
         TestHelpers.verify(result.episodeData, `Expected non-applied shift to return episode data, didn't find any.`);
         const episodeCount = Object.keys(result.episodeData).length;
-        TestHelpers.verify(episodeCount == expectedEpisodeCount, `Expected EpisodeData for ${expectedEpisodeCount} episode(s), found ${episodeCount}`);
+        TestHelpers.verify(episodeCount === expectedEpisodeCount, `Expected EpisodeData for ${expectedEpisodeCount} episode(s), found ${episodeCount}`);
         return result;
     }
 }

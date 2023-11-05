@@ -46,13 +46,11 @@ class MarkerRow {
         if (useThumbs) {
             if (parent instanceof MovieResultRow) {
                 hasThumbs = parent.movie().hasThumbnails;
+            } else if (parent instanceof EpisodeResultRow) {
+                hasThumbs = parent.episode().hasThumbnails;
             } else {
-                if (!(parent instanceof EpisodeResultRow)) {
-                    Log.warn(`Attempting to create a marker row for something that's not a movie or episode. That's not right!`);
-                    hasThumbs = false;
-                } else {
-                    hasThumbs = parent.episode().hasThumbnails;
-                }
+                Log.warn(`Attempting to create a marker row for something that's not a movie or episode. That's not right!`);
+                hasThumbs = false;
             }
         }
 
@@ -165,7 +163,7 @@ class ExistingMarkerRow extends MarkerRow {
     #tableData(includeOptions) {
 
         const data = [
-            Object.keys(MarkerType).find(k => MarkerType[k] == this.#markerData.markerType),
+            Object.keys(MarkerType).find(k => MarkerType[k] === this.#markerData.markerType),
             TableElements.timeData(this.#markerData.start),
             TableElements.timeData(this.#markerData.end),
             TableElements.friendlyDate(this.#markerData)

@@ -120,7 +120,7 @@ class PlexUIManager {
      * @param {KeyboardEvent} e */
     #inInput(e) {
         const tag = e.target.tagName.toLowerCase();
-        return tag == 'textarea' || tag == 'input' && e.target.type == 'text';
+        return tag === 'textarea' || tag === 'input' && e.target.type === 'text';
     }
 
     /**
@@ -172,18 +172,18 @@ class PlexUIManager {
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
         for (const library of libraries) {
-            lastSectionExists = lastSectionExists || library.id == savedSection;
+            lastSectionExists ||= library.id === savedSection;
             this.#dropdown.appendChild(buildNode('option', { value : library.id, libtype : library.type }, library.name));
         }
 
-        if (savedSection != -1 && !lastSectionExists) {
+        if (savedSection !== -1 && !lastSectionExists) {
             BaseLog.info(`Found a cached library section (${savedSection}), but it doesn't exist anymore!`);
         }
 
         // Select a library automatically if there's only one TV show library
         // or we have an existing cached library section.
-        const preSelect = libraries.length == 1 ? libraries[0].id : lastSectionExists ? savedSection : -1;
-        if (preSelect != -1) {
+        const preSelect = libraries.length === 1 ? libraries[0].id : lastSectionExists ? savedSection : -1;
+        if (preSelect !== -1) {
             this.#dropdown.value = preSelect;
             this.#libraryChanged();
         }
@@ -277,7 +277,7 @@ class PlexUIManager {
 
         await PlexClientState.setSection(section, libType);
         this.clearAllSections();
-        if (!isNaN(section) && section != -1) {
+        if (!isNaN(section) && section !== -1) {
             ClientSettings.setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
         }
@@ -302,7 +302,7 @@ class PlexUIManager {
      * @param {KeyboardEvent} e */
     async #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
-        if (e.key == 'Enter') {
+        if (e.key === 'Enter') {
             this.#lastSearch = null; // Guarantee we reload things.
             return this.#search();
         }
@@ -315,10 +315,10 @@ class PlexUIManager {
             return;
         }
 
-        if (this.#searchBox.value.length == 0) {
+        if (this.#searchBox.value.length === 0) {
             // Only show all items if the user explicitly presses 'Enter'
             // on a blank query with no filter, otherwise clear the results.
-            if (this.#lastSearch?.length != 0 && !FilterSettings.hasFilter()) {
+            if (this.#lastSearch?.length !== 0 && !FilterSettings.hasFilter()) {
                 // Previous search was deleted, and we have no filter. Go to default state,
                 // not loading any results.
                 this.clearAllSections();
@@ -338,7 +338,7 @@ class PlexUIManager {
 
     /** Initiate a search to the database for shows. */
     #search(forFilterReapply=false, newSort=false) {
-        if (!forFilterReapply && this.#searchBox.value == this.#lastSearch) {
+        if (!forFilterReapply && this.#searchBox.value === this.#lastSearch) {
             return;
         }
 
@@ -394,7 +394,7 @@ class PlexUIManager {
 
         /** @type {ClientMovieData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
-        if (searchResults.length == 0) {
+        if (searchResults.length === 0) {
             movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
             return;
         }
@@ -412,7 +412,7 @@ class PlexUIManager {
                 movieList.appendChild(newRow.buildRow());
             }
 
-            if (nonFiltered == rowsLimit) {
+            if (nonFiltered === rowsLimit) {
                 break;
             }
         }
@@ -459,7 +459,7 @@ class PlexUIManager {
 
         /** @type {ShowData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
-        if (searchResults.length == 0) {
+        if (searchResults.length === 0) {
             showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));
             return;
         }

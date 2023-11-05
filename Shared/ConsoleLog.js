@@ -110,7 +110,7 @@ class ConsoleLog {
         if (isNaN(ConsoleLog.#darkConsole)) {
             // Default to system browser theme (if available)
             let mediaMatch = WindowProxy.matchMedia('(prefers-color-scheme: dark)');
-            mediaMatch = mediaMatch != 'not all' && mediaMatch.matches;
+            mediaMatch = mediaMatch !== 'not all' && mediaMatch.matches;
             ConsoleLog.#darkConsole = mediaMatch ? 1 : 0;
         }
     }
@@ -191,7 +191,7 @@ class ConsoleLog {
         this.setTrace(match.groups.t ? 1 : 0);
         this.setDarkConsole(match.groups.d ? 1 : 0);
         let level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
-        if (level == ConsoleLog.Level.Invalid) {
+        if (level === ConsoleLog.Level.Invalid) {
             console.warn(
                 `[${ConsoleLog.#getTimestring()}][WARN   ] ` +
                 `ConsoleLog.setFromString: Got invalid level "${match[3]}". ` +
@@ -297,7 +297,7 @@ class ConsoleLog {
         const colors = ConsoleLog.#traceLogging ? ConsoleLog.#traceColors : ConsoleLog.#consoleColors;
         const type = (object) => typeof (object) == 'string' ? '%s' : '%o';
 
-        if (ConsoleLog.#currentLogLevel == ConsoleLog.Level.Extreme) {
+        if (ConsoleLog.#currentLogLevel === ConsoleLog.Level.Extreme) {
             this.#write(
                 console.debug,
                 `%c[%c${timestring}%c][%cEXTREME%c] Called log with '${description ? description + ': ' : ''}${type(obj)},${level}'`,

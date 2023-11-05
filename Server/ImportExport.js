@@ -114,7 +114,7 @@ class DatabaseImportExport {
         }
 
         let sectionName = 'Server';
-        if (sectionId != -1) {
+        if (sectionId !== -1) {
             let valid = false;
             const sections = await PlexQueries.getLibraries();
             for (const section of sections) {
@@ -162,7 +162,7 @@ FROM taggings t
 INNER JOIN metadata_items m ON m.id=t.metadata_item_id
 WHERE t.tag_id=$tagId`;
 
-        if (sectionId != -1) {
+        if (sectionId !== -1) {
             query += ` AND m.library_section_id=$sectionId`;
             params.$sectionId = sectionId;
         }
@@ -229,7 +229,7 @@ WHERE t.tag_id=$tagId`;
             throw new ServerError(`importDatabase: no filename provided for database`);
         }
 
-        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] == resolveType).length == 0) {
+        if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] === resolveType).length === 0) {
             throw new ServerError(`importDatabase: resolveType must be a MarkerConflictResolution type, found ${resolveType}`);
         }
 
@@ -353,7 +353,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
         for (const item of plexItems) {
             if (!sectionsToUpdate[item.library_section_id]) {
                 sectionsToUpdate[item.library_section_id] = {
-                    sectionType : item.metadata_type == MetadataType.Movie ? MetadataType.Movie : MetadataType.Show,
+                    sectionType : item.metadata_type === MetadataType.Movie ? MetadataType.Movie : MetadataType.Show,
                     items : {},
                 };
             }
@@ -371,17 +371,17 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
             ignored : 0
         };
 
-        for (const [sectionId, sectionInfo] of Object.entries(sectionsToUpdate)) {
+        for (const [sectionIdToUpdate, sectionInfo] of Object.entries(sectionsToUpdate)) {
             const itemsToUpdate = Object.keys(sectionInfo.items).length;
             if (itemsToUpdate === 0) {
-                Log.verbose(`Ignoring section ${sectionId}, no relevant items.`);
+                Log.verbose(`Ignoring section ${sectionIdToUpdate}, no relevant items.`);
                 continue;
             }
 
-            Log.info(`Attempting to restore markers for ${itemsToUpdate} items in section ${sectionId}`);
+            Log.info(`Attempting to restore markers for ${itemsToUpdate} items in section ${sectionIdToUpdate}`);
             const restoredMarkerData = await PlexQueries.bulkRestore(
                 sectionInfo.items,
-                parseInt(sectionId),
+                parseInt(sectionIdToUpdate),
                 sectionInfo.sectionType,
                 resolveType);
 

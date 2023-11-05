@@ -57,14 +57,14 @@ function sendJsonSuccess(res, data) {
  * @param {ServerResponse} res
  * @param {number} status HTTP status code.
  * @param {*} data The data to compress and return.
- * @param {string|false} contentType The MIME type of `data`. */
-function sendCompressedData(res, status, data, contentType) {
+ * @param {string|false} typeString The MIME type of `data`. */
+function sendCompressedData(res, status, data, typeString) {
     // It's technically possible for contentType to be false if we attempt to read an unknown file type.
     // Allow sniffing in that case;
     /** @type {{ [header: string]: string }} */
     const headers = {};
-    if (contentType !== false) {
-        headers['Content-Type'] = contentType;
+    if (typeString !== false) {
+        headers['Content-Type'] = typeString;
         headers['x-content-type-options'] = 'nosniff';
     }
 

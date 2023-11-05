@@ -73,7 +73,7 @@ async function run() {
  * when it encounters an unhandled exception or SIGINT. */
 function setupTerminateHandlers() {
     // Only need to do this on first boot, not if we're restarting/resuming
-    if (GetServerState() != ServerState.FirstBoot) {
+    if (GetServerState() !== ServerState.FirstBoot) {
         return;
     }
 
@@ -138,8 +138,8 @@ async function handleClose(signal, restart=false) {
     }
 
     await cleanupForShutdown(!restart);
-    const exitFn = (error, restart) => {
-        if (restart) {
+    const exitFn = (error, forRestart) => {
+        if (forRestart) {
             Log.info('Restarting server...');
             SetServerState(ServerState.ReInit);
             Server = null;
@@ -203,7 +203,7 @@ async function cleanupForShutdown(fullShutdown) {
  * be rare, mainly isolated to tests. */
 async function waitForStable() {
     while (!ServerState.Stable()) {
-        await new Promise((resolve, _) => setTimeout(resolve, 100));
+        await new Promise((resolve, _) => { setTimeout(resolve, 100); });
     }
 }
 
@@ -253,7 +253,7 @@ let ResumeData;
  * @param {ServerResponse} res */
 function userResume(res) {
     Log.verbose('Attempting to resume the server');
-    if (GetServerState() != ServerState.Suspended) {
+    if (GetServerState() !== ServerState.Suspended) {
         Log.verbose(`userResume: Server isn't suspended (${GetServerState()})`);
         return sendJsonSuccess(res, { message : 'Server is not suspended' });
     }
@@ -273,7 +273,7 @@ function userResume(res) {
  * @param {ServerResponse} res */
 async function userReload(res) {
     Log.verbose('Attempting to reload marker data');
-    if (GetServerState() != ServerState.Running) {
+    if (GetServerState() !== ServerState.Running) {
         return sendJsonError(res, new ServerError('Server must be running in order to reload.', 400));
     }
 
@@ -305,7 +305,7 @@ async function launchServer() {
                 Log.info(`NOTE: External port will be different when run in Docker, based on '-p' passed into docker run`);
             }
 
-            if (Config.autoOpen() && GetServerState() == ServerState.FirstBoot) {
+            if (Config.autoOpen() && GetServerState() === ServerState.FirstBoot) {
                 Log.info('Launching browser...');
                 Open(url);
             }
@@ -325,7 +325,7 @@ function shouldCreateServer() {
         return true;
     }
 
-    if (GetServerState() != ServerState.Suspended && GetServerState() != ServerState.SoftBoot) {
+    if (GetServerState() !== ServerState.Suspended && GetServerState() !== ServerState.SoftBoot) {
         Log.warn('Calling launchServer when server already exists!');
     }
 
@@ -349,9 +349,9 @@ async function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
-    if (GetServerState() == ServerState.ShuttingDown) {
+    if (GetServerState() === ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');
-        if (method == 'get') {
+        if (method === 'get') {
             // GET methods don't return JSON
             res.statusCode = 503;
             return res.end();
@@ -397,8 +397,8 @@ const ServerActionMap = {
 async function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
-    const endpoint = endpointIndex == -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    if (GetServerState() == ServerState.Suspended && (endpoint != 'resume' && endpoint != 'shutdown')) {
+    const endpoint = endpointIndex === -1 ? url.substring(1) : url.substring(1, endpointIndex);
+    if (GetServerState() === ServerState.Suspended && (endpoint !== 'resume' && endpoint !== 'shutdown')) {
         return sendJsonError(res, new ServerError('Server is suspended', 503));
     }
 
@@ -426,7 +426,7 @@ function checkTestData() {
         configOverride : null,
     };
 
-    if (process.argv.indexOf('--test') != -1) {
+    if (process.argv.indexOf('--test') !== -1) {
         testData.isTest = true;
         IsTest = true;
 
@@ -435,7 +435,7 @@ function checkTestData() {
     }
 
     const configIndex = process.argv.indexOf('--config_override');
-    if (configIndex != -1) {
+    if (configIndex !== -1) {
         if (process.argv.length <= configIndex - 1) {
             Log.critical('Invalid config override file detected, aborting...');
             // We're very early into boot. Just get out of here.

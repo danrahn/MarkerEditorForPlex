@@ -26,7 +26,7 @@ class TransactionBuilder {
      * @param {DbQueryParameters} parameters Query parameters */
     addStatement(statement, parameters=[]) {
         statement = statement.trim();
-        if (statement[statement.length - 1] != ';') {
+        if (statement[statement.length - 1] !== ';') {
             statement += ';';
         }
 
@@ -34,7 +34,7 @@ class TransactionBuilder {
         this.#cache = null;
     }
 
-    empty() { return this.#commands.length == 0; }
+    empty() { return this.#commands.length === 0; }
     statementCount() { return this.#commands.length; }
     toString() {
         if (this.#cache) {

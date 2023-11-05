@@ -7,6 +7,8 @@ import Tooltip from './Tooltip.js';
 
 const Log = new ContextualLog('Chart');
 
+/* eslint-disable no-invalid-this */ // Remove if Chart becomes a proper class
+
 /**
  * @typedef {string} DataLabel A label for a point in the chart.
  * @typedef {number} DataValue The value for a point in the chart.
@@ -158,7 +160,7 @@ const Chart = new function() {
             // For a single point, ignore the whole path we created above and just make a circle
             const slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
             const label = buildPieTooltip(point, total, data.labelOptions);
-            if (label.length != 0) {
+            if (label.length !== 0) {
                 addTooltip(slice, label);
             }
 
@@ -284,11 +286,11 @@ const Chart = new function() {
             'http://www.w3.org/2000/svg',
             'rect',
             {
-                x : x,
-                y : y,
-                width : width,
-                height : height,
-                fill : fill
+                x,
+                y,
+                width,
+                height,
+                fill
             }
         );
 
@@ -411,7 +413,7 @@ const Chart = new function() {
         const angle = (value / total) * Math.PI * 2;
         const x = radius * Math.cos(angle) + radius + 1; // + 1 to account for stroke border
         const y = radius - radius * Math.sin(angle) + 1;
-        return { x : x, y : y };
+        return { x, y };
     };
 
     /**

@@ -45,13 +45,13 @@ class TestHelpers {
 
         let allIssues = '';
         const addIssue = (issue) => {
-            if (allIssues.length != 0) { allIssues += '\n'; }
+            if (allIssues.length !== 0) { allIssues += '\n'; }
 
             allIssues += issue;
         };
 
         const checkField = (field, expectedField, message) => {
-            if (expectedField != null && field != expectedField) {
+            if (expectedField !== null && field !== expectedField) {
                 addIssue(`${message} does not match! Expected ${expectedField}, found ${field}.`);
             }
         };
@@ -67,7 +67,7 @@ class TestHelpers {
 
 
         // Verified returned fields, make sure it's in the db as well
-        TestHelpers.verify(allIssues.length == 0, allIssues);
+        TestHelpers.verify(allIssues.length === 0, allIssues);
         if (!database) {
             return;
         }
@@ -75,11 +75,11 @@ class TestHelpers {
         const rows = await database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`);
 
         if (isDeleted) {
-            TestHelpers.verify(rows.length == 0, `Found a marker with id ${markerData.id} that should be deleted!`);
+            TestHelpers.verify(rows.length === 0, `Found a marker with id ${markerData.id} that should be deleted!`);
             return;
         }
 
-        TestHelpers.verify(rows.length == 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
+        TestHelpers.verify(rows.length === 1, `Found ${rows.length} rows with id ${markerData.id}, that's not right!`);
 
         const row = rows[0];
         checkField(row.metadata_item_id, expectedEpisodeId, 'DB episode id');
@@ -88,7 +88,7 @@ class TestHelpers {
         checkField(row.index, expectedIndex, 'DB marker index'); // TODO: indexRemove: order
         checkField(row.text, expectedType, 'DB marker type');
         checkField(row.extra_data.indexOf('final=1') !== -1, expectedFinal, 'Final credits');
-        TestHelpers.verify(allIssues.length == 0, allIssues);
+        TestHelpers.verify(allIssues.length === 0, allIssues);
     }
 
     /**
@@ -122,7 +122,7 @@ class TestHelpers {
      * @param {Response} response The response from the server
      * @param {string} testCase The test case that we expect to fail */
     static async verifyBadRequest(response, testCase, json=true) {
-        TestHelpers.verify(response.status == 400, `Expected ${testCase} to return 400, got ${response.status}.`);
+        TestHelpers.verify(response.status === 400, `Expected ${testCase} to return 400, got ${response.status}.`);
 
         // No JSON response for GET requests, the status code itself is enough
         if (!json) { return; }
@@ -145,7 +145,7 @@ class TestHelpers {
             value = `"${value}"`;
         }
 
-        TestHelpers.verify(value != null, `Expected header "${header}" of "${endpoint}" to be "${expected}", found ${value}`);
+        TestHelpers.verify(value !== null, `Expected header "${header}" of "${endpoint}" to be "${expected}", found ${value}`);
     }
 
     /**

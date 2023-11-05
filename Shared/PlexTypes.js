@@ -223,9 +223,9 @@ class TopLevelData extends PlexData {
 
         this.title = mediaItem.title;
         this.normalizedTitle = TopLevelData.#transformTitle(mediaItem.title);
-        this.sortTitle = mediaItem.title_sort && mediaItem.title_sort != this.title ? mediaItem.title_sort : '';
+        this.sortTitle = mediaItem.title_sort && mediaItem.title_sort !== this.title ? mediaItem.title_sort : '';
         this.normalizedSortTitle =
-            (mediaItem.title_sort && mediaItem.title.toLowerCase() != mediaItem.title_sort.toLowerCase()) ?
+            (mediaItem.title_sort && mediaItem.title.toLowerCase() !== mediaItem.title_sort.toLowerCase()) ?
                 TopLevelData.#transformTitle(mediaItem.title_sort) : '';
         this.originalTitle = mediaItem.original_title || '';
         this.normalizedOriginalTitle = mediaItem.original_title ? TopLevelData.#transformTitle(mediaItem.original_title) : '';
@@ -411,7 +411,7 @@ class EpisodeData extends PlexData {
 
         this.title = episode.title;
         this.index = episode.index;
-        this.seasonName = episode.season,
+        this.seasonName = episode.season;
         this.seasonIndex = episode.season_index;
         this.showName = episode.show;
         this.duration = episode.duration;
@@ -557,10 +557,10 @@ class MarkerData extends PlexData {
 
         // For legacy purposes, also check whether the create date equals the modified date,
         // as previous versions of this application didn't include the 'manually created' marker.
-        this.createdByUser = marker.user_created || marker.modified_date == marker.created_at;
+        this.createdByUser = marker.user_created || marker.modified_date === marker.created_at;
 
         // Conversely, ignore the modified date if it's equal to the create date
-        this.modifiedDate = marker.modified_date == marker.created_at ? null : marker.modified_date;
+        this.modifiedDate = marker.modified_date === marker.created_at ? null : marker.modified_date;
 
         this.createDate = marker.created_at;
 
@@ -568,7 +568,9 @@ class MarkerData extends PlexData {
         this.sectionId = marker.section_id;
         this.parentGuid = marker.parent_guid;
         this.markerType = marker.marker_type;
-        this.isFinal = this.markerType == MarkerType.Credits && marker.final;
+
+        // true && 1/0 == 1/0, but we want this to be a boolean, so !!marker.final
+        this.isFinal = this.markerType === MarkerType.Credits && !!marker.final;
 
         // TODO: Find a better way to distinguish between episode versus movie marker
         //       Potentially a base marker class, with episode/season/show and movie tacked on.

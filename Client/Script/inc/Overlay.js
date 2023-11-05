@@ -24,6 +24,8 @@ import ThemeColors from '../ThemeColors.js';
 
 const Log = new ContextualLog('Overlay');
 
+/* eslint-disable no-invalid-this */ // Remove if Overlay becomes a proper class
+
 /**
  * Class to display overlays on top of a webpage.
  *
@@ -157,7 +159,7 @@ const Overlay = new function() {
         }
 
         const delay = options.delay || 250;
-        if (delay != 0) {
+        if (delay !== 0) {
             Animation.fireNow({ opacity : 1 }, overlayNode, delay);
         }
 
@@ -195,17 +197,18 @@ const Overlay = new function() {
         return buildNode('div',
             {
                 id : 'mainOverlay',
-                style : `opacity: ${options.delay == 0 ? '1' : '0'}`,
+                style : `opacity: ${options.delay === 0 ? '1' : '0'}`,
                 dismissible : options.dismissible ? '1' : '0'
             },
             0,
             {
-                click : function(e) {
+                click(e) {
+                    /** @type {HTMLElement} */
                     const overlayElement = $('#mainOverlay');
                     if (overlayElement
-                        && overlayElement.getAttribute('dismissible') == '1'
-                        && (e.target.id == 'mainOverlay' || (options.noborder && e.target.id == 'overlayContainer'))
-                        && overlayElement.style.opacity == 1) {
+                        && overlayElement.getAttribute('dismissible') === '1'
+                        && (e.target.id === 'mainOverlay' || (options.noborder && e.target.id === 'overlayContainer'))
+                        && overlayElement.style.opacity === '1') {
                         Overlay.dismiss();
                     }
                 }
@@ -225,14 +228,14 @@ const Overlay = new function() {
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
             first.addEventListener('keydown', (/**@type {KeyboardEvent}*/e) => {
-                if (e.key == 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey) {
+                if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey) {
                     e.preventDefault();
                     last.focus();
                 }
             });
 
             last.addEventListener('keydown', (/**@type {KeyboardEvent}*/e) => {
-                if (e.key == 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+                if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
                     e.preventDefault();
                     first.focus();
                 }
@@ -265,7 +268,7 @@ const Overlay = new function() {
             0,
             {
                 click : Overlay.dismiss,
-                keyup : (e) => { if (e.key == 'Enter') Overlay.dismiss(); },
+                keyup : (e) => { if (e.key === 'Enter') Overlay.dismiss(); },
             });
         Tooltip.setTooltip(close, 'Close');
         $('#mainOverlay').appendChild(close);
@@ -277,9 +280,10 @@ const Overlay = new function() {
      * @param {KeyboardEvent} e The Event.
      */
     const overlayKeyListener = function(e) {
-        if (e.keyCode == 27 /*esc*/) {
+        if (e.keyCode === 27 /*esc*/) {
+            /** @type {HTMLElement} */
             const overlayNode = $('#mainOverlay');
-            if (overlayNode && !!overlayNode.getAttribute('dismissible') && overlayNode.style.opacity == '1') {
+            if (overlayNode && !!overlayNode.getAttribute('dismissible') && overlayNode.style.opacity === '1') {
                 window.removeEventListener('keydown', overlayKeyListener, false);
                 Overlay.dismiss();
             }

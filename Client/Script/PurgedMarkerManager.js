@@ -370,7 +370,7 @@ class PurgeRow {
     #removeSelfAfterAnimation() {
         const parent = this.#html.parentElement;
         parent.removeChild(this.#html);
-        if (parent.children.length == 0) {
+        if (parent.children.length === 0) {
             this.#emptyTableCallback();
         }
     }
@@ -417,7 +417,7 @@ class PurgeRow {
 
     /** Backs up the main content of the row in preparation of `#html` being cleared out. */
     #backupTableData() {
-        if (this.#tableData.length != 0) {
+        if (this.#tableData.length !== 0) {
             return;
         }
 
@@ -670,7 +670,7 @@ class PurgeTable {
         const typePrefix = (this.#purgedGroup instanceof PurgedShow) ? 'purgeshow' : 'purgemovie';
         const countPostfix = (this.#purgedGroup instanceof PurgedShow) ? firstMarker.show_id : firstMarker.parent_id;
         const container = buildNode('div', { class : 'purgeGroupContainer', id : `${typePrefix}_${countPostfix}` });
-        if (this.#displayType == DisplayType.All) {
+        if (this.#displayType === DisplayType.All) {
             // <hr> to break up different shows if we're showing all purges in the section
             container.appendChild(buildNode('hr'));
         }
@@ -694,12 +694,18 @@ class PurgeTable {
         const table = buildNode('table', { class : 'markerTable' });
         table.appendChild(appendChildren(buildNode('thead'), this.tableHeader()));
 
-        const rows = buildNode('tbody');
-        this.#forMarker(function(marker, rows) {
-            rows.appendChild(this.getNewPurgedRow(marker, this.#onRowRemoved.bind(this)).buildRow());
-        }, rows);
+        const tbody = buildNode('tbody');
 
-        table.appendChild(rows);
+        /**
+         * @param {MarkerAction} marker
+         * @param {HTMLElement} rows */
+        const appendPurgedRow = (marker, rows) => {
+            rows.appendChild(this.getNewPurgedRow(marker, this.#onRowRemoved.bind(this)).buildRow());
+        };
+
+        this.#forMarker(appendPurgedRow, tbody);
+
+        table.appendChild(tbody);
         container.appendChild(table);
         this.#html = container;
         return container;
@@ -756,8 +762,8 @@ class PurgeTable {
     /** @returns The list of markers in this table. */
     markerIds() {
         const ids = [];
-        this.#forMarker(function(marker, ids) {
-            ids.push(marker.marker_id);
+        this.#forMarker(function(marker, markerIds) {
+            markerIds.push(marker.marker_id);
         }, ids);
         return ids;
     }
@@ -785,9 +791,12 @@ class TVPurgeTable extends PurgeTable {
             TableElements.optionsColumn('Options'));
     }
 
-    /** @returns {TVPurgeRow} */
-    getNewPurgedRow(marker, callback) {
-        return new TVPurgeRow(marker, callback);
+    /**
+     * @param {MarkerAction} marker
+     * @param {() => void} emptyTableCallback
+     * @returns {TVPurgeRow} */
+    getNewPurgedRow(marker, emptyTableCallback) {
+        return new TVPurgeRow(marker, emptyTableCallback);
     }
 
     newPurgeSection() { return new PurgedTVSection(); }
@@ -815,9 +824,12 @@ class MoviePurgeTable extends PurgeTable {
             TableElements.optionsColumn('Options'));
     }
 
-    /** @returns {MoviePurgeRow} */
-    getNewPurgedRow(marker, callback) {
-        return new MoviePurgeRow(marker, callback);
+    /**
+     * @param {MarkerAction} marker
+     * @param {() => void} emptyTableCallback
+     * @returns {MoviePurgeRow} */
+    getNewPurgedRow(marker, emptyTableCallback) {
+        return new MoviePurgeRow(marker, emptyTableCallback);
     }
 
     newPurgeSection() { return new PurgedMovieSection(); }
@@ -848,7 +860,7 @@ class PurgeConflictControl {
 
         const select = buildNode('select', { id : 'purgeResolution' }, 0, { change : resolutionTypeChange });
         for (const [key, value] of Object.entries(MarkerConflictResolution)) {
-            select.appendChild(buildNode('option', { value : value }, key));
+            select.appendChild(buildNode('option', { value }, key));
         }
 
         const showHideResolutionStrategy = () => {
@@ -1010,10 +1022,6 @@ class PurgedMarkerManager {
      * @type {AgnosticPurgeCache} */
     #purgeCache = new AgnosticPurgeCache();
 
-    /**
-     * Indicates whether we're in the middle of a purge restoration. */
-    #inBulkRestoration = false;
-
     static CreateInstance(findAllEnabled) {
         if (PurgeManagerSingleton) {
             Log.error('We should only have a single PlexUI instance!');
@@ -1045,7 +1053,7 @@ class PurgedMarkerManager {
     async findPurgedMarkers(dryRun=false) {
         const section = PlexClientState.activeSection();
         const cachedSection = this.#serverPurgeInfo.get(section);
-        if (cachedSection && cachedSection.status == PurgeCacheStatus.Complete) {
+        if (cachedSection && cachedSection.status === PurgeCacheStatus.Complete) {
             // We have full cached data, used that.
             Log.tmi(`PurgedMarkerManager::findPurgedMarkers: Found cached data, bypassing all_purges call to server.`);
             if (!dryRun) {
@@ -1096,9 +1104,9 @@ class PurgedMarkerManager {
     async #getPurgedTopLevelMarkersShared(section, metadataId) {
         let topLevelItem = section.getOrAdd(metadataId);
 
-        if (topLevelItem.status == PurgeCacheStatus.Complete) {
+        if (topLevelItem.status === PurgeCacheStatus.Complete) {
             return false;
-        } else if (topLevelItem.status == PurgeCacheStatus.PartiallyInitialized) {
+        } else if (topLevelItem.status === PurgeCacheStatus.PartiallyInitialized) {
             // Partial state, this shouldn't happen! Overwrite.
             topLevelItem = section.addNewGroup(topLevelItem.id);
         }
@@ -1124,7 +1132,7 @@ class PurgedMarkerManager {
      * Add the given marker action to the purge caches.
      * @param {MarkerAction} action */
     #addToCache(action) {
-        if (action.show_id == -1) {
+        if (action.show_id === -1) {
             // Movie
             Log.assert(action.movieData, 'Show id of -1 should imply that we have valid MovieData.');
             /** @type {PurgedMovieSection} */
@@ -1264,7 +1272,7 @@ class PurgedMarkerManager {
      * @param {DisplayType} displayType The group of purged markers being displayed.
      * @param {HTMLElement?} focusBack The element to focus back on after the overlay is dismissed. */
     #showSingle(purgedItem, displayType, focusBack) {
-        if (purgedItem.count == 0) {
+        if (purgedItem.count === 0) {
             return;
         }
 
@@ -1279,10 +1287,10 @@ class PurgedMarkerManager {
      * @param {PurgeSection} purgeSection Tree of purged markers in the current library section.
      * @param {boolean} dryRun Whether we just want to populate our cache data, not show the purges. */
     #onMarkersFound(purgeSection, dryRun) {
-        if (PlexClientState.activeSectionType() == SectionType.Movie) {
+        if (PlexClientState.activeSectionType() === SectionType.Movie) {
             for (const [movieId, movie] of Object.entries(purgeSection)) {
                 const movieCache = this.#purgeCache.get(movieId);
-                if (movieCache && movieCache.status == PurgeCacheStatus.Complete) {
+                if (movieCache && movieCache.status === PurgeCacheStatus.Complete) {
                     Log.tmi(`#onMarkersFound: Not caching completely cached movie ${movieId}`);
                     continue;
                 }
@@ -1297,7 +1305,7 @@ class PurgedMarkerManager {
             // TV section
             for (const [showId, show] of Object.entries(purgeSection)) {
                 const showCache = this.#purgeCache.get(showId);
-                if (showCache && showCache.status == PurgeCacheStatus.Complete) {
+                if (showCache && showCache.status === PurgeCacheStatus.Complete) {
                     Log.tmi(`#onMarkersFound: Not caching completely cached show ${showId}`);
                     continue;
                 }

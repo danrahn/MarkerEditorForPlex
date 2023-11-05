@@ -34,7 +34,7 @@ class ClientTests extends TestBase {
     #roundTest(current, max, factor, expected) {
         const delta = roundDelta(current, max, factor);
         const result = current + delta;
-        TestHelpers.verify(result == expected, `Expected roundTo(${current}, ${max}, ${factor}) to return ${expected}, got ${result}`);
+        TestHelpers.verify(result === expected, `Expected roundTo(${current}, ${max}, ${factor}) to return ${expected}, got ${result}`);
     }
 }
 

@@ -31,14 +31,14 @@ class GeneralCommands {
      * @param {number} darkConsole Whether to adjust log colors for a dark background.
      * @param {number} traceLogging Whether to also print a stack trace for each log entry.*/
     static async setLogSettings(newLevel, darkConsole, traceLogging) {
-        const logLevelString = Object.keys(ConsoleLog.Level).find(l => ConsoleLog.Level[l] == newLevel);
+        const logLevelString = Object.keys(ConsoleLog.Level).find(l => ConsoleLog.Level[l] === newLevel);
         if (logLevelString === undefined) {
             Log.warn(newLevel, 'Attempting to set an invalid log level, ignoring');
             // If the level is invalid, don't adjust anything else either.
             throw new ServerError(`Invalid Log level: ${newLevel}`, 400);
         }
 
-        if (newLevel != Log.getLevel() || darkConsole != Log.getDarkConsole() || traceLogging != Log.getTrace()) {
+        if (newLevel !== Log.getLevel() || darkConsole !== Log.getDarkConsole() || traceLogging !== Log.getTrace()) {
             // Force the message.
             Log.setLevel(ConsoleLog.Level.Info);
             const newSettings = { Level : newLevel, Dark : darkConsole, Trace : traceLogging };

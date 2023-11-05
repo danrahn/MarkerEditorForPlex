@@ -27,7 +27,7 @@ async function transpile() {
         input : resolve(__dirname, '../app.js'),
         onwarn : (warn, def) => {
             // We don't care about unresolved imports, nexe takes care of that.
-            if (warn.code == 'UNRESOLVED_IMPORT') {
+            if (warn.code === 'UNRESOLVED_IMPORT') {
                 return;
             }
 
@@ -49,10 +49,11 @@ async function toExe() {
         output : resolve(__dirname, '../dist/MarkerEditorForPlex.exe'),
         build : true,
         ico : iconPath,
-        rc : Object.assign({
+        rc : {
             PRODUCTVERSION : version,
-            FILEVERSION : version
-        }, rc),
+            FILEVERSION : version,
+            ...rc
+        },
         resources : [
             resolve(__dirname, '../package.json'),
             resolve(__dirname, '../index.html'),
@@ -107,7 +108,7 @@ async function buildWin() {
     msg('Removing transpiled output');
     fs.unlinkSync(resolve(__dirname, '../dist/built.js'));
 
-    if (process.argv.indexOf('--zip') != -1) {
+    if (~process.argv.indexOf('--zip')) {
         msg('Zipping everything up');
         const dist = resolve(__dirname, '../dist');
         exec(`powershell Compress-Archive ${dist}/* ${dist}/MarkerEditorForPlex.v${version}-win64.zip`, (err) => {

@@ -125,13 +125,13 @@ class ButtonCreator {
         });
 
         for (const [attribute, value] of Object.entries(attributes)) {
-            if (attribute == 'class') { // Don't clash with the other classes set above.
-                for (const className of value.split(' ')) {
-                    button.classList.add(className);
+            if (attribute === 'class') { // Don't clash with the other classes set above.
+                for (const singleClass of value.split(' ')) {
+                    button.classList.add(singleClass);
                 }
-            } else if (attribute == 'tooltip') {
+            } else if (attribute === 'tooltip') {
                 Tooltip.setTooltip(button, value);
-            } else if (attribute == 'auxclick') {
+            } else if (attribute === 'auxclick') {
                 button.addEventListener('auxclick', (e) => {
                     // Disabled buttons don't do anything.
                     if (!button.classList.contains('disabled')) {
@@ -150,7 +150,7 @@ class ButtonCreator {
      * Treat 'Enter' on a table "button" as a click.
      * @param {KeyboardEvent} e */
     static tableButtonKeyup(e) {
-        if (e.key != 'Enter') {
+        if (e.key !== 'Enter') {
             return;
         }
 
@@ -160,7 +160,7 @@ class ButtonCreator {
         // Extract the "real" button based on those assumptions.
         /** @type {HTMLElement} */
         let button = e.target;
-        if (button.tagName.toLowerCase() != 'div') {
+        if (button.tagName.toLowerCase() !== 'div') {
             button = button.parentNode;
         }
 

@@ -31,7 +31,7 @@ class ThumbnailManager {
      * @param {DatabaseWrapper} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory */
     static async Create(db, metadataPath) {
-        if (Instance != null) {
+        if (Instance) {
             Log.warn(`Thumbnail manager already initialized, we shouldn't be initializing it again`);
         }
 
@@ -60,7 +60,7 @@ class ThumbnailManager {
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) {
         Log.error(`hasThumbnail: This should not be called on the base class ${metadataId}`);
-        return Promise.reject(false);
+        return Promise.reject(new ServerError('Incorrect method call', 500));
     }
 
     /**
@@ -75,7 +75,7 @@ class ThumbnailManager {
      * otherwise unable to retrieve it. */
     async getThumbnail(metadataId, timestamp) {
         Log.error(`getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
-        return Promise.reject();
+        return Promise.reject(new ServerError('Incorrect method call', 500));
     }
 
     /** @param {boolean} _fullShutdown */
@@ -196,7 +196,7 @@ class BifThumbnailManager extends ThumbnailManager {
             throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }
 
-        if (thumbCache.interval != 0) {
+        if (thumbCache.interval !== 0) {
             const index = Math.floor(timestamp / thumbCache.interval);
             const cachedData = this.#cache.tryGet(metadataId, index);
             if (cachedData) {
@@ -226,7 +226,7 @@ class BifThumbnailManager extends ThumbnailManager {
             //   * A 32-bit little-endian integer offset into the file indicating the start of the thumbnail.
             readFile(thumbCache.bifPath, (err, data) => {
                 if (err) {
-                    reject('Failed to read thumbnail file');
+                    reject(err);
                     return;
                 }
 
@@ -237,10 +237,10 @@ class BifThumbnailManager extends ThumbnailManager {
                 const getOffset = (index) => data.readInt32LE(indexTableStart + (index * recordSize) + timestampSize);
                 const getTimestamp = (index) => data.readInt32LE(indexTableStart + (index * recordSize));
 
-                if (thumbCache.interval == 0) {
+                if (thumbCache.interval === 0) {
                     const verify = getTimestamp(0);
-                    if (verify != 0) {
-                        reject('Unexpected thumbnail file contents');
+                    if (verify !== 0) {
+                        reject(new ServerError('Unexpected thumbnail file contents', 500));
                         return;
                     }
 
@@ -261,7 +261,7 @@ class BifThumbnailManager extends ThumbnailManager {
                 }
 
                 const thumbStart = getOffset(index);
-                const thumbEnd = index == maxIndex ? data.length : getOffset(index + 1);
+                const thumbEnd = index === maxIndex ? data.length : getOffset(index + 1);
                 const thumbBuf = Buffer.alloc(thumbEnd - thumbStart);
                 data.copy(thumbBuf, 0, thumbStart, thumbEnd);
                 Log.verbose(`Thumbnail found, caching (${thumbEnd - thumbStart} bytes).`);
@@ -279,7 +279,7 @@ class BifThumbnailManager extends ThumbnailManager {
 class FfmpegThumbnailManager extends ThumbnailManager {
     /** Plex database query that finds the files associated with a metadata id. */
     static #fileQuery = `
-    SELECT parts.file AS file, media.duration as duration FROM metadata_items metadata
+    SELECT parts.file AS file, parts.size AS size, media.duration as duration FROM metadata_items metadata
     INNER JOIN media_items media ON media.metadata_item_id=metadata.id
     INNER JOIN media_parts parts ON parts.media_item_id=media.id
     WHERE metadata.id=?
@@ -312,12 +312,19 @@ class FfmpegThumbnailManager extends ThumbnailManager {
 
         const rows = await this.database.all(FfmpegThumbnailManager.#fileQuery, [metadataId]);
 
+        let bestFile = null;
         for (const file of rows) {
             if (existsSync(file.file)) {
                 Log.verbose(file.file, `Found file for ${metadataId}`);
-                this.#cache.addItem(metadataId, true, file.file, file.duration);
-                return true;
+                if (file.size > (bestFile?.size || 0)) {
+                    bestFile = file;
+                }
             }
+        }
+
+        if (bestFile) {
+            this.#cache.addItem(metadataId, true, bestFile.file, bestFile.duration);
+            return true;
         }
 
         Log.verbose(`No file found for ${metadataId}`);
@@ -519,7 +526,7 @@ class CacheMap {
     #touch() {
         // Iterating over all items on every access/add is inefficient,
         // only do it every 20 ticks, then bulk delete if necessary.
-        if (++this.#tick != this.#maxTick) {
+        if (++this.#tick !== this.#maxTick) {
             return;
         }
 

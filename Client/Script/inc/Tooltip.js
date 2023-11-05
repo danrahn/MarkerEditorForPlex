@@ -108,7 +108,7 @@ class Tooltip {
      * @param {string} tooltip */
     static setText(element, tooltip) {
         element.setAttribute('tt', tooltip);
-        if (Tooltip.#showingTooltip && Tooltip.#ttElement == element) {
+        if (Tooltip.#showingTooltip && Tooltip.#ttElement === element) {
             $('#tooltip').innerHTML = tooltip;
         }
     }

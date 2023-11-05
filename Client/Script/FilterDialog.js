@@ -55,7 +55,7 @@ const SortOrder = {
     /**@readonly*/ Descending : 1,
     /**@readonly*/ AscendingPercentage : 2,
     /**@readonly*/ DescendingPercentage : 3,
-    /**@readonly*/ asc : (so) => so == SortOrder.Ascending || so == SortOrder.AscendingPercentage,
+    /**@readonly*/ asc : (so) => so === SortOrder.Ascending || so === SortOrder.AscendingPercentage,
     /**@readonly*/ desc : (so) => !SortOrder.asc(so),
     /**@readonly*/ percentage : (so => so > SortOrder.Descending),
 };
@@ -120,7 +120,7 @@ class FilterSettings {
     /**
      * Returns whether a global filter is active. */
     static hasFilter() {
-        return FilterSettings.introLimit != -1 || FilterSettings.creditsLimit != -1 || !FilterSettings.isDefaultSort();
+        return FilterSettings.introLimit !== -1 || FilterSettings.creditsLimit !== -1 || !FilterSettings.isDefaultSort();
     }
 
     /**
@@ -147,7 +147,7 @@ class FilterSettings {
     }
 
     static isDefaultSort() {
-        return FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder == SortOrder.Ascending;
+        return FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder === SortOrder.Ascending;
     }
 
     static resetSort() {
@@ -185,7 +185,7 @@ class FilterSettings {
                 for (const bucket of Object.keys(markerCounts)) { if (bucket < markerLimit) { return false; } }
                 return true;
             case FilterConditions.Equals:
-                for (const bucket of Object.keys(markerCounts)) { if (bucket == markerLimit) { return false; } }
+                for (const bucket of Object.keys(markerCounts)) { if (bucket === markerLimit) { return false; } }
                 return true;
             case FilterConditions.GreaterThan:
                 for (const bucket of Object.keys(markerCounts)) { if (bucket > markerLimit) { return false; } }
@@ -237,11 +237,11 @@ class FilterDialog {
                         value : inputValue
                     }, 0, { keydown : this.#onTextInput.bind(this) })));
 
-        const introLimit = FilterSettings.introLimit == -1 ? '' : FilterSettings.introLimit;
+        const introLimit = FilterSettings.introLimit === -1 ? '' : FilterSettings.introLimit;
         const introCondition = introLimit === '' ? FilterConditions.Equals : FilterSettings.introCondition;
         this.#introFilter = filterRow('Intro', introCondition, introLimit);
 
-        const creditsLimit = FilterSettings.creditsLimit == -1 ? '' : FilterSettings.creditsLimit;
+        const creditsLimit = FilterSettings.creditsLimit === -1 ? '' : FilterSettings.creditsLimit;
         const creditsCondition = creditsLimit === '' ? FilterConditions.Equals : FilterSettings.creditsCondition;
         this.#creditsFilter = filterRow('Credits', creditsCondition, creditsLimit);
 
@@ -291,7 +291,7 @@ class FilterDialog {
 
         $$('select', sortBy).value = FilterSettings.sortBy;
 
-        const optStr = FilterSettings.sortBy == SortConditions.Alphabetical ? [ 'A-Z', 'Z-A'] : ['Low to High', 'High to Low'];
+        const optStr = FilterSettings.sortBy === SortConditions.Alphabetical ? [ 'A-Z', 'Z-A'] : ['Low to High', 'High to Low'];
         const options = [
             buildNode('option', { value : SortOrder.Ascending, id : 'sortAsc' }, optStr[0]),
             buildNode('option', { value : SortOrder.Descending, id : 'sortDesc' }, optStr[1])
@@ -376,12 +376,12 @@ class FilterDialog {
      * Prevent non-digit input
      * @param {KeyboardEvent} e */
     #onTextInput(e) {
-        if (e.key == 'Enter' && e.ctrlKey) {
+        if (e.key === 'Enter' && e.ctrlKey) {
             this.#applyFilter();
             return;
         }
 
-        if (e.key.length == 1 && !e.ctrlKey && !e.altKey && !/^\d$/.test(e.key)) {
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !/^\d$/.test(e.key)) {
             e.preventDefault();
         }
     }
@@ -402,10 +402,10 @@ class FilterDialog {
         const introText = $$('input[type=text]', this.#introFilter);
         const  introCount = parseInt(introText.value);
         const introCondition = parseInt($$('select', this.#introFilter).value);
-        if (introText.value.length == 0) {
+        if (introText.value.length === 0) {
             FilterSettings.introLimit = -1;
         } else {
-            if (isNaN(introCount) || introCount === 0 && introCondition == FilterConditions.LessThan) {
+            if (isNaN(introCount) || introCount === 0 && introCondition === FilterConditions.LessThan) {
                 this.#flashInput(introText);
                 return;
             }
@@ -419,10 +419,10 @@ class FilterDialog {
         const creditsText = $$('input[type=text]', this.#creditsFilter);
         const creditsCount = parseInt(creditsText.value);
         const creditsCondition = parseInt($$('select', this.#creditsFilter).value);
-        if (creditsText.value.length == 0) {
+        if (creditsText.value.length === 0) {
             FilterSettings.creditsLimit = -1;
         } else {
-            if (isNaN(creditsCount) || creditsCount === 0 && creditsCondition == FilterConditions.LessThan) {
+            if (isNaN(creditsCount) || creditsCount === 0 && creditsCondition === FilterConditions.LessThan) {
                 this.#flashInput(creditsText);
                 return;
             }

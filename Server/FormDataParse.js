@@ -35,7 +35,7 @@ class FormDataParse {
 
                 if (body.length > maxSize) {
                     Log.error('Form data parse failed - data too large.');
-                    reject('Form data is too large.');
+                    reject(new ServerError(`Form data is too large (larger than ${maxSize} bytes).`, 400));
                 }
             });
 
@@ -87,11 +87,11 @@ class FormDataParse {
                         fields[match.groups.key] = match.groups.value;
                     }
 
-                    if (!fields['name']) {
+                    if (!fields.name) {
                         throw new ServerError('Invalid form data - no name for field', 500);
                     }
 
-                    name = fields['name'];
+                    name = fields.name;
                     data[name] = fields;
 
                     // Are any other fields relevant? If so, parse those as well instead of breaking
@@ -109,7 +109,7 @@ class FormDataParse {
             index = raw.indexOf(sentinel, dataEnd);
             if (index === -1) {
                 // If we don't find the sentinel, we better be at the end
-                if (raw.indexOf(responseEnd, dataEnd - 2) != dataEnd - 2) {
+                if (raw.indexOf(responseEnd, dataEnd - 2) !== dataEnd - 2) {
                     Log.warn('Unexpected response end, returning what we have.');
                 }
 

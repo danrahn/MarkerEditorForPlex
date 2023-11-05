@@ -57,6 +57,15 @@ class SettingBase {
             return defaultValue;
         }
 
+        const value = data[key];
+        if ((typeof value) !== (typeof defaultValue)) {
+            const kt = typeof value;
+            const dt = typeof defaultValue;
+            Log.warn(`Found a value for ${key}, but it doesn't match the type of the default value (default: ${dt}, found: ${kt}) `);
+            Log.warn(`Falling back to default value due to type mismatch`);
+            return defaultValue;
+        }
+
         return data[key];
     }
 
@@ -65,17 +74,18 @@ class SettingBase {
      * this class must have their own overriding implementation. */
     serialize(_) {
         Log.error(`This class didn't implement 'serialize'! Setting won't be saved.`);
-        return;
     }
 }
 
 /** Helper class that holds theme-related settings. */
 class ThemeSetting extends SettingBase {
-    /** Whether the user is in dark mode. */
+    /** Whether the user is in dark mode.
+     * @type {boolean} */
     dark;
 
     /** Whether the user set the theme.
-     * If `false`, the theme is based on the browser theme. */
+     * If `false`, the theme is based on the browser theme.
+     * @type {boolean} */
     userSet;
 
     /**
@@ -426,10 +436,10 @@ class ClientSettingsUI {
             Log.getLevel(),
             'Set the log verbosity in the browser console.'));
 
-        const icon = (icon, text, fn) => {
+        const icon = (iconName, text, fn) => {
             const id = text.toLowerCase() + 'Server';
             text += ' Server';
-            return ButtonCreator.iconButton(icon, text, 'standard', fn, { id : id, class : 'serverStateButton' });
+            return ButtonCreator.iconButton(iconName, text, 'standard', fn, { id : id, class : 'serverStateButton' });
         };
 
         options.push(buildNode('hr'));
@@ -520,9 +530,9 @@ class ClientSettingsUI {
     async #onRestartConfirm(e) {
         Log.info(`Attempting to ${e.ctrlKey ? '(quickly) ' : ''}restart server.`);
         if (e.ctrlKey) {
-            this.#quickReload();
+            await this.#quickReload();
         } else {
-            this.#fullRestart();
+            await this.#fullRestart();
         }
     }
 
@@ -675,10 +685,10 @@ class ClientSettingsUI {
 
         const select = buildNode('select', { name : name, id : name });
         for (const [label, value] of Object.entries(options)) {
-            select.appendChild(buildNode('option', { value : value }, label));
+            select.appendChild(buildNode('option', { value }, label));
         }
 
-        if (selectedValue != null) {
+        if (selectedValue !== null) {
             select.value = selectedValue;
         }
 
@@ -688,7 +698,7 @@ class ClientSettingsUI {
     /** Apply and save settings after the user chooses to commit their changes. */
     async #applySettings() {
         let shouldResetView = false;
-        if ($('#darkModeSetting').checked != this.#settingsManager.isDarkTheme()) {
+        if ($('#darkModeSetting').checked !== this.#settingsManager.isDarkTheme()) {
             $('#darkModeCheckbox').click();
         }
 
@@ -734,7 +744,7 @@ class ClientSettingsUI {
         let changed = false;
         const checkbox = document.getElementById(id);
         if (checkbox) {
-            changed = checkbox.checked != this.#settingsManager[getFn]();
+            changed = checkbox.checked !== this.#settingsManager[getFn]();
             this.#settingsManager[setFn](checkbox.checked);
         }
 
@@ -794,7 +804,7 @@ class SettingsManager {
         this.#themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
         if (!this.isThemeUserSet()) {
             // Theme wasn't set by the user, make sure it matches the system theme if possible.
-            this.#settings.theme.dark = this.#themeQuery != 'not all' && this.#themeQuery.matches;
+            this.#settings.theme.dark = this.#themeQuery !== 'not all' && this.#themeQuery.matches;
         }
 
         const styleNode = (link) => {
@@ -901,7 +911,7 @@ class SettingsManager {
      * @param {boolean} [save=true] Whether to save settings after setting the section. */
     setLastSection(section, save=true) {
         // Do nothing if we don't want to remember.
-        if (this.rememberLastSection() || section == -1) {
+        if (this.rememberLastSection() || section === -1) {
             this.#settings.lastSection.sectionId = section;
             Log.verbose('Selected section changed. Saving ');
             if (save) {
@@ -922,7 +932,7 @@ class SettingsManager {
      * @returns {boolean} Whether we actually toggled the theme.
      */
     toggleTheme(isDark, manual) {
-        if (isDark == this.isDarkTheme()) {
+        if (isDark === this.isDarkTheme()) {
             return false;
         }
 

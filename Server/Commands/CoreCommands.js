@@ -79,7 +79,7 @@ class CoreCommands {
         const allMarkers = await PlexQueries.getBaseTypeMarkers(currentMarker.parent_id);
         Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
-        const currentMarkerInAllMarkers = allMarkers.find(m => m.id == markerId);
+        const currentMarkerInAllMarkers = allMarkers.find(m => m.id === markerId);
         currentMarkerInAllMarkers.start = startMs;
         currentMarkerInAllMarkers.end = endMs;
         allMarkers.sort((a, b) => a.start - b.start);
@@ -87,13 +87,13 @@ class CoreCommands {
 
         for (let index = 0; index < allMarkers.length; ++index) {
             const marker = allMarkers[index];
-            if (marker.end >= startMs && marker.start <= endMs && marker.id != markerId) {
+            if (marker.end >= startMs && marker.start <= endMs && marker.id !== markerId) {
                 // Overlap, this should be handled client-side
                 const message = `Marker edit (${startMs}-${endMs}) overlaps with existing marker ${marker.start}-${marker.end}`;
                 throw new ServerError(`${message}. The existing marker should be expanded to include this range instead.`, 400);
             }
 
-            if (marker.id == markerId) {
+            if (marker.id === markerId) {
                 newIndex = index;
             }
         }
@@ -125,7 +125,7 @@ class CoreCommands {
         const allMarkers = await PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);
         let deleteIndex = 0;
         for (const marker of allMarkers) {
-            if (marker.id == markerId) {
+            if (marker.id === markerId) {
                 deleteIndex = marker.index; // TODO: indexRemove: ok
             }
         }
@@ -157,7 +157,7 @@ class CoreCommands {
      * @returns {Promise<ShiftResult>} */
     static async shiftMarkers(metadataId, startShift, endShift, applyTo, applyType, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
-        if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
+        if (markerInfo.typeInfo.metadata_type === MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
         }
 
@@ -199,7 +199,7 @@ class CoreCommands {
         const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
         const foundOverflow = CoreCommands.#checkOverflow(seen, rawEpisodeData, startShift, endShift);
 
-        if (applyType == ShiftApplyType.DontApply || foundOverflow || (applyType == ShiftApplyType.TryApply && foundConflict)) {
+        if (applyType === ShiftApplyType.DontApply || foundOverflow || (applyType === ShiftApplyType.TryApply && foundConflict)) {
             /** @type {MarkerData[]} */
             const notRaw = [];
             markerInfo.markers.forEach(rm => notRaw.push(new MarkerData(rm)));
@@ -263,7 +263,7 @@ class CoreCommands {
      * @returns {Promise<BulkDeleteResult>} */
     static async bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
         const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
-        if (markerInfo.typeInfo.metadata_type == MetadataType.Movie) {
+        if (markerInfo.typeInfo.metadata_type === MetadataType.Movie) {
             throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
         }
 
@@ -314,7 +314,7 @@ class CoreCommands {
         const newMarkerInfo = await PlexQueries.reindex(metadataId);
 
         Log.assert(
-            newMarkerInfo.markers.length == ignoredMarkerIds.length,
+            newMarkerInfo.markers.length === ignoredMarkerIds.length,
             `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
 
         /** @type {MarkerData[]} */
@@ -347,7 +347,7 @@ class CoreCommands {
      * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
      * @returns {Promise<BulkAddResult>>} */
     static async bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
-        if (resolveType != BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
+        if (resolveType !== BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
             throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`, 500);
         }
 

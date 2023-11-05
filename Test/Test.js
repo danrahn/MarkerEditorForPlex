@@ -8,7 +8,7 @@ const testClass = getParam('--test_class', '-tc');
 try {
     if (testClass) {
         await testRunner.runSpecific(testClass, getParam('--test_method', '-tm'));
-    } else if (process.argv.indexOf('--ask-input') != -1) {
+    } else if (~process.argv.indexOf('--ask-input')) {
         await askForTests();
     } else {
         await testRunner.runAll();
@@ -25,10 +25,10 @@ async function askForTests() {
     const rl = createReadlineInterface({
         input : process.stdin,
         output : process.stdout });
-    const testClass = await rl.question('Test Class Name: ');
+    const tcName = await rl.question('Test Class Name: ');
     const testMethod = await rl.question('Test Method (Enter to run all class tests): ');
     rl.close();
-    return testRunner.runSpecific(testClass, testMethod);
+    return testRunner.runSpecific(tcName, testMethod);
 }
 
 /**
@@ -37,11 +37,11 @@ async function askForTests() {
  * @param {string} alternate An alternative form of the parameter */
 function getParam(name, alternate) {
     let paramIndex = process.argv.indexOf(name);
-    if (paramIndex == -1) {
+    if (paramIndex === -1) {
         paramIndex = process.argv.indexOf(alternate);
     }
 
-    if (paramIndex == -1 || paramIndex >= process.argv.length - 1) {
+    if (paramIndex === -1 || paramIndex >= process.argv.length - 1) {
         return null;
     }
 

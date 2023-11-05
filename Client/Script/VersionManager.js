@@ -51,7 +51,7 @@ class VersionManager {
         const headers = { accept : `application/vnd.github+json` };
         try {
             /** @type {any[]} */
-            const releases = await (await fetch(releaseUrl, { headers : headers })).json();
+            const releases = await (await fetch(releaseUrl, { headers })).json();
             // Sure, just add on to the returned JSON with our custom object
             releases.forEach(release => release.version = new Version(release.tag_name));
             const releaseMap = {};
@@ -76,7 +76,7 @@ class VersionManager {
                 }
             }
 
-            if (newer.length == 0) {
+            if (newer.length === 0) {
                 Log.info(`Version ${this.#currentVersion.toString()} is up to date!`);
             } else {
                 this.#latestVersion = newer[0];
@@ -96,7 +96,7 @@ class VersionManager {
         const select = buildNode('select', { id : 'updateRemind', name : 'updateRemind' });
         for (const [option, value] of Object.entries(IgnoreOptions)) {
             const optionText = value < IgnoreOptions.Never ? `In 1 ${option}` : `${option} for this version`;
-            select.appendChild(buildNode('option', { value : value }, optionText));
+            select.appendChild(buildNode('option', { value }, optionText));
         }
 
         const newest = newer[0].version.toString();
@@ -147,9 +147,9 @@ class VersionManager {
         }
 
         Log.verbose(`ShouldCheckForUpdates: Time since last check (ms): ${dateDiff}. Cutoff: ${cutoff}`);
-        if (cutoff == -1) { return false; }
+        if (cutoff === -1) { return false; }
 
-        if (cutoff == 0) { return true; }
+        if (cutoff === 0) { return true; }
 
         return dateDiff >= cutoff;
     }
@@ -229,14 +229,14 @@ class Version {
     static Compare(versionA, versionB) {
         /* eslint-disable padding-line-between-statements */
         let diff = versionA.major - versionB.major;
-        if (diff != 0) { return diff; }
+        if (diff !== 0) { return diff; }
         diff = versionA.minor - versionB.minor;
-        if (diff != 0) { return diff; }
+        if (diff !== 0) { return diff; }
         diff = versionA.patch - versionB.patch;
-        if (diff != 0) { return diff; }
+        if (diff !== 0) { return diff; }
         diff = versionA.releaseTypeInfo.type - versionB.releaseTypeInfo.type;
-        if (diff != 0) { return diff; }
-        if (versionA.releaseTypeInfo.type == PrereleaseType.ReleaseCandidate) {
+        if (diff !== 0) { return diff; }
+        if (versionA.releaseTypeInfo.type === PrereleaseType.ReleaseCandidate) {
             return versionA.releaseTypeInfo.rcVersion - versionB.releaseTypeInfo.rcVersion;
         }
         /* eslint-enable */
@@ -300,11 +300,11 @@ class Version {
     }
 
     /** Return whether this Version represents a valid Marker Editor version. */
-    valid() { return this.major != -1; }
+    valid() { return this.major !== -1; }
     /** Return the full version string. */
     toString() {
         // Strip leading 'v', if any
-        return this.#str.substring(this.#str[0] == 'v' ? 1 : 0);
+        return this.#str.substring(this.#str[0] === 'v' ? 1 : 0);
     }
     /** Compare this version to the given version
      * @param {Version} versionOther

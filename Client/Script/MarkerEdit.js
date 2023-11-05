@@ -82,6 +82,7 @@ class MarkerEdit {
     getTimeInput(isEnd) {
         const events = {
             keydown : [
+                /** @this {MarkerEdit} */
                 function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); },
                 this.#timeInputEditShortcutHandler
             ],
@@ -117,7 +118,10 @@ class MarkerEdit {
         // paste something invalid in. This is overkill considering there's already
         // validation before attempting to submit a timestamp, but it's better to
         // prevent the user from doing something bad as early as possible.
-        input.addEventListener('paste', function(e) {
+        /**
+         * @param {ClipboardEvent} e
+         * @this {HTMLInputElement} */
+        const pasteListener = (e) => {
             const text = e.clipboardData.getData('text/plain');
             if (!/^[\d:.]*$/.test(text)) {
                 const newText = text.replace(/[^\d:.]/g, '');
@@ -137,7 +141,9 @@ class MarkerEdit {
                     this.value = this.value.substring(0, this.selectionStart) + newText + this.value.substring(this.selectionEnd);
                 }
             }
-        });
+        };
+
+        input.addEventListener('paste', pasteListener);
 
         if (isEnd) {
             Tooltip.setTooltip(input, 'Ctrl+Shift+E to replace with the end of an episode.');
@@ -170,7 +176,7 @@ class MarkerEdit {
             case 'Escape':
                 return this.#onMarkerActionCancel(e);
             default:
-                return;
+                break;
         }
     }
 
@@ -199,8 +205,8 @@ class MarkerEdit {
         clearEle(span);
         const select = buildNode('select', { class : 'inlineMarkerType' });
         for (const [title, value] of Object.entries(MarkerType)) {
-            const option = buildNode('option', { value : value }, title);
-            if (value == this.markerRow.markerType()) {
+            const option = buildNode('option', { value }, title);
+            if (value === this.markerRow.markerType()) {
                 option.selected = true;
             }
 
@@ -298,17 +304,15 @@ class MarkerEdit {
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.parent().mediaItem();
         const metadataId = mediaItem.metadataId;
-        const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
+        const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
         if (!mediaItem.markerTable().checkValues(this.markerRow.markerId(), startTime, endTime)) {
             Overlay.setFocusBackElement(event.target);
             return;
         }
 
         try {
-            const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, final);
+            const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, +final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
-            /** @type {MediaItemWithMarkerTable} */
-            const mediaItem = this.markerRow.parent().mediaItem();
             mediaItem.markerTable().addMarker(newMarker, this.markerRow.row());
         } catch (err) {
             errorResponseOverlay('Sorry, something went wrong trying to add the marker. Please try again later.', err);
@@ -332,17 +336,15 @@ class MarkerEdit {
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.parent().mediaItem();
         const markerId = this.markerRow.markerId();
-        const final = endTime == mediaItem.duration && markerType == MarkerType.Credits;
+        const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
         if (!mediaItem.markerTable().checkValues(markerId, startTime, endTime)) {
             Overlay.setFocusBackElement(event.target);
             return;
         }
 
         try {
-            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, final);
+            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, +final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            /** @type {MediaItemWithMarkerTable} */
-            const mediaItem = this.markerRow.parent().mediaItem();
             mediaItem.markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
@@ -525,7 +527,7 @@ class MarkerEdit {
      * @param {HTMLInputElement} input
      * @param {KeyboardEvent} e */
     #onEndTimeInput(input, e) {
-        if (!e.shiftKey || !e.ctrlKey || e.key != 'E') {
+        if (!e.shiftKey || !e.ctrlKey || e.key !== 'E') {
             return;
         }
 
@@ -652,7 +654,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         }
 
         this.#handleThumbnailAutoLoad(input, e);
-        if (e.key != 'Enter') {
+        if (e.key !== 'Enter') {
             return;
         }
 
@@ -669,7 +671,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         }
 
         clearTimeout(this.#autoloadTimeout);
-        if (e.key != 'Enter') {
+        if (e.key !== 'Enter') {
             this.#autoloadTimeout = setTimeout(/**@this {ThumbnailMarkerEdit}*/function() {
                 this.#refreshImage(input.parentNode);
             }.bind(this), 250);

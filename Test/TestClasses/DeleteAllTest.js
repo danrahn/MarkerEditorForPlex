@@ -200,7 +200,7 @@ class DeleteAllTest extends TestBase {
         }
 
         for (const marker of markers.markers) {
-            TestHelpers.verify(marker.marker_type == markerType);
+            TestHelpers.verify(marker.marker_type === markerType);
         }
     }
 }

@@ -150,7 +150,7 @@ class ResultRow {
         if (this.hasPurgedMarkers() && (
             e.target.classList.contains('episodeDisplayText')
             || (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText'))
-            || e.target.tagName.toLowerCase() == 'img')) {
+            || e.target.tagName.toLowerCase() === 'img')) {
             return true; // Don't show/hide if we're repurposing the marker display.
         }
 
@@ -199,7 +199,7 @@ class ResultRow {
             case 'ArrowUp':
             case 'ArrowDown':
             {
-                const sibling = e.key == 'ArrowUp' ? e.target.previousSibling : e.target.nextSibling;
+                const sibling = e.key === 'ArrowUp' ? e.target.previousSibling : e.target.nextSibling;
                 if (sibling) {
                     e.preventDefault();
                     sibling.focus();
@@ -242,22 +242,22 @@ class ResultRow {
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
         const items = breakdown.totalItems();
-        tooltipText += `${intros} ${intros == 1 ? 'has' : 'have'} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
-        tooltipText += `${credits} ${credits == 1 ? 'has' : 'have'} credits (${(credits / items * 100).toFixed(0)}%)<hr>`;
+        tooltipText += `${intros} ${intros === 1 ? 'has' : 'have'} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
+        tooltipText += `${credits} ${credits === 1 ? 'has' : 'have'} credits (${(credits / items * 100).toFixed(0)}%)<hr>`;
         for (const [key, episodeCount] of Object.entries(mediaItem.markerBreakdown().collapsedBuckets())) {
-            tooltipText += `${episodeCount} ${episodeCount == 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
-            if (key != 0) {
+            tooltipText += `${episodeCount} ${episodeCount === 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
+            if (+key !== 0) {
                 atLeastOne += episodeCount;
             }
         }
 
-        if (atLeastOne == 0) {
+        if (atLeastOne === 0) {
             tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
         } else {
             const totalIntros = breakdown.totalIntros();
             const totalCredits = breakdown.totalCredits();
-            tooltipText += `<hr>${totalIntros} total intro${totalIntros !== 1 ? 's' : ''}<br>`;
-            tooltipText += `${totalCredits} total credit${totalCredits !== 1 ? 's' : ''}<br>`;
+            tooltipText += `<hr>${totalIntros} total intro${totalIntros === 1 ? '' : 's'}<br>`;
+            tooltipText += `${totalCredits} total credit${totalCredits === 1 ? '' : 's'}<br>`;
             tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 
@@ -267,7 +267,7 @@ class ResultRow {
         if (this.hasPurgedMarkers()) {
             innerText.appendChild(purgeIcon());
             const purgeCount = this.getPurgeCount();
-            const markerText = purgeCount == 1 ? 'marker' : 'markers';
+            const markerText = purgeCount === 1 ? 'marker' : 'markers';
             tooltipText += `<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
         }
 
@@ -698,13 +698,13 @@ class ShowResultRow extends ResultRow {
 
         // Clear any existing tooltip to be safe
         Tooltip.removeTooltip(seasons);
-        if (this.#seasonsFiltered !== 0) {
+        if (this.#seasonsFiltered === 0) {
+            seasons.innerHTML = baseText;
+        } else {
             Tooltip.setTooltip(seasons, `Current filter is hiding ${plural(this.#seasonsFiltered, 'season')}.`);
             clearEle(seasons);
             seasons.appendChild(filteredListIcon());
             seasons.appendChild(buildNode('span', {}, baseText));
-        } else {
-            seasons.innerHTML = baseText;
         }
     }
 }
@@ -766,7 +766,7 @@ class SeasonResultRow extends ResultRow {
 
         const season = this.season();
         const title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
-        if (season.title.toLowerCase() != `season ${season.index}`) {
+        if (season.title.toLowerCase() !== `season ${season.index}`) {
             title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
         }
 
@@ -973,13 +973,13 @@ class SeasonResultRow extends ResultRow {
             }
         }
 
-        if (!firstRow) {
+        if (firstRow) {
+            // Episode rows are tabbed a bit differently because of its marker table
+            $$('.tabbableRow', firstRow)?.focus();
+        } else {
             firstRow = PlexUI.noResultsBecauseOfFilterRow();
             addRow(firstRow);
             firstRow.focus();
-        } else {
-            // Episode rows are tabbed a bit differently because of its marker table
-            $$('.tabbableRow', firstRow)?.focus();
         }
 
         this.#onFilterStatusChanged();
@@ -1076,16 +1076,16 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        if ((seasonName.childNodes[0].tagName == 'IMG') == !!this.#episodesFiltered) {
+        if ((seasonName.childNodes[0].tagName === 'IMG') === !!this.#episodesFiltered) {
             return;
         }
 
         Tooltip.removeTooltip(seasonName);
-        if (this.#episodesFiltered !== 0) {
+        if (this.#episodesFiltered === 0) {
+            seasonName.removeChild(seasonName.childNodes[0]);
+        } else {
             seasonName.prepend(filteredListIcon());
             Tooltip.setTooltip(seasonName, `Current filter is hiding ${plural(this.#episodesFiltered, 'episode')}.`);
-        } else {
-            seasonName.removeChild(seasonName.childNodes[0]);
         }
     }
 
@@ -1171,7 +1171,7 @@ class BaseItemResultRow extends ResultRow {
             case 'ArrowUp':
             case 'ArrowDown':
             {
-                const parentSibling = e.key == 'ArrowUp' ?
+                const parentSibling = e.key === 'ArrowUp' ?
                     e.target.parentElement.previousSibling :
                     e.target.parentElement.nextSibling;
                 const sibling = $$('.tabbableRow', parentSibling);
@@ -1263,7 +1263,7 @@ class EpisodeResultRow extends BaseItemResultRow {
      * @param {MouseEvent} e */
     #onEpisodeRowKeydown(e) {
         // Only difference between the base event is that Ctrl+Enter shows/hides all tables
-        if (!e.ctrlKey || e.key != 'Enter') {
+        if (!e.ctrlKey || e.key !== 'Enter') {
             return;
         }
 
@@ -1287,7 +1287,7 @@ class EpisodeResultRow extends BaseItemResultRow {
         }
 
         const purgeCount = this.getPurgeCount();
-        const markerText = purgeCount == 1 ? 'marker' : 'markers';
+        const markerText = purgeCount === 1 ? 'marker' : 'markers';
         Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
@@ -1443,7 +1443,7 @@ class MovieResultRow extends BaseItemResultRow {
         // realMarkerCount == -1: we don't know how many markers we have, add '?' with a title
         // Extended stats disabled and no markers grabbed, but we have a realMarkerCount - use it
         // All other scenarios: use the actual marker table count.
-        if (!ClientSettings.showExtendedMarkerInfo() && this.movie().realMarkerCount == -1) {
+        if (!ClientSettings.showExtendedMarkerInfo() && this.movie().realMarkerCount === -1) {
             text = buildNode('span', {}, '? Marker(s)');
             tooltipText = 'Click on the row to load marker counts.';
         } else {
@@ -1472,7 +1472,7 @@ class MovieResultRow extends BaseItemResultRow {
 
         tooltipText += tooltipText.length > 0 ? '<br><br>' : '';
         const purgeCount = this.getPurgeCount();
-        const markerText = purgeCount == 1 ? 'marker' : 'markers';
+        const markerText = purgeCount === 1 ? 'marker' : 'markers';
         Tooltip.setTooltip(main, `${tooltipText}Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
         main.addEventListener('click', this.#onMoviePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
@@ -1541,7 +1541,7 @@ class MovieResultRow extends BaseItemResultRow {
             }
 
             markerData[metadataId].sort((a, b) => a.start - b.start);
-            if (mov.realMarkerCount == -1) {
+            if (mov.realMarkerCount === -1) {
                 mov.realMarkerCount = markerData[metadataId].length;
             }
 

@@ -81,7 +81,7 @@ class PlexClientStateManager {
     async setSection(section, sectionType) {
         this.#activeSection = isNaN(section) ? -1 : section;
         this.#activeSectionType = sectionType;
-        if (this.#activeSection != -1) {
+        if (this.#activeSection !== -1) {
             await this.populateTopLevel();
         }
     }
@@ -113,7 +113,7 @@ class PlexClientStateManager {
             return false;
         }
 
-        if (this.#activeShow && this.#activeShow.show().metadataId != metadataId) {
+        if (this.#activeShow && this.#activeShow.show().metadataId !== metadataId) {
             this.clearActiveShow();
         }
 
@@ -181,7 +181,7 @@ class PlexClientStateManager {
             return false;
         }
 
-        if (this.#activeSeason && this.#activeSeason.season().metadataId != metadataId) {
+        if (this.#activeSeason && this.#activeSeason.season().metadataId !== metadataId) {
             this.clearActiveSeason();
         }
 
@@ -250,7 +250,7 @@ class PlexClientStateManager {
         // A better approach would probably be to properly calculate all the deltas client-side,
         // not relying on server-side queries that might result in the double-updates that
         // this hacked call to inBulkOperation prevents.
-        if (delta != 0 && !this.inBulkOperation()) {
+        if (delta !== 0 && !this.inBulkOperation()) {
             this.#updateBreakdownCacheInternal(episode, delta);
         }
 
@@ -289,10 +289,10 @@ class PlexClientStateManager {
             seasonRow.updateMarkerBreakdown();
         }
 
-        if (!response.mainData) {
-            Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
-        } else {
+        if (response.mainData) {
             show.show().setBreakdownFromRaw(response.mainData);
+        } else {
+            Log.warn(`PlexClientState::UpdateNonActiveBreakdown: Unable to find show breakdown data for ${show.show().metadataId}`);
         }
 
         show.updateMarkerBreakdown();
@@ -346,8 +346,9 @@ class PlexClientStateManager {
         }
 
         // For movies, also try matching any year that's present.
-        let queryYear = /\b(?<year>1[8-9]\d{2}|20\d{2})\b/.exec(query);
-        if (queryYear) { queryYear = queryYear.groups.year; }
+        const queryYear = /\b(?<year>1[8-9]\d{2}|20\d{2})\b/.exec(query);
+        let year = -1;
+        if (queryYear) { year = parseInt(queryYear.groups.year); }
 
         // Ignore non-word characters to improve matching if there are spacing or quote mismatches.
         // Don't use \W though, since that also clears out unicode characters. Rather than import
@@ -365,16 +366,14 @@ class PlexClientStateManager {
             // If we have a regular expression, it takes precedence over our plain query string
             if (regexp) {
                 if (regexp.test(item.title) || regexp.test(item.sortTitle) || regexp.test(item.originalTitle)
-                    || (this.#activeSectionType == SectionType.Movie && regexp.test(queryYear))) {
+                    || (this.#activeSectionType === SectionType.Movie && regexp.test(queryYear))) {
                     result.add(item);
                 }
-            } else {
-                if (item.normalizedTitle.indexOf(fuzzyQuery) != -1
-                    || (item.normalizedSortTitle && item.normalizedSortTitle.indexOf(fuzzyQuery) != -1)
-                    || (item.normalizedOriginalTitle && item.normalizedOriginalTitle.indexOf(fuzzyQuery) != -1)
-                    || (this.#activeSectionType == SectionType.Movie && queryYear && item.year == queryYear)) {
-                    result.add(item);
-                }
+            } else if (item.normalizedTitle.indexOf(fuzzyQuery) !== -1
+                    || (item.normalizedSortTitle && item.normalizedSortTitle.indexOf(fuzzyQuery) !== -1)
+                    || (item.normalizedOriginalTitle && item.normalizedOriginalTitle.indexOf(fuzzyQuery) !== -1)
+                    || (this.#activeSectionType === SectionType.Movie && queryYear && item.year === year)) {
+                result.add(item);
             }
         }
 
@@ -388,7 +387,7 @@ class PlexClientStateManager {
         // then original title prefix matches, and alphabetical sort title after that.
         const resultArr = [...result.keys()].sort((/**@type {TopLevelData}*/a, /**@type {TopLevelData}*/b) => {
             // Only readjust text matches if we're using the default sort.
-            if (fuzzyQuery.length == 0 || !FilterSettings.isDefaultSort()) {
+            if (fuzzyQuery.length === 0 || !FilterSettings.isDefaultSort()) {
                 // Blank query should return all shows, and in that case we just care about sort title order
                 return this.#defaultSort(a, b);
             }
@@ -397,7 +396,7 @@ class PlexClientStateManager {
             for (const key of ['normalizedTitle', 'normalizedSortTitle', 'normalizedOriginalTitle']) {
                 const prefixA = a[key] && a[key].startsWith(fuzzyQuery);
                 const prefixB = b[key] && b[key].startsWith(fuzzyQuery);
-                if (prefixA != prefixB) {
+                if (prefixA !== prefixB) {
                     return prefixA ? -1 : 1;
                 }
             }
@@ -407,7 +406,6 @@ class PlexClientStateManager {
         });
 
         this.activeSearchUnfiltered = resultArr;
-        return;
     }
 
     /**
@@ -559,7 +557,7 @@ class PlexClientStateManager {
     async notifyBulkActionChange(markers, bulkActionType) {
         // Shifts/edits don't result in different marker breakdowns,
         // so most of this can be skipped (for now).
-        const isShift = bulkActionType == BulkActionType.Shift;
+        const isShift = bulkActionType === BulkActionType.Shift;
 
         if (!this.#activeShow) {
             return this.#updateBulkActionSearchRow(markers, bulkActionType);
@@ -601,7 +599,7 @@ class PlexClientStateManager {
      * @param {number} bulkActionType */
     async #updateBulkActionSearchRow(markers, bulkActionType) {
         // Shifts don't update marker counts (for now)
-        if (bulkActionType == BulkActionType.Shift) {
+        if (bulkActionType === BulkActionType.Shift) {
             return;
         }
 
@@ -622,7 +620,7 @@ class PlexClientStateManager {
      * @returns {number} */
     #defaultSort(a, b) {
         // This relies on the sort/filter dialog being gated on extendedMarkerStats
-        const standardSort = FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder == SortOrder.Ascending;
+        const standardSort = FilterSettings.sortBy === SortConditions.Alphabetical && FilterSettings.sortOrder === SortOrder.Ascending;
         Log.assert(standardSort || ClientSettings.showExtendedMarkerInfo(),
             `We should only have custom sort settings if extended marker info is enabled.`);
 

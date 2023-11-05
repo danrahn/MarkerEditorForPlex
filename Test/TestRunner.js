@@ -66,17 +66,17 @@ TestLog.setDarkConsole(1);
 class TestRunner {
     /** @type {{[className : string]: TestBase}} */
     static TestClasses = {
-        BasicCrud : BasicCRUD,
-        MultipleMarkers : MultipleMarkers,
-        ImageTest : ImageTest,
-        QueryTest : QueryTest,
-        ShiftTest : ShiftTest,
-        BulkDeleteTest : BulkDeleteTest,
-        BulkAddTest : BulkAddTest,
-        DeleteAllTest : DeleteAllTest,
-        ClientTests : ClientTests,
-        ImportExportTest : ImportExportTest,
-        ChapterTest : ChapterTest,
+        BasicCRUD,
+        MultipleMarkers,
+        ImageTest,
+        QueryTest,
+        ShiftTest,
+        BulkDeleteTest,
+        BulkAddTest,
+        DeleteAllTest,
+        ClientTests,
+        ImportExportTest,
+        ChapterTest,
     };
 
     constructor() {
@@ -147,7 +147,7 @@ class TestRunner {
      * Sets the test log's log level, if provided in the command line. */
     #setTestLog() {
         const logInfoIndex = process.argv.indexOf('--test_log_level');
-        if (logInfoIndex == -1 || process.argv.length <= logInfoIndex) {
+        if (logInfoIndex === -1 || process.argv.length <= logInfoIndex) {
             return;
         }
 

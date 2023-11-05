@@ -55,36 +55,36 @@ class FetchError extends Error {
 const ServerCommand = {
     /**
      * Add a marker to the Plex database
-     * @param {string} markerType
+     * @param {string} type
      * @param {number} metadataId
      * @param {number} start
      * @param {number} end
-     * @param {boolean} [final=false]
+     * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    add : async (markerType, metadataId, start, end, final=0) => jsonRequest('add', { metadataId : metadataId, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
+    add : async (type, metadataId, start, end, final=0) => jsonRequest('add', { metadataId, start, end, type, final }),
 
     /**
      * Edit an existing marker with the given id.
-     * @param {string} markerType
+     * @param {string} type marker type
      * @param {number} id
      * @param {number} start
      * @param {number} end
-     * @param {boolean} [final=false]
+     * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    edit : async (markerType, id, start, end, final=0) => jsonRequest('edit', { id : id, start : start, end : end, type : markerType, final : final ? 1 : 0 }),
+    edit : async (type, id, start, end, final=0) => jsonRequest('edit', { id, start, end, type, final }),
 
     /**
      * Delete the marker with the given id.
      * @param {number} id
      * @returns {Promise<SerializedMarkerData>} */
-    delete : async (id) => jsonRequest('delete', { id : id }),
+    delete : async (id) => jsonRequest('delete', { id }),
 
     /**
      * Retrieve all markers under the given metadata id that may be affected by a shift operation.
      * @param {number} id
      * @param {number} applyTo
      * @returns {Promise<ShiftResult>} */
-    checkShift : async (id, applyTo) => jsonRequest('check_shift', { id : id, applyTo : applyTo }),
+    checkShift : async (id, applyTo) => jsonRequest('check_shift', { id, applyTo }),
 
     /**
      * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
@@ -152,32 +152,32 @@ const ServerCommand = {
      * Retrieve all shows in the given section.
      * @param {number} id
      * @returns {Promise<SerializedShowData[]|SerializedMovieData[]>} */
-    getSection : async (id) => jsonRequest('get_section', { id : id }),
+    getSection : async (id) => jsonRequest('get_section', { id }),
 
     /**
      * Retrieve all seasons in the given show.
      * @param {number} id
      * @returns {Promise<SerializedSeasonData[]>} */
-    getSeasons : async (id) => jsonRequest('get_seasons', { id : id }),
+    getSeasons : async (id) => jsonRequest('get_seasons', { id }),
 
     /**
      * Retrieve all episodes in the given season.
      * @param {number} id
      * @returns {Promise<SerializedEpisodeData>} */
-    getEpisodes : async (id) => jsonRequest('get_episodes', { id : id }),
+    getEpisodes : async (id) => jsonRequest('get_episodes', { id }),
 
     /**
      * Return whether the given metadata item has thumbnails associated with it.
      * Only valid for episode/movie metadata ids.
      * @param {number} id
      * @returns {Promise<{hasThumbnails: boolean}>} */
-    checkForThumbnails : async (id) => jsonRequest('check_thumbs', { id : id }),
+    checkForThumbnails : async (id) => jsonRequest('check_thumbs', { id }),
 
     /**
      * Retrieve marker breakdown stats for the given section.
      * @param {number} id
      * @returns {Promise<{[episodesWithNMarkers: number]: number}>} */
-    getMarkerStats : async (id) => jsonRequest('get_stats', { id : id }),
+    getMarkerStats : async (id) => jsonRequest('get_stats', { id }),
 
     /**
      * Retrieve the marker breakdown stats for a single show or movie.
@@ -197,20 +197,20 @@ const ServerCommand = {
      * @param {number} level The log level.
      * @param {number} dark 1 to color messages for a dark console (if supported), 0 for light mode.
      * @param {number} trace 1 to log stack traces, 0 otherwise */
-    logSettings : async (level, dark, trace) => jsonRequest('log_settings', { level : level, dark : dark, trace : trace }),
+    logSettings : async (level, dark, trace) => jsonRequest('log_settings', { level, dark, trace }),
 
 
     /**
      * Check for markers that should exist for the given metadata id, but aren't in the Plex database.
      * @param {number} id The show/season/episode id.
      * @returns {Promise<SerializedMarkerData[]>} */
-    purgeCheck : async (id) => jsonRequest('purge_check', { id : id }),
+    purgeCheck : async (id) => jsonRequest('purge_check', { id }),
 
     /**
      * Find all purges in the given library section.
      * @param {number} sectionId
      * @returns {Promise<PurgeSection>} */
-    allPurges : async (sectionId) => jsonRequest('all_purges', { sectionId : sectionId }),
+    allPurges : async (sectionId) => jsonRequest('all_purges', { sectionId }),
 
     /**
      * Restore the given purged markers associated with the given section.
@@ -225,14 +225,14 @@ const ServerCommand = {
      * @param {number[]} markerIds
      * @param {number} sectionId
      * @returns {Promise<void>} */
-    ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds : markerIds, sectionId : sectionId }),
+    ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds, sectionId }),
 
     /**
      * Irreversibly delete all markers of the given type from the given section.
      * @param {number} sectionId
      * @param {number} deleteType
      * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number }>} */
-    sectionDelete : async (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId : sectionId, deleteType : deleteType }),
+    sectionDelete : async (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId, deleteType }),
 
     /**
      * Shutdown Marker Editor.
@@ -260,7 +260,7 @@ const ServerCommand = {
      * @param {Object} database
      * @param {number} sectionId
      * @param {number} resolveType */
-    importDatabase : async (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database : database, sectionId : sectionId, resolveType : resolveType }),
+    importDatabase : async (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database, sectionId, resolveType }),
 
     /**
      * Retrieve chapter data (if any) for the given media item (supports shows, seasons, episodes, and movies).
@@ -314,7 +314,7 @@ async function jsonPostCore(url, body=null) {
 
             // Global check to see if we failed because the server is suspended.
             // If so, show the undismissible 'Server Paused' overlay.
-            if (response.Error && response.Error == 'Server is suspended') {
+            if (response.Error && response.Error === 'Server is suspended') {
                 Log.info('Action was not completed because the server is suspended.');
                 ServerPausedOverlay.Show();
                 // Return unfulfillable Promise. Gross, but since the user can't do anything anyway, we don't really care.
@@ -462,7 +462,7 @@ function errorMessage(error) {
         Log.error(error.message);
         Log.error(error.stack ? error.stack : '(Unknown stack)');
 
-        if (error instanceof TypeError && error.message == 'Failed to fetch') {
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
             // Special handling of what's likely a server-side exit.
             return error.toString() + '<br><br>The server may have exited unexpectedly, please check the console.';
         }
@@ -483,7 +483,7 @@ function errorMessage(error) {
  * @param {string} text The type of item.
  */
 function plural(n, text) {
-    return `${n} ${text}${n == 1 ? '' : 's'}`;
+    return `${n} ${text}${n === 1 ? '' : 's'}`;
 }
 
 /**
@@ -536,14 +536,14 @@ const hmsRegex = new RegExp('' +
  * @returns The number of milliseconds indicated by `value`. */
 function timeToMs(value, allowNegative=false) {
     let ms = 0;
-    if (value.indexOf(':') == -1) {
+    if (value.indexOf(':') === -1) {
         if (value.indexOf('.') === -1) {
             // Raw milliseconds
             return parseInt(value);
-        } else {
-            // Assume sections.milliseconds
-            return parseInt(parseFloat(value) * 1000);
         }
+
+        // Assume sections.milliseconds
+        return parseInt(parseFloat(value) * 1000);
     }
 
     const result = hmsRegex.exec(value);
@@ -575,7 +575,7 @@ function timeToMs(value, allowNegative=false) {
     if (groups.minutes) {
         // Be stricter than the regex itself and force two digits
         // if we have an hours value.
-        if (groups.hours && groups.minutes.length != 2) {
+        if (groups.hours && groups.minutes.length !== 2) {
             return NaN;
         }
 
@@ -586,11 +586,11 @@ function timeToMs(value, allowNegative=false) {
         // Because the above regex isn't great, if we have mm:ss.000, hours
         // will be populated but minutes won't. This catches that and adds
         // hours as minutes instead.
-        if (!groups.minutes) {
-            ms += parseInt(groups.hours) * 60 * 1000;
-        } else {
+        if (groups.minutes) {
             // Normal hh:mm
             ms += parseInt(groups.hours) * 60 * 60 * 1000;
+        } else {
+            ms += parseInt(groups.hours) * 60 * 1000;
         }
     }
 
@@ -641,10 +641,10 @@ const truncationKeys = {
  * time changes with keyboard shortcuts.
  * @param {MouseEvent} e */
 function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
-    if (e.key.length == 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
+    if (e.key.length === 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
         // Some time inputs (like bulk shift) allow negative values,
         // so don't override '-' if we're at the start of the input.
-        if (allowNegative && e.key == '-' && e.target.selectionStart == 0) {
+        if (allowNegative && e.key === '-' && e.target.selectionStart === 0) {
             return;
         }
 
@@ -659,7 +659,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
         const currentValue = e.target.value;
 
         // Default to HMS, but keep ms if that's what's currently being used
-        const needsHms = currentValue.length == 0 || /[.:]/.test(currentValue);
+        const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
 
         // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
         const currentValueMs = timeToMs(currentValue || '0');
@@ -692,7 +692,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
  * General callback to treat 'Enter' on a given element as a click.
  * @param {KeyboardEvent} e */
 function clickOnEnterCallback(e) {
-    if (e.ctrlKey || e.shiftKey || e.altKey || e.key != 'Enter') {
+    if (e.ctrlKey || e.shiftKey || e.altKey || e.key !== 'Enter') {
         return;
     }
 
@@ -725,7 +725,7 @@ function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
  * @param {number} timeout Number of milliseconds before giving up. */
 async function waitFor(condition, timeout) {
     return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { clearInterval(interval); reject(); }, timeout);
+        const timer = setTimeout(() => { clearInterval(interval); reject(new Error('hit waitFor timeout')); }, timeout);
         const interval = setInterval(() => {
             if (condition()) {
                 clearInterval(interval);

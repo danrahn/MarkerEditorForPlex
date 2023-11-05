@@ -29,7 +29,7 @@ class QueryCommands {
      * Each key is expected to be the same media type (e.g. all movie ids, or all episode ids).
      * @param {number[]} keys The metadata ids to lookup. */
     static async queryIds(keys) {
-        if (keys.length == 0) {
+        if (keys.length === 0) {
             throw new ServerError(`Marker query must have at least one metadata id to search for,`, 400);
         }
 
@@ -68,7 +68,7 @@ class QueryCommands {
      * @param {number} sectionId The section id of the library. */
     static async getLibrary(sectionId) {
         const sections = await PlexQueries.getLibraries();
-        const section = sections.find(s => s.id == sectionId);
+        const section = sections.find(s => s.id === sectionId);
         if (!section) {
             Log.error(`Section id "${sectionId}" is not a valid movie or TV library`);
             return [];
@@ -208,8 +208,8 @@ class QueryCommands {
                 continue;
             }
 
-            const isMarker = row.tag_id == PlexQueries.markerTagId();
-            if (row.parent_id == idCur) {
+            const isMarker = row.tag_id === PlexQueries.markerTagId();
+            if (row.parent_id === idCur) {
                 countCur += isMarker ? MarkerBreakdown.deltaFromType(1, row.marker_type) : 0;
             } else {
                 buckets[countCur] ??= 0;
@@ -220,7 +220,11 @@ class QueryCommands {
         }
 
         ++buckets[countCur];
+        // Last update wins. This is a backup measure anyway, so in the unexpected case
+        // where we're attempting to update this in parallel, it's not the end of the world.
+        // eslint-disable-next-line require-atomic-updates
         LegacyMarkerBreakdown.Cache[sectionId] = buckets;
+
         return buckets;
     }
 
@@ -236,7 +240,7 @@ class QueryCommands {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }
 
-        includeSeasons = includeSeasons != 0;
+        includeSeasons = includeSeasons !== 0;
         /** @type {TreeStats|false} */
         let data = false;
         if (includeSeasons) {

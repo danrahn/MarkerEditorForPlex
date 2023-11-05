@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync } from 'fs';
 import { createInterface as createReadlineInterface } from 'readline/promises';
 import { join } from 'path';
-/** @typedef {!import('readline').Interface} Interface */
+/** @typedef {!import('readline/promises').Interface} Interface */
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
@@ -102,10 +102,10 @@ async function FirstRunConfig(dataRoot) {
  * @param {Interface} rl
  * @param {string} defaultPath */
 async function askUserPath(question, rl, defaultPath) {
-    const defaultExists = defaultPath.length != 0 && existsSync(defaultPath);
+    const defaultExists = defaultPath.length !== 0 && existsSync(defaultPath);
     for (;;) {
         const answer = await askUser(question, 'auto', rl, existsSync, 'Path does not exist');
-        if (answer != 'auto') {
+        if (answer !== 'auto') {
             return answer;
         }
 
@@ -129,8 +129,8 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
     question += ` (default: ${defaultValue}): `;
     for (;;) {
         const answer = await rl.question(question);
-        if (answer.length == 0 || !validateFunc || validateFunc(answer)) {
-            return answer.length == 0 ? defaultValue : answer;
+        if (answer.length === 0 || !validateFunc || validateFunc(answer)) {
+            return answer.length === 0 ? defaultValue : answer;
         }
 
         if (validateMsg) {
@@ -149,16 +149,16 @@ async function askUserYesNo(question, defaultValue, rl) {
     question += ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
     for (;;) {
         const answer = await rl.question(question);
-        if (answer.length == 0) {
+        if (answer.length === 0) {
             return defaultValue;
         }
 
         const firstLetter = answer[0].toLowerCase();
-        if (firstLetter == 'y') {
+        if (firstLetter === 'y') {
             return true;
         }
 
-        if (firstLetter == 'n') {
+        if (firstLetter === 'n') {
             return false;
         }
     }
@@ -169,7 +169,7 @@ async function askUserYesNo(question, defaultValue, rl) {
  * @param {string} port The port as a string */
 function validPort(port) {
     const portInt = parseInt(port);
-    return !isNaN(portInt) && portInt > 0 && portInt < 65536 && portInt.toString() == port;
+    return !isNaN(portInt) && portInt > 0 && portInt < 65536 && portInt.toString() === port;
 }
 
 export default FirstRunConfig;

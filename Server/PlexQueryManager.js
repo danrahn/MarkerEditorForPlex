@@ -65,7 +65,7 @@ const ExtraData = {
      * Convert marker type string and final flag to ExtraData type
      * @param {string} markerType Value from MarkerType
      * @param {number} final */
-    get : (markerType, final) => markerType == MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
+    get : (markerType, final) => markerType === MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
 };
 
 /**
@@ -114,7 +114,7 @@ class TrimmedMarker {
     }
 
     /** Return whether this is an existing marker */
-    existing() { return this.id != TrimmedMarker.#newMarkerId; }
+    existing() { return this.id !== TrimmedMarker.#newMarkerId; }
 
     /** @param {RawMarkerData} marker */
     static fromRaw(marker) {
@@ -230,6 +230,8 @@ FROM taggings
             }
 
             Log.info('Database verified');
+            // Something's gone terribly wrong if we've initiated multiple calls to CreateInstance/Close
+            // eslint-disable-next-line require-atomic-updates
             Instance = new PlexQueryManager(db, row.id);
             return Instance;
         } catch (err) {
@@ -239,7 +241,13 @@ FROM taggings
     }
 
     /** Close the query connection. */
-    static async Close() { await Instance?.close(); Instance = null; }
+    static async Close() {
+        await Instance?.close();
+
+        // Something's gone terribly wrong if we've initiated multiple calls to CreateInstance/Close
+        // eslint-disable-next-line require-atomic-updates
+        Instance = null;
+    }
 
     /**
      * Initializes the query manager. Should only be called via the static CreateInstance.
@@ -575,7 +583,7 @@ ORDER BY e.\`index\` ASC;`;
         const markerArray = markerData ? (markerData instanceof Array) ? markerData : [markerData] : [];
         for (const marker of markerArray) {
             // extra_data should never be null, but better safe than sorry
-            marker.final = marker.extra_data?.indexOf('final=1') !== -1 ? 1 : 0;
+            marker.final = marker.extra_data?.indexOf('final=1') === -1 ? 0 : 1;
 
             // TODO: With newly added/edited markers, our cache is not yet updated,
             // so there's a brief period where these values are incorrect, and we rely
@@ -600,7 +608,7 @@ ORDER BY e.\`index\` ASC;`;
     async getMarkersForItems(metadataIds, sectionId) {
         if (metadataIds.length <= 500) {
             const metadataType = await this.#validateSameMetadataTypes(metadataIds);
-            if (metadataType == MetadataType.Invalid) {
+            if (metadataType === MetadataType.Invalid) {
                 throw new ServerError(`getMarkersForItems can only accept metadata ids that are the same metadata_type`, 400);
             }
 
@@ -611,7 +619,7 @@ ORDER BY e.\`index\` ASC;`;
                     return this.#getMarkersForEpisodesOrMovies(metadataIds, this.#extendedEpisodeMarkerFields);
                 default:
                 {
-                    const typeString = Object.keys(MetadataType).find(k => MetadataType[k] == metadataType);
+                    const typeString = Object.keys(MetadataType).find(k => MetadataType[k] === metadataType);
                     throw new ServerError(`getMarkersForItems only expects movie or episode ids, found ${typeString}.`, 400);
                 }
             }
@@ -646,7 +654,7 @@ ORDER BY e.\`index\` ASC;`;
             // This query only works if we have relatively few ids to query, otherwise we run into
             // SQL condition limits. The caller should have verified this already.
             if (index > 500) {
-                if (index == 501) {
+                if (index === 501) {
                     Log.error(`Over 500 ids requested in getMarkersForEpisodesOrMovies, ignoring subsequent calls`);
                 }
 
@@ -726,7 +734,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         const markers = await this.#getMarkersForMetadataItem(metadataId, where, this.#extendedFieldsFromMediaType(typeInfo.metadata_type));
-        return { markers : markers, typeInfo : typeInfo };
+        return { markers, typeInfo };
     }
 
     /**
@@ -750,7 +758,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number[]} metadataIds
      * @returns {Promise<number>} */
     async #validateSameMetadataTypes(metadataIds) {
-        if (metadataIds.length == 0) {
+        if (metadataIds.length === 0) {
             return MetadataType.Invalid;
         }
 
@@ -768,14 +776,14 @@ ORDER BY e.\`index\` ASC;`;
         query = query.substring(0, query.length - 4) + ');';
         /** @type {MetadataItemTypeInfo[]} */
         const items = await this.#database.all(query);
-        if (items.length != metadataIds.length) {
+        if (items.length !== metadataIds.length) {
             Log.warn(`validateSameMetadataTypes: ${metadataIds.length - items.length} metadata ids to not exist in the database.`);
             return MetadataType.Invalid;
         }
 
         const metadataType = items[0].metadata_type;
         for (const item of items) {
-            if (item.metadata_type != metadataType) {
+            if (item.metadata_type !== metadataType) {
                 Log.warn(`validateSameMetadataTypes: Metadata ids have different metadata types.`);
                 return MetadataType.Invalid;
             }
@@ -865,11 +873,11 @@ ORDER BY e.\`index\` ASC;`;
 
         const allMarkers = await this.getBaseTypeMarkers(metadataId);
         const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
-        if (newIndex == -1) {
+        if (newIndex === -1) {
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
         }
 
-        if (final && newIndex != allMarkers.length - 1) {
+        if (final && newIndex !== allMarkers.length - 1) {
             throw new ServerError(`Attempting to make a new marker final, but it won't be the last marker of the episode.`, 400);
         }
 
@@ -890,7 +898,7 @@ ORDER BY e.\`index\` ASC;`;
         await this.reindex(metadataId);
 
         const newMarker = await this.#getNewMarker(metadataId, startMs, endMs, typeInfo.metadata_type);
-        return { allMarkers : allMarkers, newMarker : newMarker };
+        return { allMarkers, newMarker };
     }
 
     /**
@@ -1015,8 +1023,9 @@ ORDER BY e.\`index\` ASC;`;
                             // Credits/final takes precedence over intro/non-final
                             lastAction.start = Math.min(lastAction.start, action.start);
                             lastAction.end = Math.max(lastAction.end, action.end);
-                            lastAction.marker_type = action.marker_type == MarkerType.Credits ? MarkerType.Credits : lastAction.marker_type;
-                            lastAction.final = lastAction.final || action.final;
+                            lastAction.marker_type =
+                                action.marker_type === MarkerType.Credits ? MarkerType.Credits : lastAction.marker_type;
+                            lastAction.final ||= action.final;
                             lastAction.modified_at = Math.max(lastAction.modified_at, action.modified_at) || null;
                             break;
                         case MarkerConflictResolution.Overwrite:
@@ -1047,7 +1056,7 @@ ORDER BY e.\`index\` ASC;`;
                 let identical = false;
                 for (const overlappingMarker of overlappingMarkers) {
                     // If they're identical, ignore no matter the resolution strategy
-                    identical = action.start == overlappingMarker.start && action.end == overlappingMarker.end;
+                    identical = action.start === overlappingMarker.start && action.end === overlappingMarker.end;
                     if (identical) {
                         if (identicalMarkers.length === 10) {
                             Log.verbose('Too many identical markers, moving reporting to TMI');
@@ -1085,7 +1094,7 @@ ORDER BY e.\`index\` ASC;`;
                                 newData : {
                                     newStart    : Math.min(action.start, overlappingMarker.start),
                                     newEnd      : Math.max(action.end, overlappingMarker.end),
-                                    newType     : action.marker_type ==
+                                    newType     : action.marker_type ===
                                                     MarkerType.Credits ? MarkerType.Credits : overlappingMarker.marker_type,
                                     newFinal    : overlappingMarker.final || action.final,
                                     newModified : newModified,
@@ -1102,13 +1111,13 @@ ORDER BY e.\`index\` ASC;`;
                             // credits marker with a manually added intro marker that was added before credits were supported.
                             // However, don't override "final", since that might have been a manual operation to prevent the
                             // marker from triggering the PostPlay screen.
-                            action.marker_type = overlappingMarker.marker_type == MarkerType.Credits ?
+                            action.marker_type = overlappingMarker.marker_type === MarkerType.Credits ?
                                 MarkerType.Credits :
                                 action.marker_type;
 
                             toDelete.push(overlappingMarker.getRaw());
                             const existingIndex = existingMarkers[baseItemId].indexOf(overlappingMarker);
-                            if (existingIndex !== -1) {
+                            if (~existingIndex) {
                                 existingMarkers[baseItemId].splice(existingIndex, 1 /*deleteCount*/);
                             } else {
                                 Log.warn(`How did we process a marker that's not in the existingMarkers map?`);
@@ -1152,7 +1161,7 @@ ORDER BY e.\`index\` ASC;`;
 
             // Adjust marker index if necessary.
             for (const marker of Object.values(existingMarkers[baseItemId])) {
-                if (marker.index != marker.newIndex && marker.existing()) {
+                if (marker.index !== marker.newIndex && marker.existing()) {
                     Log.tmi(`Found marker to reindex (was ${marker.index}, now ${marker.newIndex})`);
                     transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
                 }
@@ -1180,14 +1189,14 @@ ORDER BY e.\`index\` ASC;`;
             );
         }
 
-        if (expectedInserts == 0) {
+        if (expectedInserts === 0) {
             Log.assert(
                 ignoredActions.size > 0,
                 `bulkRestore: no inserts expected, but we aren't blocking any actions.`);
-            if (toDelete.length == 0 && Object.keys(toModify).length == 0) {
+            if (toDelete.length === 0 && Object.keys(toModify).length === 0) {
                 // This is only expected if every marker we tried to restore already exists. In that case just
                 // immediately return without any new markers, since we didn't add any.
-                const isExpected = identicalMarkers.length + ignoredActions.size == potentialRestores;
+                const isExpected = identicalMarkers.length + ignoredActions.size === potentialRestores;
                 Log.assert(isExpected, `bulkRestore: identicalMarkers == potentialRestores`);
                 Log.warn(`bulkRestore: no markers to restore, did they all match against an existing marker?`);
                 return {
@@ -1216,7 +1225,7 @@ ORDER BY e.\`index\` ASC;`;
         // but we can't update our caches since we couldn't retrieve them.
         const newMarkers = await this.#newMarkersAfterBulkInsert(existingMarkers, sectionId, sectionType);
 
-        if (newMarkers.length != expectedInserts) {
+        if (newMarkers.length !== expectedInserts) {
             Log.warn(`Expected to find ${expectedInserts} new markers, found ${newMarkers.length} instead.`);
         }
 
@@ -1284,7 +1293,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         query = query.substring(0, query.length - 4) + ')';
-        return params.length == 1 ? [] : await this.#database.all(query, params);
+        return params.length === 1 ? [] : await this.#database.all(query, params);
     }
 
     /**
@@ -1308,8 +1317,8 @@ ORDER BY e.\`index\` ASC;`;
 
         pseudoData.index = pseudoData.newIndex;
         const newIndex = pseudoData.newIndex;
-        const startOverlap = newIndex != 0 && markers[newIndex - 1].end >= pseudoData.start;
-        const endOverlap = newIndex != markers.length - 1 && markers[newIndex + 1].start <= pseudoData.end;
+        const startOverlap = newIndex !== 0 && markers[newIndex - 1].end >= pseudoData.start;
+        const endOverlap = newIndex !== markers.length - 1 && markers[newIndex + 1].start <= pseudoData.end;
         return (startOverlap || endOverlap) ? -1 : newIndex;
     }
 
@@ -1430,7 +1439,7 @@ ORDER BY e.\`index\` ASC;`;
 
                 const newStart = Math.max(0, Math.min(marker.start + startShift, maxDuration));
                 const newEnd = Math.max(0, Math.min(marker.end + endShift, maxDuration));
-                if (newStart == newEnd) {
+                if (newStart === newEnd) {
                     // Shifted entirely outside of the episode? We should have already checked for that.
                     throw new ServerError(`Attempting to shift marker (${marker.start}-${marker.end}) by ${startShift}${endShift} ` +
                         `puts it outside the bounds of the episode (0-${maxDuration})!`, 400);
@@ -1446,13 +1455,13 @@ ORDER BY e.\`index\` ASC;`;
         await transaction.exec();
         const newMarkers = await this.getMarkersForItems(episodeIds, backupSection);
         // No ignored markers, no need to prune
-        if (newMarkers.length == expectedShifts) {
+        if (newMarkers.length === expectedShifts) {
             return newMarkers;
         }
 
         const pruned = [];
         for (const marker of newMarkers) {
-            if (markers[marker.parent_id] && markers[marker.parent_id].find(x => x.id == marker.id)) {
+            if (markers[marker.parent_id] && markers[marker.parent_id].find(x => x.id === marker.id)) {
                 pruned.push(marker);
             }
         }
@@ -1480,7 +1489,7 @@ ORDER BY e.\`index\` ASC;`;
             });
 
             for (const marker of markerGroup) {
-                if (marker.newIndex != marker.index) {
+                if (marker.newIndex !== marker.index) {
                     transaction.addStatement('UPDATE taggings SET `index`=? WHERE id=?;', [marker.newIndex, marker.id]);
                     marker.index = marker.newIndex;
                 }
@@ -1574,7 +1583,7 @@ ORDER BY e.\`index\` ASC;`;
         Object.values(episodeMarkerMap).forEach(ed => ed.existingMarkers.sort((a, b) => a.start - b.start));
 
         // For dry runs, we just return all episodes and their associated markers (if any)
-        if (resolveType == BulkMarkerResolveType.DryRun) {
+        if (resolveType === BulkMarkerResolveType.DryRun) {
             return {
                 applied : false,
                 episodeMap : episodeMarkerMap

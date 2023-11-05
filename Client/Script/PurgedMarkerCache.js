@@ -127,12 +127,12 @@ class PurgedGroup {
      * any parents as well.
      * @param {number} delta The change in purged marker count for this group. */
     updateCount(delta) {
-        if (delta == 0) {
+        if (delta === 0) {
             return;
         }
 
         this.count += delta;
-        if (this.status == PurgeCacheStatus.Uninitialized) { this.status = PurgeCacheStatus.PartiallyInitialized; }
+        if (this.status === PurgeCacheStatus.Uninitialized) { this.status = PurgeCacheStatus.PartiallyInitialized; }
 
         if (this.parent) {
             this.parent.updateCount(delta);

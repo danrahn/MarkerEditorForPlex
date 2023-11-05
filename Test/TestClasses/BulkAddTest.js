@@ -397,8 +397,8 @@ class BulkAddTest extends TestBase {
     #testMarkerFromTestData(marker, newIndex, startOverride=-1, endOverride=-1) {
         return {
             id : marker.Id,
-            start : startOverride == -1 ? marker.Start : startOverride,
-            end : endOverride == -1 ? marker.End : endOverride,
+            start : startOverride === -1 ? marker.Start : startOverride,
+            end : endOverride === -1 ? marker.End : endOverride,
             index : newIndex };
     }
 
@@ -468,8 +468,8 @@ class BulkAddTest extends TestBase {
             TestHelpers.verify(episodeApplyInfo.episodeData, `Expected episodeMap to have episodeData, found ${episodeApplyInfo.episodeData}`);
             TestHelpers.verify(episodeApplyInfo.existingMarkers instanceof Array, `Expected episodeMap to have an array of existingMarkers, found ${episodeApplyInfo.existingMarkers}`);
             totalMarkerCount += episodeApplyInfo.existingMarkers.length;
-            const expectChanged = result.ignoredEpisodes?.indexOf(episodeApplyInfo.episodeData.metadataId) === -1 ?? true;
-            if (expectApply && expectChanged && resolveType != BulkMarkerResolveType.Ignore) {
+            const expectChanged = !result.ignoredEpisodes ||result.ignoredEpisodes.indexOf(episodeApplyInfo.episodeData.metadataId) === -1;
+            if (expectApply && expectChanged && resolveType !== BulkMarkerResolveType.Ignore) {
                 TestHelpers.verify(episodeApplyInfo.changedMarker, `Expected a changed marker to be present after bulk_add apply, found ${episodeApplyInfo.changedMarker}`);
                 TestHelpers.verify(episodeApplyInfo.isAdd === true || episodeApplyInfo.isAdd === false, `Expected isAdd to be true or false after bulk_add apply, found ${episodeApplyInfo.isAdd}`);
             } else if (!expectChanged) {
@@ -479,11 +479,11 @@ class BulkAddTest extends TestBase {
             if (expectedDeletes[episodeApplyInfo.episodeData.metadataId]) {
                 const expectedDeleted = expectedDeletes[episodeApplyInfo.episodeData.metadataId];
                 const deleted = episodeApplyInfo.deletedMarkers;
-                TestHelpers.verify(expectedDeleted.length == deleted.length, `Expected ${expectedDeleted.length} deleted markers for this episode, found ${deleted.length}`);
+                TestHelpers.verify(expectedDeleted.length === deleted.length, `Expected ${expectedDeleted.length} deleted markers for this episode, found ${deleted.length}`);
             }
         }
 
-        TestHelpers.verify(totalMarkerCount == expectedMarkerCount, `Expected to find ${expectedMarkerCount} markers after bulk action, found ${totalMarkerCount}`);
+        TestHelpers.verify(totalMarkerCount === expectedMarkerCount, `Expected to find ${expectedMarkerCount} markers after bulk action, found ${totalMarkerCount}`);
 
         for (const marker of markersToCheck) {
             await TestHelpers.validateMarker(marker, null, null, null, null, marker.start, marker.end, marker.index, null, this.testDb, marker.deleted);

@@ -37,7 +37,7 @@ class GETHandler {
             return res.writeHead(400).end(`Invalid request - no URL found`);
         }
 
-        if (url == '/') {
+        if (url === '/') {
             url = '/index.html';
         }
 
@@ -115,7 +115,7 @@ class ImageHandler {
                 'x-content-type-options' : 'nosniff'
             }).end(Buffer.from(contents, 'utf-8'));
         } catch (err) {
-            return badRequest(err.message, err.code && err.code == 'ENOENT' ? 404 : 500);
+            return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
         }
     }
 
@@ -133,12 +133,12 @@ class ImageHandler {
             return badRequest('Preview thumbnails are not enabled');
         }
 
-        if (GetServerState() == ServerState.Suspended) {
+        if (GetServerState() === ServerState.Suspended) {
             return badRequest(`Server is suspended, can't retrieve thumbnail.`);
         }
 
         const split = url.split('/');
-        if (split.length != 4) {
+        if (split.length !== 4) {
             return badRequest(`Malformed thumbnail URL: ${url}`);
         }
 
@@ -164,7 +164,7 @@ class ImageHandler {
                 }).end(Buffer.from(contents, 'utf-8'));
                 return;
             } catch (err) {
-                return badRequest(err.message, err.code && err.code == 'ENOENT' ? 404 : 500);
+                return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
             }
         }
 

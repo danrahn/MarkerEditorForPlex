@@ -147,7 +147,7 @@ class MarkerBreakdownManager {
 
         for (const option of Object.values(BreakdownType)) {
             const optNode = buildNode('option', { value : option }, BreakdownTitles[option]);
-            if (option == breakdownType) {
+            if (option === breakdownType) {
                 optNode.setAttribute('selected', 'selected');
             }
 

@@ -44,16 +44,16 @@ class QueryTest extends TestBase {
 
         // Currently database has three sections, tv, movie, and music. We should only grab tv and movie.
         TestHelpers.verify(result instanceof Array, `Expected get_sections to return an array.`);
-        TestHelpers.verify(result.length == 2, `Only expected 2 library section, found ${result.length}.`);
+        TestHelpers.verify(result.length === 2, `Only expected 2 library section, found ${result.length}.`);
 
         // Assume they're ordered by first to last section
         const tvLib = result[0];
-        TestHelpers.verify(tvLib.id == 1, `Expected library section to have an id of 1, found ${tvLib.id}.`);
-        TestHelpers.verify(tvLib.name == 'TV', `Expected library name to be TV, found ${tvLib.name}.`);
+        TestHelpers.verify(tvLib.id === 1, `Expected library section to have an id of 1, found ${tvLib.id}.`);
+        TestHelpers.verify(tvLib.name === 'TV', `Expected library name to be TV, found ${tvLib.name}.`);
 
         const movieLib = result[1];
-        TestHelpers.verify(movieLib.id == 2, `Expected library section to have an id of 2, found ${movieLib.id}`);
-        TestHelpers.verify(movieLib.name == 'Movies', `Expected library name to be 'M', found ${movieLib.name}.`);
+        TestHelpers.verify(movieLib.id === 2, `Expected library section to have an id of 2, found ${movieLib.id}`);
+        TestHelpers.verify(movieLib.name === 'Movies', `Expected library name to be 'M', found ${movieLib.name}.`);
     }
 
     //////////////////////
@@ -67,20 +67,20 @@ class QueryTest extends TestBase {
 
         const shows = TestBase.DefaultMetadata;
         const showCount = Object.keys(shows).filter(k => k.startsWith('Show')).length;
-        TestHelpers.verify(result.length == showCount, `Expected ${showCount} shows, found ${result.length}`);
+        TestHelpers.verify(result.length === showCount, `Expected ${showCount} shows, found ${result.length}`);
         for (const showResult of result) {
             const expectedShow = shows[showResult.title];
             TestHelpers.verify(expectedShow, `get_section returned unknown show "${showResult.title}"`);
             TestHelpers.verify(
-                showResult.metadataId == expectedShow.Id,
+                showResult.metadataId === expectedShow.Id,
                 `Found metadata id ${showResult.metadataId} for ${showResult.title}, expected ${expectedShow.Id}.`);
             const expectedSeasons = this.#expectedCount(expectedShow); // -1 for ID field
             TestHelpers.verify(
-                showResult.seasonCount == expectedSeasons,
+                showResult.seasonCount === expectedSeasons,
                 `Expected ${showResult.title} to have ${expectedSeasons} season(s), found ${showResult.seasonCount}`);
             const expectedEpisodes = this.#expectedEpisodeCount(expectedShow);
             TestHelpers.verify(
-                showResult.episodeCount == expectedEpisodes,
+                showResult.episodeCount === expectedEpisodes,
                 `Expected ${showResult.title} to have ${expectedEpisodes} episode(s), found ${expectedEpisodes}`);
         }
     }
@@ -91,7 +91,7 @@ class QueryTest extends TestBase {
         this.expectFailure();
         const result = await this.send('get_section', { id : 10 });
         TestHelpers.verify(result instanceof Array, `Expected get_section of a nonexistent library to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_section of nonexistent library to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_section of nonexistent library to return an empty array.`);
     }
 
     /**
@@ -102,12 +102,12 @@ class QueryTest extends TestBase {
 
         const movies = TestBase.DefaultMetadata;
         const movieCount = Object.keys(movies).filter(k => k.startsWith('Movie')).length;
-        TestHelpers.verify(result.length == movieCount, `Expected ${movieCount} movies, found ${result.length}`);
+        TestHelpers.verify(result.length === movieCount, `Expected ${movieCount} movies, found ${result.length}`);
         for (const movieResult of result) {
             const expectedMovie = movies[movieResult.title];
             TestHelpers.verify(expectedMovie, `get_section returned unknown movie "${movieResult.title}"`);
             TestHelpers.verify(
-                movieResult.metadataId == expectedMovie.Id,
+                movieResult.metadataId === expectedMovie.Id,
                 `Found metadata id ${movieResult.metadataId} for ${movieResult.title}, expected ${expectedMovie.Id}.`);
         }
     }
@@ -138,12 +138,12 @@ class QueryTest extends TestBase {
             const seasons = await this.send('get_seasons', { id : testShow.Id });
             TestHelpers.verify(seasons && seasons instanceof Array, `Expected get_seasons to return an array.`);
             const expectedSeasons = this.#expectedCount(testShow);
-            TestHelpers.verify(seasons.length == expectedSeasons, `Expected ${expectedSeasons} season(s), found ${seasons.length}`);
+            TestHelpers.verify(seasons.length === expectedSeasons, `Expected ${expectedSeasons} season(s), found ${seasons.length}`);
             for (const season of seasons) {
                 TestHelpers.verify(testShow[season.title], `Got unexpected season "${season.title}" from get_seasons.`);
                 const expectedEpisodes = this.#expectedCount(testShow[season.title]);
                 TestHelpers.verify(
-                    season.episodeCount == expectedEpisodes,
+                    season.episodeCount === expectedEpisodes,
                     `Expected season ${season.title} to have ${expectedEpisodes} episodes, found ${season.episodeCount}.`);
             }
         }
@@ -154,7 +154,7 @@ class QueryTest extends TestBase {
     async getEmptySeasonTest() {
         const result = await this.send('get_seasons', { id : 200 });
         TestHelpers.verify(result instanceof Array, `Expected get_seasons of a nonexistent metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_seasons of a nonexistent metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_seasons of a nonexistent metadata id to return an empty array.`);
     }
 
     /**
@@ -163,12 +163,12 @@ class QueryTest extends TestBase {
         // Pass in a season id
         let result = await this.send('get_seasons', { id : TestBase.DefaultMetadata.Show1.Season1.Id });
         TestHelpers.verify(result instanceof Array, `Expected get_seasons of a season metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_seasons of a season metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_seasons of a season metadata id to return an empty array.`);
 
         // Pass in an episode id
         result = await this.send('get_seasons', { id : TestBase.DefaultMetadata.Show1.Season1.Episode1.Id });
         TestHelpers.verify(result instanceof Array, `Expected get_seasons of an episode metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_seasons of an episode metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_seasons of an episode metadata id to return an empty array.`);
     }
 
     /**
@@ -196,10 +196,10 @@ class QueryTest extends TestBase {
             const episodes = await this.send('get_episodes', { id : testSeason.Id });
             TestHelpers.verify(episodes && episodes instanceof Array, `Expected get_seasons to return an array.`);
             const expectedEpisodes = this.#expectedCount(testSeason);
-            TestHelpers.verify(episodes.length == expectedEpisodes, `Expected ${expectedEpisodes} season(s), found ${episodes.length}`);
+            TestHelpers.verify(episodes.length === expectedEpisodes, `Expected ${expectedEpisodes} season(s), found ${episodes.length}`);
             for (const episode of episodes) {
                 TestHelpers.verify(testSeason[episode.title], `Got unexpected episode "${episode.title}" from get_episodes.`);
-                TestHelpers.verify(episode.showName == 'Show1', `Expected episode's show name to be Show1, found ${episode.showName}.`);
+                TestHelpers.verify(episode.showName === 'Show1', `Expected episode's show name to be Show1, found ${episode.showName}.`);
             }
         }
     }
@@ -209,7 +209,7 @@ class QueryTest extends TestBase {
     async getEmptyEpisodesTest() {
         const result = await this.send('get_episodes', { id : 200 });
         TestHelpers.verify(result instanceof Array, `Expected get_episodes of a nonexistent metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_episodes of a nonexistent metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_episodes of a nonexistent metadata id to return an empty array.`);
     }
 
     /**
@@ -218,12 +218,12 @@ class QueryTest extends TestBase {
         // Pass in a show id
         let result = await this.send('get_episodes', { id : TestBase.DefaultMetadata.Show1.Id });
         TestHelpers.verify(result instanceof Array, `Expected get_episodes of a show metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_episodes of a show metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_episodes of a show metadata id to return an empty array.`);
 
         // Pass in an episode id
         result = await this.send('get_episodes', { id : TestBase.DefaultMetadata.Show1.Season1.Episode1.Id });
         TestHelpers.verify(result instanceof Array, `Expected get_episodes of an episode metadata id to still return an array.`);
-        TestHelpers.verify(result.length == 0, `Expected get_episodes of an episode metadata id to return an empty array.`);
+        TestHelpers.verify(result.length === 0, `Expected get_episodes of an episode metadata id to return an empty array.`);
     }
 
     /**
@@ -246,7 +246,7 @@ class QueryTest extends TestBase {
     #expectedEpisodeCount(showData) {
         let count = 0;
         for (const [season, data] of Object.entries(showData)) {
-            if (season == 'Id') { continue; }
+            if (season === 'Id') { continue; }
 
             count += this.#expectedCount(data);
         }

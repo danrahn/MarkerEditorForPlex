@@ -47,18 +47,18 @@ class MultipleMarkers extends TestBase {
 
         // Single entry for the one episode queried
         TestHelpers.verify(
-            Object.keys(newMarkers).length == 1,
+            Object.keys(newMarkers).length === 1,
             `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
 
         TestHelpers.verify(newMarkers[eid], `Expected an entry for Episode2 (${eid}), found ${Object.keys(newMarkers)[0]}`);
 
         newMarkers = newMarkers[eid];
-        TestHelpers.verify(newMarkers.length == 2, `Did not find 2 markers after adding a new one, found ${newMarkers.length}`);
+        TestHelpers.verify(newMarkers.length === 2, `Did not find 2 markers after adding a new one, found ${newMarkers.length}`);
 
         // Markers should be returned in order of index
         for (const i of [0, 1]) {
             const idx = newMarkers[i].index;
-            TestHelpers.verify(idx == i, `Expected marker ${i} to have index ${i}, found ${idx}.`);
+            TestHelpers.verify(idx === i, `Expected marker ${i} to have index ${i}, found ${idx}.`);
         }
     }
 
@@ -89,18 +89,18 @@ class MultipleMarkers extends TestBase {
 
         // Single entry for the one episode queried
         TestHelpers.verify(
-            Object.keys(newMarkers).length == 1,
+            Object.keys(newMarkers).length === 1,
             `Expected a single object key from 'query', found ${Object.keys(newMarkers).length}`);
 
         TestHelpers.verify(newMarkers[eid], `Expected an entry for Episode2 (${eid}), found ${Object.keys(newMarkers)[0]}`);
 
         newMarkers = newMarkers[eid];
-        TestHelpers.verify(newMarkers.length == 2, `Did not find 2 markers after adding a new one, found ${newMarkers.length}`);
+        TestHelpers.verify(newMarkers.length === 2, `Did not find 2 markers after adding a new one, found ${newMarkers.length}`);
 
         // Markers should be returned in order of index
         for (const i of [0, 1]) {
             const idx = newMarkers[i].index;
-            TestHelpers.verify(idx == i, `Expected marker ${i} to have index ${i}, found ${idx}.`);
+            TestHelpers.verify(idx === i, `Expected marker ${i} to have index ${i}, found ${idx}.`);
         }
     }
 
@@ -138,7 +138,7 @@ class MultipleMarkers extends TestBase {
                 index : episode.Marker2.Index
             }, null, null, null, null, null, null, 1, null, this.testDb);
         const response = await this.send('delete', { id : episode.Marker1.Id });
-        TestHelpers.verify(response && response.id == episode.Marker1.Id, `Expected marker delete to return the marker we deleted.`);
+        TestHelpers.verify(response && response.id === episode.Marker1.Id, `Expected marker delete to return the marker we deleted.`);
 
         // Verify the index of the second marker is now 0
         await TestHelpers.validateMarker({ id : episode.Marker2.Id, index : 0 }, null, null, null, null, null, null, 0, null, this.testDb);
