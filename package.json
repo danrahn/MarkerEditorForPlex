@@ -1,7 +1,7 @@
 {
   "name": "marker-editor-for-plex",
   "type": "module",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Add, edit, and delete Plex markers",
   "main": "app.js",
   "scripts": {
