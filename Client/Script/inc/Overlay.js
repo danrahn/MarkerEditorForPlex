@@ -82,33 +82,19 @@ const Overlay = new function() {
 
     /**
      * Dismiss the overlay and remove it from the DOM.
-     * Expects the overlay to exist.
-     * @param {...any} args Function parameters. Ignored unless a boolean is found, in which case it's used to determine whether
-     *                      we should reset our focusBack element. We don't want to in overlay chains.
-     */
-    this.dismiss = function(...args) {
+     * Expects the overlay to exist. */
+    this.dismiss = function() {
         const main = Overlay.get();
         const ret = animateOpacity(main, 1, 0, 250, true /*deleteAfterTransition*/);
         Tooltip.dismiss();
-        let forReshow = false;
-        for (const arg of args) {
-            // Gross, obviously. This function is called from many different contexts though,
-            // so sometimes the first and second arguments aren't what we expect.
-            if (typeof arg == 'boolean') {
-                forReshow = arg;
-                break;
-            }
+
+        focusBack?.focus();
+        focusBack = null;
+        for (const dismiss of dismissCallbacks) {
+            dismiss();
         }
 
-        if (!forReshow) {
-            focusBack?.focus();
-            focusBack = null;
-            for (const dismiss of dismissCallbacks) {
-                dismiss();
-            }
-
-            dismissCallbacks = [];
-        }
+        dismissCallbacks = [];
 
         window.removeEventListener('keydown', overlayKeyListener);
         return ret;
