@@ -86,10 +86,13 @@ const Overlay = new function() {
     this.dismiss = function() {
         const main = Overlay.get();
         const ret = animateOpacity(main, 1, 0, 250, true /*deleteAfterTransition*/);
-        Tooltip.dismiss();
 
         focusBack?.focus();
         focusBack = null;
+
+        // Dismiss after setting focus, as Tooltip's 'show on focus' behavior can be
+        // annoying if it's not the user that's setting focus
+        Tooltip.dismiss();
         for (const dismiss of dismissCallbacks) {
             dismiss();
         }
