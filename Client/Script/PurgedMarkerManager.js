@@ -955,6 +955,7 @@ class PurgeOverlay {
 
         if (this.#purgedSection.count <= 0) {
             this.#noMorePurges(true /*emptyOnInit*/);
+            return;
         }
 
         Overlay.build({ dismissible : true, closeButton : true, focusBack : focusBack }, container);
