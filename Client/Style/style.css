@@ -243,6 +243,11 @@ input:focus-visible {
   flex: 0 1 20%;
 }
 
+/* Allow bulk action buttons to grow */
+.bulkResultRow>.goBack {
+  flex: 0 1 auto;
+}
+
 .bulkResultRow {
   padding: 5px 10px 5px 20px;
 }
