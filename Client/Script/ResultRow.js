@@ -7,6 +7,7 @@ import {
     clickOnEnterCallback,
     errorMessage,
     errorResponseOverlay,
+    errorToast,
     pad0,
     plural,
     ServerCommand } from './Common.js';
@@ -278,6 +279,23 @@ class ResultRow {
         }
 
         return mainText;
+    }
+
+    /**
+     * Inserts a small loading icon into a result row.
+     * @param {string} attachTo The query selector to retrieve the element to add the loading icon to. */
+    insertInlineLoadingIcon(attachTo) {
+        const stats = $$(attachTo, this.html());
+        const load = stats ? ButtonCreator.loadingIcon(18, { class : 'inlineLoadingIcon' }) : null;
+        stats?.insertBefore(load, stats.firstChild);
+    }
+
+    /**
+     * Removes the inline loading icon from the result row, if any.
+     * NOTE: assumes only a single loading icon exists in the row at one time. */
+    removeInlineLoadingIcon() {
+        const icon = $$('.inlineLoadingIcon', this.html());
+        icon?.parentElement.removeChild(icon);
     }
 }
 
@@ -887,16 +905,14 @@ class SeasonResultRow extends ResultRow {
 
     /** Make a request for all episodes in this season. */
     async #getEpisodes() {
+        this.insertInlineLoadingIcon('.showResultEpisodes');
         const season = this.season();
-        const stats = $$('.showResultEpisodes', this.html());
-        const load = stats ? ButtonCreator.loadingIcon(18, { class : 'inlineLoadingIcon' }) : null;
         try {
-            stats?.insertBefore(load, stats.firstChild);
             await this.#parseEpisodes(await ServerCommand.getEpisodes(season.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the episodes for ${season.title}.`, err);
         } finally {
-            stats?.removeChild(load);
+            this.removeInlineLoadingIcon();
         }
     }
 
@@ -1092,10 +1108,8 @@ class SeasonResultRow extends ResultRow {
     /**
      * Show or hide all marker tables associated with the episodes in this season.
      * @param {boolean} hide Whether to hide or show all marker tables. */
-    showHideMarkerTables(hide) {
-        for (const episode of Object.values(this.#episodes)) {
-            episode.showHideMarkerTable(hide);
-        }
+    async showHideMarkerTables(hide) {
+        BaseItemResultRow.ShowHideMarkerTables(hide, Object.values(this.#episodes));
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show/season rows. */
@@ -1145,6 +1159,16 @@ class BaseItemResultRow extends ResultRow {
     onBaseItemResultRowKeydown(e) {
         if (this.ignoreRowClick(e)) {
             return;
+        }
+
+        // Like clicking, ctrl+arrow expands/collapses all.
+        if (e.ctrlKey) {
+            switch (e.key) {
+                case 'ArrowRight':
+                    return this.showHideMarkerTables(false /*hide*/);
+                case 'ArrowLeft':
+                    return this.showHideMarkerTables(true /*hide*/);
+            }
         }
 
         if (e.altKey || e.shiftKey || e.ctrlKey) {
@@ -1200,6 +1224,66 @@ class BaseItemResultRow extends ResultRow {
             }
         }
     }
+
+    /**
+     * Returns the expand/contract arrow element */
+    getExpandArrow() {
+        return buildNode('img', {
+            class : 'markerExpand collapsed',
+            theme : 'standard',
+            alt : 'expand/contract',
+            src : ThemeColors.getIcon('arrow', 'standard') });
+    }
+
+    /**
+     * Rotates the expand/contract arrow after showing/hiding the marker table.
+     * @param {boolean} hide Whether the marker table is being hidden */
+    updateExpandArrow(hide) {
+        $$('.markerExpand', this.html()).classList[hide ? 'add' : 'remove']('collapsed');
+    }
+
+    /**
+     * Expands or contracts the marker table for this row.
+     * @param {boolean} hide
+     * @param {boolean} bulk Whether we're in a bulk show/hide operation
+     * @param {boolean} animate Whether to animate the visibility change. NOTE: even if set to true,
+     *                          the row won't be animated if we think it's off-screen. */
+    showHideMarkerTable(hide, bulk=false, animate=true) {
+        const promise = this.baseItem().markerTable().setVisibility(!hide, bulk, animate);
+        this.updateExpandArrow(hide);
+
+        // Should really only be necessary on hide, but hide tooltips on both show and hide
+        Tooltip.dismiss();
+        return promise;
+    }
+
+    showHideMarkerTables(_hide) { Log.error(`BaseItemRow classes must override showHideMarkerTables `); }
+
+    /**
+     * Show/hide all marker tables for a given list of base items.
+     * @param {boolean} hide
+     * @param {BaseItemResultRow[]} items */
+    static ShowHideMarkerTables(hide, items) {
+        let count = 0;
+        const bodyRect = document.body.getBoundingClientRect();
+        const isVisible = (episode) => {
+            const rect = episode.html().getBoundingClientRect();
+            return rect.top < bodyRect.height && rect.y + rect.height > 0;
+        };
+
+        // Improve perf a bit by doing the following:
+        // * If the row isn't visible at the time of execution, don't animate the expansion/contraction.
+        // * For visible rows, stagger the expansion/contraction so we don't try animating 30 rows at once.
+        //   With the current duration of 150ms, a 25ms timer will ensure we only have at most 6 rows
+        //   animating at once. As an added benefit, I think the staggered approach looks cleaner.
+        for (const item of items) {
+            if (isVisible(item)) {
+                setTimeout(() => item.showHideMarkerTable(hide, true /*bulk*/), count++ * 25);
+            } else {
+                item.showHideMarkerTable(hide, true /*bulk*/, false /*animate*/);
+            }
+        }
+    }
 }
 
 /**
@@ -1246,7 +1330,7 @@ class EpisodeResultRow extends BaseItemResultRow {
                           this.onBaseItemResultRowKeydown.bind(this),
                           this.#onEpisodeRowKeydown.bind(this) ] }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
-                    buildNode('span', { class : 'markerExpand' }, '&#9205; '),
+                    this.getExpandArrow(),
                     buildNode('span', {}, episodeTitle)
                 ),
                 this.#buildMarkerText()
@@ -1267,7 +1351,14 @@ class EpisodeResultRow extends BaseItemResultRow {
             return;
         }
 
-        this.#seasonRow.showHideMarkerTables(this.episode().markerTable().isVisible());
+        this.showHideMarkerTables(this.episode().markerTable().isVisible());
+    }
+
+    /**
+     * Show/hide all marker tables for the current season.
+     * @param {boolean} hide */
+    showHideMarkerTables(hide) {
+        this.#seasonRow.showHideMarkerTables(hide);
     }
 
     /**
@@ -1314,28 +1405,12 @@ class EpisodeResultRow extends BaseItemResultRow {
             this.#seasonRow.showHideMarkerTables(expanded);
         } else {
             this.showHideMarkerTable(expanded);
-
-            // Only want to scroll into view if we're showing a single episode
-            if (!expanded) {
-                this.scrollTableIntoView();
-            }
         }
-    }
-
-    /**
-     * Expands or contracts the marker table for this row.
-     * @param {boolean} hide */
-    showHideMarkerTable(hide) {
-        this.episode().markerTable().setVisibility(!hide);
-        $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
-
-        // Should really only be necessary on hide, but hide tooltips on both show and hide
-        Tooltip.dismiss();
     }
 
     /** Scroll the marker table into view */
     scrollTableIntoView() {
-        $$('table', this.episode().markerTable().table()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+        this.episode().markerTable().table().scrollIntoView({ behavior : 'smooth', block : 'nearest' });
     }
 
     /**
@@ -1386,7 +1461,7 @@ class MovieResultRow extends BaseItemResultRow {
 
         const titleText = 'Click to expand/contract.';
         const titleNode = buildNode('div', { class : 'movieName', title : titleText });
-        titleNode.appendChild(buildNode('span', { class : 'markerExpand' }, '&#9205; '));
+        titleNode.appendChild(this.getExpandArrow());
         titleNode.appendChild(buildNode('span', { }, mov.title));
         if (mov.originalTitle) {
             titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${mov.originalTitle})`));
@@ -1514,12 +1589,11 @@ class MovieResultRow extends BaseItemResultRow {
         }
 
         await this.#verifyMarkerTableInitialized();
-        const expanded = !$$('table', this.movie().markerTable().table()).classList.contains('hidden');
-        this.showHideMarkerTable(expanded);
-
-        // Only want to scroll into view if we're expanding the table
-        if (!expanded) {
-            this.scrollTableIntoView();
+        const expanded = this.movie().markerTable().isVisible();
+        if (e.ctrlKey) {
+            this.showHideMarkerTables(expanded);
+        } else {
+            this.showHideMarkerTable(expanded);
         }
     }
 
@@ -1531,6 +1605,7 @@ class MovieResultRow extends BaseItemResultRow {
             return;
         }
 
+        this.insertInlineLoadingIcon('.episodeDisplayText');
         const mov = this.movie();
         const metadataId = mov.metadataId;
         this.#markersGrabbed = true;
@@ -1569,24 +1644,56 @@ class MovieResultRow extends BaseItemResultRow {
         } catch (ex) {
             this.#markersGrabbed = false;
             throw ex;
+        } finally {
+            this.removeInlineLoadingIcon();
         }
     }
 
     /**
      * Expands or contracts the marker table for this row.
-     * @param {boolean} hide */
-    async showHideMarkerTable(hide) {
-        await this.#verifyMarkerTableInitialized();
-        this.movie().markerTable().setVisibility(!hide);
-        $$('.markerExpand', this.html()).innerHTML = hide ? '&#9205; ' : '&#9660; ';
+     * @param {boolean} hide
+     * @param {boolean} bulk
+     * @param {boolean} animate Whether to animate the visibility change. NOTE: even if set to true,
+     *                          the row won't be animated if we think it's off-screen. */
+    async showHideMarkerTable(hide, bulk=false, animate=true) {
+        if (!hide) {
+            await this.#verifyMarkerTableInitialized();
+        }
 
-        // Should really only be necessary on hide, but hide tooltips on both show and hide
-        Tooltip.dismiss();
+        super.showHideMarkerTable(hide, bulk, animate);
     }
+
+    /**
+     * Show or hide all marker tables for the currently listed movies. This can fail if there
+     * are too many movies to expand that don't have marker information yet.
+     * @param {boolean} hide Whether to hide or show all marker tables. */
+    async showHideMarkerTables(hide) {
+        /** @type {MovieResultRow[]} */
+        const movies = PlexUI.getActiveSearchRows();
+        if (!hide) {
+            // Check how many requests for markers we'll have to make if we try
+            // to expand everything. If it's greater than 100, ignore the bulk request.
+            let needInit = 0;
+            for (const movie of movies) {
+                if (!movie.movie().markerTable().hasRealData()) {
+                    ++needInit;
+                }
+            }
+
+            if (needInit > 100) {
+                Log.info(`Got a request to expand over 100 movies that don't have marker info, ignoring it and just expanding this row.`);
+                errorToast(`Too many items, can't expand them all.`);
+                return this.showHideMarkerTable(hide);
+            }
+        }
+
+        return BaseItemResultRow.ShowHideMarkerTables(hide, PlexUI.getActiveSearchRows());
+    }
+
 
     /** Scroll the marker table into view */
     scrollTableIntoView() {
-        $$('table', this.movie().markerTable().table()).scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+        this.movie().markerTable().table().scrollIntoView({ behavior : 'smooth', block : 'nearest' });
     }
 
     /**

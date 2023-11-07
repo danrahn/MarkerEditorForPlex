@@ -1,9 +1,10 @@
+import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { MarkerEnum } from '../../Shared/MarkerType.js';
 
 import Overlay from './inc/Overlay.js';
 
-import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { animate } from './AnimationHelpers.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
@@ -478,6 +479,26 @@ function errorMessage(error) {
 }
 
 /**
+ * Displays an error message in the top-left of the screen for a couple seconds.
+ * @param {string} message */
+function errorToast(message) {
+    const msg = buildNode('div', { class : 'errorToast' }, message);
+    document.body.appendChild(msg);
+    return animate(msg,
+        [
+            { opacity : 0 },
+            { opacity : 1, offset : 0.2 },
+            { opacity : 1, offset : 0.8 },
+            { opacity : 0, offset : 1 },
+        ],
+        { duration : 2500 },
+        () => {
+            document.body.removeChild(msg);
+        }
+    );
+}
+
+/**
  * Return 'n text' if n is 1, otherwise 'n texts'.
  * @param {number} n The number of items.
  * @param {string} text The type of item.
@@ -745,6 +766,7 @@ export {
     clearEle,
     clickOnEnterCallback,
     errorMessage,
+    errorToast,
     errorResponseOverlay,
     msToHms,
     pad0,

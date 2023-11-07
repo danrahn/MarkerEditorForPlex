@@ -40,7 +40,7 @@ table .buttonIconAndText {
 }
 
 #episodelist table {
-  margin-top: 10px;
+  margin-top: 0px;
 }
 
 .tableHolder {
@@ -151,11 +151,14 @@ table .buttonIconAndText {
   text-align: center;
 }
 
-@media (min-width: 767px) { /* Probably not a phone */
-  .tableHolder {
-    display: flex;
-  }
+.markerTableSpacer {
+  height: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
 
+@media (min-width: 767px) { /* Probably not a phone */
   .tableHolder::-webkit-scrollbar {
     width: 0;
     height: 5px;

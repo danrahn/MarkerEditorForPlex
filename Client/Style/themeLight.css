@@ -1,3 +1,10 @@
+:root {
+    --error-background: #F777;
+    --error-border: #C44;
+
+    scrollbar-color: #A19171 #C1B191 !important;
+}
+
 body,
 ::-webkit-scrollbar-track {
     background-color: #ffefcc;
@@ -22,7 +29,7 @@ hr {
 }
 
 .fancySelect option {
-    background-color: #ffcfaa;
+    background-color: #ffefca;
 }
 
 .fancySelect option:hover {

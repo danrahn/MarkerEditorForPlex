@@ -496,7 +496,7 @@ class PlexUIManager {
             'div',
             { class : 'topLevelResult noSearchRow tabbableRow', tabindex : 0 },
             'Click here to load all items, or narrow things down with a filter or search above.',
-            { click : function() { this.#search(); }.bind(this),
+            { click : /**@this {PlexUIManager}*/ function() { this.#search(); }.bind(this),
               keydown : clickOnEnterCallback }
         );
     }

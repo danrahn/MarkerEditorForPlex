@@ -279,7 +279,15 @@ input:focus-visible {
 }
 
 .markerExpand {
-  font-size: 14px;
+  height: 12px;
+  margin-right: 5px;
+  vertical-align: baseline;
+  transition: transform 0.15s;
+}
+
+.markerExpand.collapsed {
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
 }
 
 .goBack {
@@ -425,10 +433,6 @@ input:focus-visible {
   size: 10pt;
 }
 
-.markerTable {
-  margin-top: 15px;
-}
-
 #helpOverlayHolder {
   text-align: center;
   max-width: 600px;
@@ -523,10 +527,22 @@ input:focus-visible {
   max-width: 250px; /** Don't get too crazy with extremely long episode/chapter titles */
 }
 
+.errorToast {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  padding: 15px;
+  max-width: 300px;
+  background-color: var(--error-background);
+  border: 1px solid var(--error-border);
+  border-radius: 3px;
+  opacity: 0;
+  font-size: smaller;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
-  scrollbar-color: rgba(97, 97, 97, 0.76) transparent !important;
   scrollbar-width: thin !important;
 }
 
@@ -554,6 +570,13 @@ input:focus-visible {
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
+  }
+
+  /* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar
+     appears/disappears. There are some behavioral tradeoffs here (content is slightly off-center when
+     no scrollbar is visible, but the lack of shifting wins for me. */
+  body {
+    overflow-y: scroll;
   }
 
   #helpContainer {

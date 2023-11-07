@@ -101,23 +101,65 @@ export function slideUp(ele, options, callback) {
     // * Explicitly set the height of the element BEFORE setting overflow:hidden, because
     //   overflow:hidden disables margin collapsing, so might increase the height of the element
     //   right before animating.
-    let startingHeight = ele.style.height;
+    const heightSav = ele.style.height;
+    let startingHeight = heightSav;
     if (!startingHeight) {
         const bounds = ele.getBoundingClientRect();
         startingHeight = (bounds.height) + 'px';
         ele.style.height = startingHeight;
     }
 
+    return slide(
+        ele,
+        [{ opacity : 1, height : startingHeight }, { opacity : 0, height : '0px' }],
+        options,
+        async () => {
+            ele.style.height = heightSav;
+            await callback?.();
+        });
+}
+
+/**
+ * Expand the height of ele from 0 to the given finalHeight.
+ * @param {HTMLElement} ele
+ * @param {string} finalHeight
+ * @param {number|KeyframeAnimationOptions} options
+ * @param {(...any) => any} [callback] */
+export function slideDown(ele, finalHeight, options, callback) {
+    logAnimate('slideDown', ele, { options, callback });
+    const hasHeight = !!ele.style.height;
+
+    return slide(
+        ele,
+        [{ opacity : 0, height : '0px' }, { opacity : 1, height : finalHeight }],
+        options,
+        async () => {
+            if (!hasHeight) {
+                ele.style.removeProperty('height');
+            }
+
+            await callback?.();
+        });
+}
+
+/**
+ * @param {HTMLElement} ele
+ * @param {number[]} stops
+ * @param {number|KeyframeAnimationOptions} options
+ * @param {(...any) => any} [callback] */
+function slide(ele, stops, options, callback) {
+    const ofSav = ele.style.overflow;
     ele.style.overflow = 'hidden';
 
     return new Promise(resolve => {
         ele.animate(
             [
-                { opacity : 1, height : startingHeight, easing : 'ease-out' },
-                { opacity : 0, height : '0px' }
+                { ...stops[0], easing : 'ease-out' },
+                { ...stops[1] }
             ],
             options
         ).addEventListener('finish', async () => {
+            ele.style.overflow = ofSav;
             await callback?.();
             resolve();
         });

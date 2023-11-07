@@ -1,9 +1,10 @@
-import { appendChildren, buildNode, clearEle, msToHms } from './Common.js';
+import { $$, appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import Overlay from './inc/Overlay.js';
 
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
+import { slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import TableElements from './TableElements.js';
@@ -28,6 +29,11 @@ class MarkerTable {
      * The actual <table> element.
      * @type {HTMLTableElement} */
     #table;
+
+    /**
+     * The element that controls the visibility of the <table>. Used for better animations.
+     * @type {HTMLDivElement} */
+    #visibilityControl;
 
     /**
      * The episode/movie UI that this table is attached to.
@@ -118,7 +124,7 @@ class MarkerTable {
     #initCore(markers) {
         this.#markers = markers.sort((a, b) => a.start - b.start);
         const container = buildNode('div', { class : 'tableHolder' });
-        const table = buildNode('table', { class : 'hidden markerTable' });
+        const table = buildNode('table', { class : 'markerTable' });
         table.appendChild(
             appendChildren(buildNode('thead'),
                 TableElements.rawTableRow(
@@ -144,7 +150,21 @@ class MarkerTable {
 
         rows.appendChild(TableElements.spanningTableRow(ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this))));
         table.appendChild(rows);
-        container.appendChild(table);
+
+        this.#visibilityControl = buildNode('div', { class : 'hidden markerTableVisibility' });
+
+        // markerTableSpacer is a 10px empty div that is used to ensure there's a consistent margin when
+        // showing/hiding the marker table. When animating the table we explicitly set the height, which can
+        // result in margin-top of the table itself not being respected, leading to extra shifting as the height
+        // grows large enough to fit all of the table. By setting the top margin of the table to 0 and ensuring
+        // the spacer div is always visible before animating the table height, we guarantee static top positioning.
+        appendChildren(container,
+            buildNode('div', { class : 'hidden markerTableSpacer' }),
+            appendChildren(this.#visibilityControl,
+                table
+            )
+        );
+
         this.#html = container;
         this.#table = table;
     }
@@ -185,12 +205,69 @@ class MarkerTable {
     table() { return this.#html; }
 
     /** @returns {boolean} Whether the marker table is visible. */
-    isVisible() { return !!this.#table && !this.#table.classList.contains('hidden'); }
+    isVisible() { return !!this.#visibilityControl && !this.#visibilityControl.classList.contains('hidden'); }
 
     /**
      * Sets this table to be visible or hidden. No-op if the table is not initialized.
-     * @param {boolean} visible */
-    setVisibility(visible) {this.#table?.classList[visible ? 'remove'  : 'add']('hidden'); }
+     * @param {boolean} visible
+     * @param {boolean} bulk Whether we're in a bulk update. Determines whether we try to scroll the current row into view.
+     * @param {boolean} animate Whether to animate the visibility change. NOTE: even if set to true,
+     *                          the row won't be animated if we think it's off-screen. */
+    setVisibility(visible, bulk=false, animate=true) {
+        if (!this.#table) {
+            // This is expected in bulk-hide cases, where we try to hide an already hidden and uninitialized table.
+            Log.assert(bulk && !visible, `Attempting to show/hide a marker table that doesn't exist yet outside of a bulk operation!`);
+            return Promise.resolve();
+        }
+
+        if (visible === this.isVisible()) {
+            // We're already in the right state.
+            return Promise.resolve();
+        }
+
+        const tableHolder = $$('.markerTableVisibility', this.#html);
+        const spacer = $$('.markerTableSpacer', this.#html);
+        const noAnimate = () => {
+            tableHolder.classList[visible ? 'remove' : 'add']('hidden');
+            spacer.classList[visible ? 'remove' : 'add']('hidden');
+            if (!bulk) {
+                this.#parentRow.scrollTableIntoView();
+            }
+        };
+
+        if (!animate) {
+            // The caller has already determined that we don't want to animate this row.
+            // Avoid the bounds calculations and show/hide directly.
+            noAnimate();
+            return Promise.resolve();
+        }
+
+        const duration = 150;
+        const body = document.body.getBoundingClientRect();
+        const parent = this.#parentRow.html().getBoundingClientRect();
+        if (parent.top > body.height || parent.y + parent.height < 0) {
+            // Table is not  currently visible, don't animate.
+            noAnimate();
+            return Promise.resolve();
+        }
+
+        if (visible) {
+            // Do a mini animation for the 10px margin, then slide down the table itself.
+            spacer.classList.remove('hidden');
+            return slideDown(spacer, '10px', 20, () => {
+                tableHolder.classList.remove('hidden');
+                slideDown(tableHolder, tableHolder.getBoundingClientRect().height + 10 + 'px', duration, () => {
+                    if (!bulk) { this.#parentRow.scrollTableIntoView(); }
+                });
+            });
+        }
+
+        // Slide up the table, then do a mini slide up for the 10px margin
+        return slideUp(tableHolder, duration, () => {
+            tableHolder.classList.add('hidden');
+            slideUp(spacer, 20, () => spacer.classList.add('hidden'));
+        });
+    }
 
     /** @returns {MarkerData[]} */
     markers() {

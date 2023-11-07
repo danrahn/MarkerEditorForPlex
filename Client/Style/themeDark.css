@@ -1,3 +1,10 @@
+:root {
+  --error-background: #9337;
+  --error-border: #C44;
+  
+  scrollbar-color: rgba(97, 97, 97, 0.76) #212121 !important;
+}
+
 body,
 ::-webkit-scrollbar-track {
   background: linear-gradient(#212121CC, #402200CC),
