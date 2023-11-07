@@ -1,4 +1,4 @@
-import { plural } from '../Common.js';
+import { plural } from './Common.js';
 
 /**
  * Pretty-print date functions.

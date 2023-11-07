@@ -1,6 +1,6 @@
 import { appendChildren, buildNode, msToHms } from './Common.js';
 
-import * as DateUtil from './inc/DateUtil.js';
+import * as DateUtil from './DateUtil.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { ClientSettings } from './ClientSettings.js';

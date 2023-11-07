@@ -1,7 +1,7 @@
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
-import { getDisplayDate, getFullDate } from '../../Client/Script/inc/DateUtil.js';
+import { getDisplayDate, getFullDate } from '../../Client/Script/DateUtil.js';
 
 /**
  * Tests getDisplayDate from DateUtil. There's some fuzziness involved
