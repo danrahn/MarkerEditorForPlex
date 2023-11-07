@@ -1,6 +1,6 @@
 import { appendChildren, buildNode, msToHms } from './Common.js';
 
-import DateUtil from './inc/DateUtil.js';
+import * as DateUtil from './inc/DateUtil.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { ClientSettings } from './ClientSettings.js';
@@ -121,12 +121,15 @@ class TableElements {
      * @param {MarkerData} marker */
     static #dateTooltip(marker) {
         const fullCreateDate = DateUtil.getFullDate(marker.createDate * 1000); // s to ms
-        let text = `${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`;
+        const tooltip = appendChildren(buildNode('span', { class : 'smallerTooltip' }),
+            buildNode('span', {}, `${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`));
         if (marker.modifiedDate !== null) {
-            text += `<br>Last modified on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`;
+            appendChildren(tooltip,
+                buildNode('br'),
+                buildNode('span', {}, `Last modified on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`));
         }
 
-        return text;
+        return tooltip;
     }
 }
 

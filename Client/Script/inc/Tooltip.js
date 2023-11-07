@@ -52,7 +52,7 @@ class Tooltip {
     /**
      * Sets up tooltip handlers for basic use cases.
      * @param {HTMLElement} element The element to add the tooltip to.
-     * @param {string} tooltip The tooltip text.
+     * @param {string|HTMLElement} tooltip The tooltip text.
      * @param {number} [delay=250] The duration an element must be hovered before the tooltip is shown, in ms. */
     static setTooltip(element, tooltip, delay=250) {
         const hasTT = element.hasAttribute('tt');
@@ -105,9 +105,10 @@ class Tooltip {
      * Sets the tooltip text for the given element.
      * Assumes `element` has gone through the initial tooltip setup.
      * @param {HTMLElement} element
-     * @param {string} tooltip */
+     * @param {string|HTMLElement} tooltip */
     static setText(element, tooltip) {
-        element.setAttribute('tt', tooltip);
+        const asString = (typeof tooltip === 'string' ? tooltip : tooltip.outerHTML);
+        element.setAttribute('tt', asString);
         if (Tooltip.#showingTooltip && Tooltip.#ttElement === element) {
             $('#tooltip').innerHTML = tooltip;
         }

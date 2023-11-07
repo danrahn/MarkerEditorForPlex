@@ -15,6 +15,10 @@
     font-size: 12pt;
 }
 
+.smallerTooltip {
+    font-size: 10pt;
+}
+
 #tooltip hr {
     margin-top: 3px;
     margin-bottom: 3px;

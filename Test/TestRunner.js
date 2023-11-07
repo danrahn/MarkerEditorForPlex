@@ -12,6 +12,7 @@ import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
 import ChapterTest from './TestClasses/ChapterTest.js';
 import ClientTests from './TestClasses/ClientTests.js';
+import DateUtilTest from './TestClasses/DateUtilTest.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import ImportExportTest from './TestClasses/ImportExportTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
@@ -77,6 +78,7 @@ class TestRunner {
         ClientTests,
         ImportExportTest,
         ChapterTest,
+        DateUtilTest,
     };
 
     constructor() {
