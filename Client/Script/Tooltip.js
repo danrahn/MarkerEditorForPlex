@@ -1,5 +1,5 @@
-import { $, buildNode } from './../Common.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { $, buildNode } from './Common.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 const Log = new ContextualLog('Tooltip');
 
@@ -8,7 +8,7 @@ const windowMargin = 10;
 /**
  * Implements common functionality for on-hover tooltips, offering expanded functionality over 'title'.
  * Taken from PlexWeb/script/Tooltip, but has strayed quite a bit from the original fork. */
-class Tooltip {
+export default class Tooltip {
 
     static #initialized = false;
 
@@ -241,5 +241,3 @@ class Tooltip {
         return Tooltip.#showingTooltip;
     }
 }
-
-export default Tooltip;

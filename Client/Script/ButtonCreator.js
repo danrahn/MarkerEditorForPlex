@@ -1,9 +1,8 @@
 import { $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import ThemeColors from './ThemeColors.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
 

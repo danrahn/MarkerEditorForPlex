@@ -7,7 +7,7 @@ import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
-import Tooltip from './inc/Tooltip.js';
+import Tooltip from './Tooltip.js';
 import VersionManager from './VersionManager.js';
 
 window.Log = BaseLog; // Let the user interact with the class to tweak verbosity/other settings.

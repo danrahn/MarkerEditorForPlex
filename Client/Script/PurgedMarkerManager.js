@@ -1,8 +1,6 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import {
     AgnosticPurgeCache,
     PurgeCacheStatus,
@@ -21,6 +19,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
 import TableElements from './TableElements.js';
 import ThemeColors from './ThemeColors.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Server/PlexQueryManager').RawMarkerData} RawMarkerData */

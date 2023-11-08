@@ -2,7 +2,7 @@ import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
 import { buildNodeNS } from './../Common.js';
 
-import Tooltip from './Tooltip.js';
+import Tooltip from '../Tooltip.js';
 
 
 const Log = new ContextualLog('Chart');

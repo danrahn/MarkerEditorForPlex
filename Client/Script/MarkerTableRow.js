@@ -10,7 +10,7 @@ import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
-import Tooltip from './inc/Tooltip.js';
+import Tooltip from './Tooltip.js';
 
 
 const Log = new ContextualLog('MarkerTableRow');

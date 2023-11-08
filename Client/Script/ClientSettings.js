@@ -10,13 +10,12 @@ import {
     ServerCommand } from './Common.js';
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import ButtonCreator from './ButtonCreator.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
 

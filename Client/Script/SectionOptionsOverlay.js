@@ -9,7 +9,7 @@ import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
-import Tooltip from './inc/Tooltip.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {import('./Overlay').OverlayOptions} OverlayOptions */
 

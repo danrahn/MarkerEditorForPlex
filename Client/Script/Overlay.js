@@ -1,11 +1,10 @@
 import { $, $$, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import ThemeColors from './ThemeColors.js';
+import Tooltip from './Tooltip.js';
 
 /**
  * @typedef {Object} OverlayOptions

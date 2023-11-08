@@ -7,7 +7,7 @@ import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
-import Tooltip from './inc/Tooltip.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').EpisodeData} EpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */

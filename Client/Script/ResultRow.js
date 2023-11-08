@@ -13,8 +13,6 @@ import {
     ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PlexUI, UISection } from './PlexUI.js';
@@ -31,6 +29,7 @@ import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';
 import SectionOptionsOverlay from './SectionOptionsOverlay.js';
 import ThemeColors from './ThemeColors.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */

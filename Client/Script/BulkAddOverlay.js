@@ -11,8 +11,6 @@ import {
     timeToMs,
     waitFor } from './Common.js';
 
-import Tooltip from './inc/Tooltip.js';
-
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -20,6 +18,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
