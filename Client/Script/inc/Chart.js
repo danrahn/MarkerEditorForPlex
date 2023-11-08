@@ -4,6 +4,13 @@ import { buildNodeNS } from './../Common.js';
 
 import Tooltip from '../Tooltip.js';
 
+/**
+ * A basic charting library.
+ *
+ * Currently only supports simple pie and bar charts
+ *
+ * Adapted from PlexWeb/script/chart.js
+ */
 
 const Log = new ContextualLog('Chart');
 
@@ -16,7 +23,7 @@ const Log = new ContextualLog('Chart');
  * @typedef {{ percentage : [boolean=true], count : [boolean=false], name : [boolean=true] }} ChartLabelOptions
  * */
 
-class ChartOptions {
+export class ChartOptions {
     /** The values to chart. */
     points;
 
@@ -53,7 +60,7 @@ class ChartOptions {
     }
 }
 
-class PieChartOptions extends ChartOptions {
+export class PieChartOptions extends ChartOptions {
     /** The radius of the pie chart, in pixels. */
     radius;
 
@@ -86,7 +93,7 @@ class PieChartOptions extends ChartOptions {
     }
 }
 
-class BarChartOptions extends ChartOptions {
+export class BarChartOptions extends ChartOptions {
     /** The width of the bar chart, in pixels.
      * @type {number} */
     width;
@@ -112,329 +119,307 @@ class BarChartOptions extends ChartOptions {
     }
 }
 
+/** Internal Chart Helpers */
+
 /**
- * A basic charting library.
- *
- * Currently only supports simple pie and bar charts
- *
- * Taken from PlexWeb/script/chart.js
- * @class
- */
-const Chart = new function() {
-    /**
-     * Create an SVG pie chart.
-     * @param {PieChartOptions} data The pie chart definition
-     * @returns An SVG element of the pie chart specified by `data`.
-     */
-    this.pie = function(data) {
-        sortData(data);
+ * Sorts a chart's data points in-place, unless we explicitly don't want to.
+ * If `data.sortFn` is set, sort on that function. Otherwise di a default smallest-to-largest sort.
+ * @param {ChartOptions} data The graph data. */
+function sortData(data) {
+    if (data.noSort) {
+        return;
+    }
 
-        const total = data.points.reduce((acc, cur) => acc + cur.value, 0);
-        const singlePoint = data.points.length === 1;
+    if (data.sortFn) {
+        data.points.sort(data.sortFn);
+    } else {
+        data.points.sort((a, b) => a.value - b.value);
+    }
+}
 
-        let r = data.radius;
-        const hasTitle = data.title && !data.noTitle;
-        const titleOffset = hasTitle ? 40 : 0;
-        const svg = makeSvg(r * 2, r * 2 + titleOffset);
-        --r; // Need space for border
-        let cumulative = 0;
-        const colors = data.colors ? data.colors : ['#FFC000', '#5B9BD5', '#A5A5A5', '#70AD47', '#4472C4', '#ED7D31'];
-        let colorIndex = 0;
-        for (const point of data.points) {
-            const startPoint = getPoint(r, cumulative, total);
-            let d = `M ${r} ${r + titleOffset} L ${startPoint.x} ${startPoint.y + titleOffset} `;
+/** Adds a horizontally centered text node at the given y offset */
+function buildCenteredText(y, text, size) {
+    return buildNodeNS(
+        'http://www.w3.org/2000/svg',
+        'text',
+        {
+            x : '50%',
+            y : y,
+            fill : '#c1c1c1',
+            'text-anchor' : 'middle',
+            'font-weight' : 'bold',
+            'font-size' : size + 'pt'
+        },
+        text
+    );
+}
 
-            cumulative += point.value;
+/**
+ * Create a rectangle with the supplied properties.
+ * @param {number} x Starting point on the x-axis.
+ * @param {number} y Starting point on the y-axis.
+ * @param {number} width The width of the rectangle.
+ * @param {number} height The height of the rectangle.
+ * @param {string} fill The fill color, as a hex string.
+ * @param {Object} [extra] Extra attributes to append to the SVG node.
+ * @returns {SVGRectElement} An SVG rectangle. */
+function buildRect(x, y, width, height, fill, extra) {
+    const rect = buildNodeNS(
+        'http://www.w3.org/2000/svg',
+        'rect',
+        { x, y, width, height, fill }
+    );
 
-            const endPoint = getPoint(r, cumulative, total);
-            const sweep = (point.value > total / 2) ? '1' : '0';
-            d += `A ${r} ${r} ${sweep} ${sweep} 0 ${endPoint.x} ${endPoint.y + titleOffset} `;
-            d += `L ${endPoint.x} ${endPoint.y + titleOffset} ${r} ${r + titleOffset}`;
-            let sliceColor = '';
-            if (data.colorMap && data.colorMap[point.label]) {
-                sliceColor = data.colorMap[point.label];
-            } else {
-                sliceColor = colors[colorIndex++ % colors.length];
-            }
-
-            // For a single point, ignore the whole path we created above and just make a circle
-            const slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
-            const label = buildPieTooltip(point, total, data.labelOptions);
-            if (label.length !== 0) {
-                addTooltip(slice, label);
-            }
-
-            svg.appendChild(slice);
+    if (extra) {
+        for (const [key, value] of Object.entries(extra)) {
+            rect.setAttribute(key, value);
         }
+    }
 
-        if (hasTitle) {
-            svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
+    return rect;
+}
+
+/**
+ * Create a single slice of a pie chart.
+ * @param {string} definition The slice path.
+ * @param {string} fill The fill color as a hex string.
+ * @returns {SVGPathElement} An SVG sector of a pie chart. */
+function buildPieSlice(definition, fill) {
+    return buildNodeNS('http://www.w3.org/2000/svg',
+        'path',
+        {
+            d : definition,
+            fill : fill,
+            stroke : '#616161',
+            'pointer-events' : 'all',
+            xmlns : 'http://www.w3.org/2000/svg'
+        },
+        0,
+        {
+            mouseenter : highlightPieSlice,
+            mouseleave : function() { this.setAttribute('stroke', '#616161'); }
+        });
+}
+
+/**
+ * Creates a circle representing the one and only data point for a pie chart.
+ * @param {number} radius Radius of the circle
+ * @param {number} yOffset Additional y-offset for the circle
+ * @param {string} fill The fill color as a hex string
+ * @returns {SVGCircleElement} A SVG Circle for a pie chart with a single data point. */
+function buildPieCircle(radius, yOffset, fill) {
+    return buildNodeNS('http://www.w3.org/2000/svg',
+        'circle',
+        {
+            r : radius,
+            cx : radius,
+            cy : radius + yOffset,
+            fill : fill,
+            stroke : '#616161',
+            'pointer-events' : 'all',
+            xmlns : 'http://www.w3.org/2000/svg'
+        },
+        0,
+        {
+            mouseenter : highlightPieSlice,
+            mouseleave : function() { this.setAttribute('stroke', '#616161'); }
         }
+    );
+}
 
-        return svg;
-    };
+/**
+ * Builds tooltip text for a point on the chart.
+ * @param {ChartDataPoint} point The `{ value, label }` data for the point.
+ * @param {number} total The sum of all the values in the chart.
+ * @param {ChartLabelOptions} labelOptions Label options.
+ * @returns {string} Tooltip text for the given point. */
+function buildPieTooltip(point, total, labelOptions) {
+    let label = '';
+    const percentage = (point.value / total * 100).toFixed(2);
+    if (!labelOptions) {
+        return `${point.label} (${percentage}%)`;
+    }
 
-    /**
-     * Extremely basic bar graph support
-     * @param {BarChartOptions} data Object defining the bar graph.
-     * @returns An SVG of the bar graph defined by `data`.
-     */
-    this.bar = function(data) {
-        // For now, don't bother with negative values and assume all charts start at 0
-        const max = data.points.reduce((acc, cur) => acc < cur.value ? cur.value : acc, 0);
-        sortData(data);
+    if (labelOptions.name === undefined || labelOptions.name) {
+        label += point.label;
+    }
 
-        const hasTitle = data.title && !data.noTitle;
-        const titleOffset = hasTitle ? 40 : 0;
-        const svg = makeSvg(data.width, data.height + titleOffset);
+    if (labelOptions.count) {
+        label += ` - ${point.value}`;
+    }
 
-        // Give 5% for the left/bottom labels (even though they aren't implemented yet, and 5% probably isn't enough)
-        const fp = { x : data.width * 0.05, y : data.height * 0.05 };
-        const axisWidth = Math.max(1, Math.round(data.height / 100));
-        const axis = buildNodeNS(
-            'http://www.w3.org/2000/svg',
-            'polyline',
-            {
-                /* eslint-disable-next-line max-len */
-                points : `${fp.x},${titleOffset} ${fp.x},${data.height - fp.y + titleOffset} ${data.width},${data.height - fp.y + titleOffset} `,
-                stroke : '#616161',
-                'stroke-width' : axisWidth,
-                fill : 'none'
-            }
-        );
+    if (labelOptions.percentage === undefined || labelOptions.percentage) {
+        label += ` (${percentage}%)`;
+    }
 
-        svg.appendChild(axis);
+    return label;
+}
 
-        const gridWidth = data.width - axisWidth - fp.x;
-        const gridHeight = data.height - axisWidth - fp.y;
-        const per = gridWidth / data.points.length;
-        const barWidth = per >= 4 ? parseInt(per / 4 * 3) : per;
+/** Highlights the edges of the hovered pie slice */
+function highlightPieSlice() {
+    // Setting this element to be the last will ensure that
+    // the full outline is drawn (i.e. not covered by another slice)
+    const parent = this.parentNode;
+    parent.removeChild(this);
+    parent.appendChild(this);
+    this.setAttribute('stroke', '#c1c1c1');
+}
 
-        let offsetX = axisWidth + fp.x;
+/**
+ * Add a hover tooltip to the given element.
+ * @param {HTMLElement} element The element to add the tooltip to.
+ * @param {string} label The hover text. */
+function addTooltip(element, label) {
+    Tooltip.setTooltip(element, label, 50);
+}
 
-        for (const point of data.points) {
-            const height = gridHeight * (point.value / max);
-            const bar = buildRect(offsetX, gridHeight - height + titleOffset, barWidth, height, '#4472C4');
-            addTooltip(bar, `${point.label}: ${point.value}`);
-            svg.appendChild(bar);
+/**
+ * Given a value and total, return a point on a circle of the given radius
+ * that is (`value / total * 100`) percent of the circle.
+ * @param {number} radius The radius of the pie chart.
+ * @param {number} value The value of the data point.
+ * @param {number} total The sum of values for the entire pie chart.
+ * @returns `x, y` coordinates of the point on the circle. */
+function getPoint(radius, value, total) {
+    // Need to translate coordinate systems
+    const angle = (value / total) * Math.PI * 2;
+    const x = radius * Math.cos(angle) + radius + 1; // + 1 to account for stroke border
+    const y = radius - radius * Math.sin(angle) + 1;
+    return { x, y };
+}
 
-            // Also build a ghost bar for better tooltips, especially with small bars
-            if (gridHeight - height > 1) {
-                const ghostBar = buildRect(offsetX, titleOffset, barWidth, gridHeight, 'none', { 'pointer-events' : 'all' });
-                addTooltip(ghostBar, `${point.label}: ${point.value}`);
-                ghostBar.addEventListener('mouseenter', function() { this.setAttribute('stroke', '#616161'); });
-                ghostBar.addEventListener('mouseleave', function() { this.setAttribute('stroke', 'none'); });
-                svg.appendChild(ghostBar);
-            }
-
-            offsetX += per;
+/**
+ * Create a top-level SVG container.
+ * @param {number} width The width of the container.
+ * @param {number} height The height of the container
+ * @returns {SVGElement} An SVG `Element` */
+function makeSvg(width, height) {
+    return buildNodeNS(
+        'http://www.w3.org/2000/svg',
+        'svg',
+        {
+            width : width,
+            height : height,
+            viewBox : `0 0 ${width} ${height}`,
+            xmlns : 'http://www.w3.org/2000/svg',
+            x : 0,
+            y : 0
         }
+    );
+}
 
-        if (hasTitle) {
-            svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
-        }
+/** Chart Exports */
 
-        return svg;
-    };
+/**
+ * Create an SVG pie chart.
+ * @param {PieChartOptions} data The pie chart definition
+ * @returns An SVG element of the pie chart specified by `data`. */
+export function getPieChart(data) {
+    sortData(data);
 
-    /**
-     * Sorts a chart's data points in-place, unless we explicitly don't want to.
-     * If `data.sortFn` is set, sort on that function. Otherwise di a default smallest-to-largest sort.
-     * @param {Object} data The graph data.
-     */
-    const sortData = function(data) {
-        if (data.noSort) {
-            return;
-        }
+    const total = data.points.reduce((acc, cur) => acc + cur.value, 0);
+    const singlePoint = data.points.length === 1;
 
-        if (data.sortFn) {
-            data.points.sort(data.sortFn);
+    let r = data.radius;
+    const hasTitle = data.title && !data.noTitle;
+    const titleOffset = hasTitle ? 40 : 0;
+    const svg = makeSvg(r * 2, r * 2 + titleOffset);
+    --r; // Need space for border
+    let cumulative = 0;
+    const colors = data.colors ? data.colors : ['#FFC000', '#5B9BD5', '#A5A5A5', '#70AD47', '#4472C4', '#ED7D31'];
+    let colorIndex = 0;
+    for (const point of data.points) {
+        const startPoint = getPoint(r, cumulative, total);
+        let d = `M ${r} ${r + titleOffset} L ${startPoint.x} ${startPoint.y + titleOffset} `;
+
+        cumulative += point.value;
+
+        const endPoint = getPoint(r, cumulative, total);
+        const sweep = (point.value > total / 2) ? '1' : '0';
+        d += `A ${r} ${r} ${sweep} ${sweep} 0 ${endPoint.x} ${endPoint.y + titleOffset} `;
+        d += `L ${endPoint.x} ${endPoint.y + titleOffset} ${r} ${r + titleOffset}`;
+        let sliceColor = '';
+        if (data.colorMap && data.colorMap[point.label]) {
+            sliceColor = data.colorMap[point.label];
         } else {
-            data.points.sort((a, b) => a.value - b.value);
-        }
-    };
-
-    /** Adds a horizontally centered text node at the given y offset */
-    const buildCenteredText = function(y, text, size) {
-        return buildNodeNS(
-            'http://www.w3.org/2000/svg',
-            'text',
-            {
-                x : '50%',
-                y : y,
-                fill : '#c1c1c1',
-                'text-anchor' : 'middle',
-                'font-weight' : 'bold',
-                'font-size' : size + 'pt'
-            },
-            text
-        );
-    };
-
-    /**
-     * Create a rectangle with the supplied properties.
-     * @param {number} x Starting point on the x-axis.
-     * @param {number} y Starting point on the y-axis.
-     * @param {number} width The width of the rectangle.
-     * @param {number} height The height of the rectangle.
-     * @param {string} fill The fill color, as a hex string.
-     * @param {Object} [extra] Extra attributes to append to the SVG node.
-     * @returns An SVG rectangle.
-     */
-    const buildRect = function(x, y, width, height, fill, extra) {
-        const rect = buildNodeNS(
-            'http://www.w3.org/2000/svg',
-            'rect',
-            {
-                x,
-                y,
-                width,
-                height,
-                fill
-            }
-        );
-
-        if (extra) {
-            for (const [key, value] of Object.entries(extra)) {
-                rect.setAttribute(key, value);
-            }
+            sliceColor = colors[colorIndex++ % colors.length];
         }
 
-        return rect;
-    };
-
-    /**
-     * Create a single slice of a pie chart.
-     * @param {string} definition The slice path.
-     * @param {string} fill The fill color as a hex string.
-     * @returns An SVG sector of a pie chart.
-     */
-    const buildPieSlice = function(definition, fill) {
-        return buildNodeNS('http://www.w3.org/2000/svg',
-            'path',
-            {
-                d : definition,
-                fill : fill,
-                stroke : '#616161',
-                'pointer-events' : 'all',
-                xmlns : 'http://www.w3.org/2000/svg'
-            },
-            0,
-            {
-                mouseenter : highlightPieSlice,
-                mouseleave : function() { this.setAttribute('stroke', '#616161'); }
-            });
-    };
-
-    /**
-     * Creates a circle representing the one and only data point for a pie chart.
-     * @param {number} radius Radius of the circle
-     * @param {number} yOffset Additional y-offset for the circle
-     * @param {string} fill The fill color as a hex string
-     * @returns A SVG Circle for a pie chart with a single data point.
-     */
-    const buildPieCircle = function(radius, yOffset, fill) {
-        return buildNodeNS('http://www.w3.org/2000/svg',
-            'circle',
-            {
-                r : radius,
-                cx : radius,
-                cy : radius + yOffset,
-                fill : fill,
-                stroke : '#616161',
-                'pointer-events' : 'all',
-                xmlns : 'http://www.w3.org/2000/svg'
-            },
-            0,
-            {
-                mouseenter : highlightPieSlice,
-                mouseleave : function() { this.setAttribute('stroke', '#616161'); }
-            });
-    };
-
-    /**
-     * Builds tooltip text for a point on the chart.
-     * @param {ChartDataPoint} point The `{ value, label }` data for the point.
-     * @param {number} total The sum of all the values in the chart.
-     * @param {ChartLabelOptions} labelOptions Label options.
-     * @returns Tooltip text for the given point.
-     */
-    const buildPieTooltip = function(point, total, labelOptions) {
-        let label = '';
-        const percentage = (point.value / total * 100).toFixed(2);
-        if (!labelOptions) {
-            return `${point.label} (${percentage}%)`;
+        // For a single point, ignore the whole path we created above and just make a circle
+        const slice = singlePoint ? buildPieCircle(r, titleOffset, sliceColor) : buildPieSlice(d, sliceColor);
+        const label = buildPieTooltip(point, total, data.labelOptions);
+        if (label.length !== 0) {
+            addTooltip(slice, label);
         }
 
-        if (labelOptions.name === undefined || labelOptions.name) {
-            label += point.label;
+        svg.appendChild(slice);
+    }
+
+    if (hasTitle) {
+        svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
+    }
+
+    return svg;
+}
+
+/**
+ * Extremely basic bar graph support
+ * @param {BarChartOptions} data Object defining the bar graph.
+ * @returns An SVG of the bar graph defined by `data`. */
+export function getBarChart(data) {
+    // For now, don't bother with negative values and assume all charts start at 0
+    const max = data.points.reduce((acc, cur) => acc < cur.value ? cur.value : acc, 0);
+    sortData(data);
+
+    const hasTitle = data.title && !data.noTitle;
+    const titleOffset = hasTitle ? 40 : 0;
+    const svg = makeSvg(data.width, data.height + titleOffset);
+
+    // Give 5% for the left/bottom labels (even though they aren't implemented yet, and 5% probably isn't enough)
+    const fp = { x : data.width * 0.05, y : data.height * 0.05 };
+    const axisWidth = Math.max(1, Math.round(data.height / 100));
+    const axis = buildNodeNS(
+        'http://www.w3.org/2000/svg',
+        'polyline',
+        {
+            /* eslint-disable-next-line max-len */
+            points : `${fp.x},${titleOffset} ${fp.x},${data.height - fp.y + titleOffset} ${data.width},${data.height - fp.y + titleOffset} `,
+            stroke : '#616161',
+            'stroke-width' : axisWidth,
+            fill : 'none'
+        }
+    );
+
+    svg.appendChild(axis);
+
+    const gridWidth = data.width - axisWidth - fp.x;
+    const gridHeight = data.height - axisWidth - fp.y;
+    const per = gridWidth / data.points.length;
+    const barWidth = per >= 4 ? parseInt(per / 4 * 3) : per;
+
+    let offsetX = axisWidth + fp.x;
+
+    for (const point of data.points) {
+        const height = gridHeight * (point.value / max);
+        const bar = buildRect(offsetX, gridHeight - height + titleOffset, barWidth, height, '#4472C4');
+        addTooltip(bar, `${point.label}: ${point.value}`);
+        svg.appendChild(bar);
+
+        // Also build a ghost bar for better tooltips, especially with small bars
+        if (gridHeight - height > 1) {
+            const ghostBar = buildRect(offsetX, titleOffset, barWidth, gridHeight, 'none', { 'pointer-events' : 'all' });
+            addTooltip(ghostBar, `${point.label}: ${point.value}`);
+            ghostBar.addEventListener('mouseenter', function() { this.setAttribute('stroke', '#616161'); });
+            ghostBar.addEventListener('mouseleave', function() { this.setAttribute('stroke', 'none'); });
+            svg.appendChild(ghostBar);
         }
 
-        if (labelOptions.count) {
-            label += ` - ${point.value}`;
-        }
+        offsetX += per;
+    }
 
-        if (labelOptions.percentage === undefined || labelOptions.percentage) {
-            label += ` (${percentage}%)`;
-        }
+    if (hasTitle) {
+        svg.appendChild(buildCenteredText(titleOffset - 20, data.title, 18));
+    }
 
-        return label;
-    };
-
-    /** Highlights the edges of the hovered pie slice */
-    const highlightPieSlice = function() {
-        // Setting this element to be the last will ensure that
-        // the full outline is drawn (i.e. not covered by another slice)
-        const parent = this.parentNode;
-        parent.removeChild(this);
-        parent.appendChild(this);
-        this.setAttribute('stroke', '#c1c1c1');
-    };
-
-    /**
-     * Add a hover tooltip to the given element.
-     * @param {HTMLElement} element The element to add the tooltip to.
-     * @param {string} label The hover text.
-     */
-    const addTooltip = function(element, label) {
-        Tooltip.setTooltip(element, label, 50);
-    };
-
-    /**
-     * Given a value and total, return a point on a circle of the given radius
-     * that is (`value / total * 100`) percent of the circle.
-     * @param {number} radius The radius of the pie chart.
-     * @param {number} value The value of the data point.
-     * @param {number} total The sum of values for the entire pie chart.
-     * @returns `x, y` coordinates of the point on the circle.
-     */
-    const getPoint = function(radius, value, total) {
-        // Need to translate coordinate systems
-        const angle = (value / total) * Math.PI * 2;
-        const x = radius * Math.cos(angle) + radius + 1; // + 1 to account for stroke border
-        const y = radius - radius * Math.sin(angle) + 1;
-        return { x, y };
-    };
-
-    /**
-     * Create a top-level SVG container.
-     * @param {number} width The width of the container.
-     * @param {number} height The height of the container
-     * @returns {HTMLElement} An SVG `Element`
-     */
-    const makeSvg = function(width, height) {
-        return buildNodeNS(
-            'http://www.w3.org/2000/svg',
-            'svg',
-            {
-                width : width,
-                height : height,
-                viewBox : `0 0 ${width} ${height}`,
-                xmlns : 'http://www.w3.org/2000/svg',
-                x : 0,
-                y : 0
-            });
-    };
-}();
-
-export { Chart, ChartOptions, PieChartOptions, BarChartOptions };
+    return svg;
+}

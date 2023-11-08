@@ -1,7 +1,7 @@
 import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { Chart, PieChartOptions } from './inc/Chart.js';
+import { getPieChart, PieChartOptions } from './inc/Chart.js';
 
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
@@ -115,7 +115,7 @@ class MarkerBreakdownManager {
         options.sortFn = (a, b) => parseInt(a.label) - parseInt(b.label);
         options.labelOptions = { count : true, percentage : true };
 
-        const chart = Chart.pie(options);
+        const chart = getPieChart(options);
 
         // Our first request may be slow, and we want to show the graph immediately. Subsequent requests
         // (or the first one if extendedMarkerStats is enabled) might instantly return cached data,
