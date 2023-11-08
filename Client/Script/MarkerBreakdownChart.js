@@ -1,13 +1,13 @@
 import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { getPieChart, PieChartOptions } from './inc/Chart.js';
-
+import { getPieChart, PieChartOptions } from './Chart.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import Tooltip from './Tooltip.js';
 
+/** @typedef {!import('./Chart').ChartDataPoint} ChartDataPoint */
 
 const Log = new ContextualLog('BreakdownChart');
 
@@ -84,7 +84,7 @@ class MarkerBreakdownManager {
             return; // User closed out of window
         }
 
-        /** @type {import("./inc/Chart").ChartDataPoint[]} */
+        /** @type {ChartDataPoint[]} */
         const dataPoints = [];
         let chartData;
         switch (breakdownType) {
