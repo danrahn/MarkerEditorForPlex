@@ -111,7 +111,7 @@ class ButtonCreator {
             'div',
             { class : `button noSelect ${className}`, tabindex : '0' },
             0,
-            { keyup : ButtonCreator.tableButtonKeyup });
+            { keydown : ButtonCreator.#tableButtonKeydown });
 
         // Add click handler after initial create, since we want to pass in the button itself.
         // We do this because sometimes we want to act on this button, and e.target might be an
@@ -149,8 +149,10 @@ class ButtonCreator {
     /**
      * Treat 'Enter' on a table "button" as a click.
      * @param {KeyboardEvent} e */
-    static tableButtonKeyup(e) {
-        if (e.key !== 'Enter') {
+    static #tableButtonKeydown(e) {
+        // Only care about 'Enter', and don't send multiple 'click' events
+        // if someone's holding down a key.
+        if (e.key !== 'Enter' || e.repeat) {
             return;
         }
 
