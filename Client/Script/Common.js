@@ -2,9 +2,8 @@ import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 
-import Overlay from './inc/Overlay.js';
-
 import { animate } from './AnimationHelpers.js';
+import Overlay from './Overlay.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */

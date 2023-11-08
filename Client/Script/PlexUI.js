@@ -1,11 +1,10 @@
 import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
-
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { ClientSettings } from './ClientSettings.js';
+import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SectionType } from '../../Shared/PlexTypes.js';

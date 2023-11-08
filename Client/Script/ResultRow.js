@@ -13,7 +13,6 @@ import {
     ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
@@ -26,6 +25,7 @@ import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';

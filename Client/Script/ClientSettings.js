@@ -10,15 +10,15 @@ import {
     ServerCommand } from './Common.js';
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import ButtonCreator from './ButtonCreator.js';
+import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import ThemeColors from './ThemeColors.js';
 
-/** @typedef {!import('./inc/Overlay').OverlayOptions} OverlayOptions */
+/** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
 
 const Log = new ContextualLog('ClientSettings');
 

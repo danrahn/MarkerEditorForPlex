@@ -1,17 +1,17 @@
 import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
 import ThemeColors from './ThemeColors.js';
 
 import ButtonCreator from './ButtonCreator.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
+import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import Tooltip from './inc/Tooltip.js';
 
-/** @typedef {import('./inc/Overlay').OverlayOptions} OverlayOptions */
+/** @typedef {import('./Overlay').OverlayOptions} OverlayOptions */
 
 
 const Log = new ContextualLog('SectionOps');

@@ -1,11 +1,10 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 
-import Overlay from './inc/Overlay.js';
-
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { flashBackground } from './AnimationHelpers.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
 import ThemeColors from './ThemeColors.js';

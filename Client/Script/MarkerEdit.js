@@ -11,13 +11,13 @@ import {
     timeToMs } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
+import Overlay from './Overlay.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */

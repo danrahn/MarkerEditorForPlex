@@ -2,14 +2,13 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
-
 import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
+import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
 import Tooltip from './inc/Tooltip.js';
 

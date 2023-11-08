@@ -4,7 +4,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
-import Overlay from './inc/Overlay.js';
+import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
 import ThemeColors from './ThemeColors.js';
 

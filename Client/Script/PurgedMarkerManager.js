@@ -1,7 +1,6 @@
 import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import {
@@ -17,6 +16,7 @@ import {
 import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js';
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
+import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
 import TableElements from './TableElements.js';

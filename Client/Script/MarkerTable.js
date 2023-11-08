@@ -1,12 +1,11 @@
 import { $$, appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import Overlay from './inc/Overlay.js';
-
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import { slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */

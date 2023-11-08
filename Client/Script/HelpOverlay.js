@@ -1,6 +1,6 @@
 import { $, appendChildren, buildNode, clickOnEnterCallback } from './Common.js';
 
-import Overlay from './inc/Overlay.js';
+import Overlay from './Overlay.js';
 
 /**
  * The text to display in the help overlay

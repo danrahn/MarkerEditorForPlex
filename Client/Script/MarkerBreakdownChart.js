@@ -2,10 +2,10 @@ import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerComma
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Chart, PieChartOptions } from './inc/Chart.js';
-import Overlay from './inc/Overlay.js';
 import Tooltip from './inc/Tooltip.js';
 
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 
 
