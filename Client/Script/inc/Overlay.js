@@ -29,9 +29,20 @@ const Log = new ContextualLog('Overlay');
 /**
  * Class to display overlays on top of a webpage.
  *
- * Taken from PlexWeb/script/overlay.js
+ * Adapted from PlexWeb/script/overlay.js
  */
-const Overlay = new function() {
+export default class Overlay {
+
+    /**
+     * Callback functions (if any) to invoke when this overlay is dismissed.
+     * @type {(() => void)[]} */
+    static #dismissCallbacks = [];
+
+    /**
+     * The element to set focus back to when the overlay is dismissed.
+     * @type {HTMLElement?} */
+    static #focusBack = null;
+
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
      * @param {string|HTMLElement} message The message to display.
@@ -40,20 +51,20 @@ const Overlay = new function() {
      * Defaults to dismissing the overlay.
      * @param {boolean} [dismissible=true] Control whether the overlay can be dismissed. Defaults to `true`.
      * @returns {Promise<void>} */
-    this.show = function(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
-        return this.build({ dismissible : dismissible, centered : false, focusBack : null },
+    static show(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
+        return Overlay.build({ dismissible : dismissible, centered : false, focusBack : null },
             buildNode('div', { id : 'overlayMessage', class : 'overlayDiv' }, message),
             ButtonCreator.textButton(
                 buttonText,
                 buttonFunc,
                 { id : 'overlayBtn', class : 'overlayInput overlayButton', style : 'width: 100px' })
         );
-    };
+    }
 
     /**
      * Sets the overlay's message. Only valid if the current overlay was shown via `Overlay.show`.
      * @param {string|HTMLElement} message The new message to display */
-    this.setMessage = function(message) {
+    static setMessage(message) {
         const div = $('#overlayMessage');
         if (!div) {
             Log.error('No overlay message div found!');
@@ -66,98 +77,98 @@ const Overlay = new function() {
         } else {
             div.innerHTML = message;
         }
-    };
-
-    /**
-     * Callback functions (if any) to invoke when this overlay is dismissed.
-     * @type {(() => void)[]} */
-    let dismissCallbacks = [];
+    }
 
     /**
      * Add a callback to be invoked when this overlay is dismissed.
      * @param {() => void} event */
-    this.addDismissEvent = function(event) {
-        dismissCallbacks.push(event);
-    };
+    static addDismissEvent(event) {
+        Overlay.#dismissCallbacks.push(event);
+    }
 
     /**
      * Dismiss the overlay and remove it from the DOM.
      * Expects the overlay to exist. */
-    this.dismiss = function() {
+    static dismiss() {
         const main = Overlay.get();
         const ret = animateOpacity(main, 1, 0, 250, true /*deleteAfterTransition*/);
 
-        focusBack?.focus();
-        focusBack = null;
+        Overlay.#focusBack?.focus();
+        Overlay.#focusBack = null;
 
         // Dismiss after setting focus, as Tooltip's 'show on focus' behavior can be
         // annoying if it's not the user that's setting focus
         Tooltip.dismiss();
-        for (const dismiss of dismissCallbacks) {
+        for (const dismiss of Overlay.#dismissCallbacks) {
             dismiss();
         }
 
-        dismissCallbacks = [];
+        Overlay.#dismissCallbacks = [];
 
-        window.removeEventListener('keydown', overlayKeyListener);
+        window.removeEventListener('keydown', Overlay.overlayKeyListener);
         return ret;
-
-    };
-
-    /**
-     * The element to set focus back to when the overlay is dismissed.
-     * @type {HTMLElement?} */
-    let focusBack = null;
+    }
 
     /**
      * @param {HTMLElement} element */
-    this.setFocusBackElement = function(element) {
-        focusBack = element;
-    };
+    static setFocusBackElement(element) {
+        Overlay.#focusBack = element;
+    }
 
     /**
-     * Generic overlay builder.
-     * @param {OverlayOptions} options Options that define how the overlay is shown.
-     * @param {...HTMLElement} children A list of elements to append to the overlay.
-     */
-    // eslint-disable-next-line complexity
-    this.build = async function(options, ...children) {
-
-        // If we have an existing overlay, fade it out, remove it, then fade in the new content.
-        const replaceInline = this.showing();
-        /** @type {HTMLDivElement} */
-        let overlayNode;
-        /** @type {HTMLDivElement} */
-        let container;
-
-        /** @type {number} */
-        let initialOpacity = 0;
-        const delay = options.delay === 0 ? 0 : (options.delay || 250);
-
-        if (replaceInline) {
+     * Get the overlay node and container. Abstracts away whether we're in an overlay or not.
+     * @param {OverlayOptions} options */
+    static async #getOverlayContainers(options) {
+        let inTransition = false;
+        if (Overlay.showing()) {
+            // If we're already showing an overlay, fade out the content and clear it before
+            // handing back the top-level node and container
             Log.verbose('Replacing existing overlay to display a new one.');
-            overlayNode = this.get();
-            container = $('#overlayContainer', overlayNode);
+            const overlayNode = Overlay.get();
+            /** @type {HTMLElement} */
+            const container = $('#overlayContainer', overlayNode);
+            const delay = options.delay === 0 ? 0 : (options.delay || 250);
 
-            initialOpacity = Math.min(
+            const initialOpacity = Math.min(
                 parseFloat(getComputedStyle(container).opacity),
                 parseFloat(getComputedStyle(overlayNode).opacity));
+            inTransition = initialOpacity !== 1;
             if (options.delay === 0) {
                 container.classList.remove('fadeOut');
-            } else if (initialOpacity === 1) {
-                await animateOpacity(container, 1, 0, delay);
-            } else {
+            } else if (inTransition) {
                 // If the initial opacity isn't 1, assume we're in the middle of showing the overlay,
                 // and don't interrupt that initial animation, attempting to smoothly replace the contents.
                 Log.info(`Attempting to show an overlay when another is in the middle of being shown/hidden. ` +
                             `Are you sure this is what you wanted?`);
+            } else {
+                await animateOpacity(container, 1, 0, delay);
             }
 
             clearEle(container);
-        } else {
-            overlayNode = _overlayNode(options);
-            container = buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' });
+            return {
+                overlayNode,
+                container,
+                inTransition
+            };
         }
+
+        // We're not already showing an overlay, build one.
+        return {
+            overlayNode : Overlay.#overlayNode(options),
+            container : buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' }),
+            inTransition : false,
+        };
+    }
+
+    /**
+     * Generic overlay builder.
+     * @param {OverlayOptions} options Options that define how the overlay is shown.
+     * @param {...HTMLElement} children A list of elements to append to the overlay. */
+    static async build(options, ...children) {
+        // If we have an existing overlay, fade it out, remove it, then fade in the new content.
+        const replaceInline = Overlay.showing();
+        const delay = options.delay === 0 ? 0 : (options.delay || 250);
+        const { overlayNode, container, inTransition } = await Overlay.#getOverlayContainers(options);
 
         if (!options.noborder) {
             container.classList.add('darkerOverlay');
@@ -177,12 +188,12 @@ const Overlay = new function() {
         }
 
         if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7) {
-            addFullscreenOverlayElements(container);
+            Overlay.#addFullscreenOverlayElements(container);
         } else if (options.closeButton) {
-            addCloseButton();
+            Overlay.#addCloseButton();
         }
 
-        setupTabInputs(overlayNode); // Potentially sets focus, so make sure this is before options.setup
+        Overlay.#setupTabInputs(overlayNode); // Potentially sets focus, so make sure this is before options.setup
         if (options.setup) {
             // TODO: This is currently just used to set a non-default focus. If there's no other
             // use for this, should it be collapsed into an 'initial focus' field?
@@ -191,35 +202,34 @@ const Overlay = new function() {
         }
 
         if (options.focusBack !== null) {
-            focusBack = options.focusBack;
+            Overlay.#focusBack = options.focusBack;
         }
 
         if (options.onDismiss) {
-            dismissCallbacks.push(options.onDismiss);
+            Overlay.#dismissCallbacks.push(options.onDismiss);
         }
 
         if (replaceInline) {
-            if (initialOpacity === 1) {
+            if (!inTransition) {
                 await animateOpacity(container, 0, 1, delay);
             }
         } else {
             // Note: This could be a static listener that's never removed, but tie it to the lifetime
             // of the overlay to avoid unnecessary processing, even though it's likely a micro optimization.
-            window.addEventListener('keydown', overlayKeyListener, false);
+            window.addEventListener('keydown', Overlay.overlayKeyListener, false);
             if (delay !== 0) {
                 await animateOpacity(overlayNode, 0, 1, delay, () => {
                     overlayNode.style.removeProperty('opacity');
                 });
             }
         }
-    };
+    }
 
     /**
      * Create the main overlay element based on the given options.
-     * @param {*} options The options for the overlay. See `build` for details.
-     * @returns The main overlay Element.
-     */
-    const _overlayNode = function(options) {
+     * @param {OverlayOptions} options The options for the overlay. See `build` for details.
+     * @returns The main overlay Element. */
+    static #overlayNode(options) {
         return buildNode('div',
             {
                 id : 'mainOverlay',
@@ -240,7 +250,7 @@ const Overlay = new function() {
                 }
             }
         );
-    };
+    }
 
     /**
      * Ensures that tab navigation doesn't "escape" the overlay by forcing the first/last tabbable element to
@@ -248,7 +258,7 @@ const Overlay = new function() {
      *
      * TODO: This could break if anyone reaches into the overlay manually and adjusts the elements.
      * @param {HTMLElement} overlayNode */
-    const setupTabInputs = function(overlayNode) {
+    static #setupTabInputs(overlayNode) {
         const focusable = $('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', overlayNode);
         if (focusable) {
             const first = focusable[0];
@@ -269,21 +279,20 @@ const Overlay = new function() {
 
             first.focus();
         }
-    };
+    }
 
     /**
      * Sets different classes and adds a close button for overlays
      * that are set to 'fullscreen'.
-     * @param {HTMLElement} container The main overlay container.
-     */
-    const addFullscreenOverlayElements = function(container) {
+     * @param {HTMLElement} container The main overlay container. */
+    static #addFullscreenOverlayElements = function(container) {
         container.classList.remove('defaultOverlay');
         container.classList.remove('centeredOverlay');
         container.classList.add('fullOverlay');
-        addCloseButton();
+        Overlay.#addCloseButton();
     };
 
-    const addCloseButton = function() {
+    static #addCloseButton() {
         const close = buildNode(
             'img',
             {
@@ -298,35 +307,32 @@ const Overlay = new function() {
             });
         Tooltip.setTooltip(close, 'Close');
         Overlay.get().appendChild(close);
-    };
+    }
 
     /**
      * Internal helper that dismisses an overlay when escape is pressed,
      * but only if the overlay is set to be dismissible.
-     * @param {KeyboardEvent} e The Event.
-     */
-    const overlayKeyListener = function(e) {
-        if (e.keyCode === 27 /*esc*/) {
+     * @param {KeyboardEvent} e The Event. */
+    static overlayKeyListener(e) {
+        if (e.key === 'Escape') {
             /** @type {HTMLElement} */
             const overlayNode = Overlay.get();
             if (overlayNode && !!overlayNode.getAttribute('dismissible')) {
                 Overlay.dismiss();
             }
         }
-    };
+    }
 
     /**
      * Return whether an overlay is currently showing. */
-    this.showing = function() {
-        return !!this.get();
-    };
+    static showing() {
+        return !!Overlay.get();
+    }
 
     /**
      * Returns the current overlay HTML, if any.
      * @returns {HTMLElement} */
-    this.get = function() {
+    static get() {
         return $$('body>#mainOverlay');
-    };
-}();
-
-export default Overlay;
+    }
+}
