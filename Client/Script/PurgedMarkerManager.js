@@ -954,6 +954,7 @@ class PurgeOverlay {
         }
 
         if (this.#purgedSection.count <= 0) {
+            Overlay.setFocusBackElement(focusBack);
             this.#noMorePurges(true /*emptyOnInit*/);
             return;
         }
