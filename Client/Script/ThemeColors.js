@@ -1,22 +1,12 @@
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+/* eslint-disable-next-line no-unused-vars */ // Used for type information, and intellisense doesn't seem to like a @typedef import.
+import Icons from './Icons.js';
+
 const Log = new ContextualLog('ThemeColors');
 
-// Redefinition of ThemeColors below, since Intellisense doesn't
-// seem to get the hint when using 'keyof ThemeColors' types otherwise.
 /**
- * Available theme colors.
- * @typedef {{
- *    Primary : 'Primary',
- *    Green : 'Green',
- *    Red : 'Red',
- *    Orange : 'Orange',
- * }} ThemeColorKeys
- * */
-
-/**
- * List of available theme colors.
- * @type {ThemeColorKeys} */
+ * List of available theme colors. */
 export const ThemeColors = {
     /** @readonly */
     Primary : 'Primary',
@@ -81,7 +71,7 @@ export class Theme {
 
     /**
      * Get the URL to the given icon with the given color category.
-     * @param {string} iconName The name of the icon to retrieve
+     * @param {keyof Icons} iconName The name of the icon to retrieve
      * @param {keyof ThemeColors} themeColor The color category for the icon. */
     static getIcon(iconName, themeColor) {
         return `/i/${Theme.get(themeColor)}/${iconName}.svg`;

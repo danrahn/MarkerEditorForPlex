@@ -15,6 +15,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
@@ -130,7 +131,7 @@ class BulkAddOverlay {
             appendChildren(buildNode('div', { id : 'bulkAddInputMethod' }),
                 ButtonCreator.fullButton(
                     'Chapter Mode',
-                    'chapter',
+                    Icons.Chapter,
                     'Input Method',
                     ThemeColors.Primary,
                     this.#onInputMethodChanged.bind(this),
@@ -159,10 +160,12 @@ class BulkAddOverlay {
             ),
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
-                ButtonCreator.fullButton('Apply', 'confirm', 'Apply', ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
-                // eslint-disable-next-line max-len
-                ButtonCreator.fullButton('Customize', 'table', 'Customize', ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
-                ButtonCreator.fullButton('Cancel', 'cancel', 'Cancel', ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
+                ButtonCreator.fullButton(
+                    'Apply', Icons.Confirm, 'Apply', ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
+                ButtonCreator.fullButton(
+                    'Customize', Icons.Table, 'Customize', ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
+                ButtonCreator.fullButton(
+                    'Cancel', Icons.Cancel, 'Cancel', ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
             )
         );
 

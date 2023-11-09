@@ -12,6 +12,7 @@ import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
@@ -443,9 +444,9 @@ class ClientSettingsUI {
 
         options.push(buildNode('hr'));
         const container = appendChildren(buildNode('div', { id : 'settingsContainer' }),
-            icon('pause', 'Pause', this.#pauseServer.bind(this)),
-            icon('restart', 'Restart', this.#restartServer.bind(this)),
-            icon('cancel', 'Shutdown', this.#shutdownServer.bind(this)),
+            icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this)),
+            icon(Icons.Restart, 'Restart', this.#restartServer.bind(this)),
+            icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this)),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );

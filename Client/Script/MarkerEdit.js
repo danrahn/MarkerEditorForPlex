@@ -13,6 +13,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import Icons from './Icons.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
@@ -265,8 +266,8 @@ class MarkerEdit {
         const destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, ThemeColors.Green, this.#onMarkerActionConfirm.bind(this)),
-            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, ThemeColors.Red, this.#onMarkerActionCancel.bind(this))
+            ButtonCreator.iconButton(Icons.Confirm, `Confirm ${operation}`, ThemeColors.Green, this.#onMarkerActionConfirm.bind(this)),
+            ButtonCreator.iconButton(Icons.Cancel, `Cancel ${operation}`, ThemeColors.Red, this.#onMarkerActionCancel.bind(this))
         );
     }
 
@@ -364,7 +365,7 @@ class MarkerEdit {
 
         const btn = ButtonCreator.fullButton(
             'Chapters',
-            'chapter',
+            Icons.Chapter,
             'Chapter Mode Toggle',
             ThemeColors.Primary,
             this.#toggleChapterEntry.bind(this),
@@ -606,7 +607,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const startText = startCollapsed ? 'Show' : 'Hide';
         const btn = ButtonCreator.fullButton(
             startText,
-            'imgIcon',
+            Icons.Img,
             'Show/Hide Thumbnails',
             ThemeColors.Primary,
             this.#expandContractThumbnails.bind(this));

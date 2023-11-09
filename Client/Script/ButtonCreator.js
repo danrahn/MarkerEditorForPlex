@@ -2,6 +2,7 @@ import { $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
+import Icons from './Icons.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
@@ -15,9 +16,9 @@ class ButtonCreator {
     /**
      * Creates a tabbable button with an associated icon.
      * @param {string} text The text of the button.
-     * @param {string} icon The icon to use.
+     * @param {keyof Icons} icon The icon to use.
      * @param {string} altText The alt-text for the button icon.
-     * @param {string} color The color of the icon as a hex string (without the leading '#')
+     * @param {keyof ThemeColors} color The color of the icon as a hex string (without the leading '#')
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static fullButton(text, icon, altText, color, clickHandler, attributes={}) {
@@ -29,9 +30,9 @@ class ButtonCreator {
 
     /**
      * Creates a button with only an icon, no associated label text.
-     * @param {string} icon The name of the icon to add to the button.
+     * @param {keyof Icons} icon The name of the icon to add to the button.
      * @param {string} altText The alt text for the icon image.
-     * @param {string} color The color of the icon, as a hex string (without the leading '#')
+     * @param {keyof ThemeColors} color The color of the icon, as a hex string (without the leading '#')
      * @param {EventListener} clickHandler The button callback when its clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static iconButton(icon, altText, color, clickHandler, attributes={}) {
@@ -61,13 +62,13 @@ class ButtonCreator {
      * Return a loading icon animation. Doesn't belong here, since we don't wrap
      * this in our button logic, returning a "raw" image.
      * @param {number} size
-     * @param {string} color */
+     * @param {keyof ThemeColors} color */
     static loadingIcon(size=20, attributes={}, color=ThemeColors.Primary) {
         return buildNode('img', {
             width : size,
             height : size,
             theme : color,
-            src : Theme.getIcon('loading', color),
+            src : Theme.getIcon(Icons.Loading, color),
             alt : 'Loading',
             ...attributes
         });
@@ -90,7 +91,7 @@ class ButtonCreator {
      * Sets the icon of the given button.
      * @param {HTMLElement} button
      * @param {string} newIcon
-     * @param {string} theme */
+     * @param {keyof ThemeColors} theme */
     static setIcon(button, newIcon, theme) {
         const img = $$('img', button);
         if (!img) {

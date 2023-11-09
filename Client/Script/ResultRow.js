@@ -23,6 +23,7 @@ import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import Icons from './Icons.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -55,7 +56,7 @@ function purgeIcon() {
     return buildNode(
         'img',
         {
-            src : Theme.getIcon('warn', ThemeColors.Orange),
+            src : Theme.getIcon(Icons.Warn, ThemeColors.Orange),
             class : 'purgedIcon',
             alt   : 'Purged marker warning',
             theme : ThemeColors.Orange,
@@ -72,7 +73,7 @@ function purgeIcon() {
  * @returns {HTMLImageElement} */
 function filteredListIcon() {
     return buildNode('img', {
-        src : Theme.getIcon('filter', ThemeColors.Orange),
+        src : Theme.getIcon(Icons.Filter, ThemeColors.Orange),
         class : 'filteredGroupIndicator',
         theme : ThemeColors.Orange,
         alt : 'Filter Icon',
@@ -217,7 +218,7 @@ class ResultRow {
     addBackButton(row, buttonText, callback) {
         row.classList.add('selected');
         appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.fullButton(buttonText, 'back', 'Go back', ThemeColors.Primary, callback));
+            ButtonCreator.fullButton(buttonText, Icons.Back, 'Go back', ThemeColors.Primary, callback));
     }
 
     /**
@@ -387,7 +388,7 @@ class SectionOptionsResultRow extends ResultRow {
         const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
         const row = buildNode('div', { class : 'sectionOptionsResultRow' });
         this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
-            'filter',
+            Icons.Filter,
             'Sort and filter results',
             ThemeColors.Primary,
             function(_e, self) { new FilterDialog(PlexClientState.activeSectionType()).show(self); },
@@ -397,7 +398,7 @@ class SectionOptionsResultRow extends ResultRow {
 
         this.#moreOptionsButton = ButtonCreator.fullButton(
             'More...',
-            'settings',
+            Icons.Settings,
             'More options',
             ThemeColors.Primary,
             function(_e, self) { new SectionOptionsOverlay().show(self); },
@@ -1231,7 +1232,7 @@ class BaseItemResultRow extends ResultRow {
             class : 'markerExpand collapsed',
             theme : ThemeColors.Primary,
             alt : 'expand/contract',
-            src : Theme.getIcon('arrow', ThemeColors.Primary) });
+            src : Theme.getIcon(Icons.Arrow, ThemeColors.Primary) });
     }
 
     /**

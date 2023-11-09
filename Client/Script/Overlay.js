@@ -4,6 +4,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
+import Icons from './Icons.js';
 import Tooltip from './Tooltip.js';
 
 /**
@@ -295,7 +296,7 @@ export default class Overlay {
         const close = buildNode(
             'img',
             {
-                src : Theme.getIcon('cancel', ThemeColors.Primary),
+                src : Theme.getIcon(Icons.Cancel, ThemeColors.Primary),
                 class : 'overlayCloseButton',
                 tabindex : 0,
             },

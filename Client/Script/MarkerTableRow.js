@@ -6,6 +6,7 @@ import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import Icons from './Icons.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
@@ -181,8 +182,8 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
-            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', ThemeColors.Red,
+            ButtonCreator.fullButton('Edit', Icons.Edit, 'Edit Marker', ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
+            ButtonCreator.fullButton('Delete', Icons.Delete, 'Delete Marker', ThemeColors.Red,
                 this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn' })
         );
     }

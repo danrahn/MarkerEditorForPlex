@@ -15,6 +15,7 @@ import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js'
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
@@ -116,28 +117,28 @@ class PurgeOptions {
         appendChildren(this.#parent,
             ButtonCreator.fullButton(
                 restoreInfo.text,
-                'confirm',
+                Icons.Confirm,
                 'Restore Markers',
                 ThemeColors.Green,
                 this.#onRestore.bind(this),
                 { class : 'restoreButton' }),
             ButtonCreator.fullButton(
                 ignoreInfo.text,
-                'delete',
+                Icons.Delete,
                 'Ignore Markers',
                 ThemeColors.Red,
                 this.#onIgnoreClick.bind(this),
                 { class : 'ignoreButton' }),
             ButtonCreator.fullButton(
                 ignoreConfirmInfo.text,
-                'confirm',
+                Icons.Confirm,
                 'Ignore Markers',
                 ThemeColors.Green,
                 this.#onIgnoreConfirm.bind(this),
                 { class : 'ignoreConfirm hidden' }),
             ButtonCreator.fullButton(
                 ignoreCancelInfo.text,
-                'cancel',
+                Icons.Cancel,
                 'Cancel Ignore',
                 ThemeColors.Red,
                 this.#onIgnoreCancel.bind(this),
@@ -181,7 +182,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
-        $$('.restoreButton img', this.#parent).src = Theme.getIcon('loading', ThemeColors.Green);
+        $$('.restoreButton img', this.#parent).src = Theme.getIcon(Icons.Loading, ThemeColors.Green);
 
         try {
             const restoreData = await ServerCommand.restorePurge(markers,
@@ -210,7 +211,7 @@ class PurgeOptions {
 
     /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
     #resetConfirmImg(className) {
-        $$(`.${className} img`, this.#parent).src = Theme.getIcon('confirm', ThemeColors.Green);
+        $$(`.${className} img`, this.#parent).src = Theme.getIcon(Icons.Confirm, ThemeColors.Green);
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -230,7 +231,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
-        $$('.ignoreConfirm img', this.#parent).src = Theme.getIcon('loading', ThemeColors.Green);
+        $$('.ignoreConfirm img', this.#parent).src = Theme.getIcon(Icons.Loading, ThemeColors.Green);
 
         try {
             await ServerCommand.ignorePurge(markers, PlexClientState.activeSection());
