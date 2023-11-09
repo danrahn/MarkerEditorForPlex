@@ -6,7 +6,7 @@ import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
-import ThemeColors from './ThemeColors.js';
+import { Theme } from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
@@ -512,7 +512,7 @@ class BulkActionCommon {
      * @param {string} color
      * @param {number} [duration=500] */
     static async flashButton(buttonId, color, duration=1000) {
-        return flashBackground(buttonId, ThemeColors.getHex(color, 4), duration);
+        return flashBackground(buttonId, Theme.getHex(color, 4), duration);
     }
 
     /**

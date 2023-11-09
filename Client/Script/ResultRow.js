@@ -16,6 +16,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PlexUI, UISection } from './PlexUI.js';
+import { Theme, ThemeColors } from './ThemeColors.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
@@ -28,7 +29,6 @@ import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';
 import SectionOptionsOverlay from './SectionOptionsOverlay.js';
-import ThemeColors from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
@@ -55,10 +55,10 @@ function purgeIcon() {
     return buildNode(
         'img',
         {
-            src : ThemeColors.getIcon('warn', 'orange'),
+            src : Theme.getIcon('warn', ThemeColors.Orange),
             class : 'purgedIcon',
             alt   : 'Purged marker warning',
-            theme : 'orange',
+            theme : ThemeColors.Orange,
             tabindex : 0
         },
         0,
@@ -72,9 +72,9 @@ function purgeIcon() {
  * @returns {HTMLImageElement} */
 function filteredListIcon() {
     return buildNode('img', {
-        src : ThemeColors.getIcon('filter', 'orange'),
+        src : Theme.getIcon('filter', ThemeColors.Orange),
         class : 'filteredGroupIndicator',
-        theme : 'orange',
+        theme : ThemeColors.Orange,
         alt : 'Filter Icon',
         width : 16,
         height : 16 });
@@ -217,7 +217,7 @@ class ResultRow {
     addBackButton(row, buttonText, callback) {
         row.classList.add('selected');
         appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.fullButton(buttonText, 'back', 'Go back', 'standard', callback));
+            ButtonCreator.fullButton(buttonText, 'back', 'Go back', ThemeColors.Primary, callback));
     }
 
     /**
@@ -389,7 +389,7 @@ class SectionOptionsResultRow extends ResultRow {
         this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
             'filter',
             'Sort and filter results',
-            'standard',
+            ThemeColors.Primary,
             function(_e, self) { new FilterDialog(PlexClientState.activeSectionType()).show(self); },
             { class : 'filterBtn', style : 'margin-right: 10px' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
@@ -399,7 +399,7 @@ class SectionOptionsResultRow extends ResultRow {
             'More...',
             'settings',
             'More options',
-            'standard',
+            ThemeColors.Primary,
             function(_e, self) { new SectionOptionsOverlay().show(self); },
             { class : 'moreSectionOptionsBtn' });
 
@@ -1229,9 +1229,9 @@ class BaseItemResultRow extends ResultRow {
     getExpandArrow() {
         return buildNode('img', {
             class : 'markerExpand collapsed',
-            theme : 'standard',
+            theme : ThemeColors.Primary,
             alt : 'expand/contract',
-            src : ThemeColors.getIcon('arrow', 'standard') });
+            src : Theme.getIcon('arrow', ThemeColors.Primary) });
     }
 
     /**

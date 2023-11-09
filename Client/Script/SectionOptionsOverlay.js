@@ -1,8 +1,7 @@
 import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import ThemeColors from './ThemeColors.js';
-
+import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
@@ -249,7 +248,7 @@ class SectionOptionsOverlay {
      * Flash the background of the given element.
      * @param {HTMLElement} input */
     #flashInput(input) {
-        return flashBackground(input, ThemeColors.getHex('red', 8), 1000);
+        return flashBackground(input, Theme.getHex(ThemeColors.Red, 8), 1000);
     }
 }
 

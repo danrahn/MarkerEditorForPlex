@@ -1,7 +1,7 @@
 import { $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import ThemeColors from './ThemeColors.js';
+import { Theme, ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
@@ -23,7 +23,7 @@ class ButtonCreator {
     static fullButton(text, icon, altText, color, clickHandler, attributes={}) {
         const button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes);
         return appendChildren(button,
-            buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }),
+            buildNode('img', { src : Theme.getIcon(icon, color), alt : altText, theme : color }),
             buildNode('span', { class : 'buttonText' }, text));
     }
 
@@ -40,11 +40,11 @@ class ButtonCreator {
         }
 
         const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-        attributes.src = ThemeColors.getIcon(icon, color);
+        attributes.src = Theme.getIcon(icon, color);
         attributes.alt = altText;
         attributes.theme = color;
         return appendChildren(button,
-            buildNode('img', { src : ThemeColors.getIcon(icon, color), alt : altText, theme : color }));
+            buildNode('img', { src : Theme.getIcon(icon, color), alt : altText, theme : color }));
     }
 
     /**
@@ -62,12 +62,12 @@ class ButtonCreator {
      * this in our button logic, returning a "raw" image.
      * @param {number} size
      * @param {string} color */
-    static loadingIcon(size=20, attributes={}, color='standard') {
+    static loadingIcon(size=20, attributes={}, color=ThemeColors.Primary) {
         return buildNode('img', {
             width : size,
             height : size,
             theme : color,
-            src : ThemeColors.getIcon('loading', color),
+            src : Theme.getIcon('loading', color),
             alt : 'Loading',
             ...attributes
         });
@@ -97,7 +97,7 @@ class ButtonCreator {
             Log.warn('Called setIcon on non-icon button!');
         }
 
-        img.src = ThemeColors.getIcon(newIcon, theme);
+        img.src = Theme.getIcon(newIcon, theme);
     }
 
     /**

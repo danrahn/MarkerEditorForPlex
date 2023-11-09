@@ -13,12 +13,12 @@ import {
     PurgedTVSection } from './PurgedMarkerCache.js';
 import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js';
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
+import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
 import TableElements from './TableElements.js';
-import ThemeColors from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
@@ -118,28 +118,28 @@ class PurgeOptions {
                 restoreInfo.text,
                 'confirm',
                 'Restore Markers',
-                'green',
+                ThemeColors.Green,
                 this.#onRestore.bind(this),
                 { class : 'restoreButton' }),
             ButtonCreator.fullButton(
                 ignoreInfo.text,
                 'delete',
                 'Ignore Markers',
-                'red',
+                ThemeColors.Red,
                 this.#onIgnoreClick.bind(this),
                 { class : 'ignoreButton' }),
             ButtonCreator.fullButton(
                 ignoreConfirmInfo.text,
                 'confirm',
                 'Ignore Markers',
-                'green',
+                ThemeColors.Green,
                 this.#onIgnoreConfirm.bind(this),
                 { class : 'ignoreConfirm hidden' }),
             ButtonCreator.fullButton(
                 ignoreCancelInfo.text,
                 'cancel',
                 'Cancel Ignore',
-                'red',
+                ThemeColors.Red,
                 this.#onIgnoreCancel.bind(this),
                 { class : 'ignoreCancel hidden' })
         );
@@ -181,7 +181,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
-        $$('.restoreButton img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
+        $$('.restoreButton img', this.#parent).src = Theme.getIcon('loading', ThemeColors.Green);
 
         try {
             const restoreData = await ServerCommand.restorePurge(markers,
@@ -210,7 +210,7 @@ class PurgeOptions {
 
     /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
     #resetConfirmImg(className) {
-        $$(`.${className} img`, this.#parent).src = ThemeColors.getIcon('confirm', 'green');
+        $$(`.${className} img`, this.#parent).src = Theme.getIcon('confirm', ThemeColors.Green);
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -230,7 +230,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
-        $$('.ignoreConfirm img', this.#parent).src = ThemeColors.getIcon('loading', 'green');
+        $$('.ignoreConfirm img', this.#parent).src = Theme.getIcon('loading', ThemeColors.Green);
 
         try {
             await ServerCommand.ignorePurge(markers, PlexClientState.activeSection());
@@ -366,7 +366,7 @@ class PurgeRow {
      * @param {MarkerDataMap} deletedMarkers Any markers deleted as a result of this restore.
      * @param {MarkerDataMap} modifiedMarkers Any modified existing markers as a result of this restore. */
     #onRestoreSuccess(newMarker, deletedMarkers, modifiedMarkers) {
-        this.#animateRowActionSuccess(ThemeColors.getHex('green', 6));
+        this.#animateRowActionSuccess(Theme.getHex(ThemeColors.Green, 6));
         this.notifyPurgeChange(newMarker, deletedMarkers, modifiedMarkers);
     }
 
@@ -375,13 +375,13 @@ class PurgeRow {
      * @param {string} color Color category to flash
      * @param {(any) => any} [callback] Optional callback to invoke after the animation completes. */
     #flashHtml(color, callback) {
-        return flashBackground(this.#html, ThemeColors.getHex(color, 4), 1000, callback);
+        return flashBackground(this.#html, Theme.getHex(color, 4), 1000, callback);
     }
 
     /** Callback when a marker failed to be restored. Flashes the row and then resets back to its original state. */
     #onRestoreFail() {
         this.#showRowMessage('Restoration failed. Please try again later.');
-        this.#flashHtml('red', this.#resetSelfAfterAnimation.bind(this));
+        this.#flashHtml(ThemeColors.Red, this.#resetSelfAfterAnimation.bind(this));
     }
 
     /** After an animation completes, remove itself from the table. */
@@ -410,14 +410,14 @@ class PurgeRow {
 
     /** Callback when a marker was successfully ignored. Flash the row and remove it. */
     #onIgnoreSuccess() {
-        this.#animateRowActionSuccess(ThemeColors.getHex('green', 4));
+        this.#animateRowActionSuccess(Theme.getHex(ThemeColors.Green, 4));
         this.notifyPurgeChange({}, {}, {});
     }
 
     /** Callback when a marker failed to be ignored. Flash the row and reset it back to its original state. */
     #onIgnoreFailed() {
         this.#html.children[0].innerText = 'Sorry, something went wrong. Please try again later.';
-        this.#flashHtml('red', this.#resetSelfAfterAnimation.bind(this));
+        this.#flashHtml(ThemeColors.Red, this.#resetSelfAfterAnimation.bind(this));
     }
 
     #showRowMessage(message) {
@@ -588,7 +588,7 @@ class BulkPurgeAction {
     /** Callback invoked when markers were unsuccessfully restored. */
     #onRestoreFail() {
         this.#options.resetViewState();
-        flashBackground(this.#html, ThemeColors.getHex('red', 4), 750);
+        flashBackground(this.#html, Theme.getHex(ThemeColors.Red, 4), 750);
     }
 
     /** Callback invoked when markers were successfully ignored. */
@@ -599,13 +599,13 @@ class BulkPurgeAction {
 
     /** Callback invoked when we failed to ignore this marker group. */
     #onIgnoreFailed() {
-        flashBackground(this.#html, ThemeColors.getHex('red', 4), 1000, this.#options.resetViewState.bind(this.#options));
+        flashBackground(this.#html, Theme.getHex(ThemeColors.Red, 4), 1000, this.#options.resetViewState.bind(this.#options));
     }
 
     /** Common actions done when markers were successfully restored or ignored. */
     #onActionSuccess(newMarkers, deletedMarkers, modifiedMarkers, _ignoredMarkers) {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
-        flashBackground(this.#html, ThemeColors.getHex('green', 6), 750, function() {
+        flashBackground(this.#html, Theme.getHex(ThemeColors.Green, 6), 750, function() {
             // TODO: find a different way to show stats, since getting here doesn't necessarily mean
             //       all markers in the overlay are taken care of, and we don't want to interrupt with an overlay.
             // const arrLen = (x) => x ? Object.values(x).reduce((sum, arr) => sum + arr.length, 0) : 0;

@@ -7,6 +7,7 @@ import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').EpisodeData} EpisodeData */
@@ -286,7 +287,7 @@ class BulkShiftOverlay {
         if (isNaN(startShift) || isNaN(endShift) || (!startShift && !endShift)) {
             this.#checkShiftValue();
             this.#showMessage('invalidOffset');
-            return BulkActionCommon.flashButton('shiftApply', 'red');
+            return BulkActionCommon.flashButton('shiftApply', ThemeColors.Red);
         }
 
         const ignoreInfo = this.#getIgnored();
@@ -312,7 +313,7 @@ class BulkShiftOverlay {
         if (shiftResult.applied) {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Shift);
-            await BulkActionCommon.flashButton('shiftApply', 'green');
+            await BulkActionCommon.flashButton('shiftApply', ThemeColors.Green);
 
             Overlay.dismiss();
             return;
@@ -344,7 +345,7 @@ class BulkShiftOverlay {
 
         // If we are already showing the force shift subdialog, just flash the button
         if (existingMessage === 'unresolvedAgain' || existingMessage === 'unresolvedPlus') {
-            return BulkActionCommon.flashButton('shiftApply', 'red');
+            return BulkActionCommon.flashButton('shiftApply', ThemeColors.Red);
         }
 
         this.#showMessage('unresolved');
@@ -359,7 +360,7 @@ class BulkShiftOverlay {
         const startShift = this.shiftStartValue();
         const endShift = this.shiftEndValue();
         if (isNaN(startShift) || isNaN(endShift) || (!startShift && !endShift)) {
-            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
+            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, ThemeColors.Red));
         }
 
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
@@ -383,12 +384,12 @@ class BulkShiftOverlay {
             const markerMap = BulkActionCommon.markerMapFromList(shiftResult.allMarkers);
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Shift);
             $('.shiftForceApply').forEach(async f => {
-                await BulkActionCommon.flashButton(f, 'green');
+                await BulkActionCommon.flashButton(f, ThemeColors.Green);
                 Overlay.dismiss();
             });
 
         } catch (ex) {
-            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, 'red'));
+            $('.shiftForceApply').forEach(f => BulkActionCommon.flashButton(f, ThemeColors.Red));
         }
     }
 

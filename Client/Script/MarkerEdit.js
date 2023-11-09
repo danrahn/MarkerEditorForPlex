@@ -16,6 +16,7 @@ import { ClientSettings } from './ClientSettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
@@ -264,8 +265,8 @@ class MarkerEdit {
         const destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, 'green', this.#onMarkerActionConfirm.bind(this)),
-            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, 'red', this.#onMarkerActionCancel.bind(this))
+            ButtonCreator.iconButton('confirm', `Confirm ${operation}`, ThemeColors.Green, this.#onMarkerActionConfirm.bind(this)),
+            ButtonCreator.iconButton('cancel', `Cancel ${operation}`, ThemeColors.Red, this.#onMarkerActionCancel.bind(this))
         );
     }
 
@@ -365,7 +366,7 @@ class MarkerEdit {
             'Chapters',
             'chapter',
             'Chapter Mode Toggle',
-            'standard',
+            ThemeColors.Primary,
             this.#toggleChapterEntry.bind(this),
             {
                 class : 'chapterToggle',
@@ -414,11 +415,11 @@ class MarkerEdit {
         const toggle = $$('.chapterToggle', row);
         if ($('.timeInput', row)?.[0].classList.contains('hidden')) {
             ButtonCreator.setText(toggle, 'Manual');
-            ButtonCreator.setIcon(toggle, 'cursor', 'standard');
+            ButtonCreator.setIcon(toggle, 'cursor', ThemeColors.Primary);
             Tooltip.setText(toggle, 'Enter Manual Mode');
         } else {
             ButtonCreator.setText(toggle, 'Chapters');
-            ButtonCreator.setIcon(toggle, 'chapter', 'standard');
+            ButtonCreator.setIcon(toggle, 'chapter', ThemeColors.Primary);
             Tooltip.setText(toggle, 'Enter Chapter Mode');
         }
     }
@@ -607,7 +608,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             startText,
             'imgIcon',
             'Show/Hide Thumbnails',
-            'standard',
+            ThemeColors.Primary,
             this.#expandContractThumbnails.bind(this));
 
         btn.classList.add('thumbnailShowHide');

@@ -1,5 +1,6 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 
+import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { flashBackground } from './AnimationHelpers.js';
@@ -7,7 +8,6 @@ import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
-import ThemeColors from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
@@ -389,7 +389,7 @@ class FilterDialog {
      * Flash the background of the given element.
      * @param {HTMLElement} input */
     #flashInput(input) {
-        return flashBackground(input, ThemeColors.getHex('red', 8), 1000);
+        return flashBackground(input, Theme.getHex(ThemeColors.Red, 8), 1000);
     }
 
     /**

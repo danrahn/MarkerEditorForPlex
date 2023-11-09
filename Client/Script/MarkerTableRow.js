@@ -10,6 +10,7 @@ import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 
@@ -180,8 +181,8 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', 'standard', e => this.editor().onEdit(e.shiftKey)),
-            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', 'red',
+            ButtonCreator.fullButton('Edit', 'edit', 'Edit Marker', ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
+            ButtonCreator.fullButton('Delete', 'delete', 'Delete Marker', ThemeColors.Red,
                 this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn' })
         );
     }

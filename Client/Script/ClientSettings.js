@@ -10,11 +10,11 @@ import {
     ServerCommand } from './Common.js';
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
-import ThemeColors from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
@@ -438,7 +438,7 @@ class ClientSettingsUI {
         const icon = (iconName, text, fn) => {
             const id = text.toLowerCase() + 'Server';
             text += ' Server';
-            return ButtonCreator.iconButton(iconName, text, 'standard', fn, { id : id, class : 'serverStateButton' });
+            return ButtonCreator.iconButton(iconName, text, ThemeColors.Primary, fn, { id : id, class : 'serverStateButton' });
         };
 
         options.push(buildNode('hr'));
@@ -825,7 +825,7 @@ class SettingsManager {
         this.#checkbox.checked = this.isDarkTheme();
         this.#checkbox.addEventListener('change', (e) => this.toggleTheme(e.target.checked, true /*manual*/));
 
-        ThemeColors.setDarkTheme(this.isDarkTheme());
+        Theme.setDarkTheme(this.isDarkTheme());
         this.toggleTheme(this.isDarkTheme(), this.isThemeUserSet());
 
         // After initialization, start the system theme listener.
@@ -987,10 +987,10 @@ class SettingsManager {
 
     /** After changing the theme, make sure any theme-sensitive icons are also adjusted. */
     #adjustIcons() {
-        ThemeColors.setDarkTheme(this.#settings.theme.dark);
+        Theme.setDarkTheme(this.#settings.theme.dark);
         for (const icon of $('img[src^="/i/"]')) {
             const split = icon.src.split('/');
-            icon.src = `/i/${ThemeColors.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
+            icon.src = `/i/${Theme.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
         }
     }
 }

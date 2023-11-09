@@ -18,6 +18,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
@@ -131,7 +132,7 @@ class BulkAddOverlay {
                     'Chapter Mode',
                     'chapter',
                     'Input Method',
-                    'standard',
+                    ThemeColors.Primary,
                     this.#onInputMethodChanged.bind(this),
                     {
                         id : 'switchInputMethod',
@@ -158,10 +159,10 @@ class BulkAddOverlay {
             ),
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
-                ButtonCreator.fullButton('Apply', 'confirm', 'Apply', 'green', this.#apply.bind(this), { id  : 'bulkAddApply' }),
+                ButtonCreator.fullButton('Apply', 'confirm', 'Apply', ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
                 // eslint-disable-next-line max-len
-                ButtonCreator.fullButton('Customize', 'table', 'Customize', 'standard', this.#check.bind(this), { id : 'bulkAddCustomize' }),
-                ButtonCreator.fullButton('Cancel', 'cancel', 'Cancel', 'red', Overlay.dismiss, { id : 'bulkAddCancel' })
+                ButtonCreator.fullButton('Customize', 'table', 'Customize', ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
+                ButtonCreator.fullButton('Cancel', 'cancel', 'Cancel', ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
             )
         );
 
@@ -212,10 +213,10 @@ class BulkAddOverlay {
         $('#chapterZone').classList.toggle('hidden');
         if (tz.classList.contains('hidden')) {
             ButtonCreator.setText(this.#inputMode, 'Manual Mode');
-            ButtonCreator.setIcon(this.#inputMode, 'cursor', 'standard');
+            ButtonCreator.setIcon(this.#inputMode, 'cursor', ThemeColors.Primary);
         } else {
             ButtonCreator.setText(this.#inputMode, 'Chapter Mode');
-            ButtonCreator.setIcon(this.#inputMode, 'chapter', 'standard');
+            ButtonCreator.setIcon(this.#inputMode, 'chapter', ThemeColors.Primary);
         }
 
         this.#updateTableStats();
@@ -380,11 +381,11 @@ class BulkAddOverlay {
      * Attempts to apply the current marker to the selected episodes. */
     async #apply() {
         const applyButton = $('#bulkAddApply');
-        ButtonCreator.setIcon(applyButton, 'loading', 'green');
+        ButtonCreator.setIcon(applyButton, 'loading', ThemeColors.Green);
         await this.#applyInternal();
         // The UI might have changed after applying, make sure we exist before setting anything.
         if (applyButton.isConnected) {
-            ButtonCreator.setIcon(applyButton, 'confirm', 'green');
+            ButtonCreator.setIcon(applyButton, 'confirm', ThemeColors.Green);
         }
     }
 
@@ -398,7 +399,7 @@ class BulkAddOverlay {
         const resolveType = this.resolveType();
         const markerType = this.markerType();
         if (isNaN(startTime) || isNaN(endTime)) {
-            return BulkActionCommon.flashButton('bulkAddApply', 'red');
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
         }
 
         try {
@@ -412,7 +413,7 @@ class BulkAddOverlay {
 
             await this.#postProcessBulkAdd(result);
         } catch (err) {
-            await BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
+            await BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 500);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
     }
@@ -423,7 +424,7 @@ class BulkAddOverlay {
         if (!this.#serverResponse || !this.#table) {
             // We should only be submitting chapter-based markers if we've queried for episode info.
             Log.warn(`Attempting to add chapter-based markers without episode data. How did that happen?`);
-            return BulkActionCommon.flashButton('bulkAddApply', 'red');
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
         }
 
         /** @type {CustomBulkAddMap} */
@@ -450,7 +451,7 @@ class BulkAddOverlay {
         const newMarkerCount = Object.keys(newMarkerMap).length;
         if (newMarkerCount === 0) {
             Log.warn(`No new markers to add.`);
-            return BulkActionCommon.flashButton('bulkAddApply', 'red');
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
         }
 
         Log.info(`Attempt to bulk-add ${newMarkerCount} markers based on chapter data.`);
@@ -466,7 +467,7 @@ class BulkAddOverlay {
 
             await this.#postProcessBulkAdd(result);
         } catch (err) {
-            await BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
+            await BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 500);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
     }
@@ -476,7 +477,7 @@ class BulkAddOverlay {
      * @param {SerializedBulkAddResult} result */
     async #postProcessBulkAdd(result) {
         if (!result.applied) {
-            BulkActionCommon.flashButton('bulkAddApply', 'red', 500);
+            BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 500);
             return;
         }
 
@@ -508,7 +509,7 @@ class BulkAddOverlay {
             episodeInfo.isAdd ? ++addCount : ++editCount;
         }
 
-        BulkActionCommon.flashButton('bulkAddApply', 'green', 500).then(() => {
+        BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Green, 500).then(() => {
             Overlay.show(`<h2>Bulk Add Succeeded</h2><hr>` +
                 `Markers Added: ${addCount}<br>` +
                 `Markers Edited: ${editCount}<br>` +
@@ -564,14 +565,14 @@ class BulkAddOverlay {
         // waiting for chapter data, wait a bit here for the data to come in.
         if (this.#chapterMap === undefined) {
             Log.warn(`Chapter data not available, waiting a couple seconds before ignoring chapter data.`);
-            ButtonCreator.setIcon($('#bulkAddCustomize'), 'loading', 'standard');
+            ButtonCreator.setIcon($('#bulkAddCustomize'), 'loading', ThemeColors.Primary);
             try {
                 await waitFor(() => this.#chapterMap, 4000);
             } catch {
                 Log.error(`Chapter data took too long, cannot use chapter data for this customization table.`);
             }
 
-            ButtonCreator.setIcon($('#bulkAddCustomize'), 'table', 'standard');
+            ButtonCreator.setIcon($('#bulkAddCustomize'), 'table', ThemeColors.Primary);
         }
 
         for (const episodeInfo of episodeData) {

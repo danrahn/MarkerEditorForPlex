@@ -6,6 +6,7 @@ import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
+import { ThemeColors } from './ThemeColors.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
@@ -111,7 +112,7 @@ class BulkDeleteOverlay {
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
 
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Delete);
-            await BulkActionCommon.flashButton('deleteApply', 'green');
+            await BulkActionCommon.flashButton('deleteApply', ThemeColors.Green);
 
             // If the bulk operation deleted all markers of the desired type, dismiss the overlay,
             // otherwise refresh the customization table.
@@ -122,7 +123,7 @@ class BulkDeleteOverlay {
 
             this.#showCustomizationTable();
         } catch (err) {
-            await BulkActionCommon.flashButton('deleteApply', 'red', 500);
+            await BulkActionCommon.flashButton('deleteApply', ThemeColors.Red, 500);
             errorResponseOverlay('Unable to bulk delete, please try again later', err, this.show.bind(this));
         }
     }
