@@ -503,7 +503,7 @@ class MarkerTable {
     /**
      * Returns the <tbody> of this table.
      * @returns {HTMLElement} */
-    #tbody() { return this.#html.firstChild.children[1]; }
+    #tbody() { return $$('tbody', this.#html); }
 }
 
 export default MarkerTable;
