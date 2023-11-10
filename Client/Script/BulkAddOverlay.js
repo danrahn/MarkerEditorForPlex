@@ -132,7 +132,6 @@ class BulkAddOverlay {
                 ButtonCreator.fullButton(
                     'Chapter Mode',
                     Icons.Chapter,
-                    'Input Method',
                     ThemeColors.Primary,
                     this.#onInputMethodChanged.bind(this),
                     {
@@ -161,11 +160,11 @@ class BulkAddOverlay {
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.fullButton(
-                    'Apply', Icons.Confirm, 'Apply', ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
+                    'Apply', Icons.Confirm, ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
                 ButtonCreator.fullButton(
-                    'Customize', Icons.Table, 'Customize', ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
+                    'Customize', Icons.Table, ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
                 ButtonCreator.fullButton(
-                    'Cancel', Icons.Cancel, 'Cancel', ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
+                    'Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
             )
         );
 
@@ -216,10 +215,10 @@ class BulkAddOverlay {
         $('#chapterZone').classList.toggle('hidden');
         if (tz.classList.contains('hidden')) {
             ButtonCreator.setText(this.#inputMode, 'Manual Mode');
-            ButtonCreator.setIcon(this.#inputMode, 'cursor', ThemeColors.Primary);
+            ButtonCreator.setIcon(this.#inputMode, Icons.Cursor, ThemeColors.Primary);
         } else {
             ButtonCreator.setText(this.#inputMode, 'Chapter Mode');
-            ButtonCreator.setIcon(this.#inputMode, 'chapter', ThemeColors.Primary);
+            ButtonCreator.setIcon(this.#inputMode, Icons.Chapter, ThemeColors.Primary);
         }
 
         this.#updateTableStats();
@@ -384,11 +383,11 @@ class BulkAddOverlay {
      * Attempts to apply the current marker to the selected episodes. */
     async #apply() {
         const applyButton = $('#bulkAddApply');
-        ButtonCreator.setIcon(applyButton, 'loading', ThemeColors.Green);
+        ButtonCreator.setIcon(applyButton, Icons.Loading, ThemeColors.Green);
         await this.#applyInternal();
         // The UI might have changed after applying, make sure we exist before setting anything.
         if (applyButton.isConnected) {
-            ButtonCreator.setIcon(applyButton, 'confirm', ThemeColors.Green);
+            ButtonCreator.setIcon(applyButton, Icons.Loading, ThemeColors.Green);
         }
     }
 
@@ -568,14 +567,14 @@ class BulkAddOverlay {
         // waiting for chapter data, wait a bit here for the data to come in.
         if (this.#chapterMap === undefined) {
             Log.warn(`Chapter data not available, waiting a couple seconds before ignoring chapter data.`);
-            ButtonCreator.setIcon($('#bulkAddCustomize'), 'loading', ThemeColors.Primary);
+            ButtonCreator.setIcon($('#bulkAddCustomize'), Icons.Loading, ThemeColors.Primary);
             try {
                 await waitFor(() => this.#chapterMap, 4000);
             } catch {
                 Log.error(`Chapter data took too long, cannot use chapter data for this customization table.`);
             }
 
-            ButtonCreator.setIcon($('#bulkAddCustomize'), 'table', ThemeColors.Primary);
+            ButtonCreator.setIcon($('#bulkAddCustomize'), Icons.Table, ThemeColors.Primary);
         }
 
         for (const episodeInfo of episodeData) {

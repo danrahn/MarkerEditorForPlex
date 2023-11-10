@@ -118,28 +118,24 @@ class PurgeOptions {
             ButtonCreator.fullButton(
                 restoreInfo.text,
                 Icons.Confirm,
-                'Restore Markers',
                 ThemeColors.Green,
                 this.#onRestore.bind(this),
                 { class : 'restoreButton' }),
             ButtonCreator.fullButton(
                 ignoreInfo.text,
                 Icons.Delete,
-                'Ignore Markers',
                 ThemeColors.Red,
                 this.#onIgnoreClick.bind(this),
                 { class : 'ignoreButton' }),
             ButtonCreator.fullButton(
                 ignoreConfirmInfo.text,
                 Icons.Confirm,
-                'Ignore Markers',
                 ThemeColors.Green,
                 this.#onIgnoreConfirm.bind(this),
                 { class : 'ignoreConfirm hidden' }),
             ButtonCreator.fullButton(
                 ignoreCancelInfo.text,
                 Icons.Cancel,
-                'Cancel Ignore',
                 ThemeColors.Red,
                 this.#onIgnoreCancel.bind(this),
                 { class : 'ignoreCancel hidden' })
@@ -182,7 +178,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
-        $$('.restoreButton img', this.#parent).src = Theme.getIcon(Icons.Loading, ThemeColors.Green);
+        ButtonCreator.setIcon($$('.restoreButton', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
             const restoreData = await ServerCommand.restorePurge(markers,
@@ -211,7 +207,7 @@ class PurgeOptions {
 
     /** Resets the 'confirm' image icon after getting a response from a restore/ignore request. */
     #resetConfirmImg(className) {
-        $$(`.${className} img`, this.#parent).src = Theme.getIcon(Icons.Confirm, ThemeColors.Green);
+        ButtonCreator.setIcon($$(`.${className}`, this.#parent), Icons.Confirm, ThemeColors.Green);
     }
 
     /** Shows the confirmation buttons after 'Ignore' is clicked. */
@@ -231,7 +227,7 @@ class PurgeOptions {
 
         const markers = this.#getMarkersFn();
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
-        $$('.ignoreConfirm img', this.#parent).src = Theme.getIcon(Icons.Loading, ThemeColors.Green);
+        ButtonCreator.setIcon($$('.ignoreConfirm', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
             await ServerCommand.ignorePurge(markers, PlexClientState.activeSection());

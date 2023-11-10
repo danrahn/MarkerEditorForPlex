@@ -57,7 +57,7 @@
     transition: background-color 0.5s;
   }
 
-  .serverStateButton img {
+  .serverStateButton svg {
     padding: 3px 0 3px 0;
   }
 

@@ -358,7 +358,7 @@ function $$(selector, ele=document) {
  * Helper method to create DOM elements.
  * @param {string} type The TAG to create.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
+ * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  * @param {object} [options={}] Additional options
  */
@@ -372,7 +372,7 @@ function buildNode(type, attrs, content, events, options={}) {
  * @param {string} ns The namespace to create the element under.
  * @param {string} type The type of element to create.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
+ * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  */
 function buildNodeNS(ns, type, attrs, content, events, options={}) {
@@ -384,7 +384,7 @@ function buildNodeNS(ns, type, attrs, content, events, options={}) {
  * "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
  * @param {HTMLElement} ele The HTMLElement to attach the given properties to.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement} [content] The inner content of the element, either a string or an element.
+ * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  * @param {object} [options]
  */
@@ -414,7 +414,7 @@ function _buildNode(ele, attrs, content, events, options) {
     }
 
     if (content) {
-        if (content instanceof HTMLElement) {
+        if (content instanceof Element) {
             ele.appendChild(content);
         } else {
             ele.innerHTML = content;

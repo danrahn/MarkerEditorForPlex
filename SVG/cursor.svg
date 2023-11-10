@@ -3,11 +3,11 @@
     viewBox="0 0 22.99 19.02">
     <defs>
         <style>
-            .b{fill:none;stroke:FILL_COLOR;stroke-miterlimit:10;stroke-width:1.5px;}
+            .b{fill:none;stroke:currentColor;stroke-miterlimit:10;stroke-width:1.5px;}
         </style>
     </defs>
     <path
-        fill="FILL_COLOR"
+        fill="currentColor"
         stroke="none"
         d="M2,20.47V18.52h.1c.33,0,.67,0,1,0A1.48,1.48,0,0,0,4.54,17V6a1.47,1.47,0,0,0-1.26-1.5,1.37,1.37,0,0,0-.29,0H2V2.58H2c.37,0,.74,0,1.11,0a3.36,3.36,0,0,1,2.28.95l.08.08.17-.16A3.33,3.33,0,0,1,8,2.58H9.05V4.52H8A1.47,1.47,0,0,0,6.5,5.75a2.83,2.83,0,0,0,0,.29V17a1.47,1.47,0,0,0,1.26,1.5,1.93,1.93,0,0,0,.34,0h1v1.94H7.88a3.37,3.37,0,0,1-2.29-1l-.07-.07-.43.36a3.34,3.34,0,0,1-2,.67Z"
         transform="translate(3.99 -2)"/>

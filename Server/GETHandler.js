@@ -92,24 +92,13 @@ class ImageHandler {
         };
 
         const parts = url.split('/');
-        if (parts.length !== 4) {
+        if (parts.length !== 3) {
             return badRequest('Invalid icon request format');
         }
 
-        const color = parts[2];
-        const icon = parts[3];
-
-        // Expecting a 3 or 6 character hex string
-        if (!/^[a-fA-F0-9]{3}$/.test(color) && !/^[a-fA-F0-9]{6}$/.test(color)) {
-            return badRequest(`Invalid icon color: "${color}"`);
-        }
-
         try {
-            let contents = readFileSync(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' });
-
-            // Raw file has FILL_COLOR in place of hardcoded values. Replace
-            // it with the requested hex color (after decoding the contents)
-            contents = contents.replace(/FILL_COLOR/g, `#${color}`);
+            const icon = parts[2];
+            const contents = readFileSync(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' });
             res.writeHead(200, {
                 'Content-Type' : contentType('image/svg+xml'),
                 'x-content-type-options' : 'nosniff'

@@ -1,10 +1,11 @@
-import { $, $$, buildNode, clearEle } from './Common.js';
+import { $, $$, appendChildren, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { Theme, ThemeColors } from './ThemeColors.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /**
@@ -293,18 +294,16 @@ export default class Overlay {
     };
 
     static #addCloseButton() {
-        const close = buildNode(
-            'img',
-            {
-                src : Theme.getIcon(Icons.Cancel, ThemeColors.Primary),
-                class : 'overlayCloseButton',
-                tabindex : 0,
-            },
-            0,
-            {
-                click : Overlay.dismiss,
-                keyup : (e) => { if (e.key === 'Enter') Overlay.dismiss(); },
-            });
+        const close = appendChildren(
+            buildNode(
+                'i',
+                { tabindex : 0, },
+                0,
+                { click : Overlay.dismiss,
+                  keyup : (e) => { if (e.key === 'Enter') Overlay.dismiss(); } }
+            ),
+            getSvgIcon(Icons.Cancel, ThemeColors.Primary, { class : 'overlayCloseButton' }));
+
         Tooltip.setTooltip(close, 'Close');
         Overlay.get().appendChild(close);
     }

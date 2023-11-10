@@ -12,12 +12,10 @@ class ImageTest extends TestBase {
         this.testMethods = [
             this.test200OnAllSVGs,
             this.testMissingSVG,
-            this.testGoodSVGColors,
-            this.testBadSVGColors,
         ];
     }
 
-    // Hacky, but there are some SVGs that don't have a FILL_COLOR, so we don't expect to see it in the text.
+    // Hacky, but there are some SVGs that don't have a currentColor, so we don't expect to see it in the text.
     static #colorExceptions = new Set(['favicon.svg', 'noise.svg', 'badthumb.svg']);
 
     className() { return 'ImageTest'; }
@@ -32,9 +30,9 @@ class ImageTest extends TestBase {
                 continue;
             }
 
-            const endpoint = `i/CCC/${file}`;
+            const endpoint = `i/${file}`;
             const result = await this.get(endpoint);
-            await this.#ensureValidSVG(endpoint, result, 'CCC');
+            await this.#ensureValidSVG(endpoint, result);
         }
     }
 
@@ -42,67 +40,16 @@ class ImageTest extends TestBase {
      * Ensure we return a failing status code if a non-existent icon is asked for. */
     async testMissingSVG() {
         this.expectFailure();
-        const endpoint = `i/CCC/_BADIMAGE.svg`;
+        const endpoint = `i/_BADIMAGE.svg`;
         const result = await this.get(endpoint);
         TestHelpers.verify(result.status === 404, `Expected request for "${endpoint}" to return 404, found ${result.status}`);
     }
 
     /**
-     * Ensure we succeed in retrieving an icon in various different colors. */
-    async testGoodSVGColors() {
-        const endpoint = (color) => `i/${color}/settings.svg`;
-        const testColors = [
-            'CCC',
-            'CCCCCC',
-            '000',
-            '000000',
-            'ffffff',
-            'f0f0f0',
-            'FFffFf',
-            '123',
-            '123456',
-        ];
-
-        for (const color of testColors) {
-            const img = endpoint(color);
-            const result = await this.get(img);
-            await this.#ensureValidSVG(img, result, color);
-        }
-    }
-
-    /**
-     * Ensure we fail to retrieve icons if provided an invalid hex color. */
-    async testBadSVGColors() {
-        this.expectFailure();
-        const endpoint = (color) => `i/${color}/settings.svg`;
-        const testColors = [
-            'C',
-            'CC',
-            'CCCC',
-            'CCCCC',
-            'CCCCCCC',
-            'ggg',
-            'fffffg',
-            'F2GF2F',
-            'FOO',
-            'BaR',
-            'bAz'
-        ];
-
-        for (const color of testColors) {
-            const img = endpoint(color);
-            const result = await this.get(img);
-            await TestHelpers.verifyBadRequest(result, `invalid SVG color`, false /*json*/);
-        }
-    }
-
-    /**
-     * Helper that verifies the given image has the right content type, and that the content
-     * itself contains the right color (ish)
+     * Helper that verifies the given image has the right content type, * and the right content.
      * @param {string} endpoint
-     * @param {Response} response
-     * @param {string} color */
-    async #ensureValidSVG(endpoint, response, color) {
+     * @param {Response} response */
+    async #ensureValidSVG(endpoint, response) {
         TestHelpers.verify(response.status === 200, `Expected 200 when retrieving ${endpoint}, got ${response.status}.`);
         TestHelpers.verifyHeader(response.headers, 'Content-Type', 'img/svg+xml', endpoint);
 
@@ -111,7 +58,15 @@ class ImageTest extends TestBase {
         }
 
         const text = await response.text();
-        TestHelpers.verify(text.indexOf(`#${color}`) !== -1, `Expected to see color "${color}" in "${endpoint}", didn't find it!`);
+
+        // Should immediately start with "<svg", since these icons are intended to be directly interpreted as an inline SVG icon.
+        TestHelpers.verify(text.toLowerCase().startsWith('<svg'));
+        TestHelpers.verify(text.trim().toLowerCase().endsWith('/svg>'));
+        TestHelpers.verify(text.indexOf('currentColor') !== 1, `Expected theme-able icon to have "currentColor"`);
+
+        // Guard against legacy FILL_COLOR
+        TestHelpers.verify(text.indexOf('FILL_COLOR') === -1,
+            `SVG icons should no longer use FILL_COLOR for dynamic coloring, but "currentColor" + css variables.`);
     }
 }
 

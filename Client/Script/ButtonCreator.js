@@ -1,9 +1,12 @@
 import { $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { Theme, ThemeColors } from './ThemeColors.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
+
+/** @typedef {!import('./SVGHelper.js').SVGAttributes} SVGAttributes */
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
 
@@ -17,14 +20,13 @@ class ButtonCreator {
      * Creates a tabbable button with an associated icon.
      * @param {string} text The text of the button.
      * @param {keyof Icons} icon The icon to use.
-     * @param {string} altText The alt-text for the button icon.
      * @param {keyof ThemeColors} color The color of the icon as a hex string (without the leading '#')
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
-    static fullButton(text, icon, altText, color, clickHandler, attributes={}) {
+    static fullButton(text, icon, color, clickHandler, attributes={}) {
         const button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes);
         return appendChildren(button,
-            buildNode('img', { src : Theme.getIcon(icon, color), alt : altText, theme : color }),
+            getSvgIcon(icon, color),
             buildNode('span', { class : 'buttonText' }, text));
     }
 
@@ -41,11 +43,7 @@ class ButtonCreator {
         }
 
         const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-        attributes.src = Theme.getIcon(icon, color);
-        attributes.alt = altText;
-        attributes.theme = color;
-        return appendChildren(button,
-            buildNode('img', { src : Theme.getIcon(icon, color), alt : altText, theme : color }));
+        return appendChildren(button, getSvgIcon(icon, color));
     }
 
     /**
@@ -62,16 +60,10 @@ class ButtonCreator {
      * Return a loading icon animation. Doesn't belong here, since we don't wrap
      * this in our button logic, returning a "raw" image.
      * @param {number} size
+     * @param {SVGAttributes} attributes
      * @param {keyof ThemeColors} color */
-    static loadingIcon(size=20, attributes={}, color=ThemeColors.Primary) {
-        return buildNode('img', {
-            width : size,
-            height : size,
-            theme : color,
-            src : Theme.getIcon(Icons.Loading, color),
-            alt : 'Loading',
-            ...attributes
-        });
+    static loadingIcon(size=20, attributes, color=ThemeColors.Primary) {
+        return getSvgIcon(Icons.Loading, color, { width : size, height : size, ...attributes });
     }
 
     /**
@@ -90,15 +82,15 @@ class ButtonCreator {
     /**
      * Sets the icon of the given button.
      * @param {HTMLElement} button
-     * @param {string} newIcon
+     * @param {keyof Icons} newIcon
      * @param {keyof ThemeColors} theme */
     static setIcon(button, newIcon, theme) {
-        const img = $$('img', button);
-        if (!img) {
+        const svg = $$('svg', button);
+        if (!svg) {
             Log.warn('Called setIcon on non-icon button!');
         }
 
-        img.src = Theme.getIcon(newIcon, theme);
+        svg.replaceWith(getSvgIcon(newIcon, theme));
     }
 
     /**

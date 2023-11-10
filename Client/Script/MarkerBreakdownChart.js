@@ -2,9 +2,12 @@ import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerComma
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
+import { getSvgIcon } from './SVGHelper.js';
+import Icons from './Icons.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Chart').ChartDataPoint} ChartDataPoint */
@@ -60,7 +63,7 @@ class MarkerBreakdownManager {
                 buildNode('br'),
                 buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
                 buildNode('br'),
-                buildNode('img', { width : 30, height : 30, src : 'i/c1c1c1/loading.svg' })),
+                getSvgIcon(Icons.Loading, ThemeColors.Primary, { width : 30, height : 30 })),
             'Cancel');
 
         Overlay.setFocusBackElement($('#markerBreakdown'));

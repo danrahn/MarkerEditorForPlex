@@ -16,13 +16,13 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PlexUI, UISection } from './PlexUI.js';
-import { Theme, ThemeColors } from './ThemeColors.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
 import BulkShiftOverlay from './BulkShiftOverlay.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
@@ -30,6 +30,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';
 import SectionOptionsOverlay from './SectionOptionsOverlay.js';
+import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
@@ -53,18 +54,8 @@ const Log = new ContextualLog('ResultRow');
  * Return a warning icon used to represent that a show/season/episode has purged markers.
  * @returns {HTMLImageElement} */
 function purgeIcon() {
-    return buildNode(
-        'img',
-        {
-            src : Theme.getIcon(Icons.Warn, ThemeColors.Orange),
-            class : 'purgedIcon',
-            alt   : 'Purged marker warning',
-            theme : ThemeColors.Orange,
-            tabindex : 0
-        },
-        0,
-        { keyup : clickOnEnterCallback }
-    );
+    return appendChildren(buildNode('i', { tabindex : 0 }, 0, { keyup : clickOnEnterCallback }),
+        getSvgIcon(Icons.Warn, ThemeColors.Orange, { class : 'purgedIcon' }));
 }
 
 /**
@@ -72,13 +63,8 @@ function purgeIcon() {
  * entries due to the current filter.
  * @returns {HTMLImageElement} */
 function filteredListIcon() {
-    return buildNode('img', {
-        src : Theme.getIcon(Icons.Filter, ThemeColors.Orange),
-        class : 'filteredGroupIndicator',
-        theme : ThemeColors.Orange,
-        alt : 'Filter Icon',
-        width : 16,
-        height : 16 });
+    return appendChildren(buildNode('i'),
+        getSvgIcon(Icons.Filter, ThemeColors.Orange, { width : 16, height : 16, class : 'filteredGroupIndicator' }));
 }
 
 /** Represents a single row of a show/season/episode in the results page. */
@@ -151,11 +137,40 @@ class ResultRow {
         if (this.hasPurgedMarkers() && (
             e.target.classList.contains('episodeDisplayText')
             || (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText'))
-            || e.target.tagName.toLowerCase() === 'img')) {
+            || this.isClickTargetInImage(e.target))) {
             return true; // Don't show/hide if we're repurposing the marker display.
         }
 
         return false;
+    }
+
+    /**
+     * Determine if the given element is an image/svg, or belongs to an svg.
+     * @param {Element} target */
+    isClickTargetInImage(target) {
+        switch (target.tagName.toLowerCase()) {
+            case 'i':
+                return !!$$('svg', target);
+            case 'img':
+            case 'svg':
+                return true;
+            default: {
+                // Check whether we're in an SVG element. Use a tabbable row as a bailout condition.
+                let parent = target;
+                while (parent) {
+                    const tag = parent.tagName.toLowerCase();
+                    if (tag === 'svg') {
+                        return true;
+                    } else if (parent.hasAttribute('tabIndex')) {
+                        return false;
+                    }
+
+                    parent = parent.parentElement;
+                }
+
+                return false;
+            }
+        }
     }
 
     /**
@@ -218,7 +233,7 @@ class ResultRow {
     addBackButton(row, buttonText, callback) {
         row.classList.add('selected');
         appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.fullButton(buttonText, Icons.Back, 'Go back', ThemeColors.Primary, callback));
+            ButtonCreator.fullButton(buttonText, Icons.Back, ThemeColors.Primary, callback));
     }
 
     /**
@@ -389,7 +404,6 @@ class SectionOptionsResultRow extends ResultRow {
         const row = buildNode('div', { class : 'sectionOptionsResultRow' });
         this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
             Icons.Filter,
-            'Sort and filter results',
             ThemeColors.Primary,
             function(_e, self) { new FilterDialog(PlexClientState.activeSectionType()).show(self); },
             { class : 'filterBtn', style : 'margin-right: 10px' });
@@ -399,7 +413,6 @@ class SectionOptionsResultRow extends ResultRow {
         this.#moreOptionsButton = ButtonCreator.fullButton(
             'More...',
             Icons.Settings,
-            'More options',
             ThemeColors.Primary,
             function(_e, self) { new SectionOptionsOverlay().show(self); },
             { class : 'moreSectionOptionsBtn' });
@@ -1092,7 +1105,7 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        if ((seasonName.childNodes[0].tagName === 'IMG') === !!this.#episodesFiltered) {
+        if ((seasonName.childNodes[0].tagName.toLowerCase() === 'i') === !!this.#episodesFiltered) {
             return;
         }
 
@@ -1228,11 +1241,7 @@ class BaseItemResultRow extends ResultRow {
     /**
      * Returns the expand/contract arrow element */
     getExpandArrow() {
-        return buildNode('img', {
-            class : 'markerExpand collapsed',
-            theme : ThemeColors.Primary,
-            alt : 'expand/contract',
-            src : Theme.getIcon(Icons.Arrow, ThemeColors.Primary) });
+        return getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'markerExpand collapsed' });
     }
 
     /**

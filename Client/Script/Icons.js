@@ -36,4 +36,6 @@ const Icons = {
     Warn : 'warn',
 };
 
+/** @typedef {Icons} IconKeys */ // For intellisense without imports
+
 export default Icons;

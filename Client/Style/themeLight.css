@@ -1,6 +1,10 @@
 :root {
     --error-background: #F777;
     --error-border: #C44;
+    --theme-standard: #212121;
+    --theme-green: #292;
+    --theme-red: #A22;
+    --theme-orange: #A22; /* Just red, looks better than orange/brown */
 
     scrollbar-color: #A19171 #C1B191 !important;
 }
@@ -9,7 +13,7 @@ body,
 ::-webkit-scrollbar-track {
     background-color: #ffefcc;
     background: linear-gradient(#FFEFCCDD, #CCA066DD),
-                url('/i/000/noise.svg');
+                url('/i/noise.svg');
 }
 
 body {

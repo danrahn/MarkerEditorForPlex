@@ -1,8 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
 	 viewBox="0 0 128 128" style="enable-background:new 0 0 128 128;" xml:space="preserve">
 <style type="text/css">
-	.st0{fill:none;stroke:FILL_COLOR;stroke-width:7;stroke-linejoin:round;stroke-miterlimit:10;}
+	.st0{fill:none;stroke:currentColor;stroke-width:7;stroke-linejoin:round;stroke-miterlimit:10;}
 </style>
 <g>
 	<path class="st0" d="M104.5,74.8c-0.9,3.4-2.3,6.7-4,9.7l8.5,13.4L97.9,109l-13.4-8.5c-3,1.7-6.3,3.1-9.7,4L71.3,120H55.7

@@ -140,7 +140,7 @@ input:focus-visible {
   border-radius: 3px;
 }
 
-.button>img {
+.button>svg {
   width: 20px;
   height: 20px;
   vertical-align: middle;
@@ -538,6 +538,23 @@ input:focus-visible {
   border-radius: 3px;
   opacity: 0;
   font-size: smaller;
+}
+
+.themeIconStandard {
+  color: var(--theme-standard);
+}
+
+.themeIconGreen {
+  color: var(--theme-green);
+}
+
+.themeIconRed {
+  color: var(--theme-red);
+  fill: var(--theme-red);
+}
+
+.themeIconOrange {
+  color: var(--theme-orange);
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)

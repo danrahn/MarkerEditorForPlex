@@ -12,6 +12,7 @@ import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
@@ -832,11 +833,12 @@ class SettingsManager {
         // After initialization, start the system theme listener.
         this.#themeQuery.addEventListener('change', this.#onSystemThemeChanged);
 
-        // index.html hard-codes the dark theme icon. Adjust if necessary.
-        if (!this.isDarkTheme()) {
-            $('#settings').src = '/i/212121/settings.svg';
-            $('#helpBtn').src = '/i/212121/help.svg';
-        }
+        // Load the real SVG icon for the placeholder index.html help/settings icon
+        const commonProps = { width : 20, height : 20 };
+        $('#helpBtn').replaceWith(
+            getSvgIcon(Icons.Help, ThemeColors.Primary, { id : 'helpBtn', ...commonProps }));
+        $$('#settings svg').replaceWith(
+            getSvgIcon(Icons.Settings, ThemeColors.Primary, { ...commonProps }));
     }
 
     /** @returns Whether dark theme is currently enabled. */
@@ -950,7 +952,7 @@ class SettingsManager {
             style.href = style.href.replace(cssFind, cssRep);
         }
 
-        this.#adjustIcons();
+        Theme.setDarkTheme(this.#settings.theme.dark);
         return true;
     }
 
@@ -983,15 +985,6 @@ class SettingsManager {
     #onSystemThemeChanged(e) {
         if (this.toggleTheme(e.matches, false /*manual*/)) {
             this.#checkbox.checked = e.matches;
-        }
-    }
-
-    /** After changing the theme, make sure any theme-sensitive icons are also adjusted. */
-    #adjustIcons() {
-        Theme.setDarkTheme(this.#settings.theme.dark);
-        for (const icon of $('img[src^="/i/"]')) {
-            const split = icon.src.split('/');
-            icon.src = `/i/${Theme.get(icon.getAttribute('theme'))}/${split[split.length - 1]}`;
         }
     }
 }

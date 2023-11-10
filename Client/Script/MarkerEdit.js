@@ -366,7 +366,6 @@ class MarkerEdit {
         const btn = ButtonCreator.fullButton(
             'Chapters',
             Icons.Chapter,
-            'Chapter Mode Toggle',
             ThemeColors.Primary,
             this.#toggleChapterEntry.bind(this),
             {
@@ -416,11 +415,11 @@ class MarkerEdit {
         const toggle = $$('.chapterToggle', row);
         if ($('.timeInput', row)?.[0].classList.contains('hidden')) {
             ButtonCreator.setText(toggle, 'Manual');
-            ButtonCreator.setIcon(toggle, 'cursor', ThemeColors.Primary);
+            ButtonCreator.setIcon(toggle, Icons.Cursor, ThemeColors.Primary);
             Tooltip.setText(toggle, 'Enter Manual Mode');
         } else {
             ButtonCreator.setText(toggle, 'Chapters');
-            ButtonCreator.setIcon(toggle, 'chapter', ThemeColors.Primary);
+            ButtonCreator.setIcon(toggle, Icons.Chapter, ThemeColors.Primary);
             Tooltip.setText(toggle, 'Enter Chapter Mode');
         }
     }
@@ -574,7 +573,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
         const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
-        const img = buildNode(
+        const thumbnail = buildNode(
             'img',
             {
                 src : src,
@@ -592,10 +591,10 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         );
 
         if (!ClientSettings.autoLoadThumbnails()) {
-            Tooltip.setTooltip(img, 'Press Enter after entering a timestamp to update the thumbnail.');
+            Tooltip.setTooltip(thumbnail, 'Press Enter after entering a timestamp to update the thumbnail.');
         }
 
-        return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, img);
+        return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, thumbnail);
     }
 
     onEdit(startInChapterMode) {
@@ -608,7 +607,6 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const btn = ButtonCreator.fullButton(
             startText,
             Icons.Img,
-            'Show/Hide Thumbnails',
             ThemeColors.Primary,
             this.#expandContractThumbnails.bind(this));
 
@@ -688,64 +686,64 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return; // Don't ask for a thumbnail if the input isn't valid.
         }
 
-        const img = $$('.inputThumb', editGroup);
-        if (!img) {
+        const thumb = $$('.inputThumb', editGroup);
+        if (!thumb) {
             // We shouldn't get here
             Log.warn('Unable to retrieve marker thumbnail image, no img element found!');
             return;
         }
 
         const url = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
-        img.classList.remove('hidden');
-        if (!img.src.endsWith(url)) {
-            img.classList.remove('loaded');
-            img.classList.add('loading');
-            img.src = url;
+        thumb.classList.remove('hidden');
+        if (!thumb.src.endsWith(url)) {
+            thumb.classList.remove('loaded');
+            thumb.classList.add('loading');
+            thumb.src = url;
         }
     }
 
     /** Callback when we failed to load a preview thumbnail, marking it as in an error state.
-     * @param {HTMLImageElement} img */
-    #onThumbnailPreviewLoadFailed(img) {
-        if (this.#cachedHeight && !img.src.endsWith('svg')) {
-            img.src = `t/-1/${this.#cachedHeight}.svg`;
-            const idx = img.classList.contains('thumbnailStart') ? 0 : 1;
+     * @param {HTMLImageElement} thumb */
+    #onThumbnailPreviewLoadFailed(thumb) {
+        if (this.#cachedHeight && !thumb.src.endsWith('svg')) {
+            thumb.src = `t/-1/${this.#cachedHeight}.svg`;
+            const idx = thumb.classList.contains('thumbnailStart') ? 0 : 1;
             const wasError = this.#thumbnailError[idx];
             if (!wasError) {
-                Tooltip.removeTooltip(img);
-                Tooltip.setTooltip(img, `Failed to load thumbnail. This is usually due to the file reporting ` +
+                Tooltip.removeTooltip(thumb);
+                Tooltip.setTooltip(thumb, `Failed to load thumbnail. This is usually due to the file reporting ` +
                     `a duration that's longer than the actual length of the video stream.`);
             }
         } else {
-            this.#thumbnailError[img.classList.contains('thumbStart') ? 0 : 1] = true;
-            img.alt = 'Failed to load thumbnail';
-            img.classList.remove('loading');
+            this.#thumbnailError[thumb.classList.contains('thumbStart') ? 0 : 1] = true;
+            thumb.alt = 'Failed to load thumbnail';
+            thumb.classList.remove('loading');
         }
     }
 
     /** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state.
-     * @param {HTMLImageElement} img */
-    #onThumbnailPreviewLoad(img) {
-        const idx = img.classList.contains('thumbnailStart') ? 0 : 1;
+     * @param {HTMLImageElement} thumb */
+    #onThumbnailPreviewLoad(thumb) {
+        const idx = thumb.classList.contains('thumbnailStart') ? 0 : 1;
         const wasError = this.#thumbnailError[idx];
         this.#thumbnailError[idx] = false;
         if (wasError) {
-            Tooltip.removeTooltip(img);
+            Tooltip.removeTooltip(thumb);
             if (!ClientSettings.autoLoadThumbnails()) {
-                Tooltip.setTooltip(img, 'Press Enter after entering a timestamp to update the thumbnail.');
+                Tooltip.setTooltip(thumb, 'Press Enter after entering a timestamp to update the thumbnail.');
             }
         }
 
-        img.classList.remove('loading');
-        img.classList.add('loaded');
-        const realHeight = img.naturalHeight * (img.width / img.naturalWidth);
+        thumb.classList.remove('loading');
+        thumb.classList.add('loaded');
+        const realHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
         this.#cachedHeight = realHeight;
-        img.setAttribute('realheight', realHeight);
+        thumb.setAttribute('realheight', realHeight);
         if (this.#thumbnailsCollapsed) {
-            img.classList.add('hiddenThumb');
+            thumb.classList.add('hiddenThumb');
         } else {
-            img.style.height = `${realHeight}px`;
-            img.classList.add('visibleThumb');
+            thumb.style.height = `${realHeight}px`;
+            thumb.classList.add('visibleThumb');
         }
     }
 
