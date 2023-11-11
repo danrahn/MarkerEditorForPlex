@@ -3,6 +3,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
+import { animateOpacity } from './AnimationHelpers.js';
 import { ClientSettings } from './ClientSettings.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -227,16 +228,27 @@ class PlexUIManager {
     }
 
     showSections(uiSection) {
+        const promises = [];
         this.#sectionOperation(uiSection, ele => {
             ele.classList.remove('hidden');
-            $$('.tabbableRow', ele)?.focus();
+            ele.style.opacity = 0;
+            ele.style.height = 0;
+            promises.push(animateOpacity(ele, 0, 1, { noReset : true, duration : 100 }, () => {
+                $$('.tabbableRow', ele)?.focus();
+            }));
         });
+
+        return Promise.all(promises);
     }
 
     hideSections(uiSection) {
+        /** @type {Promise<void>[]} */
+        const promises = [];
         this.#sectionOperation(uiSection, ele => {
-            ele.classList.add('hidden');
+            promises.push(animateOpacity(ele, 1, 0, 100, () => { ele.classList.add('hidden'); }));
         });
+
+        return Promise.all(promises);
     }
 
     /**
@@ -500,7 +512,10 @@ class PlexUIManager {
         );
     }
 
-    /** Apply the given function to all UI sections specified in uiSections. */
+    /**
+     * Apply the given function to all UI sections specified in uiSections.
+     * @param {number} uiSections
+     * @param {(ele: HTMLElement) => void} fn */
     #sectionOperation(uiSections, fn) {
         for (const group of Object.values(UISection)) {
             if (group & uiSections) {

@@ -497,9 +497,9 @@ class ShowResultRow extends ResultRow {
         const customColumn = buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
         const row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
-            this.addBackButton(row, 'Back to results', () => {
+            this.addBackButton(row, 'Back to results', async () => {
                 PlexUI.clearSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.hideSections(UISection.Seasons | UISection.Episodes);
+                await PlexUI.hideSections(UISection.Seasons | UISection.Episodes);
                 PlexUI.showSections(UISection.MoviesOrShows);
             });
         }
@@ -597,9 +597,9 @@ class ShowResultRow extends ResultRow {
     /**
      * Takes the seasons retrieved for a show and creates and entry for each season.
      * @param {SerializedSeasonData[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
-    #showSeasons(seasons) {
+    async #showSeasons(seasons) {
+        await PlexUI.hideSections(UISection.MoviesOrShows);
         PlexUI.clearAndShowSections(UISection.Seasons);
-        PlexUI.hideSections(UISection.MoviesOrShows);
 
         const addRow = row => PlexUI.addRow(UISection.Seasons, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
@@ -803,9 +803,9 @@ class SeasonResultRow extends ResultRow {
 
         const row = this.buildRowColumns(title, null, selected ? null : this.#seasonClick.bind(this));
         if (selected) {
-            this.addBackButton(row, 'Back to seasons', () => {
+            this.addBackButton(row, 'Back to seasons', async () => {
+                await PlexUI.hideSections(UISection.Episodes);
                 PlexUI.clearSections(UISection.Episodes);
-                PlexUI.hideSections(UISection.Episodes);
                 PlexUI.showSections(UISection.Seasons);
             });
         }
@@ -961,9 +961,9 @@ class SeasonResultRow extends ResultRow {
      * @param {{[metadataId: number]: SerializedMarkerData[]}} data Map of episode ids to an array of
      * serialized {@linkcode MarkerData} for the episode.
      * @param {ChapterMap?} chapterData */
-    #showEpisodesAndMarkers(data, chapterData) {
+    async #showEpisodesAndMarkers(data, chapterData) {
+        await PlexUI.hideSections(UISection.Seasons);
         PlexUI.clearAndShowSections(UISection.Episodes);
-        PlexUI.hideSections(UISection.Seasons);
         const addRow = row => PlexUI.addRow(UISection.Episodes, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
