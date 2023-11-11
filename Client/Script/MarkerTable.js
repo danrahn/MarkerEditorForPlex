@@ -1,8 +1,8 @@
 import { $$, appendChildren, buildNode, clearEle, msToHms } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
-import { slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
@@ -343,7 +343,7 @@ class MarkerTable {
       * Add a new marker to this table.
       * @param {MarkerData} newMarker The marker to add.
       * @param {HTMLElement?} oldRow The temporary row used to create the marker, if any. */
-    addMarker(newMarker, oldRow) {
+    async addMarker(newMarker, oldRow) {
         if (this.#cachedMarkerCountKey !== undefined) {
             // Assume that addMarker calls coming in when our table isn't initialized
             // is coming from purge restores and just update the count/breakdown.
@@ -355,7 +355,7 @@ class MarkerTable {
 
         //  oldRow will be null if a marker was added via purge restoration
         if (oldRow) {
-            this.removeTemporaryMarkerRow(oldRow);
+            await this.removeTemporaryMarkerRow(oldRow);
         }
 
         const tableBody = this.#tbody();
@@ -444,10 +444,8 @@ class MarkerTable {
         }
 
         const oldIndex = this.#markers.findIndex(x => x.id === deletedMarker.id);
+        const needsNoMarkerRow = this.#markers.length === 1;
         const tableBody = this.#tbody();
-        if (this.#markers.length === 1) {
-            tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
-        }
 
         if (!row) {
             for (const markerRow of this.#rows) {
@@ -463,7 +461,11 @@ class MarkerTable {
             }
         }
 
-        tableBody.removeChild(row);
+        this.#animateRowRemoval(row, () => {
+            if (needsNoMarkerRow) {
+                tableBody.insertBefore(TableElements.noMarkerRow(), tableBody.firstChild);
+            }
+        });
         this.#markers.splice(oldIndex, 1);
         this.#rows.splice(oldIndex, 1);
         this.#parentRow.updateMarkerBreakdown();
@@ -485,8 +487,22 @@ class MarkerTable {
             return;
         }
 
-        this.#tbody().removeChild(markerRow);
+        // Should we force await on this? Also, are there any possible race conditions with quick operations if we don't?
+        const ret = this.#animateRowRemoval(markerRow);
         this.#rows.splice(index, 1);
+        return ret;
+    }
+
+    /**
+     * @param {HTMLTableRowElement} row
+     * @param {() => void} callback */
+    async #animateRowRemoval(row, callback) {
+        // First need to explicitly set tr height so it doesn't immediately shrink when we clear the element
+        row.style.height = row.getBoundingClientRect().height + 'px';
+        return animateOpacity(row, 1, 0, 100, () => {
+            clearEle(row);
+            slideUp(row, 150, () => { callback?.(); this.#tbody().removeChild(row); });
+        });
     }
 
     /**

@@ -11,6 +11,7 @@ import {
     timeToMs } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import Icons from './Icons.js';
@@ -506,8 +507,24 @@ class MarkerEdit {
     }
 
     /**
-     * Removes the editable input fields from a marker that was in edit mode, reverting back to static values. */
-    resetAfterEdit() {
+     * Called immediately before we reset this row after a successful/canceled edit.
+     * Currently fades the row to transparent. */
+    onBeforeReset() {
+        return animateOpacity(this.markerRow.row(), 1, 0, { duration : 100, noReset : true });
+    }
+
+    /**
+     * Called immediately after we reset this row after a successful/canceled edit.
+     * Currently fades the row back to fully opaque. */
+    onAfterReset() {
+        return animateOpacity(this.markerRow.row(), 0, 1, { duration : 150, delay : 50, noReset : true });
+    }
+
+    /**
+     * Removes the editable input fields from a marker that was in edit mode, reverting back to static values.
+     * @returns {Promise<void>} */
+    async resetAfterEdit() {
+        await this.onBeforeReset();
         const options = this.markerRow.row().children[4];
         const chapterToggle = $$('.chapterToggle', options);
         chapterToggle?.parentElement.removeChild(chapterToggle);
@@ -519,6 +536,7 @@ class MarkerEdit {
         this.markerRow.reset();
         this.editing = false;
         Tooltip.dismiss();
+        this.onAfterReset();
     }
 
     /**
@@ -602,8 +620,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        const startCollapsed = ClientSettings.collapseThumbnails();
-        const startText = startCollapsed ? 'Show' : 'Hide';
+        this.#thumbnailsCollapsed = ClientSettings.collapseThumbnails();
+        const startText = this.#thumbnailsCollapsed ? 'Show' : 'Hide';
         const btn = ButtonCreator.fullButton(
             startText,
             Icons.Img,
@@ -617,15 +635,31 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         options.insertBefore(btn, options.firstChild);
     }
 
-    resetAfterEdit() {
-        const span = $$('.thumbnailShowHide', this.markerRow.row());
-        if (!span) {
+    /**
+     * In addition to the parent's fade-out, contract our thumbnails if they're showing as part of the reset. */
+    async onBeforeReset() {
+        if (!this.#thumbnailsCollapsed) {
+            this.#expandContractThumbnails(null, $$('.thumbnailShowHide', this.markerRow.row()), 150);
+        }
+
+        return super.onBeforeReset();
+    }
+
+    async resetAfterEdit() {
+        const showHide = $$('.thumbnailShowHide', this.markerRow.row());
+        if (!showHide) {
             return;
         }
 
-        const parent = span.parentNode;
-        parent.removeChild(span);
-        super.resetAfterEdit();
+        const parent = showHide.parentNode;
+        parent.removeChild(showHide);
+        return super.resetAfterEdit();
+    }
+
+    /**
+     * Nothing extra to do for thumbnail edit, just call our parent's onAfterReset. */
+    async onAfterReset() {
+        return super.onAfterReset();
     }
 
     /**
@@ -739,11 +773,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const realHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
         this.#cachedHeight = realHeight;
         thumb.setAttribute('realheight', realHeight);
-        if (this.#thumbnailsCollapsed) {
-            thumb.classList.add('hiddenThumb');
-        } else {
-            thumb.style.height = `${realHeight}px`;
-            thumb.classList.add('visibleThumb');
+        if (!this.#thumbnailsCollapsed && parseInt(thumb.style.height) === 0) {
+            slideDown(thumb, `${realHeight}px`, { duration : 250, noReset : true });
         }
     }
 
@@ -752,18 +783,27 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * and begin the height transitions for the thumbnails themselves.
      * @param {MouseEvent} _ The (unused) MouseEvent
      * @param {HTMLElement} button */
-    #expandContractThumbnails(_, button) {
+    #expandContractThumbnails(_, button, duration=250) {
         this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
-        const hidden = button.innerText.startsWith('Show');
+        const hidden = this.#thumbnailsCollapsed;
+        const promises = [];
         $('.inputThumb', this.markerRow.row()).forEach(thumb => {
-            thumb.classList.toggle('hiddenThumb');
-            thumb.style.height = this.#thumbnailsCollapsed ? '0' : thumb.getAttribute('realheight') + 'px';
-            thumb.classList.toggle('visibleThumb');
-            $$('span', button).innerText = hidden ? 'Hide' : 'Show';
+            promises.push(new Promise(r => {
+                if (this.#thumbnailsCollapsed) {
+                    slideUp(thumb, { duration : duration, noReset : true }, r);
+                } else {
+                    slideDown(thumb, thumb.getAttribute('realHeight') + 'px', { duration : duration, noReset : true }, r);
+                }
+            }));
+
+            if (button) { $$('span', button).innerText = hidden ? 'Show' : 'Hide'; }
+
             if (!this.#thumbnailsCollapsed) {
                 this.#refreshImage(thumb.parentNode);
             }
         });
+
+        return Promise.all(promises);
     }
 }
 

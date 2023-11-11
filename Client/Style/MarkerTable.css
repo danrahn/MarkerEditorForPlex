@@ -127,14 +127,6 @@ table .buttonIconAndText {
   opacity: 1.0;
 }
 
-.visibleThumb {
-  transition: height 0.25s; /* Set in JS so we can calculate the "real" height here */
-}
-
-.hiddenThumb {
-  transition: height 0.25s; /* Set to 0 in JS before transitioning */
-}
-
 .thumbnailError {
   opacity: 0.7;
 }

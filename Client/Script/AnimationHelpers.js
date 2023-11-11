@@ -4,6 +4,13 @@ import { $$ } from './Common.js';
 const Log = new ContextualLog('Animate');
 
 /**
+ * @typedef {Object} CustomAnimationOptions
+ * @property {boolean} [noReset] Don't reset an element's animated property to its original value on completion.
+ *
+ * @typedef {CustomAnimationOptions & KeyframeAnimationOptions} AnimationOptions
+ */
+
+/**
  * Helper that parses animation method calls and logs to TMI output
  * @param {string} method
  * @param {HTMLElement} element
@@ -63,7 +70,7 @@ export function flashBackground(ele, color, duration=1000, callback) {
  * @param {HTMLElement} ele The element to animate
  * @param {number} start The starting opacity for the element
  * @param {number} end The end opacity for the element
- * @param {number|KeyframeAnimationOptions} options The length of the animation
+ * @param {number|AnimationOptions} options The length of the animation
  * @param {boolean|() => any} [callback] Either a boolean value indicating whether to remove the element
  *                            after the transition is complete, or a custom callback function.
  * @returns {Promise<void>} */
@@ -72,6 +79,10 @@ export function animateOpacity(ele, start, end, options, callback) {
     return new Promise(resolve => {
         ele.animate({ opacity : [start, end] }, options)
             .addEventListener('finish', async () => {
+                if (options.noReset) {
+                    ele.style.opacity = end;
+                }
+
                 if (callback) {
                     if (typeof callback === 'boolean') {
                         ele.parentElement.removeChild(ele);
@@ -90,7 +101,7 @@ export function animateOpacity(ele, start, end, options, callback) {
 /**
  * Shrink the height of ele to 0 while also fading out the content.
  * @param {HTMLElement} ele
- * @param {number|KeyframeAnimationOptions} options
+ * @param {number|AnimationOptions} options
  * @param {(...any) => any} [callback]
  * @returns {Promise<void>} */
 export function slideUp(ele, options, callback) {
@@ -114,7 +125,12 @@ export function slideUp(ele, options, callback) {
         [{ opacity : 1, height : startingHeight }, { opacity : 0, height : '0px' }],
         options,
         async () => {
-            ele.style.height = heightSav;
+            if (options.noReset) {
+                ele.style.height = '0px';
+            } else {
+                ele.style.height = heightSav;
+            }
+
             await callback?.();
         });
 }
@@ -123,7 +139,7 @@ export function slideUp(ele, options, callback) {
  * Expand the height of ele from 0 to the given finalHeight.
  * @param {HTMLElement} ele
  * @param {string} finalHeight
- * @param {number|KeyframeAnimationOptions} options
+ * @param {number|AnimationOptions} options
  * @param {(...any) => any} [callback] */
 export function slideDown(ele, finalHeight, options, callback) {
     logAnimate('slideDown', ele, { options, callback });
@@ -134,8 +150,10 @@ export function slideDown(ele, finalHeight, options, callback) {
         [{ opacity : 0, height : '0px' }, { opacity : 1, height : finalHeight }],
         options,
         async () => {
-            if (!hasHeight) {
+            if (!hasHeight && !options.noReset) {
                 ele.style.removeProperty('height');
+            } else if (options.noReset) {
+                ele.style.height = finalHeight;
             }
 
             await callback?.();
@@ -145,7 +163,7 @@ export function slideDown(ele, finalHeight, options, callback) {
 /**
  * @param {HTMLElement} ele
  * @param {number[]} stops
- * @param {number|KeyframeAnimationOptions} options
+ * @param {number|AnimationOptions} options
  * @param {(...any) => any} [callback] */
 function slide(ele, stops, options, callback) {
     const ofSav = ele.style.overflow;
