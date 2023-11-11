@@ -3,6 +3,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
+import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -124,24 +125,30 @@ class BulkShiftOverlay {
                 separateShiftCheck),
             BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this)),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
-                ButtonCreator.textButton('Apply',
+                ButtonCreator.fullButton('Apply',
+                    Icons.Confirm,
+                    ThemeColors.Green,
                     this.#tryApply.bind(this),
                     {
                         id : 'shiftApply',
                         tooltip : 'Attempt to apply the given time shift. ' +
                                   'Brings up customization menu if any markers have multiple episodes.'
                     }),
-                ButtonCreator.textButton('Force Apply',
+                ButtonCreator.fullButton('Force Apply',
+                    Icons.Confirm,
+                    ThemeColors.Red,
                     this.#forceApply.bind(this),
                     {
                         id : 'shiftForceApplyMain',
                         class : 'shiftForceApply',
                         tooltip : 'Force apply the given time shift to all selected markers, even if some episodes have multiple markers.'
                     }),
-                ButtonCreator.textButton('Customize',
+                ButtonCreator.fullButton('Customize',
+                    Icons.Table,
+                    ThemeColors.Primary,
                     this.#check.bind(this),
                     { tooltip : 'Bring up the list of all applicable markers and selective choose which ones to shift.' }),
-                ButtonCreator.textButton('Cancel', Overlay.dismiss)
+                ButtonCreator.fullButton('Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss)
             )
         );
 
@@ -241,8 +248,10 @@ class BulkShiftOverlay {
         if (addForceButton) {
             node = appendChildren(buildNode('div', attributes),
                 buildNode('h4', {}, message),
-                ButtonCreator.textButton(
+                ButtonCreator.fullButton(
                     'Force shift',
+                    Icons.Confirm,
+                    ThemeColors.Red,
                     this.#forceApply.bind(this),
                     { id : 'shiftForceApplySub', class : 'shiftForceApply' })
             );

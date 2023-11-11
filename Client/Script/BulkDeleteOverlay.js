@@ -2,6 +2,7 @@ import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import ButtonCreator from './ButtonCreator.js';
+import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -44,15 +45,21 @@ class BulkDeleteOverlay {
             buildNode('h4', {}, `Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
             BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this)),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
-                ButtonCreator.textButton('Delete All', this.#deleteAll.bind(this), { id : 'deleteApply', class : 'cancelSetting' }),
-                ButtonCreator.textButton(
+                ButtonCreator.fullButton('Delete All',
+                    Icons.Confirm,
+                    ThemeColors.Green,
+                    this.#deleteAll.bind(this),
+                    { id : 'deleteApply', class : 'cancelSetting' }),
+                ButtonCreator.fullButton(
                     'Customize',
+                    Icons.Table,
+                    ThemeColors.Primary,
                     this.#showCustomizationTable.bind(this),
                     {
                         id : 'deleteCustomize',
                         tooltip : 'Bring up a table of all markers that will be deleted, with the option to keep some.'
                     }),
-                ButtonCreator.textButton('Cancel', Overlay.dismiss, { id : 'bulkDeleteCancel' })
+                ButtonCreator.fullButton('Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss, { id : 'bulkDeleteCancel' })
             )
         );
 
