@@ -230,12 +230,15 @@ class PlexUIManager {
     showSections(uiSection) {
         const promises = [];
         this.#sectionOperation(uiSection, ele => {
+            const isHidden = ele.classList.contains('hidden');
             ele.classList.remove('hidden');
-            ele.style.opacity = 0;
-            ele.style.height = 0;
-            promises.push(animateOpacity(ele, 0, 1, { noReset : true, duration : 100 }, () => {
-                $$('.tabbableRow', ele)?.focus();
-            }));
+            if (isHidden) {
+                ele.style.opacity = 0;
+                ele.style.height = 0;
+                promises.push(animateOpacity(ele, 0, 1, { noReset : true, duration : 100 }, () => {
+                    $$('.tabbableRow', ele)?.focus();
+                }));
+            }
         });
 
         return Promise.all(promises);
@@ -245,7 +248,11 @@ class PlexUIManager {
         /** @type {Promise<void>[]} */
         const promises = [];
         this.#sectionOperation(uiSection, ele => {
-            promises.push(animateOpacity(ele, 1, 0, 100, () => { ele.classList.add('hidden'); }));
+            if (ele.classList.contains('hidden')) {
+                promises.push(Promise.resolve());
+            } else {
+                promises.push(animateOpacity(ele, 1, 0, 100, () => { ele.classList.add('hidden'); }));
+            }
         });
 
         return Promise.all(promises);
