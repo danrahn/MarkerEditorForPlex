@@ -538,6 +538,7 @@ input:focus-visible {
   border-radius: 3px;
   opacity: 0;
   font-size: smaller;
+  z-index: 4; /* Show over nav/overlay */
 }
 
 .themeIconStandard {

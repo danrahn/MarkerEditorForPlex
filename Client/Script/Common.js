@@ -480,7 +480,7 @@ function errorMessage(error) {
 /**
  * Displays an error message in the top-left of the screen for a couple seconds.
  * @param {string} message */
-function errorToast(message) {
+function errorToast(message, duration=2500) {
     const msg = buildNode('div', { class : 'errorToast' }, message);
     document.body.appendChild(msg);
     return animate(msg,
@@ -490,7 +490,7 @@ function errorToast(message) {
             { opacity : 1, offset : 0.8 },
             { opacity : 0, offset : 1 },
         ],
-        { duration : 2500 },
+        { duration },
         () => {
             document.body.removeChild(msg);
         }

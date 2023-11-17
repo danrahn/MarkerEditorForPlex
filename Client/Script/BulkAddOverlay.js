@@ -4,6 +4,7 @@ import {
     buildNode,
     clearEle,
     errorResponseOverlay,
+    errorToast,
     msToHms,
     pad0,
     ServerCommand,
@@ -106,7 +107,7 @@ class BulkAddOverlay {
                         id : 'addStart' },
                     0,
                     {   keyup : this.#onBulkAddInputChange.bind(this),
-                        keydown : timeInputShortcutHandler }
+                        keydown : e => timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/) }
                 ),
                 buildNode('label', { for : 'addEnd' }, 'End: '),
                 buildNode('input',
@@ -116,7 +117,7 @@ class BulkAddOverlay {
                         id : 'addEnd' },
                     0,
                     { keyup : this.#onBulkAddInputChange.bind(this),
-                      keydown : timeInputShortcutHandler }
+                      keydown : e => timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/) }
                 )
             ),
             appendChildren(buildNode('div', { id : 'chapterZone', class : 'hidden' }),
@@ -186,8 +187,8 @@ class BulkAddOverlay {
     #onBulkAddInputChange(e) {
         const start = $('#addStart');
         const end = $('#addEnd');
-        this.#cachedStart = timeToMs(start.value);
-        this.#cachedEnd = timeToMs(end.value);
+        this.#cachedStart = timeToMs(start.value, true /*allowNegative*/);
+        this.#cachedEnd = timeToMs(end.value, true /*allowNegative*/);
         isNaN(this.#cachedStart) ? start.classList.add('badInput') : start.classList.remove('badInput');
         isNaN(this.#cachedEnd) ? end.classList.add('badInput') : end.classList.remove('badInput');
         clearTimeout(this.#inputTimer);
@@ -387,7 +388,7 @@ class BulkAddOverlay {
         await this.#applyInternal();
         // The UI might have changed after applying, make sure we exist before setting anything.
         if (applyButton.isConnected) {
-            ButtonCreator.setIcon(applyButton, Icons.Loading, ThemeColors.Green);
+            ButtonCreator.setIcon(applyButton, Icons.Confirm, ThemeColors.Green);
         }
     }
 
@@ -409,7 +410,8 @@ class BulkAddOverlay {
                 markerType,
                 this.#mediaItem.metadataId,
                 startTime,
-                endTime,
+                // -0 is converted to a string over the wire, but -0 toString() is just '0', so handle it directly.
+                Object.is(endTime, -0) ? '-0' : endTime,
                 resolveType,
                 this.#table?.getIgnored());
 
@@ -469,7 +471,7 @@ class BulkAddOverlay {
 
             await this.#postProcessBulkAdd(result);
         } catch (err) {
-            await BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 500);
+            await BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 1000);
             errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
         }
     }
@@ -479,7 +481,11 @@ class BulkAddOverlay {
      * @param {SerializedBulkAddResult} result */
     async #postProcessBulkAdd(result) {
         if (!result.applied) {
-            BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 500);
+            BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 1000);
+            if (result.notAppliedReason) {
+                errorToast(result.notAppliedReason, 6000);
+            }
+
             return;
         }
 
@@ -695,9 +701,15 @@ class BulkAddRow extends BulkActionRow {
      * @returns {{ mode : number, time : number }} */
     #calculateStartEnd(type, baseline) {
         if (!this.#parent.chapterMode()) {
+            let time = this.#parent[type + 'Time']();
+            if (time < 0 || Object.is(time, -0)) { // '===' treats -0 as +0, but Object.is can tell the difference.
+                // Negative offset is "duration from end". "-30000" is 30 seconds before the end of the episode
+                time = this.#episodeInfo.duration + time;
+            }
+
             return {
                 mode : ChapterMatchMode.Disabled,
-                time : this.#parent[type + 'Time']()
+                time : time,
             };
         }
 
@@ -762,10 +774,21 @@ class BulkAddRow extends BulkActionRow {
         let semiWarn = false;
         let isWarn = false;
         let tooltip = '';
-        if (isNaN(startTimeBase) || isNaN(endTimeBase) || startTimeBase >= endTimeBase) {
+        if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
+            tooltip = 'Invalid start or end time.';
+        } else if (startTimeBase >= endTimeBase) {
+            tooltip = `Start time is greater than end time:<br> ` +
+                `Start: ${msToHms(startTimeBase)}<br>End: ${msToHms(endTimeBase)}`;
+        } else if (startTimeBase < 0 || endTimeBase < 0) {
+            tooltip = `Negative timestamp:<br>Start: ${msToHms(startTimeBase)}<br>End: ${msToHms(endTimeBase)}`;
+        }
+
+        if (tooltip) {
             this.#startTd.innerText = '--:--:--.---';
             this.#endTd.innerText = '--:--:--.---';
             this.#setClassBoth(warnClass);
+            Tooltip.setTooltip(this.#startTd, tooltip);
+            Tooltip.setTooltip(this.#endTd, tooltip);
             return;
         }
 

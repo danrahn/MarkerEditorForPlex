@@ -19,6 +19,11 @@ class BulkAddTest extends TestBase {
             this.easyBulkAddEpisodeTest,
             this.easyBulkAddSeasonTest,
             this.easyBulkAddShowTest,
+            this.bulkAddNegativeOffsetTest,
+            this.bulkAddBothNegativeOffsetTest,
+            this.bulkAddInvalidNegativeOffsetTest,
+            this.bulkAddTooNegativeOffsetTest,
+            this.bulkAddNegativeZeroTest,
             this.bulkAddOverlapResolveTypeFailFailsTest,
             this.bulkAddOverlapResolveTypeFailWithIgnoreSucceedsTest,
             this.bulkAddOverlapResolveTypeMergeSucceedsTest,
@@ -104,6 +109,94 @@ class BulkAddTest extends TestBase {
             true,
             false,
             expectedMarkers,
+            {}
+        );
+    }
+
+    /**
+     * Treat negative indexes as offset from end. */
+    async bulkAddNegativeOffsetTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        return this.#verifyBulkAdd(
+            episode.Id,
+            520000, // 8:40.00
+            -30000, // 10:00.00 - 30.00 = 9:30.00
+            BulkMarkerResolveType.Fail,
+            [],
+            true,
+            false,
+            [   { id : TestBase.NextMarkerIndex, start : 520000, end : 570000, index : 1 },
+                { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 0 }
+            ],
+            {}
+        );
+    }
+
+    /**
+     * Test when both offsets are negative. */
+    async bulkAddBothNegativeOffsetTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        return this.#verifyBulkAdd(
+            episode.Id,
+            -60000,
+            -30000,
+            BulkMarkerResolveType.Fail,
+            [],
+            true,
+            false,
+            [   { id : TestBase.NextMarkerIndex, start : 540000, end : 570000, index : 1 },
+                { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 0 }
+            ],
+            {}
+        );
+    }
+
+    /**
+     * Ensure a combination of positive+negative offsets don't apply if the start is later than the end. */
+    async bulkAddInvalidNegativeOffsetTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        return this.#verifyBulkAdd(
+            episode.Id,
+            580000, // 9:40.00
+            -30000, // 10:00.00 - 30.00 = 9:30.00
+            BulkMarkerResolveType.Fail,
+            [],
+            false,
+            true,
+            [ { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 0 } ],
+            {}
+        );
+    }
+
+    /** Ensure we fail with a negative timestamp that is longer than the episode, even if our resolve type isn't 'Fail'. */
+    async bulkAddTooNegativeOffsetTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        return this.#verifyBulkAdd(
+            episode.Id,
+            -610000,
+            -30000,
+            BulkMarkerResolveType.Merge,
+            [],
+            false,
+            true,
+            [ { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 0 } ],
+            {}
+        );
+    }
+
+    async bulkAddNegativeZeroTest() {
+        const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
+        return this.#verifyBulkAdd(
+            episode.Id,
+            570000,
+            '-0',
+            BulkMarkerResolveType.Fail,
+            [],
+            true,
+            false,
+            [   { id : TestBase.NextMarkerIndex, start : 570000, end : 600000, index : 1 },
+                { id : episode.Marker1.Id, start : episode.Marker1.Start, end : episode.Marker1.End, index : 0 }
+            ],
             {}
         );
     }
@@ -459,8 +552,8 @@ class BulkAddTest extends TestBase {
         const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
         TestHelpers.verify(result.applied === true || result.applied === false, `Expected result.applied to be true or false, found ${result.applied}`);
-        const c = result.conflict;
-        TestHelpers.verify(expectConflict ? c === true : (c === false || !Object.prototype.hasOwnProperty.call(result, 'conflict')), `Expected result.conflict to be true, false, or not present, found ${result.conflict}`);
+        const c = result.notAppliedReason;
+        TestHelpers.verify(expectConflict ? (typeof c === 'string') : !Object.prototype.hasOwnProperty.call(result, 'notAppliedReason'), `Expected result.notAppliedReason to be a string or not present, found "${c}"`);
         TestHelpers.verify(result.episodeMap, `Expected episodeMap in bulk_add response, found nothing.`);
         const episodeMap = result.episodeMap;
         let totalMarkerCount = 0;

@@ -347,7 +347,8 @@ class CoreCommands {
      * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
      * @returns {Promise<BulkAddResult>>} */
     static async bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
-        if (resolveType !== BulkMarkerResolveType.DryRun && (start < 0 || end <= start)) {
+        const knownInvalid = start < 0 ? end <= start : (end > 0 && end <= start);
+        if (resolveType !== BulkMarkerResolveType.DryRun && knownInvalid) {
             throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`, 500);
         }
 

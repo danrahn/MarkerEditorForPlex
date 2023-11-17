@@ -49,7 +49,7 @@ import { MarkerType } from './MarkerType.js';
  *
  * @typedef {{
  *      applied: boolean,
- *      conflict: boolean?,
+ *      notAppliedReason: string?,
  *      episodeMap: {[episodeId: number]: BulkAddResultEntry},
  *      ignoredEpisodes: number[]?
  * }} BulkAddResult

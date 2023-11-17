@@ -1529,11 +1529,15 @@ ORDER BY e.\`index\` ASC;`;
         /** @type {CustomBulkAddMap} */
         const bulkMarkerAddData = {};
 
+        /** @type {(offset: number, episode: RawEpisodeData) => number} */
+        const realTimestamp = (offset, episode) =>
+            offset >= 0 ? (Object.is(offset, -0) ? episode.duration : offset) : episode.duration + offset;
+
         const episodeData = await this.getEpisodesAuto(metadataId);
         const ignoredEpisodes = new Set(ignored);
         for (const episode of episodeData) {
             if (!ignoredEpisodes.has(episode.id)) {
-                bulkMarkerAddData[episode.id] = { start : baseStart, end : baseEnd };
+                bulkMarkerAddData[episode.id] = { start : realTimestamp(baseStart, episode), end : realTimestamp(baseEnd, episode) };
             }
         }
 
@@ -1590,6 +1594,26 @@ ORDER BY e.\`index\` ASC;`;
             };
         }
 
+        // Pass 1: Check new markers for invalid bounds (e.g. due to bad "offset from end" timestamps)
+        // Not caught in bulkAddSimple/bulkAddCustom directly because we want to return the episode map.
+        for (const marker of Object.values(newMarkers)) {
+            const negative = marker.start < 0 || marker.end < 0;
+            const flipped = marker.start >= marker.end;
+            if (negative || flipped) {
+                let msg = negative ?
+                    `At least one marker's start or end is negative` :
+                    `At least one marker's start time is greater than its end time`;
+
+                msg += `. Check the customization table.`;
+                return {
+                    applied : false,
+                    notAppliedReason : msg,
+                    episodeMap : episodeMarkerMap,
+                };
+            }
+        }
+
+        // Pass 2: Check existing markers for overlap
         for (const marker of existingMarkers) {
             const newMarker = newMarkers[marker.parent_id];
             if (!newMarker) {
@@ -1603,7 +1627,7 @@ ORDER BY e.\`index\` ASC;`;
                     // Still a success, because the user _wants_ this to fail.
                     return {
                         applied : false,
-                        conflict : true,
+                        notAppliedReason : 'At least one marker overlaps with an existing marker. Check the customization table.',
                         episodeMap : episodeMarkerMap
                     };
                 }
@@ -1621,6 +1645,8 @@ ORDER BY e.\`index\` ASC;`;
         // Set of episodeIds that have a normal add. Correlate after reindex with start and end time, map to episodeMap.addedMarkers
         const plainAdd = new Set();
         const transaction = new TransactionBuilder(this.#database);
+
+        // Pass 3: Apply new markers and adjust them as necessary
         for (const episodeId of episodeIds) {
             const newMarker = newMarkers[episodeId];
             const newStart = newMarker.start;
