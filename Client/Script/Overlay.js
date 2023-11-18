@@ -126,6 +126,7 @@ export default class Overlay {
             // handing back the top-level node and container
             Log.verbose('Replacing existing overlay to display a new one.');
             const overlayNode = Overlay.get();
+            overlayNode.setAttribute('dismissible', options.dismissible ? '1' : '0');
             /** @type {HTMLElement} */
             const container = $('#overlayContainer', overlayNode);
             const delay = options.delay === 0 ? 0 : (options.delay || 250);
@@ -316,7 +317,7 @@ export default class Overlay {
         if (e.key === 'Escape') {
             /** @type {HTMLElement} */
             const overlayNode = Overlay.get();
-            if (overlayNode && !!overlayNode.getAttribute('dismissible')) {
+            if (overlayNode && overlayNode.getAttribute('dismissible') === '1') {
                 Overlay.dismiss();
             }
         }

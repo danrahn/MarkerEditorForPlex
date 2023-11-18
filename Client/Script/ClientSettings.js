@@ -633,7 +633,7 @@ class ClientSettingsUI {
     #transitionOverlay(newOverlayContainer, options={}) {
         // Don't mess with focusBack. null == don't overwrite, undefined == reset.
         options.focusBack = null;
-        Overlay.build(options, newOverlayContainer);
+        Overlay.build({ dismissible : true, ...options }, newOverlayContainer);
     }
 
     /** Enables or disabled a dialog setting
