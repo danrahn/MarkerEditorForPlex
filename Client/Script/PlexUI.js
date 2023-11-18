@@ -236,7 +236,9 @@ class PlexUIManager {
                 ele.style.opacity = 0;
                 ele.style.height = 0;
                 promises.push(animateOpacity(ele, 0, 1, { noReset : true, duration : 100 }, () => {
-                    $$('.tabbableRow', ele)?.focus();
+                    if (document.activeElement?.id !== 'search') {
+                        $$('.tabbableRow', ele)?.focus();
+                    }
                 }));
             }
         });
