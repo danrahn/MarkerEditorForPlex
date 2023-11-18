@@ -519,17 +519,18 @@ function pad0(val, pad) {
  * Convert milliseconds to a user-friendly [h:]mm:ss.000 string.
  * @param {number} ms */
 function msToHms(ms) {
-    let seconds = ms / 1000;
+    const msAbs = Math.abs(ms);
+    let seconds = msAbs / 1000;
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor(seconds / 60) % 60;
     seconds = Math.floor(seconds) % 60;
-    const thousandths = ms % 1000;
+    const thousandths = msAbs % 1000;
     let time = pad0(minutes, 2) + ':' + pad0(seconds, 2) + '.' + pad0(thousandths, 3);
     if (hours > 0) {
         time = hours + ':' + time;
     }
 
-    return time;
+    return ms < 0 ? '-' + time : time;
 }
 
 /**
