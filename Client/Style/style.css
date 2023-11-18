@@ -1,11 +1,30 @@
 body {
   font-family: sans-serif;
-  background-attachment: fixed;
+  background: fixed var(--background-grad), url('/i/noise.svg');
   margin: 0;
   border: 0;
   overflow: auto;
   display: block;
   height: 100vh;
+  color: var(--theme-primary);
+}
+
+/* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar appears/
+* disappears. There are some behavioral tradeoffs here (content is slightly off-center when no scrollbar
+* is visible, but the lack of shifting wins for me. Also, apply this to #plexFrame instead of body, because
+* overriding the body itself will prevent scrolling overlays from having a visible scrollbar. */
+#plexFrame {
+  overflow-y: scroll;
+  height: 100vh;
+  scrollbar-width: thin !important;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-grad), url('/i/noise.svg');
+}
+
+::-webkit-scrollbar-track:hover {
+  background: var(--theme-input-background);
 }
 
 .noSelect {
@@ -16,7 +35,7 @@ body {
 }
 
 .hidden {
-    display: none !important;
+  display: none !important;
 }
 
 .italic {
@@ -36,6 +55,14 @@ form input {
 input, select {
   padding: 1px;
   margin: 5px;
+  border: 1px solid var(--theme-border);
+  background-color: var(--theme-input-background);
+  color: var(--theme-primary);
+}
+
+hr {
+  color: var(--theme-hr-color);
+  border-color: var(--theme-hr-color);
 }
 
 #siteTitle {
@@ -71,6 +98,13 @@ input, select {
   border-radius: 5px;
   padding: 1px 5px 1px 5px;
   background: transparent;
+  border-color: var(--theme-border);
+}
+
+.fancySelect:hover,
+#search:hover,
+.inlineButton:hover {
+  border-color: var(--theme-border-hover);
 }
 
 #libraryList {
@@ -92,9 +126,21 @@ input, select {
   min-width: 350px;
 }
 
+.fancySelect option {
+  background-color: var(--theme-background);
+}
+
+.fancySelect option:hover {
+  background-color: var(--theme-input-background);
+}
+
 select:focus,
 input:focus {
-  border-color: #ff7f00 !important;
+  border-color: var(--theme-focus-color) !important;
+}
+
+#bulkActionCustomizeTable input[type=checkbox]:focus {
+  outline: 1px solid var(--theme-focus-color);
 }
 
 input:focus-visible {
@@ -119,6 +165,7 @@ input:focus-visible {
   margin: auto;
 }
 
+/* ButtonCreator buttons */
 .button {
   padding: 0 3px 0 3px;
   display: inline-block;
@@ -128,15 +175,19 @@ input:focus-visible {
 
 .button:hover:not(.disabled) {
   transition: border .25s,box-shadow .5s;
-  opacity: 1;
 }
 
 .button.disabled {
-  opacity: 50%;
+  opacity: 0.5;
+}
+
+.button:hover:not(.disabled) {
+  border: 1px solid var(--button-disabled-border);
+  box-shadow: 0 0 6px var(--button-disabled-shadow);
 }
 
 .button:focus-visible {
-  outline: #ff7f00 solid 1px;
+  outline: var(--theme-focus-color) solid 1px;
   border-radius: 3px;
 }
 
@@ -149,6 +200,7 @@ input:focus-visible {
 .buttonTextOnly {
   margin: 3px 1px 3px 1px;
   font-size: 10pt;
+  border: 1px solid var(--text-button-border);
 }
 
 .buttonTextOnly>span {
@@ -159,7 +211,15 @@ input:focus-visible {
 .buttonIconAndText, .buttonIconOnly {
   border: 1px solid transparent;
   font-size: 9pt;
+}
+
+.buttonIconAndText>svg, .buttonIconOnly>svg {
   opacity: 0.8;
+}
+
+.buttonIconAndText:hover:not(.disabled)>svg,
+.buttonIconOnly:hover:not(.disabled)>svg {
+  opacity: 1;
 }
 
 .selected .buttonIconAndText,
@@ -171,12 +231,19 @@ input:focus-visible {
   margin-left: 5px;
   vertical-align: middle;
 }
+/* End ButtonCreator buttons */
 
 .topLevelResult,
 .seasonResult,
 .baseItemResult,
 .bulkResultRow,
 .sectionOptionsResultRow {
+  display: flex;
+}
+
+.topLevelResult,
+.seasonResult,
+.baseItemResult {
   display: flex;
   cursor: pointer;
 }
@@ -192,15 +259,27 @@ input:focus-visible {
   padding: 10px;
 }
 
+.topLevelResult,
+.seasonResult,
+.sectionOptionsResultRow {
+  border-bottom: 1px solid var(--theme-hr-color);
+}
+
 .topLevelResult:hover,
 .seasonResult:hover,
 .baseItemResult:hover,
 .bulkResultRow:hover {
   font-weight: bold;
+  background-color: var(--media-item-hover);
 }
 
 .sectionOptionsResultRow {
   font-weight: bold;
+  background-color: var(--section-options-background);
+}
+
+.sectionOptionsResultRow:hover {
+  background-color: var(--section-options-hover);
 }
 
 .topLevelResult>div,
@@ -241,6 +320,29 @@ input:focus-visible {
 .seasonResult.selected>.showResultEpisodes,
 .seasonResult.selected>.goBack {
   flex: 0 1 20%;
+}
+
+/* Standard marker table */
+.markerTable {
+  & thead {
+    border-bottom: 1px solid var(--theme-primary);
+  }
+
+  & tr:nth-child(odd) {
+    background-color: var(--table-odd-row);
+  }
+
+  & tr:nth-child(odd):hover {
+    background-color: var(--table-odd-hover);
+  }
+
+  & tr:nth-child(even) {
+    background-color: var(--table-even-row);
+  }
+
+  & tr:nth-child(even):hover {
+    background-color: var(--table-even-hover);
+  }
 }
 
 /* Allow bulk action buttons to grow */
@@ -311,12 +413,12 @@ input:focus-visible {
   cursor: default;
 }
 
-.bulkResultRow {
-  line-height: 23px; /* TODO: not this */
-}
-
 .selected:hover {
   background: rgba(0,100,0,0.3);
+}
+
+.bulkResultRow {
+  line-height: 23px; /* TODO: not this */
 }
 
 .overlayButton {
@@ -325,7 +427,7 @@ input:focus-visible {
 }
 
 .overlayButton:focus {
-  border-color:#ff7f00;
+  border-color:var(--theme-focus-color);
 }
 
 #helpContainer {
@@ -401,36 +503,34 @@ input:focus-visible {
   transform: translateX(30px);
 }
 
-#purgeContainer h1, h2 {
-  text-align: center;
-}
+/* Purge overlay */
+#purgeContainer {
+  & h1, h2 {
+    text-align: center;
+  }
 
-#purgeContainer hr {
-  width: 60%;
-  min-width: 600px;
-  margin-top: 15px;
-}
+  & hr {
+    width: 60%;
+    min-width: 600px;
+    margin-top: 15px;
+  }
 
-#purgeContainer .buttonContainer {
-  text-align: center;
-  width: auto;
-}
+  & .buttonContainer {
+    text-align: center;
+    width: auto;
+  }
 
-#purgeContainer .buttonContainer input[type=button] {
-  border-radius: 3px;
-  padding: 4px;
-}
+  & #purgeResolutionContainer {
+    text-align: center;
+    width: 60%;
+    min-width: 600px;
+    margin: auto;
+    margin-bottom: 20px;
+  }
 
-#purgeResolutionContainer {
-  text-align: center;
-  width: 60%;
-  min-width: 600px;
-  margin: auto;
-  margin-bottom: 20px;
-}
-
-#purgeResolutionDescription {
-  size: 10pt;
+  & #purgeResolutionDescription {
+    size: 10pt;
+  }
 }
 
 #helpOverlayHolder {
@@ -446,6 +546,10 @@ input:focus-visible {
 
 #deleteMarkerCancel {
   margin-left: 10px;
+}
+
+.confirmDelete {
+  background-color: var(--overlay-red-hover);
 }
 
 .purgedIcon {
@@ -466,18 +570,27 @@ input:focus-visible {
   text-align: center;
   line-height: 30px;
   overflow: auto;
-}
+  background-color: var(--update-bar-background);
 
-#updateBar * {
-  vertical-align: middle;
-}
+  & * {
+    vertical-align: middle;
+  }
 
-#updateString {
-  margin-right: 20px;
-}
+  & select, .button {
+    background-color: var(--update-bar-input-background);
+  }
 
-#updateRemindLabel {
-  margin-left: 30px;
+  & select:hover, .button:hover {
+    background-color: var(--update-bar-input-background-hover);
+  }
+
+  & #updateString {
+    margin-right: 20px;
+  }
+
+  & #updateRemindLabel {
+    margin-left: 30px;
+  }
 }
 
 .filterActive {
@@ -504,7 +617,7 @@ input:focus-visible {
   max-width: 600px;
   margin: auto;
   text-align: center;
-  background: rgba(0,0,0,0.4);
+  background: var(--overlay-modal-background);
   padding: 20px;
 }
 
@@ -516,6 +629,10 @@ input:focus-visible {
   text-align: center;
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+.sectionOptionsOverlayBtn:hover {
+  background: var(--section-options-input-hover);
 }
 
 .inlineLoadingIcon {
@@ -541,8 +658,9 @@ input:focus-visible {
   z-index: 4; /* Show over nav/overlay */
 }
 
+/* Icons */
 .themeIconStandard {
-  color: var(--theme-standard);
+  color: var(--theme-primary);
 }
 
 .themeIconGreen {
@@ -580,7 +698,7 @@ input:focus-visible {
 
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-   background: rgba(129, 129, 129, 0.76); /* #818181C1 */
+  background: rgba(129, 129, 129, 0.76); /* #818181C1 */
 }
 
 @media (min-width: 767px) { /* Probably not a phone */
@@ -588,13 +706,6 @@ input:focus-visible {
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
-  }
-
-  /* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar
-     appears/disappears. There are some behavioral tradeoffs here (content is slightly off-center when
-     no scrollbar is visible, but the lack of shifting wins for me. */
-  body {
-    overflow-y: scroll;
   }
 
   #helpContainer {
@@ -610,13 +721,13 @@ input:focus-visible {
   }
 
   /* Toggle can overlap the header on mobile devices.
-   * This isn't really a mobile-friendly site, but try not to completely break it. */
+  * This isn't really a mobile-friendly site, but try not to completely break it. */
   #darkModeToggle {
     display: none;
   }
 
   /* The help button runs into the same issues as the theme toggle.
-   * We don't want to hide it though, so just adjust its right margin to give it more room. */
+  * We don't want to hide it though, so just adjust its right margin to give it more room. */
   #helpContainer {
     right: 10px;
   }

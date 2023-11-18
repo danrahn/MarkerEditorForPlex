@@ -1,11 +1,9 @@
-#mainOverlay {
-    background-color: rgba(200, 200, 200, 0.7);
-}
-
-#overlayContainer {
-    color: #212121;
-}
-
-.darkerOverlay {
-    background-color: #fecd;
+:root {
+  --overlay-background: rgba(200, 200, 200, 0.7);
+  --overlay-darker: #fecd;
+  --overlay-modal-background: #fecd;
+  --overlay-green-hover: #9E9a;
+  --overlay-yellow-hover: #fb0a !important;
+  --overlay-red-hover: #f66a !important;
+  --overlay-blue-hover: #8afa !important;
 }

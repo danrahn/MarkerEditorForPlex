@@ -259,9 +259,9 @@ class FilterDialog {
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                ButtonCreator.textButton('Apply', this.#applyFilter.bind(this), { class : 'confirmSetting' }),
-                ButtonCreator.textButton('Reset', this.#resetFilter.bind(this), { id : 'resetFilter' }),
-                ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'cancelSetting' })
+                ButtonCreator.textButton('Apply', this.#applyFilter.bind(this), { class : 'greenOnHover' }),
+                ButtonCreator.textButton('Reset', this.#resetFilter.bind(this), { id : 'resetFilter', class : 'yellowOnHover' }),
+                ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'redOnHover' })
             )
         );
 
@@ -311,7 +311,7 @@ class FilterDialog {
 
         $$('select', sortOrder).value = FilterSettings.sortOrder;
 
-        return appendChildren(buildNode('div', { style : 'padding: 20px' }),
+        return appendChildren(buildNode('div', { style : 'padding: 0 20px 20px 20px' }),
             buildNode('h3', {}, 'Sort'),
             buildNode('hr'),
             sortBy,

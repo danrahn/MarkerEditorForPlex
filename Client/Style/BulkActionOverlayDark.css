@@ -1,43 +1,12 @@
-.bulkActionOn {
-    background: rgba(0,100,0,0.3) !important; /** TODO: Scope #1116 to specific tables (and similar below) */
-}
-.bulkActionOn:hover {
-    background: rgba(0,100,0,0.4) !important;
-}
-
-.bulkActionOff {
-    background-color: #612121a1 !important;
-}
-
-.bulkActionOff:hover {
-    background-color: #812121a1 !important;
-}
-
-.bulkActionSemi {
-    background-color: #551a !important;
-}
-
-.bulkActionSemi:hover {
-    background-color: #662a !important;
-}
-
-.bulkActionInactive {
-    color: #919191;
-}
-
-#bulkActionContainer input[type=text] {
-    background-color: #41414141;
-}
-
-#bulkActionContainer tr.selectedRow {
-    background-color: #0387;
-}
-
-#bulkActionContainer tr:hover {
-    background-color: #04C7;
-}
-
-/** Icon-based buttons don't have a border by default, but we want one in the overlay. */
-#bulkActionButtons > .buttonIconAndText {
-    border: 1px solid rgba(133,133,133,.67);
+:root {
+  --bulk-action-table-green: rgba(0,100,0,0.3);
+  --bulk-action-table-green-hover: rgba(0,100,0,0.4);
+  --bulk-action-table-yellow: #551a;
+  --bulk-action-table-yellow-hover: #662a;
+  --bulk-action-table-red: #612121a1;
+  --bulk-action-table-red-hover: #812121a1;
+  --bulk-action-inactive-text: #919191;
+  --bulk-action-tr-hover: #04C7;
+  --bulk-action-tr-selected: #0387;
+  --bulk-action-button-border: rgba(133,133,133,.67);
 }

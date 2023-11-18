@@ -49,7 +49,7 @@ class BulkDeleteOverlay {
                     Icons.Confirm,
                     ThemeColors.Green,
                     this.#deleteAll.bind(this),
-                    { id : 'deleteApply', class : 'cancelSetting' }),
+                    { id : 'deleteApply', class : 'redOnHover' }),
                 ButtonCreator.fullButton(
                     'Customize',
                     Icons.Table,

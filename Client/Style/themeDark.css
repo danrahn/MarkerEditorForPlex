@@ -1,196 +1,53 @@
 :root {
-  --error-background: #9337;
-  --error-border: #C44;
-  --theme-standard: #c1c1c1;
+  /* Core colors */
+  --theme-primary: #c1c1c1;
+  --theme-background: #212121;
+  --theme-border: #616161;
+  --theme-border-hover: #818181;
   --theme-green: #4c4;
   --theme-red: #c44;
   --theme-orange: #c94;
-  
+  --theme-input-background: #414141;
+  --theme-hr-color: #999;
+  --theme-focus-color: #ff7f00;
+
+  /* Errors */
+  --error-background: #9337;
+  --error-border: #C44;
+
+  /* Main sections */
+  --media-item-hover: rgba(0,0,0,0.5);
+  --section-options-background: rgba(0,0,0,0.4);
+  --section-options-hover: rgba(0,0,0,0.5);
+  --section-options-input-hover: rgba(255,255,255,0.1);
+
+
+  /* Marker Table */
+  --table-odd-row: #1116;
+  --table-odd-hover: #11112166;
+  --table-even-row: #21212166;
+  --table-even-row-hover: #21213166;
+
+  /* Update Bar */
+  --update-bar-background: #040C;
+  --update-bar-input-background: #030C;
+  --update-bar-input-background-hover: #202C;
+
+  /* Misc */
+  --background-grad: linear-gradient(#212121CC, #402200CC);
+  --tooltip-background: rgba(50, 50, 50, .7);
+  --button-disabled-border: rgba(193,193,193,.67);
+  --button-disabled-shadow: #919191;
+  --text-button-border: #666;
+
   scrollbar-color: rgba(97, 97, 97, 0.76) #212121 !important;
 }
 
-body,
-::-webkit-scrollbar-track {
-  background: linear-gradient(#212121CC, #402200CC),
-              url('/i/noise.svg');
-}
-
-body {
-  background-attachment: fixed;
-  color: #c1c1c1;
-}
-
-input, select {
-  border: 1px solid #616161;
-  background-color: #414141;
-  color: #c1c1c1;
-}
-
-hr {
-  color: #999;
-  border-color: #999;
-}
-
+/* Light theme uses default values */
 a {
   color: #81a1e1;
 }
 
 a:visited {
   color: #6191c1;
-}
-
-.fancySelect option {
-  background-color: #212121;
-}
-
-.fancySelect option:hover {
-  background-color: #414141;
-}
-
-.fancySelect:hover,
-#search:hover,
-.inlineButton:hover {
-  border-color: #909090;
-}
-
-.inlineButton {
-  color: #a1a1a1;
-}
-
-.inlineButton:hover {
-  color: #c1c1c1;
-}
-
-select:focus,
-input:focus {
-  border-color: #ff7f00 !important;
-}
-
-#bulkActionCustomizeTable input[type=checkbox]:focus {
-  outline: 1px solid #ff7f00;
-}
-
-thead {
-  border-bottom: 1px solid #c1c1c1;
-}
-
-tr:nth-child(odd) {
-  background-color: #1116;
-}
-
-tr:nth-child(odd):hover {
-  background-color: #11112166;
-}
-
-tr:nth-child(even) {
-  background-color: #21212166;
-}
-
-tr:nth-child(even):hover {
-  background-color: #21213166;
-}
-
-.button:hover:not(.disabled) {
-  border: 1px solid rgba(193,193,193,.67);
-  box-shadow: 0 0 6px #919191;
-}
-
-.button:focus-visible {
-  outline: #ff7f00 solid 1px;
-}
-
-.buttonTextOnly {
-  border: 1px solid #666;
-}
-
-.topLevelResult,
-.seasonResult,
-.sectionOptionsResultRow {
-  border-bottom: 1px solid #999;
-}
-
-.topLevelResult:hover,
-.seasonResult:hover,
-.baseItemResult:hover,
-.bulkResultRow:hover,
-.sectionOptionsResultRow:hover {
-  background-color: rgba(0,0,0,0.5);
-}
-
-.sectionOptionsResultRow {
-  background-color: rgba(0,0,0,0.4);
-}
-
-.showResultSeasons,
-.showResultEpisodes,
-.resultRowAltTitle {
-  color: #AAA;
-}
-
-.goBack {
-  color: #d1d1d1;
-}
-
-.goBack>input:hover {
-  border-color: #c1c1c1;
-}
-
-input[type=button]:hover {
-  border-color: #A0A0A0;
-}
-
-.selected {
-  background: rgba(0,100,0,0.2);
-}
-
-.selected:hover {
-  background: rgba(0,100,0,0.3);
-}
-
-.overlayButton {
-  background-color: rgba(40, 40, 40, 0.8);
-  border: 1px solid #616161;
-}
-
-.overlayButton:hover {
-  border-color: #c1c1c1;
-}
-
-.overlayButton:focus {
-  border-color:#ff7f00;
-}
-
-.confirmDelete {
-  background-color: #612121;
-}
-
-::-webkit-scrollbar-track:hover {
-  background: black;
-}
-
-#tooltip {
-  background-color: rgba(50, 50, 50, .7);
-  color: #c1c1c1;
-}
-
-#updateBar {
-  background-color: #040C;
-}
-
-#updateBar select,
-#updateBar .button {
-  background-color: #030C;
-}
-
-#updateBar select:hover,
-#updateBar .button:hover {
-  background-color: #202C;
-}
-
-.sectionOptionsOverlayContainer {
-  background: rgba(0,0,0,0.4);
-}
-
-.sectionOptionsOverlayBtn:hover {
-  background: rgba(255,255,255,0.1);
 }

@@ -44,7 +44,7 @@ class SectionOptionsOverlay {
             ButtonCreator.textButton(
                 'Delete all markers',
                 this.#onDeleteAll.bind(this),
-                { class : 'sectionOptionsOverlayBtn cancelSetting' }),
+                { class : 'sectionOptionsOverlayBtn redOnHover' }),
             ButtonCreator.textButton(
                 'Back',
                 Overlay.dismiss,
@@ -72,7 +72,7 @@ class SectionOptionsOverlay {
                 ButtonCreator.textButton(
                     'Export',
                     this.#exportConfirmed.bind(this),
-                    { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
+                    { id : 'exportConfirmBtn', class : 'overlayButton greenOnHover' }),
                 ButtonCreator.textButton(
                     'Back',
                     this.#showMain.bind(this),
@@ -120,7 +120,7 @@ class SectionOptionsOverlay {
                 ButtonCreator.textButton(
                     'Import',
                     this.#importConfirmed.bind(this),
-                    { id : 'exportConfirmBtn', class : 'overlayButton confirmSetting' }),
+                    { id : 'exportConfirmBtn', class : 'overlayButton greenOnHover' }),
                 ButtonCreator.textButton(
                     'Back',
                     this.#showMain.bind(this),

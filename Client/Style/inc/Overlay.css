@@ -1,114 +1,147 @@
 /* Taken from PlexWeb/style/overlay.css */
 
 #mainOverlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    overflow: auto;
-    z-index: 3; /* Show over nav */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  z-index: 3; /* Show over nav */
+  background-color: var(--overlay-background);
+  scrollbar-width: thin !important;
+
+  & .greenOnHover:hover, .greenOnHover:focus {
+    background-color: var(--overlay-green-hover);
+  }
+
+  & .yellowOnHover:hover, .yellowOnHover:focus {
+    background-color: var(--overlay-yellow-hover);
+  }
+
+  & .redOnHover:hover, .redOnHover:focus {
+    background-color: var(--overlay-red-hover);
+  }
+
+  & .blueOnHover:hover, .blueOnHover:focus {
+    background-color: var(--overlay-blue-hover);
+  }
+
+  & hr {
+    border: 1px solid #53575a;
+  }
 }
 
 #overlayContainer {
-    width: auto;
-    height: auto;
+  width: auto;
+  height: auto;
+  color: var(--theme-primary);
 }
 
 .fullOverlay {
-    margin-top: 50px;
-    margin-bottom: 50px;
+  margin-top: 50px;
+  margin-bottom: 50px;
 }
 
 .overlayDiv {
-    padding-bottom: 20px;
-    margin: auto;
-    display: block;
-    text-align: center;
-    overflow: auto;
+  padding-bottom: 20px;
+  margin: auto;
+  display: block;
+  text-align: center;
+  overflow: auto;
 }
 
 .overlayTextarea {
-    display: block;
-    width: 50%;
-    min-width: 200px;
-    margin: auto;
-    float: none;
-    height: 50px;
+  display: block;
+  width: 50%;
+  min-width: 200px;
+  margin: auto;
+  float: none;
+  height: 50px;
 }
 
 .overlayInput {
-    display: block;
-    float: none;
-    margin: auto;
+  display: block;
+  float: none;
+  margin: auto;
 }
 
 .overlayButton {
-    margin-top: 10px;
-    padding: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  background-color: transparent;
+  border: 1px solid #53575a;
+}
+
+.overlayButton:hover {
+  border-color: var(--theme-primary);
 }
 
 .overlayInlineButton {
-    display : inline;
-    float : none;
-    margin: auto;
-    margin-top: 10px;
-    padding: 10px;
-    width: 100px;
+  display : inline;
+  float : none;
+  margin: auto;
+  margin-top: 10px;
+  padding: 10px;
+  width: 100px;
 }
 
 .centeredOverlay {
-    position: relative;
-    top: 50%;
-    transform: translateY(-50%);
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .overlayCloseButton {
-    position: fixed;
-    top: 10px;
-    right: 20px;
-    width: 25px;
-    opacity: 0.6;
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  width: 25px;
+  opacity: 0.6;
 }
 
 .overlayCloseButton:hover {
-    opacity: 1;
+  opacity: 1;
 }
 
 #overlayBtn {
-    margin: auto;
-    text-align: center;
-    display: block;
+  margin: auto;
+  text-align: center;
+  display: block;
+}
+
+.darkerOverlay {
+  background-color: var(--overlay-darker);
 }
 
 /* Desktop/Landscape */
 @media (min-width: 767px) {
-    .fullOverlay {
-        margin-left: 5%;
-        margin-right: 5%;
-    }
+  .fullOverlay {
+    margin-left: 5%;
+    margin-right: 5%;
+  }
 
-    .defaultOverlay {
-        margin-top: 25vh;
-    }
+  .defaultOverlay {
+    margin-top: 25vh;
+  }
 
-    #overlayContainer {
-        padding: 20px;
-    }
+  #overlayContainer {
+    padding: 20px;
+  }
 }
 
 /* Phone/Portrait */
 @media all and (max-width: 767px) {
-    .fullOverlay {
-        margin-left: 10px;
-        margin-right: 10px;
-    }
+  .fullOverlay {
+    margin-left: 10px;
+    margin-right: 10px;
+  }
 
-    .defaultOverlay {
-        margin-top: 10vh;
-    }
+  .defaultOverlay {
+    margin-top: 10vh;
+  }
 
-    #overlayContainer {
-        padding: 5px;
-    }
+  #overlayContainer {
+    padding: 5px;
+  }
 }

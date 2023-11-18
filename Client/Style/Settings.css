@@ -1,102 +1,130 @@
 #settings {
-    opacity: 0.8;
-    cursor: pointer;
-  }
+  opacity: 0.8;
+  cursor: pointer;
+}
 
-  #settings:hover {
-    opacity: 1;
-  }
+#settings:hover {
+  opacity: 1;
+}
 
-  #settingsContainer {
-    margin: auto;
-    width: 80%;
-    min-width: 200px;
-    max-width: 400px;
-    padding: 20px;
-    position: relative;
-  }
+/* TODO: This is used by multiple overlay modals, so give it a more generalized name. */
+#settingsContainer {
+  margin: auto;
+  width: 80%;
+  min-width: 200px;
+  max-width: 400px;
+  padding: 20px;
+  position: relative;
+  background-color: var(--overlay-modal-background);
 
-  #settingsContainer h3 {
+  & h3 {
     margin-top: 10px;
     text-align: center;
   }
 
-  #settingsContainer label {
+  & label {
     float: left;
   }
 
-  #settingsContainer input,
-  #settingsContainer select {
+  & input, select {
     float: right;
     border-radius: 5px;
     outline: 0;
+    border: 1px solid #53575a;
+    background-color: transparent;
   }
 
-  #settingsContainer input[type=button]:hover,
-  #settingsContainer select:hover {
-      border-color: #af4f00;
+  & input[type=checkbox]:hover, select:hover {
+    border-color: #af4f00;
   }
 
-  #settingsContainer select {
+  & select {
     margin: 0;
   }
 
-  #settingsContainer input[type=checkbox] {
+  & input[type=checkbox] {
     -webkit-appearance: none;
     appearance: none;
     padding: 6px;
     margin: auto;
     display: inline-block;
+    background-color: var(--settings-checkbox-background);
   }
 
-  .serverStateButton {
-    position: absolute;
-    top: 27px;
-    display: inline;
-    float: none;
-    transition: background-color 0.5s;
+  & input[type=checkbox]:checked {
+    background-color: var(--settings-checkbox-checked);
   }
 
-  .serverStateButton svg {
-    padding: 3px 0 3px 0;
+  & input[type=checkbox]:hover {
+    background-color: var(--settings-checkbox-hover);
   }
 
-  #shutdownServer {
-    right: 20px;
+  & input[type=checkbox]:checked:hover {
+    background-color: var(--settings-checkbox-checked-hover);
   }
 
-  #restartServer {
-    right: 50px;
+  & option {
+    background-color: var(--theme-background);
   }
 
-  #pauseServer {
-    right: 80px;
+  & .disabledSetting {
+    color: #818181;
   }
 
-  #shutdownRestartOverlay {
-    text-align: center;
-    margin: auto;
+  & .disabledSetting input[type=checkbox] {
+    background-color: var(--settings-checkbox-background) !important;
+    border-color: #53575a !important;
   }
+}
 
-  #shutdownRestartOverlay input {
-    float: none;
-  }
+.serverStateButton {
+  position: absolute;
+  top: 27px;
+  display: inline;
+  float: none;
+  transition: background-color 0.5s;
+}
 
-  #shutdownRestartOverlay .settingsButtons {
-    width: 100%;
-  }
+.serverStateButton svg {
+  padding: 3px 0 3px 0;
+}
 
-  .settingsButtons {
-    float: right;
-    overflow: auto;
-  }
+#shutdownServer {
+  right: 20px;
+}
 
-  .settingsButtons .button {
-    transition: background-color 0.25s;
-    padding: 5px;
-    margin-left: 5px;
-    border-radius: 3px;
-  }
+#restartServer {
+  right: 50px;
+}
+
+#pauseServer {
+  right: 80px;
+}
+
+#shutdownRestartOverlay {
+  text-align: center;
+  margin: auto;
+}
+
+#shutdownRestartOverlay input {
+  float: none;
+}
+
+#shutdownRestartOverlay .settingsButtons {
+  width: 100%;
+}
+
+.settingsButtons {
+  float: right;
+  overflow: auto;
+}
+
+.settingsButtons .button {
+  transition: background-color 0.25s;
+  padding: 5px;
+  margin-left: 5px;
+  border-radius: 3px;
+}
 
 /** TODO: Move to the appropriate place/update this file to be a generic overlay style definition */
 .filterNumberInput {

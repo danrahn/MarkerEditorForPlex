@@ -1,39 +1,12 @@
-.bulkActionOn {
-    background: rgba(0,100,0,0.2) !important;
-}
-.bulkActionOn:hover {
-    background: rgba(0,100,0,0.3) !important;
-}
-
-.bulkActionOff {
-    background-color: #f66a !important;
-}
-
-.bulkActionOff:hover {
-    background-color: #d66a !important;
-}
-
-.bulkActionSemi {
-    background-color: #DD8 !important;
-}
-
-.bulkActionSemi:hover {
-    background-color: #CC7 !important;
-}
-
-.bulkActionInactive {
-    color: #717171;
-}
-
-#bulkActionContainer tr.selectedRow {
-    background-color: #48a8;
-}
-
-#bulkActionContainer tr:hover {
-    background-color: #4AF8;
-}
-
-/** Icon-based buttons don't have a border by default, but we want one in the overlay. */
-#bulkActionButtons > .buttonIconAndText {
-    border: 1px solid rgba(93,93,93,.67);
+:root {
+  --bulk-action-table-green: rgba(0,100,0,0.2);
+  --bulk-action-table-green-hover: rgba(0,100,0,0.3);
+  --bulk-action-table-yellow: #DD8;
+  --bulk-action-table-yellow-hover: #CC7;
+  --bulk-action-table-red: #f66a;
+  --bulk-action-table-red-hover: #d66a;
+  --bulk-action-inactive-text: #717171;
+  --bulk-action-tr-hover: #4AF8;
+  --bulk-action-tr-selected: #48a8;
+  --bulk-action-button-border: rgba(93,93,93,.67);
 }

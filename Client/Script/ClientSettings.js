@@ -437,17 +437,23 @@ class ClientSettingsUI {
             Log.getLevel(),
             'Set the log verbosity in the browser console.'));
 
-        const icon = (iconName, text, fn) => {
+        const icon = (iconName, text, fn, hoverColor) => {
             const id = text.toLowerCase() + 'Server';
             text += ' Server';
-            return ButtonCreator.iconButton(iconName, text, ThemeColors.Primary, fn, { id : id, class : 'serverStateButton' });
+            return ButtonCreator.iconButton(
+                iconName,
+                text,
+                ThemeColors.Primary,
+                fn,
+                { id : id, class : `serverStateButton ${hoverColor}OnHover` }
+            );
         };
 
         options.push(buildNode('hr'));
         const container = appendChildren(buildNode('div', { id : 'settingsContainer' }),
-            icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this)),
-            icon(Icons.Restart, 'Restart', this.#restartServer.bind(this)),
-            icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this)),
+            icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this), 'blue'),
+            icon(Icons.Restart, 'Restart', this.#restartServer.bind(this), 'yellow'),
+            icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this), 'red'),
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
@@ -456,8 +462,8 @@ class ClientSettingsUI {
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
-                ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'confirmSetting' }),
-                ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'cancelSetting' })
+                ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'greenOnHover' }),
+                ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'redOnHover' })
             )
         );
 
@@ -479,7 +485,7 @@ class ClientSettingsUI {
                 buildNode('div', { class : 'formInput' }),
                 appendChildren(buildNode('div', { class : 'settingsButtons' }),
                     ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
-                    ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'cancelSetting' })))
+                    ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'redOnHover' })))
         );
 
         this.#transitionOverlay(container);

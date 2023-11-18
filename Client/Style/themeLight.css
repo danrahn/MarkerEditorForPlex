@@ -1,207 +1,43 @@
 :root {
-    --error-background: #F777;
-    --error-border: #C44;
-    --theme-standard: #212121;
-    --theme-green: #292;
-    --theme-red: #A22;
-    --theme-orange: #A22; /* Just red, looks better than orange/brown */
+  /* Core colors */
+  --theme-primary: #212121;
+  --theme-background: #ffefcc;
+  --theme-border: #616161;
+  --theme-border-hover: #212121;
+  --theme-green: #292;
+  --theme-red: #A22;
+  --theme-orange: #A22; /* Just red, looks better than orange/brown */
+  --theme-input-background: #f8e8c4;
+  --theme-hr-color: #444;
+  --theme-focus-color: #aa4f00;
 
-    scrollbar-color: #A19171 #C1B191 !important;
-}
+  /* Errors */
+  --error-background: #F777;
+  --error-border: #C44;
 
-body,
-::-webkit-scrollbar-track {
-    background-color: #ffefcc;
-    background: linear-gradient(#FFEFCCDD, #CCA066DD),
-                url('/i/noise.svg');
-}
+  /* Main sections */
+  --media-item-hover: rgba(0,0,0,0.2);
+  --section-options-background: rgba(30,100,0,0.2);
+  --section-options-hover: rgba(30,100,0,0.1);
+  --section-options-input-hover: rgba(255,255,255,0.3);
 
-body {
-    background-attachment: fixed;
-    color: #212121;
-}
+  /* Marker Table */
+  --table-odd-row: #fec6;
+  --table-odd-hover: #ffeebb66;
+  --table-even-row: #edb6;
+  --table-even-row-hover: #eda6;
 
-input, select {
-    border: 1px solid #616161;
-    background-color: #f8e8c4;
-    color: #212121;
-}
+  /* Update Bar */
+  --update-bar-background: #9D9;
+  --update-bar-input-background: #CFC;
+  --update-bar-input-background-hover: #DFD;
 
-hr {
-    color: #444;
-    border-color: #444;
-}
+  /* Misc */
+  --background-grad: linear-gradient(#FFEFCCDD, #CCA066DD);
+  --tooltip-background: rgba(255, 240, 200, 0.8);
+  --button-disabled-border: rgba(93,93,93,.67);
+  --button-disabled-shadow: #414141;
+  --text-button-border: #333;
 
-.fancySelect option {
-    background-color: #ffefca;
-}
-
-.fancySelect option:hover {
-    background-color: #ff8f88;
-}
-
-.fancySelect:hover,
-#search:hover,
-.inlineButton:hover {
-    border-color: #000;
-}
-
-.inlineButton {
-  color: #515151;
-}
-
-.inlineButton:hover {
-  color: #212121;
-}
-
-select:focus,
-input:focus {
-    border-color: #aa4f00 !important;
-}
-
-#bulkActionCustomizeTable input[type=checkbox]:focus {
-    outline: 1px solid #aa4f00;
-}
-
-thead {
-    border-bottom: 1px solid #21212166;
-}
-
-tr:nth-child(odd) {
-    background-color: #fec6;
-}
-
-tr:nth-child(odd):hover {
-    background-color: #ffeebb66;
-}
-
-tr:nth-child(even) {
-    background-color: #edb6;
-}
-
-tr:nth-child(even):hover {
-    background-color: #eda6;
-}
-
-.button:hover:not(.disabled) {
-    border: 1px solid rgba(93,93,93,.67);
-    box-shadow: 0 0 6px #414141;
-}
-
-.button:focus-visible {
-    outline: #ff7f00 solid 1px;
-}
-
-.buttonTextOnly {
-    border: 1px solid #333;
-}
-
-.topLevelResult,
-.seasonResult,
-.bulkResultRow,
-.sectionOptionsResultRow {
-    border-bottom: 1px solid #666;
-}
-
-.topLevelResult:hover,
-.seasonResult:hover,
-.baseItemResult:hover,
-.bulkResultRow:hover {
-    background-color: rgba(0,0,0,0.2);
-}
-
-.sectionOptionsResultRow {
-    background-color: rgba(30,100,0,0.2);
-}
-
-.sectionOptionsResultRow:hover {
-    background-color: rgba(30,100,0,0.1);
-}
-
-.showResultSeasons,
-.showResultEpisodes,
-.resultRowAltTitle {
-    color: #444;
-}
-
-.goBack {
-    color: #111;
-}
-
-.goBack>input:hover {
-    border-color: #313131;
-}
-
-input[type=button]:hover {
-    border-color: #A0A0A0;
-}
-
-.selected {
-  background: rgba(0,100,0,0.2);
-}
-
-.selected:hover {
-  background: rgba(0,100,0,0.3);
-}
-
-.overlayButton {
-    border: 1px solid #53575a;
-    background-color: #fec;
-}
-
-.overlayButton:focus {
-    border-color:#ff7f00;
-}
-
-.overlayButton:hover {
-    border-color: black !important;
-    background-color: #fea;
-}
-
-.confirmDelete {
-    background-color: #f66a;
-}
-
-#shutdownServer:hover {
-    background-color: #f66a !important;
-}
-
-#restartServer:hover,
-#resetFilter:hover {
-    background-color: #fb0a !important;
-}
-
-#pauseServer:hover {
-    background-color: #8afa !important;
-}
-
-::-webkit-scrollbar-track:hover {
-    background: #EECC99;
-}
-
-#tooltip {
-    background-color: rgba(255, 240, 200, 0.8);
-    color: #212121;
-}
-
-#updateBar {
-    background-color: #9D9;
-}
-
-#updateBar select,
-#updateBar .button {
-    background-color: #CFC;
-}
-
-#updateBar select:hover,
-#updateBar .button:hover {
-    background-color: #DFD;
-}
-
-.sectionOptionsOverlayContainer {
-    background-color: #fecd;
-}
-
-.sectionOptionsOverlayBtn:hover {
-  background: rgba(255,255,255,0.3);
+  scrollbar-color: #A19171 #C1B191 !important;
 }
