@@ -90,7 +90,7 @@ class BulkShiftOverlay {
             },
             0,
             { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : e => { timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/); }
+              keydown : timeInputShortcutHandler
             });
 
         this.#endTimeInput = buildNode('input',
@@ -101,7 +101,7 @@ class BulkShiftOverlay {
                 class : 'hidden' },
             0,
             { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : e => { timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/); }
+              keydown : timeInputShortcutHandler
             });
 
         const separateShiftCheck = buildNode(

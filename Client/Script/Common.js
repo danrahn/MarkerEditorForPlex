@@ -668,11 +668,12 @@ const truncationKeys = {
  * A common input handler that allows incremental
  * time changes with keyboard shortcuts.
  * @param {MouseEvent} e */
-function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
+function timeInputShortcutHandler(e, maxDuration=NaN) {
     if (e.key.length === 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
-        // Some time inputs (like bulk shift) allow negative values,
-        // so don't override '-' if we're at the start of the input.
-        if (allowNegative && e.key === '-' && e.target.selectionStart === 0) {
+        // Allow a negative sign, but only if we're at the start of the input and don't already have one.
+        if (e.key === '-'
+            && e.target.selectionStart === 0
+            && e.target.value[0] !== '-') {
             return;
         }
 
@@ -683,14 +684,14 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
 
         const simpleKey = e.key in adjustKeys;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
-        const min = allowNegative ? (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration) : 0;
-        const currentValue = e.target.value;
+        const min = (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
+        const currentValue = e.target.value === '-' ? '-0.0' : e.target.value;
 
         // Default to HMS, but keep ms if that's what's currently being used
         const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
 
         // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
-        const currentValueMs = timeToMs(currentValue || '0', allowNegative);
+        const currentValueMs = timeToMs(currentValue || '0', true /*allowNegative*/);
         if (isNaN(currentValueMs)) {
             return; // Don't try to do anything with invalid input
         }
@@ -714,6 +715,21 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
             e.target.value = needsHms ? msToHms(newTime) : newTime;
         }
     }
+}
+
+/**
+ * Small helper that converts a given negative or positive offset into a "real" timestamp.
+ * Negative offsets indicate an offset from the end of the item.
+ * @param {number} offset
+ * @param {number} duration
+ * @returns {number} */
+function realMs(offset, duration) {
+    // '===' treats -0 as +0, but Object.is can tell the difference.
+    if (offset < 0 || Object.is(offset, -0)) {
+        return duration + offset;
+    }
+
+    return offset;
 }
 
 /**
@@ -778,6 +794,7 @@ export {
     msToHms,
     pad0,
     plural,
+    realMs,
     roundDelta,
     ServerCommand,
     timeInputShortcutHandler,

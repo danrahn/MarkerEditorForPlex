@@ -6,6 +6,7 @@ import {
     clearEle,
     errorResponseOverlay,
     msToHms,
+    realMs,
     ServerCommand,
     timeInputShortcutHandler,
     timeToMs } from './Common.js';
@@ -125,13 +126,14 @@ class MarkerEdit {
          * @this {HTMLInputElement} */
         const pasteListener = (e) => {
             const text = e.clipboardData.getData('text/plain');
-            if (!/^[\d:.]*$/.test(text)) {
-                const newText = text.replace(/[^\d:.]/g, '');
+            const negative = text[0] === '-';
+            if (!/^-?[\d:.]*$/.test(text)) {
+                const newText = (negative ? '-' : '') + text.replace(/[^\d:.]/g, '');
                 e.preventDefault();
 
                 // Only attempt to insert if our transformed data can be interpreted
                 // as a valid timestamp.
-                if (isNaN(timeToMs(newText)) && isNaN(parseInt(newText))) {
+                if (isNaN(timeToMs(newText, true /*allowNegative*/)) && isNaN(parseInt(newText))) {
                     return;
                 }
 
@@ -299,19 +301,14 @@ class MarkerEdit {
      * On success, make the temporary row permanent and rearrange the markers based on their start time.
      * @param {Event} event */
     async #onMarkerAddConfirm(event) {
-        const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
-        const inputs = $('input[type="text"]', this.markerRow.row());
-        const startTime = timeToMs(inputs[0].value);
-        const endTime = timeToMs(inputs[1].value);
-        /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
-        const metadataId = mediaItem.metadataId;
-        const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
-        if (!mediaItem.markerTable().checkValues(this.markerRow.markerId(), startTime, endTime)) {
-            Overlay.setFocusBackElement(event.target);
+        const { markerType, startTime, endTime, final, valid } = this.#getCurrentValues(event);
+        if (!valid) {
             return;
         }
 
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
+        const metadataId = mediaItem.metadataId;
         try {
             const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, +final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
@@ -331,28 +328,41 @@ class MarkerEdit {
     /** Commits a marker edit, assuming it passes marker validation.
      * @param {Event} event */
     async #onMarkerEditConfirm(event) {
-        const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
-        const inputs = $('input[type="text"]', this.markerRow.row());
-        const startTime = timeToMs(inputs[0].value);
-        const endTime = timeToMs(inputs[1].value);
-        /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
-        const markerId = this.markerRow.markerId();
-        const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
-        if (!mediaItem.markerTable().checkValues(markerId, startTime, endTime)) {
-            Overlay.setFocusBackElement(event.target);
+        const { markerType, startTime, endTime, markerId, final, valid } = this.#getCurrentValues(event);
+        if (!valid) {
             return;
         }
 
         try {
             const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, +final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            mediaItem.markerTable().editMarker(editedMarker);
+            this.markerRow.parent().mediaItem().markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
             this.onMarkerEditCancel();
             errorResponseOverlay('Sorry, something went wrong with that request.', err);
         }
+    }
+
+    /**
+     * Get all relevant current values for this marker.
+     * @param {Event} e */
+    #getCurrentValues(e) {
+        const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
+        /** @type {HTMLInputElement[]} */
+        const inputs = $('input[type="text"]', this.markerRow.row());
+        /** @type {MediaItemWithMarkerTable} */
+        const mediaItem = this.markerRow.parent().mediaItem();
+        const startTime = realMs(timeToMs(inputs[0].value, true /*allowNegative*/), mediaItem.duration);
+        const endTime = realMs(timeToMs(inputs[1].value, true /*allowNegative*/), mediaItem.duration);
+        const markerId = this.markerRow.markerId();
+        const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
+        const valid = mediaItem.markerTable().checkValues(markerId, startTime, endTime);
+        if (!valid) {
+            Overlay.setFocusBackElement(e.target);
+        }
+
+        return { markerType, startTime, endTime, markerId, final, valid };
     }
 
     /**
@@ -715,7 +725,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * Sets the src of a thumbnail image based on the current input.
      * @param {Element} editGroup The DOM element containing a start or end marker's time input and thumbnail. */
     #refreshImage(editGroup) {
-        const timestamp = timeToMs($$('.timeInput', editGroup).value);
+        const mediaItem = this.markerRow.parent().mediaItem();
+        const timestamp = realMs(timeToMs($$('.timeInput', editGroup).value, true /*allowNegative*/), mediaItem.duration);
         if (isNaN(timestamp)) {
             return; // Don't ask for a thumbnail if the input isn't valid.
         }
@@ -727,7 +738,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        const url = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
+        const url = `t/${mediaItem.metadataId}/${timestamp}`;
         thumb.classList.remove('hidden');
         if (!thumb.src.endsWith(url)) {
             thumb.classList.remove('loaded');

@@ -1531,7 +1531,7 @@ ORDER BY e.\`index\` ASC;`;
 
         /** @type {(offset: number, episode: RawEpisodeData) => number} */
         const realTimestamp = (offset, episode) =>
-            offset >= 0 ? (Object.is(offset, -0) ? episode.duration : offset) : episode.duration + offset;
+            (offset < 0 || Object.is(offset, -0)) ? episode.duration + offset : offset;
 
         const episodeData = await this.getEpisodesAuto(metadataId);
         const ignoredEpisodes = new Set(ignored);

@@ -7,6 +7,7 @@ import {
     errorToast,
     msToHms,
     pad0,
+    realMs,
     ServerCommand,
     timeInputShortcutHandler,
     timeToMs,
@@ -107,7 +108,7 @@ class BulkAddOverlay {
                         id : 'addStart' },
                     0,
                     {   keyup : this.#onBulkAddInputChange.bind(this),
-                        keydown : e => timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/) }
+                        keydown : timeInputShortcutHandler }
                 ),
                 buildNode('label', { for : 'addEnd' }, 'End: '),
                 buildNode('input',
@@ -117,7 +118,7 @@ class BulkAddOverlay {
                         id : 'addEnd' },
                     0,
                     { keyup : this.#onBulkAddInputChange.bind(this),
-                      keydown : e => timeInputShortcutHandler(e, NaN /*maxDuration*/, true /*allowNegative*/) }
+                      keydown : timeInputShortcutHandler }
                 )
             ),
             appendChildren(buildNode('div', { id : 'chapterZone', class : 'hidden' }),
@@ -701,15 +702,9 @@ class BulkAddRow extends BulkActionRow {
      * @returns {{ mode : number, time : number }} */
     #calculateStartEnd(type, baseline) {
         if (!this.#parent.chapterMode()) {
-            let time = this.#parent[type + 'Time']();
-            if (time < 0 || Object.is(time, -0)) { // '===' treats -0 as +0, but Object.is can tell the difference.
-                // Negative offset is "duration from end". "-30000" is 30 seconds before the end of the episode
-                time = this.#episodeInfo.duration + time;
-            }
-
             return {
                 mode : ChapterMatchMode.Disabled,
-                time : time,
+                time : realMs(this.#parent[type + 'Time']()),
             };
         }
 
