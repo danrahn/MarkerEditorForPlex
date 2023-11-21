@@ -479,20 +479,27 @@ function errorMessage(error) {
 
 /**
  * Displays an error message in the top-left of the screen for a couple seconds.
- * @param {string} message */
+ * @param {string|HTMLElement} message */
 function errorToast(message, duration=2500) {
     const msg = buildNode('div', { class : 'errorToast' }, message);
-    document.body.appendChild(msg);
+    const container = $('#toastContainer');
+    container.appendChild(msg);
+
+    // Hack based on known css padding/border heights to avoid getComputedStyle.
+    const height = (msg.getBoundingClientRect().height - 32) + 'px';
+    msg.style.height = height;
+
     return animate(msg,
         [
             { opacity : 0 },
             { opacity : 1, offset : 0.2 },
             { opacity : 1, offset : 0.8 },
-            { opacity : 0, offset : 1 },
+            { height : height, overflow : 'hidden', padding : '15px', offset : 0.95 },
+            { opacity : 0, height : '0px', overflow : 'hidden', padding : '0px 15px 0px 15px', offset : 1 },
         ],
         { duration },
         () => {
-            document.body.removeChild(msg);
+            container.removeChild(msg);
         }
     );
 }

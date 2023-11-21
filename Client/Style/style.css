@@ -644,11 +644,16 @@ input:focus-visible {
   max-width: 250px; /** Don't get too crazy with extremely long episode/chapter titles */
 }
 
-.errorToast {
+#toastContainer {
   position: fixed;
   top: 20px;
   left: 20px;
-  padding: 15px;
+}
+
+.errorToast {
+  clear: both;
+  padding: 15px; /* Keep in sync with errorToast() */
+  margin-bottom: 10px;
   max-width: 300px;
   background-color: var(--error-background);
   border: 1px solid var(--error-border);
@@ -656,6 +661,15 @@ input:focus-visible {
   opacity: 0;
   font-size: smaller;
   z-index: 4; /* Show over nav/overlay */
+
+  & h4 {
+    padding: 0;
+    margin: 0;
+  }
+
+  & hr {
+    border-color: var(--error-border);
+  }
 }
 
 /* Icons */

@@ -1,11 +1,10 @@
-import { $$, appendChildren, buildNode, clearEle, msToHms } from './Common.js';
+import { $$, appendChildren, buildNode, clearEle, errorToast, msToHms } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import ButtonCreator from './ButtonCreator.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
-import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
@@ -310,14 +309,14 @@ class MarkerTable {
      * @param {number} endTime The end time of the marker, in milliseconds. */
     checkValues(markerId, startTime, endTime) {
         if (isNaN(startTime) || isNaN(endTime)) {
-            Overlay.show(
-                `Could not parse start and/or end times. ` +
+            this.#valueErrorToast(
+                `Could not parse start and/or end times.`,
                 `Please make sure they are specified in milliseconds (with no separators), or hh:mm:ss.000`);
             return false;
         }
 
         if (startTime >= endTime) {
-            Overlay.show('Start time cannot be greater than or equal to the end time.');
+            this.#valueErrorToast(`Marker Error`, 'Start time cannot be greater than or equal to the end time.');
             return false;
         }
 
@@ -330,13 +329,25 @@ class MarkerTable {
                 const message = markerId === -1 ?
                     `Consider expanding the range of the existing marker.` :
                     `Adjust this marker's timings or delete the other marker first to avoid overlap.`;
-                Overlay.show(
-                    `That overlaps with an existing marker (${msToHms(row.startTime())}-${msToHms(row.endTime())}).<br>${message}`);
+                this.#valueErrorToast(
+                    `Marker Overlap`,
+                    `New marker overlaps [${msToHms(row.startTime())}-${msToHms(row.endTime())}].<br>${message}`);
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * Displays an error message when a marker's bounds are invalid.
+     * @param {string} title
+     * @param {string} message */
+    #valueErrorToast(title, message) {
+        errorToast(appendChildren(buildNode('div'),
+            buildNode('h4', {}, title),
+            buildNode('hr'),
+            buildNode('span', {}, message)), 5000);
     }
 
     /**
