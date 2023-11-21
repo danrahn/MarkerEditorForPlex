@@ -683,7 +683,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN, allowNegative=false) {
         const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
 
         // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
-        const currentValueMs = timeToMs(currentValue || '0');
+        const currentValueMs = timeToMs(currentValue || '0', allowNegative);
         if (isNaN(currentValueMs)) {
             return; // Don't try to do anything with invalid input
         }
