@@ -17,6 +17,7 @@ import { PlexUI } from './PlexUI.js';
 /** @typedef {!import('../../Shared/PlexTypes').TopLevelData} TopLevelData */
 /** @typedef {!import('./BulkActionCommon').BulkActionCommon} BulkMarkerResult */
 /** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
+/** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 /** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
 /** @typedef {!import('./ResultRow').SeasonResultRow} SeasonResultRow */
 /** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
@@ -462,7 +463,7 @@ class PlexClientStateManager {
     async #updateInactiveBreakdown(activeIds, unpurged) {
         const promises = [];
         for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection].items)) {
-            if (activeIds.has(metadataId) || !unpurged.get(metadataId)) {
+            if (activeIds.has(+metadataId) || !unpurged.get(metadataId)) {
                 continue;
             }
 

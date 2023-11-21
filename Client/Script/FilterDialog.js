@@ -181,13 +181,13 @@ class FilterSettings {
         /* eslint-disable padding-line-between-statements */
         switch (markerCondition) {
             case FilterConditions.LessThan:
-                for (const bucket of Object.keys(markerCounts)) { if (bucket < markerLimit) { return false; } }
+                for (const bucket of Object.keys(markerCounts)) { if (+bucket < markerLimit) { return false; } }
                 return true;
             case FilterConditions.Equals:
-                for (const bucket of Object.keys(markerCounts)) { if (bucket === markerLimit) { return false; } }
+                for (const bucket of Object.keys(markerCounts)) { if (+bucket === markerLimit) { return false; } }
                 return true;
             case FilterConditions.GreaterThan:
-                for (const bucket of Object.keys(markerCounts)) { if (bucket > markerLimit) { return false; } }
+                for (const bucket of Object.keys(markerCounts)) { if (+bucket > markerLimit) { return false; } }
                 return true;
             default:
                 return false; // Default to not filtering it

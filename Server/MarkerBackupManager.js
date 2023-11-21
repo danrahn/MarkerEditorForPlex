@@ -506,7 +506,7 @@ class MarkerBackupManager {
 
         const transaction = new TransactionBuilder(this.#actions);
         for (const [section, uuid] of Object.entries(this.#uuids)) {
-            transaction.addStatement('UPDATE actions SET section_id=? WHERE section_uuid=?;', [section, uuid]);
+            transaction.addStatement('UPDATE actions SET section_id=? WHERE section_uuid=?;', [+section, uuid]);
         }
 
         await transaction.exec();

@@ -105,7 +105,7 @@ class MarkerBreakdownManager {
         }
 
         for (const [bucket, value] of Object.entries(chartData)) {
-            dataPoints.push({ value : value, label : plural(bucket, DataLabels[breakdownType]) });
+            dataPoints.push({ value : value, label : plural(+bucket, DataLabels[breakdownType]) });
         }
 
         const radius = Math.min(Math.min(400, window.innerWidth / 2 - 40), window.innerHeight / 2 - 200);
