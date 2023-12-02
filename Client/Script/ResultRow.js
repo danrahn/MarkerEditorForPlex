@@ -1619,15 +1619,11 @@ class MovieResultRow extends BaseItemResultRow {
         const metadataId = mov.metadataId;
         this.#markersGrabbed = true;
         try {
-            const markerData = await ServerCommand.query([metadataId]);
-            if (mov.hasThumbnails === undefined) {
-                mov.hasThumbnails = (await ServerCommand.checkForThumbnails(metadataId)).hasThumbnails;
-            }
+            const movieInfo = await ServerCommand.extendedQuery(metadataId);
+            mov.hasThumbnails = movieInfo.hasThumbnails;
 
-            markerData[metadataId].sort((a, b) => a.start - b.start);
-            if (mov.realMarkerCount === -1) {
-                mov.realMarkerCount = markerData[metadataId].length;
-            }
+            movieInfo.markers.sort((a, b) => a.start - b.start);
+            mov.realMarkerCount = movieInfo.markers.length;
 
             // Gather purge data before continuing
             try {
@@ -1636,19 +1632,12 @@ class MovieResultRow extends BaseItemResultRow {
                 Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${mov.title}`);
             }
 
-            // Also need to grab chapter data.
-            let chapters = [];
-            try {
-                chapters = (await ServerCommand.getChapters(metadataId))[metadataId];
-                if (!chapters) {
-                    Log.warn(`Chapter query didn't return any data for ${metadataId}, that's not right!`);
-                    chapters = [];
-                }
-            } catch (ex) {
-                Log.warn(`Failed to get chapter data for ${metadataId}, cannot enable chapter edit.`);
+            if (!movieInfo.chapters) {
+                Log.warn(`Chapter query didn't return any data for ${metadataId}, that's not right!`);
+                movieInfo.chapters = [];
             }
 
-            mov.initializeMarkerTable(markerData[metadataId], chapters);
+            mov.initializeMarkerTable(movieInfo.markers, movieInfo.chapters);
             this.html().insertBefore(mov.markerTable().table(), $$('.episodeSeparator', this.html()));
         } catch (ex) {
             this.#markersGrabbed = false;

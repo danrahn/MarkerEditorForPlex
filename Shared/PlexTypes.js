@@ -104,6 +104,14 @@ import { MarkerType } from './MarkerType.js';
  */
 
 /**
+ * Query information necessary to create a marker table.
+ * @typedef {{
+ *      markers : SerializedMarkerData[],
+ *      hasThumbnails: boolean,
+ *      chapters: ChapterData[] }} ExtendedQueryInfo
+ */
+
+/**
  * Retrieve an object to initialize the base PlexData of a derived class.
  * @param {object} item
  * @returns {PlexDataBaseData} */

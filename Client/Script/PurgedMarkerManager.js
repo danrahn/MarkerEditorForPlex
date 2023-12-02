@@ -1102,6 +1102,12 @@ class PurgedMarkerManager {
      * @param {PurgedSection} section
      * @param {number} metadataId */
     async #getPurgedTopLevelMarkersShared(section, metadataId) {
+        // If the section itself is complete, we know the item doesn't have any purged markers
+        // if there's no cache entry.
+        if (section.status === PurgeCacheStatus.Complete && !section.get(metadataId)) {
+            return false;
+        }
+
         let topLevelItem = section.getOrAdd(metadataId);
 
         if (topLevelItem.status === PurgeCacheStatus.Complete) {
@@ -1287,7 +1293,8 @@ class PurgedMarkerManager {
      * @param {PurgeSection} purgeSection Tree of purged markers in the current library section.
      * @param {boolean} dryRun Whether we just want to populate our cache data, not show the purges. */
     #onMarkersFound(purgeSection, dryRun) {
-        if (PlexClientState.activeSectionType() === SectionType.Movie) {
+        const isMovieSection = PlexClientState.activeSectionType() === SectionType.Movie;
+        if (isMovieSection) {
             for (const [movieId, movie] of Object.entries(purgeSection)) {
                 const movieCache = this.#purgeCache.get(movieId);
                 if (movieCache && movieCache.status === PurgeCacheStatus.Complete) {
@@ -1332,7 +1339,7 @@ class PurgedMarkerManager {
         }
 
         const activeSection = PlexClientState.activeSection();
-        this.#serverPurgeInfo.getOrAdd(activeSection).status = PurgeCacheStatus.Complete;
+        this.#serverPurgeInfo.getOrAdd(activeSection, isMovieSection).status = PurgeCacheStatus.Complete;
         if (dryRun) {
             return;
         }

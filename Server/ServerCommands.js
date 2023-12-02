@@ -38,6 +38,7 @@ class ServerCommands {
         get_stats     : async (params) => await QueryCommands.allStats(params.i('id')),
         get_breakdown : async (params) => await QueryCommands.getMarkerBreakdownTree(...params.ints('id', 'includeSeasons')),
         get_chapters  : async (params) => await QueryCommands.getChapters(params.i('id')),
+        query_full    : async (params) => await QueryCommands.extendedQuery(params.i('id')),
 
         get_config    : async (_)      => await GeneralCommands.getConfig(),
         log_settings  : async (params) => await GeneralCommands.setLogSettings(...params.ints('level', 'dark', 'trace')),

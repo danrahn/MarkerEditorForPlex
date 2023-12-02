@@ -11,6 +11,7 @@ import ServerError from '../ServerError.js';
 import { Thumbnails } from '../ThumbnailManager.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
+/** @typedef {!import('../PlexQueryManager').RawMarkerData} RawMarkerData */
 /** @typedef {!import('../MarkerCacheManager').TreeStats} TreeStats */
 
 
@@ -264,6 +265,25 @@ class QueryCommands {
      * @param {number} metadataId */
     static async getChapters(metadataId) {
         return PlexQueries.getMediaChapters(metadataId);
+    }
+
+    /**
+     * Retrieve all relevant marker table query information for the given base item (episode/movie)
+     * @param {number} metadataId */
+    static async extendedQuery(metadataId) {
+        const queries = [
+            PlexQueries.getBaseTypeMarkers(metadataId),
+            QueryCommands.checkForThumbs(metadataId),
+            QueryCommands.getChapters(metadataId),
+        ];
+
+        /** @type {[RawMarkerData[], { hasThumbnails: boolean }, ChapterMap ]} */
+        const results = await Promise.all(queries);
+        return {
+            markers : results[0].map(m => new MarkerData(m)),
+            hasThumbnails : results[1].hasThumbnails,
+            chapters : results[2][metadataId],
+        };
     }
 }
 

@@ -10,6 +10,7 @@ import ServerPausedOverlay from './ServerPausedOverlay.js';
 /** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
+/** @typedef {!import('../../Shared/PlexTypes').ExtendedQueryInfo} ExtendedQueryInfo */
 /** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
@@ -267,6 +268,12 @@ const ServerCommand = {
      * @param {number} metadataId
      * @returns {Promise<ChapterMap>} */
     getChapters : async (metadataId) => jsonRequest('get_chapters', { id : metadataId }),
+
+    /**
+     * Retrieve all information relevant for marker table creation for a given movie/episode id.
+     * @param {number} metadataId
+     * @returns {Promise<ExtendedQueryInfo} */
+    extendedQuery : async (metadataId) => jsonRequest('query_full', { id : metadataId }),
 };
 /* eslint-enable */
 
