@@ -99,6 +99,32 @@ export function animateOpacity(ele, start, end, options, callback) {
 }
 
 /**
+ * Checks the given property on the element to be used as a restoration
+ * value. If the element is already animating that property, return the
+ * cached property, otherwise grab it from the style directly.
+ * @param {HTMLElement} ele
+ * @param {string} prop */
+function checkProp(ele, prop) {
+    const sav = ele.style[prop];
+    prop = `data-${prop}-reset`;
+    const isAnimating = ele.getAttribute(prop);
+    if (isAnimating !== null) {
+        return isAnimating;
+    }
+
+    ele.setAttribute(prop, sav);
+    return sav;
+}
+
+/**
+ * Remove the given data-prop-reset property from the element
+ * @param {HTMLElement} ele
+ * @param {string} prop */
+function removeProp(ele, prop) {
+    ele.removeAttribute(`data-${prop}-reset`);
+}
+
+/**
  * Shrink the height of ele to 0 while also fading out the content.
  * @param {HTMLElement} ele
  * @param {number|AnimationOptions} options
@@ -112,7 +138,7 @@ export function slideUp(ele, options, callback) {
     // * Explicitly set the height of the element BEFORE setting overflow:hidden, because
     //   overflow:hidden disables margin collapsing, so might increase the height of the element
     //   right before animating.
-    const heightSav = ele.style.height;
+    const heightSav = checkProp(ele, 'height');
     let startingHeight = heightSav;
     if (!startingHeight) {
         const bounds = ele.getBoundingClientRect();
@@ -131,6 +157,8 @@ export function slideUp(ele, options, callback) {
                 ele.style.height = heightSav;
             }
 
+            removeProp(ele, 'height');
+
             await callback?.();
         });
 }
@@ -143,7 +171,7 @@ export function slideUp(ele, options, callback) {
  * @param {(...any) => any} [callback] */
 export function slideDown(ele, finalHeight, options, callback) {
     logAnimate('slideDown', ele, { options, callback });
-    const hasHeight = !!ele.style.height;
+    const hasHeight = !!checkProp(ele, 'height');
 
     return slide(
         ele,
@@ -156,6 +184,8 @@ export function slideDown(ele, finalHeight, options, callback) {
                 ele.style.height = finalHeight;
             }
 
+            removeProp(ele, 'height');
+
             await callback?.();
         });
 }
@@ -166,18 +196,21 @@ export function slideDown(ele, finalHeight, options, callback) {
  * @param {number|AnimationOptions} options
  * @param {(...any) => any} [callback] */
 function slide(ele, stops, options, callback) {
-    const ofSav = ele.style.overflow;
+    const ofSav = checkProp(ele, 'overflow');
     ele.style.overflow = 'hidden';
 
     return new Promise(resolve => {
-        ele.animate(
+        const ani = ele.animate(
             [
                 { ...stops[0], easing : 'ease-out' },
                 { ...stops[1] }
             ],
             options
-        ).addEventListener('finish', async () => {
+        );
+
+        ani.addEventListener('finish', async () => {
             ele.style.overflow = ofSav;
+            removeProp(ele, 'overflow');
             await callback?.();
             resolve();
         });
