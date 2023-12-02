@@ -704,7 +704,7 @@ class BulkAddRow extends BulkActionRow {
         if (!this.#parent.chapterMode()) {
             return {
                 mode : ChapterMatchMode.Disabled,
-                time : realMs(this.#parent[type + 'Time']()),
+                time : realMs(this.#parent[type + 'Time'](), this.#episodeInfo.duration),
             };
         }
 
