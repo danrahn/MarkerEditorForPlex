@@ -365,6 +365,9 @@ class BulkActionTable {
     onRowClicked(e, toggledRow) {
         // The following should match the behavior of Windows Explorer bulk-selection
         if (!e.ctrlKey && !e.shiftKey) {
+            // If this is the only row that's currently selected, deselect with a plain click.
+            const onlyThisWasSelected = this.#selected.size === 1 && toggledRow.selected;
+
             // Regular click. Clear out any existing selection and select
             // this one, even if it was previously in the group selection.
             for (const selectedRow of this.#selected.values()) {
@@ -372,7 +375,7 @@ class BulkActionTable {
             }
 
             this.#selected.clear();
-            this.#setSelectState(toggledRow, true);
+            this.#setSelectState(toggledRow, !onlyThisWasSelected);
         } else if (e.ctrlKey && e.shiftKey) {
             if (this.#lastSelected) {
                 // Iterate from the last selected row to this row. If the last
