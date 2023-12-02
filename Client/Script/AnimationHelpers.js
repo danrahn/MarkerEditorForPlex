@@ -15,7 +15,7 @@ const Log = new ContextualLog('Animate');
  * @param {string} method
  * @param {HTMLElement} element
  * @param {object} params */
-const logAnimate = (method, element, params) => {
+const logAnimate = (method, element, params={}) => {
     // Avoid unnecessary parsing if we're not going to show it
     if (Log.getLevel() > ConsoleLog.Level.Tmi) { return; }
 
