@@ -539,16 +539,7 @@ input:focus-visible {
   margin: auto;
 }
 
-#overlayDeleteMarker,
-#exportConfirmBtn {
-  margin-right: 10px;
-}
-
-#deleteMarkerCancel {
-  margin-left: 10px;
-}
-
-.confirmDelete {
+.confirmDelete:hover {
   background-color: var(--overlay-red-hover);
 }
 

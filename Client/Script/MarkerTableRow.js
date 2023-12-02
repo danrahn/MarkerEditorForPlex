@@ -1,17 +1,17 @@
 
-import { $, $$, appendChildren, buildNode, clearEle, errorResponseOverlay, ServerCommand } from './Common.js';
+import { $$, appendChildren, buildNode, clearEle, errorToast, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { animateOpacity, flashBackground } from './AnimationHelpers.js';
 import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
+import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import Icons from './Icons.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
-import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
-import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 
@@ -189,48 +189,81 @@ class ExistingMarkerRow extends MarkerRow {
     }
 
     /** Prompts the user before deleting a marker. */
-    #confirmMarkerDelete() {
-        // Build confirmation dialog
-        const container = buildNode('div', { class : 'overlayDiv' });
-        const header = buildNode('h2', {}, 'Are you sure?');
-        const subtext = buildNode('div', {}, 'Are you sure you want to permanently delete this marker?');
+    async #confirmMarkerDelete() {
+        const dateAdded = this.html.children[3];
+        const options = this.html.children[4];
+        Log.assert(dateAdded.childNodes.length === 1, `Inline marker delete only expects a single child in the DateAdded td.`);
+        Log.assert(options.childNodes.length === 1, `Inline marker delete only expects a single child in the Options td.`);
 
-        const okayAttr = { id : 'overlayDeleteMarker', class : 'overlayButton confirmDelete', markerId : this.#markerData.id };
-        const okayButton = ButtonCreator.textButton('Delete', this.#onMarkerDelete.bind(this), okayAttr);
+        await Promise.all([
+            animateOpacity(dateAdded.children[0], 1, 0, { duration : 100, noReset : true }),
+            animateOpacity(options.children[0], 1, 0, { duration : 100, noReset : true }),
+        ]);
 
-        const cancelAttr = { id : 'deleteMarkerCancel', class : 'overlayButton' };
-        const cancelButton = ButtonCreator.textButton('Cancel', Overlay.dismiss, cancelAttr);
+        dateAdded.children[0].style.display = 'none';
+        const text = buildNode('span', { class : 'inlineMarkerDeleteConfirm' }, 'Are you sure? ');
+        dateAdded.appendChild(text);
 
-        const outerButtonContainer = buildNode('div', { class : 'formInput', style : 'text-align: center' });
-        const buttonContainer = buildNode('div', { style : 'float: right; overflow: auto; width: 100%; margin: auto' });
-        outerButtonContainer.appendChild(appendChildren(buttonContainer, okayButton, cancelButton));
-        appendChildren(container, header, subtext, outerButtonContainer);
-        Overlay.build({
-            dismissible : true,
-            centered : false,
-            setup : { fn : () => $('#deleteMarkerCancel').focus() },
-            focusBack : $$('.deleteMarkerBtn', this.parent().html()),
-        }, container);
+        options.children[0].style.display = 'none';
+        const cancel = ButtonCreator.fullButton('No', Icons.Cancel, ThemeColors.Red, this.#onMarkerDeleteCancel.bind(this));
+        const delOptions = appendChildren(
+            buildNode('div', { class : 'markerOptionsHolder inlineMarkerDeleteButtons' }),
+            ButtonCreator.fullButton('Yes', Icons.Confirm, ThemeColors.Green, this.#onMarkerDelete.bind(this), { class : 'confirmDelete' }),
+            cancel,
+        );
+
+        options.appendChild(delOptions);
+        cancel.focus();
+
+        return Promise.all([
+            animateOpacity(dateAdded, 0, 1, { duration : 100, noReset : true }),
+            animateOpacity(delOptions, 0, 1, { duration : 100, noReset : true }),
+        ]);
     }
 
     /** Makes a request to delete a marker, removing it from the marker table on success. */
     async #onMarkerDelete() {
-        const thisButton = $('#overlayDeleteMarker');
-        if (thisButton) {
-            thisButton.value = 'Deleting...';
-        }
-
+        const confirmBtn = $$('.confirmDelete', this.html);
         try {
+            ButtonCreator.setIcon(confirmBtn, Icons.Loading, ThemeColors.Green);
             const rawMarkerData = await ServerCommand.delete(this.markerId());
-            Overlay.setFocusBackElement($$('.tabbableRow', this.parent().html()));
-            Overlay.dismiss();
+            ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Green);
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
             /** @type {MediaItemWithMarkerTable} */
             const mediaItem = this.parent().mediaItem();
+            await flashBackground(confirmBtn, Theme.getHex(ThemeColors.Green, '6'), 200);
             mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
-            errorResponseOverlay('Failed to delete marker.', err);
+            ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Red);
+            errorToast(`Failed to delete marker.<br>${err}`, 5000);
+            await flashBackground(confirmBtn, Theme.getHex(ThemeColors.Red, '6'), 500);
+            this.#onMarkerDeleteCancel();
         }
+    }
+
+    /**
+     * Removes the temporary delete confirmation UI and bring the old UI back. */
+    async #onMarkerDeleteCancel() {
+        const dateAdded = this.html.children[3];
+        const confText = $$('.inlineMarkerDeleteConfirm', dateAdded);
+
+        const options = this.html.children[4];
+        const confButtons = $$('.inlineMarkerDeleteButtons', options);
+        await Promise.all([
+            animateOpacity(confText, 1, 0, { duration : 100, noReset : true }),
+            animateOpacity(confButtons, 1, 0, { duration : 100, noReset : true }),
+        ]);
+
+        dateAdded.removeChild(confText);
+        dateAdded.children[0].style.removeProperty('display');
+        options.removeChild(confButtons);
+        options.children[0].style.removeProperty('display');
+        $$('.deleteMarkerBtn', options)?.focus();
+
+        return Promise.all([
+            animateOpacity(dateAdded.children[0], 0, 1, { duration : 100, noReset : true }),
+            animateOpacity(options.children[0], 0, 1, { duration : 100, noReset : true })
+        ]);
     }
 }
 
