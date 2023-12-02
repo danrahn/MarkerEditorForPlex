@@ -665,55 +665,64 @@ const truncationKeys = {
 };
 
 /**
+ * If we have a negative, it's valid if we're at the start of the input and
+ * a negative isn't already present (or the negative is selected).
+ * @param {KeyboardEvent} e */
+const validNegative = e =>
+    e.key === '-'
+    && e.target.selectionStart === 0
+    && (e.target.value[0] !== '-' || e.target.selectionEnd !== e.target.selectionStart);
+
+/**
  * A common input handler that allows incremental
  * time changes with keyboard shortcuts.
- * @param {MouseEvent} e */
+ * @param {KeyboardEvent} e */
 function timeInputShortcutHandler(e, maxDuration=NaN) {
-    if (e.key.length === 1 && !e.ctrlKey && !/[\d:.]/.test(e.key)) {
-        // Allow a negative sign, but only if we're at the start of the input and don't already have one.
-        if (e.key === '-'
-            && e.target.selectionStart === 0
-            && e.target.value[0] !== '-') {
-            return;
-        }
+    if (e.key.length !== 1 || e.ctrlKey || /[\d:.]/.test(e.key)) {
+        return;
+    }
 
-        e.preventDefault();
-        if (!adjustKeys[e.key] && !truncationKeys[e.key]) {
-            return;
-        }
+    // Allow a negative sign, but only if we're at the start of the input and don't already have one.
+    if (validNegative(e)) {
+        return;
+    }
 
-        const simpleKey = e.key in adjustKeys;
-        const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
-        const min = (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
-        const currentValue = e.target.value === '-' ? '-0.0' : e.target.value;
+    e.preventDefault();
+    if (!adjustKeys[e.key] && !truncationKeys[e.key]) {
+        return;
+    }
 
-        // Default to HMS, but keep ms if that's what's currently being used
-        const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
+    const simpleKey = e.key in adjustKeys;
+    const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
+    const min = (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
+    const currentValue = e.target.value === '-' ? '-0.0' : e.target.value;
 
-        // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
-        const currentValueMs = timeToMs(currentValue || '0', true /*allowNegative*/);
-        if (isNaN(currentValueMs)) {
-            return; // Don't try to do anything with invalid input
-        }
+    // Default to HMS, but keep ms if that's what's currently being used
+    const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
 
-        let timeDiff = 0;
-        if (simpleKey) {
-            timeDiff = adjustKeys[e.key] * (e.altKey ? 5 : 1);
-        } else {
-            timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
-        }
+    // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
+    const currentValueMs = timeToMs(currentValue || '0', true /*allowNegative*/);
+    if (isNaN(currentValueMs)) {
+        return; // Don't try to do anything with invalid input
+    }
 
-        const newTime = Math.min(max, Math.max(min, currentValueMs + timeDiff));
-        const newValue = needsHms ? msToHms(newTime) : newTime;
+    let timeDiff = 0;
+    if (simpleKey) {
+        timeDiff = adjustKeys[e.key] * (e.altKey ? 5 : 1);
+    } else {
+        timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
+    }
 
-        // execCommand will make this undo-able, but is deprecated.
-        // Fall back to direct substitution if necessary.
-        try {
-            e.target.select();
-            document.execCommand('insertText', false, newValue);
-        } catch (ex) {
-            e.target.value = needsHms ? msToHms(newTime) : newTime;
-        }
+    const newTime = Math.min(max, Math.max(min, currentValueMs + timeDiff));
+    const newValue = needsHms ? msToHms(newTime) : newTime;
+
+    // execCommand will make this undo-able, but is deprecated.
+    // Fall back to direct substitution if necessary.
+    try {
+        e.target.select();
+        document.execCommand('insertText', false, newValue);
+    } catch (ex) {
+        e.target.value = needsHms ? msToHms(newTime) : newTime;
     }
 }
 
