@@ -148,14 +148,14 @@ class ShiftTest extends TestBase {
 
     /**
      * Ensure we don't apply anything when only checking the shift and the episode has multiple markers. */
-    async shiftSingleEpisodeWithMultipleMarkersDontApplyTest() {
+    shiftSingleEpisodeWithMultipleMarkersDontApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         return this.#verifyAttemptedShift(episode.Id, 3, 1, true);
     }
 
     /**
      * Ensure we don't apply anything when an episode has multiple markers and we aren't forcing the operation. */
-    async shiftSingleEpisodeWithMultipleMarkersTryApplyTest() {
+    shiftSingleEpisodeWithMultipleMarkersTryApplyTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         return this.#verifyAttemptedShift(episode.Id, 3, 1);
     }
@@ -214,7 +214,7 @@ class ShiftTest extends TestBase {
 
     /**
      * Ensure we don't apply if any episodes in the season have multiple markers when not force applying. */
-    async tryShiftSeasonWithoutIgnoreTest() {
+    tryShiftSeasonWithoutIgnoreTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         return this.#verifyAttemptedShift(season.Id, 4, 2, true);
     }
@@ -300,7 +300,7 @@ class ShiftTest extends TestBase {
      * @param {boolean} expectConflict Whether we expect to encounter a conflict.
      * @param {boolean} force Whether the shift operation should be forced.
      * @returns {Promise<ShiftResult>} */
-    async #verifyJoinedShift(metadataId, shift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
+    #verifyJoinedShift(metadataId, shift, expectedLength, applyTo=MarkerEnum.All, ignoreList=[], expectConflict=false, force=0) {
         return this.#verifySplitShift(metadataId, shift, shift, expectedLength, applyTo, ignoreList, expectConflict, force);
     }
 

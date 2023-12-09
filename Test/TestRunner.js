@@ -128,7 +128,7 @@ class TestRunner {
 
     /**
      * Shut down the test server if necessary. */
-    async #shutdown() {
+    #shutdown() {
         if (GetServerState() !== ServerState.ShuttingDown) {
             return fetch(
                 `http://localhost:3233/shutdown`,

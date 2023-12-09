@@ -514,7 +514,7 @@ class BulkActionCommon {
      * @param {string|HTMLElement} buttonId
      * @param {string} color
      * @param {number} [duration=500] */
-    static async flashButton(buttonId, color, duration=1000) {
+    static flashButton(buttonId, color, duration=1000) {
         return flashBackground(buttonId, Theme.getHex(color, 4), duration);
     }
 

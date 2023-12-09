@@ -42,7 +42,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Test the easiest scenario - bulk add a marker that has no conflicts with existing markers. */
-    async easyBulkAddEpisodeTest() {
+    easyBulkAddEpisodeTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -61,7 +61,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Basic scenario - add a marker to a season that has no conflicts. */
-    async easyBulkAddSeasonTest() {
+    easyBulkAddSeasonTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const expectedMarkers = [
             { id : TestBase.NextMarkerIndex, start : 0, end : 10000, index : 0 },
@@ -86,7 +86,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Basic scenario - add a marker to a show that has no conflicts. */
-    async easyBulkAddShowTest() {
+    easyBulkAddShowTest() {
         const show = TestBase.DefaultMetadata.Show3;
         const newStart = 50000;
         const newEnd = 70000;
@@ -115,7 +115,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Treat negative indexes as offset from end. */
-    async bulkAddNegativeOffsetTest() {
+    bulkAddNegativeOffsetTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -134,7 +134,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Test when both offsets are negative. */
-    async bulkAddBothNegativeOffsetTest() {
+    bulkAddBothNegativeOffsetTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -153,7 +153,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Ensure a combination of positive+negative offsets don't apply if the start is later than the end. */
-    async bulkAddInvalidNegativeOffsetTest() {
+    bulkAddInvalidNegativeOffsetTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -169,7 +169,7 @@ class BulkAddTest extends TestBase {
     }
 
     /** Ensure we fail with a negative timestamp that is longer than the episode, even if our resolve type isn't 'Fail'. */
-    async bulkAddTooNegativeOffsetTest() {
+    bulkAddTooNegativeOffsetTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -184,7 +184,7 @@ class BulkAddTest extends TestBase {
         );
     }
 
-    async bulkAddNegativeZeroTest() {
+    bulkAddNegativeZeroTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -204,7 +204,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure nothing is applied when a bulk add overlaps with an existing marker and
      * the resolve type is Fail */
-    async bulkAddOverlapResolveTypeFailFailsTest() {
+    bulkAddOverlapResolveTypeFailFailsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const expectedMarkers = [
             this.#testMarkerFromTestData(season.Episode1.Marker1, 0),
@@ -228,7 +228,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure we apply a bulk add when the only episode with a conflict is explicitly ignored
      * when the resolve type is Fail. */
-    async bulkAddOverlapResolveTypeFailWithIgnoreSucceedsTest() {
+    bulkAddOverlapResolveTypeFailWithIgnoreSucceedsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 300000;
         const newEnd = 350000;
@@ -255,7 +255,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure existing markers are expanded when bulk add markers overlap with existing
      * markers and the resolve type is Merge. */
-    async bulkAddOverlapResolveTypeMergeSucceedsTest() {
+    bulkAddOverlapResolveTypeMergeSucceedsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 330000;
         const newEnd = 350000;
@@ -282,7 +282,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure existing markers are deleted when bulk add markers overlap with existing
      * markers and the resolve type is Overwrite. */
-    async bulkAddOverlapResolveTypeOverwriteSucceedsTest() {
+    bulkAddOverlapResolveTypeOverwriteSucceedsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 330000;
         const newEnd = 350000;
@@ -312,7 +312,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure a bulk add that swallows two markers expands the first and deletes the second
      * when the resolve type is Merge. Bulk add start after first marker's start. */
-    async bulkAddOverlapSwallows1Test() {
+    bulkAddOverlapSwallows1Test() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 16000;
         const newEnd = 350000;
@@ -337,7 +337,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure a bulk add that swallows two markers expands the first and deletes the second
      * when the resolve type is Merge. Bulk add start before first marker's start. */
-    async bulkAddOverlapSwallows2Test() {
+    bulkAddOverlapSwallows2Test() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 0;
         const newEnd = 350000;
@@ -361,7 +361,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Ensure a bulk add that swallows two markers deletes both when the resolve type is Overwrite. */
-    async bulkAddOverlapOverwriteDeletesMultipleTest() {
+    bulkAddOverlapOverwriteDeletesMultipleTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 16000;
         const newEnd = 350000;
@@ -394,7 +394,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure episodes are ignored when existing markers conflict with the bulk
      * add when the resolve type is Ignore. */
-    async bulkAddOverlapResolveTypeIgnoreSucceedsTest() {
+    bulkAddOverlapResolveTypeIgnoreSucceedsTest() {
         const season = TestBase.DefaultMetadata.Show3.Season1;
         const newStart = 330000;
         const newEnd = 350000;
@@ -421,7 +421,7 @@ class BulkAddTest extends TestBase {
     /**
      * Ensure we limit the marker end to the end of the episode if
      * the specified end is over the duration of an episode. */
-    async bulkAddTruncatedTest() {
+    bulkAddTruncatedTest() {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode1;
         return this.#verifyBulkAdd(
             episode.Id,
@@ -438,7 +438,7 @@ class BulkAddTest extends TestBase {
         );
     }
 
-    async bulkAddCustomTest() {
+    bulkAddCustomTest() {
         const season = TestBase.DefaultMetadata.Show1.Season1;
         return this.#verifyCustomBulkAdd(
             season.Id,
@@ -461,7 +461,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * Verify that leaving out data for a given episode results in that episode being ignored. */
-    async bulkAddCustomImplicitIgnoreTest() {
+    bulkAddCustomImplicitIgnoreTest() {
         const season = TestBase.DefaultMetadata.Show1.Season1;
         return this.#verifyCustomBulkAdd(
             season.Id,

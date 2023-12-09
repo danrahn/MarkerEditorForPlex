@@ -20,7 +20,7 @@ import { TestLog } from './TestRunner.js';
  * Base class for integration tests, containing common test configuration logic.
  */
 class TestBase {
-    /** @type {method[]} */
+    /** @type {(() => Promise<any>)[]} */
     testMethods = [];
 
     static root = join(dirname(dirname(fileURLToPath(import.meta.url))), 'Test');
@@ -88,8 +88,10 @@ class TestBase {
      * @param {string?} methodName The specific test method to run, if any. */
     async runTests(methodName) {
         TestBase.Cleanup();
+        /** @type {() => Promise<any> | null} */
         let methodFn = null;
         if (methodName) {
+            /** @type {{ [methodName: string]: () => Promise<any> }} */
             const availableMethods = {};
             this.testMethods.map(fn => availableMethods[fn.name] = fn);
             if (!availableMethods[methodName]) {
@@ -153,7 +155,7 @@ class TestBase {
     /**
      * Starts the marker editor. Expects to have been run via launch.json's "Run Tests"
      * configuration, which will pass in the right command line arguments to mainRun. */
-    async startService() {
+    startService() {
         if (GetServerState() === ServerState.FirstBoot) {
             return mainRun();
         }
@@ -186,6 +188,8 @@ class TestBase {
         return result;
     }
 
+    /**
+     * @param {() => Promise<any>} testFn */
     async runSingle(testFn) {
         TestLog.info(`Running ${this.className()}::${testFn.name}`);
         const success = await this.#runSingleInternal(testFn);
@@ -194,6 +198,8 @@ class TestBase {
         return { success : success ? 1 : 0, fail : success ? 0 : 1 };
     }
 
+    /**
+     * @param {() => Promise<any>} testMethod */
     async #runSingleInternal(testMethod) {
         await this.resetState();
         await this.resume();
@@ -254,7 +260,7 @@ class TestBase {
      * @param {string} endpoint The command to run
      * @param {*} params Dictionary of query parameters to pass into the test server.
      * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON data. */
-    async send(endpoint, params={}, raw=false) {
+    send(endpoint, params={}, raw=false) {
         return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' }, raw);
     }
 
@@ -263,7 +269,7 @@ class TestBase {
      * @param {string} endpoint The file to retrieve
      * @param {*} params Dictionary of query parameters to pass into the test server.
      * @returns {Promise<Response>} */
-    async get(endpoint, params={}) {
+    get(endpoint, params={}) {
         return this.#fetchInternal(endpoint, params, 'GET', {}, true);
     }
 
@@ -274,7 +280,7 @@ class TestBase {
      * @param {string} method POST or GET
      * @param {*} headers Any additional headers to add to the request
      * @param {boolean} raw */
-    async #fetchInternal(endpoint, params, method, headers, raw) {
+    #fetchInternal(endpoint, params, method, headers, raw) {
         if (GetServerState() === ServerState.FirstBoot || GetServerState() === ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
@@ -345,7 +351,7 @@ class TestBase {
 
     /**
      * Create the minimal recreation of the Plex database and enter some default metadata and marker items. */
-    async setupPlexDbTestTables() {
+    setupPlexDbTestTables() {
         if (!this.testDb) {
             TestLog.error('Cannot add test marker, database is not initialized!');
             return;
@@ -524,7 +530,7 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async addMarker(episodeId, startMs, endMs, markerType='intro', final=false) {
+    addMarker(episodeId, startMs, endMs, markerType='intro', final=false) {
         return this.#addMarkerCore(episodeId, startMs, endMs, markerType, final, false /*raw*/);
     }
 
@@ -536,7 +542,7 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<Response>} */
-    async addMarkerRaw(metadataId, startMs, endMs, markerType='intro', final=false) {
+    addMarkerRaw(metadataId, startMs, endMs, markerType='intro', final=false) {
         return this.#addMarkerCore(metadataId, startMs, endMs, markerType, final, true /*raw*/);
     }
 
@@ -549,7 +555,7 @@ class TestBase {
      * @param {boolean} final
      * @param {boolean} raw Whether the Response should be returned instead of the json response.
      * @returns {Promise<SerializedMarkerData|Response>} */
-    async #addMarkerCore(metadataId, startMs, endMs, markerType, final, raw=false) {
+    #addMarkerCore(metadataId, startMs, endMs, markerType, final, raw=false) {
         return this.send('add', {
             metadataId : metadataId,
             start : startMs,
@@ -567,7 +573,7 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<SerializedMarkerData>} */
-    async editMarker(markerId, startMs, endMs, markerType='intro', final=false) {
+    editMarker(markerId, startMs, endMs, markerType='intro', final=false) {
         return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, false /*raw*/);
     }
 
@@ -579,7 +585,7 @@ class TestBase {
      * @param {string} markerType
      * @param {boolean} final
      * @returns {Promise<Response>} */
-    async editMarkerRaw(markerId, startMs, endMs, markerType, final) {
+    editMarkerRaw(markerId, startMs, endMs, markerType, final) {
         return this.#editMarkerCore(markerId, startMs, endMs, markerType, final, true /*raw*/);
     }
 
@@ -592,7 +598,7 @@ class TestBase {
      * @param {boolean} final
      * @param {boolean} raw Whether the Response should be returned instead of the json response.
      * @returns {Promise<SerializedMarkerData|Response>} */
-    async #editMarkerCore(markerId, startMs, endMs, markerType, final, raw) {
+    #editMarkerCore(markerId, startMs, endMs, markerType, final, raw) {
         return this.send('edit', {
             id : markerId,
             start : startMs,

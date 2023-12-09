@@ -183,8 +183,8 @@ class MarkerCacheManager {
     }
 
     /** Clear out any cached data and rebuild it from scratch. */
-    static async Reinitialize() {
-        Instance?.reinitialize();
+    static Reinitialize() {
+        return Instance?.reinitialize();
     }
 
     static Close() { Instance = null; }

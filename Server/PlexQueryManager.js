@@ -280,7 +280,7 @@ FROM taggings
      *
      * Fields returned: `id`, `name`.
      * @returns {Promise<LibrarySection[]>} */
-    async getLibraries() {
+    getLibraries() {
         return this.#database.all('SELECT id, section_type AS type, name FROM library_sections WHERE section_type=1 OR section_type=2');
     }
 
@@ -288,7 +288,7 @@ FROM taggings
      * Retrieve all movies in the given library section.
      * @param {number} sectionId
      * @returns {Promise<RawMovieData[]>} */
-    async getMovies(sectionId) {
+    getMovies(sectionId) {
         const movieQuery = `
 SELECT movies.id AS id,
         movies.title AS title,
@@ -312,7 +312,7 @@ SELECT movies.id AS id,
      * Requires the caller to validate that the given section id is a TV show library.
      * @param {number} sectionId
      * @returns {Promise<RawShowData[]>} */
-    async getShows(sectionId) {
+    getShows(sectionId) {
         // Create an inner table that contains all unique seasons across all shows, with episodes per season attached,
         // and join that to a show query to roll up the show, the number of seasons, and the number of episodes all in a single row
         const query = `
@@ -342,7 +342,7 @@ GROUP BY shows.id;`;
      * Fields returned: `id`, `title`, `index`, `episode_count`.
      * @param {number} showMetadataId
      * @returns {Promise<RawSeasonData[]>} */
-    async getSeasons(showMetadataId) {
+    getSeasons(showMetadataId) {
         const query = `
 SELECT
     seasons.id,
@@ -364,7 +364,7 @@ ORDER BY seasons.\`index\` ASC;`;
      * Fields returned: `title`, `index`, `id`, `season`, `season_index`, `show`, `duration`, `parts`.
      * @param {number} seasonMetadataId
      * @returns {Promise<RawEpisodeData[]>} */
-    async getEpisodes(seasonMetadataId) {
+    getEpisodes(seasonMetadataId) {
         return this.#getEpisodesCore(seasonMetadataId, `p.id`);
     }
 
@@ -386,7 +386,7 @@ ORDER BY seasons.\`index\` ASC;`;
         return this.#getEpisodesCore(metadataId, where);
     }
 
-    async #getEpisodesCore(metadataId, whereClause) {
+    #getEpisodesCore(metadataId, whereClause) {
         // Multiple joins to grab the season name, show name, and episode duration (MAX so that we capture
         // the longest available episode, as Plex seems fine with ends beyond the media's length).
         const query = `
@@ -526,7 +526,7 @@ ORDER BY e.\`index\` ASC;`;
      * Retrieve episode info for an episode with the given guid, if any.
      * @param {string} guid
      * @returns {Promise<{ id: number, season_id: number, show_id: number }>} */
-    async getEpisodeFromGuid(guid) {
+    getEpisodeFromGuid(guid) {
         const query = `
     SELECT
         e.id AS id,
@@ -675,7 +675,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {number} sectionId
      * @param {number} mediaType
      * @returns {Promise<RawMarkerData[]>} */
-    async #getMarkersForSection(sectionId, mediaType) {
+    #getMarkersForSection(sectionId, mediaType) {
         const fields = this.#extendedFieldsFromMediaType(mediaType);
         const markerQuery =
             `SELECT ${fields} WHERE taggings.tag_id=$tagId AND section_id=$sectionId ORDER BY taggings.time_offset ASC;`;
@@ -706,14 +706,14 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Retrieve all markers for a single season.
      * @param {number} seasonId */
-    async getSeasonMarkers(seasonId) {
+    getSeasonMarkers(seasonId) {
         return this.#getMarkersForMetadataItem(seasonId, `seasons.id`, this.#extendedEpisodeMarkerFields);
     }
 
     /**
      * Retrieve all markers for a single show.
      * @param {number} showId */
-    async getShowMarkers(showId) {
+    getShowMarkers(showId) {
         return this.#getMarkersForMetadataItem(showId, `seasons.parent_id`, this.#extendedEpisodeMarkerFields);
     }
 
@@ -1331,7 +1331,7 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} markerType The type of marker (intro/credits)
      * @param {number} final Whether this Credits marker goes to the end of the media item.
      * @returns {Promise<void>} */
-    async editMarker(markerId, index, startMs, endMs, markerType, final) {
+    editMarker(markerId, index, startMs, endMs, markerType, final) {
         return this.#database.run(
             'UPDATE taggings SET `index`=?, text=?, time_offset=?, end_time_offset=?, extra_data=? WHERE id=?;',
             [index, markerType, startMs, endMs, ExtraData.get(markerType, final), markerId]);
@@ -1341,7 +1341,7 @@ ORDER BY e.\`index\` ASC;`;
      * Delete the given marker from the database.
      * @param {number} markerId
      * @returns {Promise<void>} */
-    async deleteMarker(markerId) {
+    deleteMarker(markerId) {
         return this.#database.run('DELETE FROM taggings WHERE id=?;', [markerId]);
     }
 
@@ -1406,7 +1406,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Return the ids and UUIDs for all sections in the database.
      * @returns {Promise<{ id: number, uuid: string, section_type: number }[]>} */
-    async sectionUuids() {
+    sectionUuids() {
         return this.#database.all('SELECT id, uuid, section_type FROM library_sections;');
     }
 
@@ -1507,7 +1507,7 @@ ORDER BY e.\`index\` ASC;`;
     /**
      * Delete all markers with the given ids.
      * @param {RawMarkerData[]} markers */
-    async bulkDelete(markers) {
+    bulkDelete(markers) {
         const transaction = new TransactionBuilder(this.#database);
         for (const marker of markers) {
             transaction.addStatement(`DELETE FROM taggings WHERE id=?;`, [marker.id]);

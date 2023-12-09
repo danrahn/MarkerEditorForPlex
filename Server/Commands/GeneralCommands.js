@@ -17,7 +17,7 @@ class GeneralCommands {
     /**
      * Retrieve a subset of the app configuration that the frontend needs access to.
      * This is only async to conform with the command handler signature. */
-    static async getConfig() {
+    static getConfig() {
         return {
             useThumbnails : Config.useThumbnails(),
             extendedMarkerStats : Config.extendedMarkerStats(),
@@ -30,7 +30,7 @@ class GeneralCommands {
      * @param {number} newLevel The new log level.
      * @param {number} darkConsole Whether to adjust log colors for a dark background.
      * @param {number} traceLogging Whether to also print a stack trace for each log entry.*/
-    static async setLogSettings(newLevel, darkConsole, traceLogging) {
+    static setLogSettings(newLevel, darkConsole, traceLogging) {
         const logLevelString = Object.keys(ConsoleLog.Level).find(l => ConsoleLog.Level[l] === newLevel);
         if (logLevelString === undefined) {
             Log.warn(newLevel, 'Attempting to set an invalid log level, ignoring');

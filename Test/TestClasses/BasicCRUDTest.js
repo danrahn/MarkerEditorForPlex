@@ -105,7 +105,7 @@ class BasicCRUD extends TestBase {
      * Ensure attempting to add a marker with a start time greater than the end time fails.
      * It'd be interesting if flipped markers would allow us to seek back in time though, if
      * someone wanted to do that for whatever reason. */
-    async testAddFlippedStartAndEnd() {
+    testAddFlippedStartAndEnd() {
         const show = TestBase.DefaultMetadata.Show1;
         return this.#flippedTestHelper('add', {
             metadataId : show.Season1.Episode1.Id,
@@ -136,13 +136,13 @@ class BasicCRUD extends TestBase {
 
     /**
      * Ensure attempting to add a marker to a season fails. */
-    async testAddToSeason() {
+    testAddToSeason() {
         return this.#addToWrongMetadataType(TestBase.DefaultMetadata.Show1.Season1.Id);
     }
 
     /**
      * Ensure attempting to add a marker to a show fails. */
-    async testAddToShow() {
+    testAddToShow() {
         return this.#addToWrongMetadataType(TestBase.DefaultMetadata.Show1.Id);
     }
 
@@ -166,7 +166,7 @@ class BasicCRUD extends TestBase {
 
     /**
      * Test editing an existing marker for a single episode. */
-    async testSingleEdit() {
+    testSingleEdit() {
         // With default config, taggings id 1 is a marker from 15 to 45 seconds.
         const show = TestBase.DefaultMetadata.Show1;
         const episode = show.Season1.Episode2;
@@ -175,7 +175,7 @@ class BasicCRUD extends TestBase {
 
     /**
      * Test editing an existing credits marker for a single episode. */
-    async testSingleEditMakeCredit() {
+    testSingleEditMakeCredit() {
         const show = TestBase.DefaultMetadata.Show1;
         const episode = show.Season1.Episode2;
         return this.#testSingleEdit(episode.Marker1.Id, 45000, 55000, episode.Id, show.Season1.Id, show.Id, 'credits', false /*final*/);
@@ -183,7 +183,7 @@ class BasicCRUD extends TestBase {
 
     /**
      * Test editing an existing final credits marker for a single episode. */
-    async testSingleEditMakeFinalCredit() {
+    testSingleEditMakeFinalCredit() {
         const show = TestBase.DefaultMetadata.Show1;
         const episode = show.Season1.Episode2;
         return this.#testSingleEdit(episode.Marker1.Id, 45000, 60000, episode.Id, show.Season1.Id, show.Id, 'credits', true /*final*/);
@@ -191,21 +191,21 @@ class BasicCRUD extends TestBase {
 
     /**
      * Test editing an existing marker for a single movie. */
-    async testSingleMovieEdit() {
+    testSingleMovieEdit() {
         const movie = TestBase.DefaultMetadata.Movie3;
         return this.#testSingleEdit(movie.Marker1.Id, 14000, 46000, movie.Id, -1, -1, 'intro', false /*final*/);
     }
 
     /**
      * Test editing an existing credits marker for a single movie. */
-    async testSingleMovieCreditsEdit() {
+    testSingleMovieCreditsEdit() {
         const movie = TestBase.DefaultMetadata.Movie3;
         return this.#testSingleEdit(movie.Marker1.Id, 45000, 55000, movie.Id, -1, -1, 'credits', false /*final*/);
     }
 
     /**
      * Test editing an existing final credits marker for a single movie. */
-    async testSingleMovieFinalCreditsEdit() {
+    testSingleMovieFinalCreditsEdit() {
         const movie = TestBase.DefaultMetadata.Movie3;
         return this.#testSingleEdit(movie.Marker1.Id, 45000, 60000, movie.Id, -1, -1, 'credits', true /*final*/);
     }
@@ -277,7 +277,7 @@ class BasicCRUD extends TestBase {
 
     /**
      * Ensure we fail to edit a marker to have a start time greater than the end time. */
-    async testEditFlippedStartAndEnd() {
+    testEditFlippedStartAndEnd() {
         const show = TestBase.DefaultMetadata.Show1;
         return this.#flippedTestHelper('edit', {
             id : show.Season1.Episode2.Marker1.Id,
@@ -289,37 +289,37 @@ class BasicCRUD extends TestBase {
 
     /**
      * Test deleting a single marker from an episode. */
-    async testSingleDelete() {
+    testSingleDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Show1.Season1.Episode2.Marker1);
     }
 
     /**
      * Test deleting a single credits marker from an episode. */
-    async testSingleCreditsDelete() {
+    testSingleCreditsDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Show3.Season1.Episode2.Marker2);
     }
 
     /**
      * Test deleting a single final credits marker from an episode. */
-    async testSingleFinalCreditsDelete() {
+    testSingleFinalCreditsDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Show3.Season1.Episode2.Marker3);
     }
 
     /**
      * Test deleting a single marker from a movie. */
-    async testSingleMovieDelete() {
+    testSingleMovieDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Movie3.Marker1);
     }
 
     /**
      * Test deleting a single credits marker from a movie. */
-    async testSingleMovieCreditsDelete() {
+    testSingleMovieCreditsDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Movie2.Marker2);
     }
 
     /**
      * Test deleting a single final credits marker from a movie. */
-    async testSingleMovieFinalCreditsDelete() {
+    testSingleMovieFinalCreditsDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Movie2.Marker3);
     }
 

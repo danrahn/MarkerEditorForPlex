@@ -82,7 +82,7 @@
         "quote-props" : ["error", "as-needed"],
         "quotes": ["error", "single", { "avoidEscape" : true, "allowTemplateLiterals" : true }],
         "require-atomic-updates": "error",
-        "require-await": "off", // TODO?
+        "require-await": "error",
         "require-jsdoc": "error",
         "rest-spread-spacing" : ["error", "never"],
         "semi": ["error", "always"],

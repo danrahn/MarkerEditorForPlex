@@ -60,7 +60,7 @@ class QueryCommands {
     /**
      * Retrieve all TV libraries found in the database.
      * @returns {Promise<LibrarySection[]>} */
-    static async getLibraries() {
+    static getLibraries() {
         return PlexQueries.getLibraries();
     }
 
@@ -236,7 +236,7 @@ class QueryCommands {
      * @param {number} metadataId The metadata id of the show/movie to grab the breakdown for.
      * @param {number} includeSeasons 1 to include season data, 0 to leave it out. Ignored if metadataId is a movie.
      * @returns {Promise<TreeStats>} */
-    static async getMarkerBreakdownTree(metadataId, includeSeasons) {
+    static getMarkerBreakdownTree(metadataId, includeSeasons) {
         if (!MarkerCache) {
             throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
         }
@@ -263,7 +263,7 @@ class QueryCommands {
     /**
      * Retrieve chapters for the given metadata id.
      * @param {number} metadataId */
-    static async getChapters(metadataId) {
+    static getChapters(metadataId) {
         return PlexQueries.getMediaChapters(metadataId);
     }
 

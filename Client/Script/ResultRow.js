@@ -543,7 +543,7 @@ class ShowResultRow extends ResultRow {
     /**
      * Update marker breakdown data after a bulk update.
      * @param {{[seasonId: number]: MarkerData[]}} changedMarkers */
-    async notifyBulkAction(changedMarkers) {
+    notifyBulkAction(changedMarkers) {
         const needsUpdate = [];
         for (const [seasonId, seasonRow] of Object.entries(this.#seasons)) {
             // Only need to update if the season was affected
@@ -1121,8 +1121,8 @@ class SeasonResultRow extends ResultRow {
     /**
      * Show or hide all marker tables associated with the episodes in this season.
      * @param {boolean} hide Whether to hide or show all marker tables. */
-    async showHideMarkerTables(hide) {
-        BaseItemResultRow.ShowHideMarkerTables(hide, Object.values(this.#episodes));
+    showHideMarkerTables(hide) {
+        return BaseItemResultRow.ShowHideMarkerTables(hide, Object.values(this.#episodes));
     }
 
     /** Update the UI after a marker is added/deleted, including our placeholder show/season rows. */
@@ -1275,10 +1275,13 @@ class BaseItemResultRow extends ResultRow {
     static ShowHideMarkerTables(hide, items) {
         let count = 0;
         const bodyRect = document.body.getBoundingClientRect();
-        const isVisible = (episode) => {
+        const isVisible = (/** @type {BaseItemResultRow} */episode) => {
             const rect = episode.html().getBoundingClientRect();
             return rect.top < bodyRect.height && rect.y + rect.height > 0;
         };
+
+        /** @type {Promise<void>[]} */
+        const animations = [];
 
         // Improve perf a bit by doing the following:
         // * If the row isn't visible at the time of execution, don't animate the expansion/contraction.
@@ -1286,12 +1289,17 @@ class BaseItemResultRow extends ResultRow {
         //   With the current duration of 150ms, a 25ms timer will ensure we only have at most 6 rows
         //   animating at once. As an added benefit, I think the staggered approach looks cleaner.
         for (const item of items) {
+            const delay = count++;
             if (isVisible(item)) {
-                setTimeout(() => item.showHideMarkerTable(hide, true /*bulk*/), count++ * 25);
+                animations.push(new Promise(r => {
+                    setTimeout(() => { item.showHideMarkerTable(hide, true /*bulk*/); r(); }, delay * 25);
+                }));
             } else {
-                item.showHideMarkerTable(hide, true /*bulk*/, false /*animate*/);
+                animations.push(item.showHideMarkerTable(hide, true /*bulk*/, false /*animate*/));
             }
         }
+
+        return Promise.all(animations);
     }
 }
 
@@ -1658,14 +1666,14 @@ class MovieResultRow extends BaseItemResultRow {
             await this.#verifyMarkerTableInitialized();
         }
 
-        super.showHideMarkerTable(hide, bulk, animate);
+        return super.showHideMarkerTable(hide, bulk, animate);
     }
 
     /**
      * Show or hide all marker tables for the currently listed movies. This can fail if there
      * are too many movies to expand that don't have marker information yet.
      * @param {boolean} hide Whether to hide or show all marker tables. */
-    async showHideMarkerTables(hide) {
+    showHideMarkerTables(hide) {
         /** @type {MovieResultRow[]} */
         const movies = PlexUI.getActiveSearchRows();
         if (!hide) {

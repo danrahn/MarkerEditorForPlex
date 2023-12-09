@@ -13,7 +13,7 @@ class ClientTests extends TestBase {
 
     className() { return 'ClientTests'; }
 
-    async markerTimestampRoundingTest() {
+    markerTimestampRoundingTest() {
         /*              ms     max   factor expected*/
         this.#roundTest(1234,  2000, 5000,     0);
         this.#roundTest(1234,  2000, 1000,  1000);

@@ -13,8 +13,8 @@ const Log = new ContextualLog('VersionManager');
  * Handles checking whether a new version of the app is available on GitHub
  */
 class VersionManager {
-    static async CheckForUpdates(currentVersionString) {
-        new VersionManager(currentVersionString).checkForUpdates();
+    static CheckForUpdates(currentVersionString) {
+        return new VersionManager(currentVersionString).checkForUpdates();
     }
 
     /** Key used to store version check/ignore settings. */

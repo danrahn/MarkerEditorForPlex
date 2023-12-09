@@ -275,7 +275,7 @@ class BulkDeleteTest extends TestBase {
      *               deletedMarkers: SerializedMarkerData[],
      *               episodeData?: SerializedEpisodeData[]}>}
      */
-    async #bulkDelete(id, dryRun, applyTo=MarkerEnum.All, ignored=[], raw=false) {
+    #bulkDelete(id, dryRun, applyTo=MarkerEnum.All, ignored=[], raw=false) {
         return this.send('bulk_delete', {
             id : id,
             dryRun : dryRun ? 1 : 0,

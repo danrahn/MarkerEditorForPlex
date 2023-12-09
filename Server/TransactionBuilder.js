@@ -52,7 +52,7 @@ class TransactionBuilder {
 
     /**
      * Executes the current transaction.*/
-    async exec() {
+    exec() {
         Log.tmi(this.toString(), `Running transaction`);
         return this.#db.exec(this.toString());
     }

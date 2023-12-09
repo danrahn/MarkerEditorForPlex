@@ -30,7 +30,7 @@ class ThumbnailManager {
      * Create the singleton ThumbnailManager instance
      * @param {DatabaseWrapper} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory */
-    static async Create(db, metadataPath) {
+    static Create(db, metadataPath) {
         if (Instance) {
             Log.warn(`Thumbnail manager already initialized, we shouldn't be initializing it again`);
         }
@@ -58,9 +58,9 @@ class ThumbnailManager {
      * Determine if an episode has thumbnails available.
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
-    async hasThumbnails(metadataId) {
+    hasThumbnails(metadataId) {
         Log.error(`hasThumbnail: This should not be called on the base class ${metadataId}`);
-        return Promise.reject(new ServerError('Incorrect method call', 500));
+        throw new ServerError('Incorrect method call', 500);
     }
 
     /**
@@ -73,9 +73,9 @@ class ThumbnailManager {
      * @returns {Promise<Buffer>} A `Promise` that will resolve to the thumbnail `Buffer` if the thumbnail
      * retrieval was successful, and `reject`ed if the thumbnail doesn't exist or we were
      * otherwise unable to retrieve it. */
-    async getThumbnail(metadataId, timestamp) {
+    getThumbnail(metadataId, timestamp) {
         Log.error(`getThumbnail: This should not be called on the base class ${metadataId}:${timestamp}`);
-        return Promise.reject(new ServerError('Incorrect method call', 500));
+        throw new ServerError('Incorrect method call', 500);
     }
 
     /** @param {boolean} _fullShutdown */
@@ -189,7 +189,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * Assumes `hasThumbnails` has been called for the given episode.
      * @param {number} metadataId The metadata id for the episode.
      * @param {number} timestamp The timestamp of the thumbnail, in seconds. */
-    async #getThumbnailCore(metadataId, timestamp) {
+    #getThumbnailCore(metadataId, timestamp) {
         const thumbCache = this.#cache.getItem(metadataId);
         if (!thumbCache || !thumbCache.hasThumbs) {
             // We only expect to be called if thumbnails are actually available.
@@ -215,7 +215,7 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} timestamp The timestamp of the thumbnail, in seconds.
      * @param {BifMediaItemCache} thumbCache
      * @returns {Promise<Buffer>}*/
-    async #readThumbnail(metadataId, timestamp, thumbCache) {
+    #readThumbnail(metadataId, timestamp, thumbCache) {
         return new Promise((resolve, reject) => {
 
             // File layout:
@@ -354,7 +354,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId Metadata id of the episode
      * @param {number} timestamp Timestamp, in milliseconds
      * @param {FfmpegMediaItemCache} thumbCache */
-    async #getThumbnailCore(metadataId, timestamp, thumbCache) {
+    #getThumbnailCore(metadataId, timestamp, thumbCache) {
         if (!thumbCache.hasThumbs) {
             throw new ServerError(`No thumbnails for ${metadataId}`, 500);
         }

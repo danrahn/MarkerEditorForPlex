@@ -338,7 +338,7 @@ class PlexClientStateManager {
     /**
       * Search for top-level items (movies/shows) that match the given query.
       * @param {string} query The show to search for. */
-    async search(query) {
+    search(query) {
         let regexp = undefined;
         // Not a perfect test, but close enough
         const match = /^\/(?<regex>.+)\/(?<modifiers>g?i?d?y?)$/.exec(query);
@@ -362,6 +362,7 @@ class PlexClientStateManager {
         /** @type {TopLevelData[]} */
         const itemList = Object.values(section.items);
 
+        /** @type {Set<TopLevelData>} */
         const result = new Set();
         for (const item of itemList) {
             // If we have a regular expression, it takes precedence over our plain query string
@@ -460,7 +461,7 @@ class PlexClientStateManager {
     /**
      * @param {Set<number>} activeIds
      * @param {PurgedSection} unpurged Map of markers purged markers that are no longer purged. */
-    async #updateInactiveBreakdown(activeIds, unpurged) {
+    #updateInactiveBreakdown(activeIds, unpurged) {
         const promises = [];
         for (const [metadataId, item] of Object.entries(this.#sections[this.#activeSection].items)) {
             if (activeIds.has(+metadataId) || !unpurged.get(metadataId)) {
@@ -598,7 +599,7 @@ class PlexClientStateManager {
      * Updates marker breakdown after a bulk action for the search row result, if present.
      * @param {BulkMarkerResult} markers
      * @param {number} bulkActionType */
-    async #updateBulkActionSearchRow(markers, bulkActionType) {
+    #updateBulkActionSearchRow(markers, bulkActionType) {
         // Shifts don't update marker counts (for now)
         if (bulkActionType === BulkActionType.Shift) {
             return;

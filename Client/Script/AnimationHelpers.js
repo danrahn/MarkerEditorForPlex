@@ -194,7 +194,8 @@ export function slideDown(ele, finalHeight, options, callback) {
  * @param {HTMLElement} ele
  * @param {number[]} stops
  * @param {number|AnimationOptions} options
- * @param {(...any) => any} [callback] */
+ * @param {(...any) => any} [callback]
+ * @returns {Promise<void>} */
 function slide(ele, stops, options, callback) {
     const ofSav = checkProp(ele, 'overflow');
     ele.style.overflow = 'hidden';

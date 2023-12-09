@@ -321,6 +321,11 @@ let Instance;
  *
  * [Maybe] TODO: Add a different view to the main page that shows recently added episodes, and allow drilling down
  * into its season to detect whether any markers were lost, and give the user the option to recover them.
+ *
+ * TODO: Also report deleted markers that have returned.
+ *       1. Get list of deletes that aren't user created
+ *       2. Get list of all available markers
+ *       3. Iterate - if timestamps exactly match, report it.
  */
 class MarkerBackupManager {
     /** @type {DatabaseWrapper} */
@@ -454,8 +459,8 @@ class MarkerBackupManager {
         this.#actions = actionsDatabase;
     }
 
-    async initialize() {
-        this.#buildMarkerEditDataCache();
+    initialize() {
+        return this.#buildMarkerEditDataCache();
     }
 
     /**
@@ -1120,9 +1125,9 @@ ORDER BY id DESC;`;
     /**
      * Retrieve purged markers for the given library section.
      * @param {number} sectionId The section to parse.
-     * @returns {Promise<PurgeSection>} Tree of purged `MarkerAction`s.
+     * @returns {Promise<PurgeMovieSection|PurgeShowSection>} Tree of purged `MarkerAction`s.
      * @throws {ServerError} If the cache is not initialized or the section does not exist. */
-    async purgesForSection(sectionId) {
+    purgesForSection(sectionId) {
         return this.#purgesForSectionInternal(sectionId, true /*populateData*/);
     }
 
@@ -1130,14 +1135,15 @@ ORDER BY id DESC;`;
      * Retrieve purged markers for the given library section.
      * @param {number} sectionId The section to parse.
      * @param {boolean} populateData Whether to grab movie/episode data for each marker. This will
-     *        be false when we're wiping out a section, since we just want the base data to delete. */
-    async #purgesForSectionInternal(sectionId, populateData) {
+     *        be false when we're wiping out a section, since we just want the base data to delete.
+     * @returns {Promise<PurgeMovieSection|PurgeShowSection>} */
+    #purgesForSectionInternal(sectionId, populateData) {
         if (!this.#purgeCache) {
             throw new ServerError('Purge cache not initialized, cannot query for purges.', 500);
         }
 
         if (!this.#purgeCache[sectionId]) {
-            return {};
+            return Promise.resolve({});
         }
 
         if (this.#sectionTypes[sectionId] === MetadataType.Movie) {

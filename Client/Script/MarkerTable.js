@@ -507,7 +507,7 @@ class MarkerTable {
     /**
      * @param {HTMLTableRowElement} row
      * @param {() => void} callback */
-    async #animateRowRemoval(row, callback) {
+    #animateRowRemoval(row, callback) {
         // First need to explicitly set tr height so it doesn't immediately shrink when we clear the element
         row.style.height = row.getBoundingClientRect().height + 'px';
         return animateOpacity(row, 1, 0, 100, () => {

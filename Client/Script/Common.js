@@ -51,8 +51,7 @@ class FetchError extends Error {
 /* eslint-disable max-len */
 /**
  * Map of all available server endpoints.
- * Keep in sync with ServerCommands.#commandMap
- */
+ * Keep in sync with ServerCommands.#commandMap */
 const ServerCommand = {
     /**
      * Add a marker to the Plex database
@@ -62,7 +61,7 @@ const ServerCommand = {
      * @param {number} end
      * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    add : async (type, metadataId, start, end, final=0) => jsonRequest('add', { metadataId, start, end, type, final }),
+    add : (type, metadataId, start, end, final=0) => jsonRequest('add', { metadataId, start, end, type, final }),
 
     /**
      * Edit an existing marker with the given id.
@@ -72,20 +71,20 @@ const ServerCommand = {
      * @param {number} end
      * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    edit : async (type, id, start, end, final=0) => jsonRequest('edit', { id, start, end, type, final }),
+    edit : (type, id, start, end, final=0) => jsonRequest('edit', { id, start, end, type, final }),
 
     /**
      * Delete the marker with the given id.
      * @param {number} id
      * @returns {Promise<SerializedMarkerData>} */
-    delete : async (id) => jsonRequest('delete', { id }),
+    delete : (id) => jsonRequest('delete', { id }),
 
     /**
      * Retrieve all markers under the given metadata id that may be affected by a shift operation.
      * @param {number} id
      * @param {number} applyTo
      * @returns {Promise<ShiftResult>} */
-    checkShift : async (id, applyTo) => jsonRequest('check_shift', { id, applyTo }),
+    checkShift : (id, applyTo) => jsonRequest('check_shift', { id, applyTo }),
 
     /**
      * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
@@ -96,13 +95,13 @@ const ServerCommand = {
      * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
      * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    shift : async (id, startShift, endShift, applyTo, force, ignored=[]) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, applyTo : applyTo, force : force ? 1 : 0, ignored : ignored.join(',') }),
+    shift : (id, startShift, endShift, applyTo, force, ignored=[]) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, applyTo : applyTo, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
     /**
      * Query for all markers that would be deleted for the given metadata id.
      * @param {number} id
      * @returns {Promise<BulkDeleteResult>} */
-    checkBulkDelete : async (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
+    checkBulkDelete : (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
 
     /**
      * Delete all markers associated with the given media item, except those specified in `ignored`.
@@ -110,13 +109,13 @@ const ServerCommand = {
      * @param {number} applyTo The marker type(s) to apply the delete to.
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
      * @returns {Promise<BulkDeleteResult>} */
-    bulkDelete : async (id, applyTo, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
+    bulkDelete : (id, applyTo, ignored=[]) => jsonRequest('bulk_delete', { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
 
     /**
      * Retrieve episode and marker information relevant to a bulk_add operation.
      * @param {number} id Show/Season metadata id.
      * @returns {Promise<SerializedBulkAddResult>} */
-    checkBulkAdd : async (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro' }),
+    checkBulkAdd : (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro' }),
 
     /**
      * Bulk adds a marker to the given metadata id.
@@ -127,7 +126,7 @@ const ServerCommand = {
      * @param {number} resolveType The BulkMarkerResolveType.
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : async (markerType, id, start, end, resolveType, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, resolveType : resolveType, ignored : ignored.join(',') }),
+    bulkAdd : (markerType, id, start, end, resolveType, ignored=[]) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, resolveType : resolveType, ignored : ignored.join(',') }),
 
     /**
      * Bulk adds multiple markers with custom timestamps.
@@ -136,82 +135,82 @@ const ServerCommand = {
      * @param {number} resolveType The BulkMarkerResolveType.
      * @param {CustomBulkAddMap} newMarkerData The new markers to add.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAddCustom : async (markerType, id, resolveType, newMarkerData) => jsonBodyRequest('add_custom', { type : markerType, id : id, resolveType : resolveType, markers : JSON.stringify(newMarkerData) }),
+    bulkAddCustom : (markerType, id, resolveType, newMarkerData) => jsonBodyRequest('add_custom', { type : markerType, id : id, resolveType : resolveType, markers : JSON.stringify(newMarkerData) }),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.
      * @param {number[]} keys The list of episode ids to grab the markers of.
      * @returns {Promise<{[metadataId: number]: SerializedMarkerData[]}>} */
-    query : async (keys) => jsonRequest('query', { keys : keys.join(',') }),
+    query : (keys) => jsonRequest('query', { keys : keys.join(',') }),
 
     /**
      * Retrieve all Movie/TV library sections in the database.
      * @returns {Promise<{id: number, type : number, name: string}[]} */
-    getSections : async () => jsonRequest('get_sections'),
+    getSections : () => jsonRequest('get_sections'),
 
     /**
      * Retrieve all shows in the given section.
      * @param {number} id
      * @returns {Promise<SerializedShowData[]|SerializedMovieData[]>} */
-    getSection : async (id) => jsonRequest('get_section', { id }),
+    getSection : (id) => jsonRequest('get_section', { id }),
 
     /**
      * Retrieve all seasons in the given show.
      * @param {number} id
      * @returns {Promise<SerializedSeasonData[]>} */
-    getSeasons : async (id) => jsonRequest('get_seasons', { id }),
+    getSeasons : (id) => jsonRequest('get_seasons', { id }),
 
     /**
      * Retrieve all episodes in the given season.
      * @param {number} id
      * @returns {Promise<SerializedEpisodeData>} */
-    getEpisodes : async (id) => jsonRequest('get_episodes', { id }),
+    getEpisodes : (id) => jsonRequest('get_episodes', { id }),
 
     /**
      * Return whether the given metadata item has thumbnails associated with it.
      * Only valid for episode/movie metadata ids.
      * @param {number} id
      * @returns {Promise<{hasThumbnails: boolean}>} */
-    checkForThumbnails : async (id) => jsonRequest('check_thumbs', { id }),
+    checkForThumbnails : (id) => jsonRequest('check_thumbs', { id }),
 
     /**
      * Retrieve marker breakdown stats for the given section.
      * @param {number} id
      * @returns {Promise<{[episodesWithNMarkers: number]: number}>} */
-    getMarkerStats : async (id) => jsonRequest('get_stats', { id }),
+    getMarkerStats : (id) => jsonRequest('get_stats', { id }),
 
     /**
      * Retrieve the marker breakdown stats for a single show or movie.
      * @param {number} id
      * @param {boolean} includeSeasons True to include season data, false to leave it out (or if it's for a movie).
      * @returns {Promise<{mainData: MarkerBreakdownMap, seasonData?: { [seasonId: number]: MarkerBreakdownMap }}>} */
-    getBreakdown : async (id, includeSeasons) => jsonRequest('get_breakdown', { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
+    getBreakdown : (id, includeSeasons) => jsonRequest('get_breakdown', { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
 
 
     /**
      * Retrieve the configuration settings relevant to the client application.
      * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, version: string }>} */
-    getConfig : async () => jsonRequest('get_config'),
+    getConfig : () => jsonRequest('get_config'),
 
     /**
      * Set server-side log settings.
      * @param {number} level The log level.
      * @param {number} dark 1 to color messages for a dark console (if supported), 0 for light mode.
      * @param {number} trace 1 to log stack traces, 0 otherwise */
-    logSettings : async (level, dark, trace) => jsonRequest('log_settings', { level, dark, trace }),
+    logSettings : (level, dark, trace) => jsonRequest('log_settings', { level, dark, trace }),
 
 
     /**
      * Check for markers that should exist for the given metadata id, but aren't in the Plex database.
      * @param {number} id The show/season/episode id.
      * @returns {Promise<SerializedMarkerData[]>} */
-    purgeCheck : async (id) => jsonRequest('purge_check', { id }),
+    purgeCheck : (id) => jsonRequest('purge_check', { id }),
 
     /**
      * Find all purges in the given library section.
      * @param {number} sectionId
      * @returns {Promise<PurgeSection>} */
-    allPurges : async (sectionId) => jsonRequest('all_purges', { sectionId }),
+    allPurges : (sectionId) => jsonRequest('all_purges', { sectionId }),
 
     /**
      * Restore the given purged markers associated with the given section.
@@ -219,61 +218,61 @@ const ServerCommand = {
      * @param {number} sectionId
      * @param {number} resolveType
      * @returns {Promise<BulkRestoreResponse>} */
-    restorePurge : async (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
+    restorePurge : (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
 
     /**
      * Ignore the given purged markers associated with the given section.
      * @param {number[]} markerIds
      * @param {number} sectionId
      * @returns {Promise<void>} */
-    ignorePurge : async (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds, sectionId }),
+    ignorePurge : (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds, sectionId }),
 
     /**
      * Irreversibly delete all markers of the given type from the given section.
      * @param {number} sectionId
      * @param {number} deleteType
      * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number }>} */
-    sectionDelete : async (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId, deleteType }),
+    sectionDelete : (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId, deleteType }),
 
     /**
      * Shutdown Marker Editor.
      * @returns {Promise<void>} */
-    shutdown : async () => jsonRequest('shutdown'),
+    shutdown : () => jsonRequest('shutdown'),
     /**
      * Restart Marker Editor.
      * @returns {Promise<void>} */
-    restart : async () => jsonRequest('restart'),
+    restart : () => jsonRequest('restart'),
     /**
      * Reload all markers from the database. Like restart, but doesn't also restart the HTTP server.
      * @returns {Promise<void>} */
-    reload : async () => jsonRequest('reload'),
+    reload : () => jsonRequest('reload'),
     /**
      * Suspend Marker Editor.
      * @returns {Promise<void>} */
-    suspend : async () => jsonRequest('suspend'),
+    suspend : () => jsonRequest('suspend'),
     /**
      * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
-    resume : async () => jsonRequest('resume'),
+    resume : () => jsonRequest('resume'),
 
     /**
      * Upload a database file and import the markers present into the given section.
      * @param {Object} database
      * @param {number} sectionId
      * @param {number} resolveType */
-    importDatabase : async (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database, sectionId, resolveType }),
+    importDatabase : (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database, sectionId, resolveType }),
 
     /**
      * Retrieve chapter data (if any) for the given media item (supports shows, seasons, episodes, and movies).
      * @param {number} metadataId
      * @returns {Promise<ChapterMap>} */
-    getChapters : async (metadataId) => jsonRequest('get_chapters', { id : metadataId }),
+    getChapters : (metadataId) => jsonRequest('get_chapters', { id : metadataId }),
 
     /**
      * Retrieve all information relevant for marker table creation for a given movie/episode id.
      * @param {number} metadataId
      * @returns {Promise<ExtendedQueryInfo} */
-    extendedQuery : async (metadataId) => jsonRequest('query_full', { id : metadataId }),
+    extendedQuery : (metadataId) => jsonRequest('query_full', { id : metadataId }),
 };
 /* eslint-enable */
 
@@ -281,7 +280,7 @@ const ServerCommand = {
  * Generic method to make a request to the given endpoint that expects a JSON response.
  * @param {string} endpoint The URL to query.
  * @param {{[parameter: string]: any}} parameters URL parameters. */
-async function jsonRequest(endpoint, parameters={}) {
+function jsonRequest(endpoint, parameters={}) {
     const url = new URL(endpoint, window.location.href);
     for (const [key, value] of Object.entries(parameters)) {
         url.searchParams.append(key, value);
@@ -294,7 +293,7 @@ async function jsonRequest(endpoint, parameters={}) {
  * Similar to jsonRequest, but expects blob data and attaches parameters to the body instead of URL parameters.
  * @param {string} endpoint
  * @param {Object} parameters */
-async function jsonBodyRequest(endpoint, parameters={}) {
+function jsonBodyRequest(endpoint, parameters={}) {
     const url = new URL(endpoint, window.location.href);
     const data = new FormData();
     for (const [key, value] of Object.entries(parameters)) {
@@ -342,8 +341,7 @@ async function jsonPostCore(url, body=null) {
  * If the selector starts with '#' and contains no spaces, return the result of `querySelector`,
  * otherwise return the result of `querySelectorAll`.
  * @param {DOMString} selector The selector to match.
- * @param {HTMLElement} ele The scope of the query. Defaults to `document`.
- */
+ * @param {HTMLElement} ele The scope of the query. Defaults to `document`. */
 function $(selector, ele=document) {
     if (selector.indexOf('#') === 0 && selector.indexOf(' ') === -1) {
         return $$(selector, ele);
@@ -355,8 +353,7 @@ function $(selector, ele=document) {
 /**
  * Like $, but forces a single element to be returned. i.e. querySelector.
  * @param {string} selector The query selector.
- * @param {HTMLElement} [ele=document] The scope of the query. Defaults to `document`.
- */
+ * @param {HTMLElement} [ele=document] The scope of the query. Defaults to `document`. */
 function $$(selector, ele=document) {
     return ele?.querySelector(selector);
 }
@@ -367,8 +364,7 @@ function $$(selector, ele=document) {
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {object} [options={}] Additional options
- */
+ * @param {object} [options={}] Additional options */
 function buildNode(type, attrs, content, events, options={}) {
     const ele = document.createElement(type);
     return _buildNode(ele, attrs, content, events, options);
@@ -380,8 +376,7 @@ function buildNode(type, attrs, content, events, options={}) {
  * @param {string} type The type of element to create.
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- */
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element. */
 function buildNodeNS(ns, type, attrs, content, events, options={}) {
     const ele = document.createElementNS(ns, type);
     return _buildNode(ele, attrs, content, events, options);
@@ -393,8 +388,7 @@ function buildNodeNS(ns, type, attrs, content, events, options={}) {
  * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
  * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
  * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {object} [options]
- */
+ * @param {object} [options] */
 function _buildNode(ele, attrs, content, events, options) {
     if (attrs) {
         for (const [key, value] of Object.entries(attrs)) {
@@ -435,8 +429,7 @@ function _buildNode(ele, attrs, content, events, options) {
  * Helper to append multiple children to a single element at once.
  * @param {HTMLElement} parent Parent element to append children to.
  * @param {...HTMLElement} elements Elements to append this this `HTMLElement`
- * @returns {HTMLElement} `parent`
- */
+ * @returns {HTMLElement} `parent` */
 function appendChildren(parent, ...elements) {
     for (const element of elements) {
         if (element) {
@@ -457,8 +450,7 @@ function appendChildren(parent, ...elements) {
  * NOTE: It's expected that all API requests call this on failure, as it's the main console
  *       logging method.
  * @param {string|Error} error
- * @returns {string}
- */
+ * @returns {string} */
 function errorMessage(error) {
     if (error.Error) {
         Log.error(error);
@@ -514,8 +506,7 @@ function errorToast(message, duration=2500) {
 /**
  * Return 'n text' if n is 1, otherwise 'n texts'.
  * @param {number} n The number of items.
- * @param {string} text The type of item.
- */
+ * @param {string} text The type of item. */
 function plural(n, text) {
     return `${n} ${text}${n === 1 ? '' : 's'}`;
 }
@@ -782,8 +773,9 @@ function errorResponseOverlay(message, err, onDismiss=Overlay.dismiss) {
 /**
  * Waits for the given condition to be true, timing out after a specified number of milliseconds.
  * @param {() => boolean} condition The condition to test until it returns true.
- * @param {number} timeout Number of milliseconds before giving up. */
-async function waitFor(condition, timeout) {
+ * @param {number} timeout Number of milliseconds before giving up.
+ * @returns {Promise<void>} */
+function waitFor(condition, timeout) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => { clearInterval(interval); reject(new Error('hit waitFor timeout')); }, timeout);
         const interval = setInterval(() => {

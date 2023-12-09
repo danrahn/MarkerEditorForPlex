@@ -110,7 +110,8 @@ class DatabaseImportExport {
      * @param {number} sectionId */
     static async exportDatabase(response, sectionId) {
         if (isNaN(sectionId)) {
-            return response.writeHead(400).end('Invalid section id');
+            response.writeHead(400).end('Invalid section id');
+            return;
         }
 
         let sectionName = 'Server';
@@ -126,7 +127,8 @@ class DatabaseImportExport {
             }
 
             if (!valid) {
-                return response.writeHead(400).end('Invalid section id');
+                response.writeHead(400).end('Invalid section id');
+                return;
             }
         }
 
@@ -205,7 +207,8 @@ WHERE t.tag_id=$tagId`;
         const stats = statSync(backupFullPath);
         if (!stats.isFile()) {
             // Failed to save db file?
-            return response.writeHead(500).end('Unable to retrieve marker database.');
+            response.writeHead(500).end('Unable to retrieve marker database.');
+            return;
         }
 
         const mimetype = 'application/x-sqlite3';

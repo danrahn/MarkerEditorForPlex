@@ -29,12 +29,13 @@ class GETHandler {
      * Handle the given GET request.
      * @param {IncomingMessage} req
      * @param {ServerResponse} res */
-    static async handleRequest(req, res) {
+    static handleRequest(req, res) {
         let url = req.url;
 
         // GET requests should always have a URL
         if (!url) {
-            return res.writeHead(400).end(`Invalid request - no URL found`);
+            res.writeHead(400).end(`Invalid request - no URL found`);
+            return;
         }
 
         if (url === '/') {
@@ -85,7 +86,7 @@ class ImageHandler {
      * Retrieve an SVG icon requests with the given color.
      * @param {string} url The svg url of the form /i/[hex color]/[icon].svg
      * @param {ServerResponse} res */
-    static async GetSvgIcon(url, res) {
+    static GetSvgIcon(url, res) {
         const badRequest = (msg, code=400) => {
             Log.error(msg, `[${url}] Unable to retrieve icon`);
             res.writeHead(code).end(msg);

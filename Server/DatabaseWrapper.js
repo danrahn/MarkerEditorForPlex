@@ -39,7 +39,7 @@ class DatabaseWrapper {
      * @param {string} query
      * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<void>} */
-    async run(query, parameters=[]) {
+    run(query, parameters=[]) {
         return this.#action(this.#db.run.bind(this.#db), query, parameters);
     }
 
@@ -48,7 +48,7 @@ class DatabaseWrapper {
      * @param {string} query
      * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<any>} */
-    async get(query, parameters=[]) {
+    get(query, parameters=[]) {
         return this.#action(this.#db.get.bind(this.#db), query, parameters);
     }
 
@@ -57,7 +57,7 @@ class DatabaseWrapper {
      * @param {string} query
      * @param {DbQueryParameters} parameters
      * @returns {Promise<any[]>} */
-    async all(query, parameters=[]) {
+    all(query, parameters=[]) {
         return this.#action(this.#db.all.bind(this.#db), query, parameters);
     }
 
@@ -65,12 +65,12 @@ class DatabaseWrapper {
      * Execute the given statement(s).
      * @param {string} query
      * @returns {Promise<undefined>} */
-    async exec(query) {
+    exec(query) {
         return this.#action(this.#db.exec.bind(this.#db), query, null /*parameters*/);
     }
 
     /** Closes the underlying database connection. */
-    async close() {
+    close() {
         return new Promise((resolve, _) => {
             this.#db.close((err) => {
                 if (err) { throw ServerError.FromDbError(err); }
@@ -83,11 +83,11 @@ class DatabaseWrapper {
     /**
      * Perform a database action and return a Promise
      * instead of dealing with callbacks.
-     * @param {(sql : string, ...args : any) => Database} fn
+     * @param {(sql : string, ...args : any) => SqliteDatabase} fn
      * @param {string} query
      * @param {DbQueryParameters|null} parameters
      * @returns {Promise<any>} */
-    async #action(fn, query, parameters=null) {
+    #action(fn, query, parameters=null) {
         return new Promise((resolve, reject) => {
             const callback = (err, result) => {
                 if (err) { reject(err.message); }

@@ -748,7 +748,7 @@ class PurgeTable {
 
     /**
      * Animate the removal of this row */
-    async #onRowRemoved() {
+    #onRowRemoved() {
         this.#removed = true;
         return slideUp(this.#html, 500, () => {
             this.#html.parentElement.removeChild(this.#html);

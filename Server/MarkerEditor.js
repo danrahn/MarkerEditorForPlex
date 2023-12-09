@@ -290,7 +290,7 @@ async function userReload(res) {
 
 /** Creates the server. Called after verifying the config file and database.
  * @returns {Promise<void>} */
-async function launchServer() {
+function launchServer() {
     if (!shouldCreateServer()) {
         return;
     }

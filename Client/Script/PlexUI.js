@@ -320,7 +320,7 @@ class PlexUIManager {
      * set a timeout to invoke a search after a quarter of a second has passed.
      * @this {PlexUIManager}
      * @param {KeyboardEvent} e */
-    async #onSearchInput(e) {
+    #onSearchInput(e) {
         clearTimeout(this.#searchTimer);
         if (e.key === 'Enter') {
             this.#lastSearch = null; // Guarantee we reload things.

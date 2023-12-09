@@ -277,18 +277,18 @@ class MarkerEdit {
     /**
      * Relay a marker add/edit confirmation to the right handler.
      * @param {Event} event */
-    async #onMarkerActionConfirm(event) {
+    #onMarkerActionConfirm(event) {
         if (this.markerRow.forAdd()) {
-            this.#onMarkerAddConfirm(event);
-        } else {
-            this.#onMarkerEditConfirm(event);
+            return this.#onMarkerAddConfirm(event);
         }
+
+        return this.#onMarkerEditConfirm(event);
     }
 
     /**
      * Relay a marker add/edit cancellation to the right handler.
      * @param {Event} event */
-    async #onMarkerActionCancel(event) {
+    #onMarkerActionCancel(event) {
         if (this.markerRow.forAdd()) {
             this.#onMarkerAddCancel(event);
         } else {
@@ -336,7 +336,7 @@ class MarkerEdit {
         try {
             const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, +final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            this.markerRow.parent().mediaItem().markerTable().editMarker(editedMarker);
+            this.markerRow.parent().baseItem().markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
             this.onMarkerEditCancel();
@@ -505,9 +505,7 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
-        mediaItem.markerTable().editMarker(partialMarker);
+        this.markerRow.parent().baseItem().markerTable().editMarker(partialMarker);
         this.resetAfterEdit();
     }
 
@@ -560,7 +558,7 @@ class MarkerEdit {
         }
 
         e.preventDefault();
-        input.value = msToHms(this.markerRow.parent().mediaItem().duration);
+        input.value = msToHms(this.markerRow.parent().baseItem().duration);
 
         // Assume credits if they enter the end of the episode.
         $$('.inlineMarkerType', this.markerRow.row()).value = 'credits';
@@ -647,7 +645,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
     /**
      * In addition to the parent's fade-out, contract our thumbnails if they're showing as part of the reset. */
-    async onBeforeReset() {
+    onBeforeReset() {
         if (!this.#thumbnailsCollapsed) {
             this.#expandContractThumbnails(null, $$('.thumbnailShowHide', this.markerRow.row()), 150);
         }
@@ -655,7 +653,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         return super.onBeforeReset();
     }
 
-    async resetAfterEdit() {
+    resetAfterEdit() {
         const showHide = $$('.thumbnailShowHide', this.markerRow.row());
         if (!showHide) {
             return;
@@ -668,7 +666,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
     /**
      * Nothing extra to do for thumbnail edit, just call our parent's onAfterReset. */
-    async onAfterReset() {
+    onAfterReset() {
         return super.onAfterReset();
     }
 
@@ -797,6 +795,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #expandContractThumbnails(_, button, duration=250) {
         this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
         const hidden = this.#thumbnailsCollapsed;
+        /** @type {Promise<void>[]} */
         const promises = [];
         $('.inputThumb', this.markerRow.row()).forEach(thumb => {
             promises.push(new Promise(r => {
