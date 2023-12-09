@@ -8,9 +8,9 @@ import { BaseLog, ConsoleLog } from '../Shared/ConsoleLog.js';
 
 // Server/test dependencies/typedefs
 import { GetServerState, ServerState } from '../Server/ServerState.js';
-import DatabaseWrapper from '../Server/DatabaseWrapper.js';
 import { ExtraData } from '../Server/PlexQueryManager.js';
 import { run as mainRun } from '../Server/MarkerEditor.js';
+import SqliteDatabase from '../Server/SqliteDatabase.js';
 import TestHelpers from './TestHelpers.js';
 import { TestLog } from './TestRunner.js';
 
@@ -28,9 +28,9 @@ class TestBase {
     static testDbPath = join(TestBase.root, 'plexDbTest.db');
     static backupDbPath = join(TestBase.root, 'Backup', 'markerActions.db');
 
-    /** @type {DatabaseWrapper} */
+    /** @type {SqliteDatabase} */
     testDb = null;
-    /** @type {DatabaseWrapper} */
+    /** @type {SqliteDatabase} */
     backupDb = null;
     /**
      * Determines whether this test class requires server setup.
@@ -103,7 +103,7 @@ class TestBase {
 
         if (this.requiresServer) {
             try {
-                this.testDb = await DatabaseWrapper.CreateDatabase(TestBase.testDbPath, true /*allowCreate*/);
+                this.testDb = await SqliteDatabase.OpenDatabase(TestBase.testDbPath, true /*allowCreate*/);
             } catch (err) {
                 TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
                 throw err;
@@ -486,7 +486,7 @@ class TestBase {
             mkdirSync(testBackupPath);
         }
 
-        this.backupDb = await DatabaseWrapper.CreateDatabase(TestBase.backupDbPath, true /*allowCreate*/);
+        this.backupDb = await SqliteDatabase.OpenDatabase(TestBase.backupDbPath, true /*allowCreate*/);
     }
 
     /** @returns The INSERT statements that will add the default markers to the test database. */

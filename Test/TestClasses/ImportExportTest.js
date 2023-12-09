@@ -6,11 +6,11 @@ import FormData from 'form-data';
 import { gunzipSync } from 'zlib';
 import { join } from 'path';
 
-import DatabaseWrapper from '../../Server/DatabaseWrapper.js';
 import { ExtraData } from '../../Server/PlexQueryManager.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import { Readable } from 'stream';
+import SqliteDatabase from '../../Server/SqliteDatabase.js';
 import TransactionBuilder from '../../Server/TransactionBuilder.js';
 
 /** @typedef {!import  ('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
@@ -289,7 +289,7 @@ class ImportExportTest extends TestBase {
         await new Promise((resolve, _) => { stream.on('finish', resolve); });
         await new Promise(resolve => { stream.end(() => resolve()); });
 
-        const db = await DatabaseWrapper.CreateDatabase(this.#dbPath(), false /*allowCreate*/);
+        const db = await SqliteDatabase.OpenDatabase(this.#dbPath(), false /*allowCreate*/);
         const data = await db.all('SELECT * FROM markers;');
         this.#verifyData(data);
         db.close();
@@ -329,7 +329,7 @@ class ImportExportTest extends TestBase {
      * Write the given rows to a new database to be imported
      * @param {any[][]} rows */
     async #writeImportDb(rows) {
-        const db = await DatabaseWrapper.CreateDatabase(this.#dbPath(), true /*allowCreate*/);
+        const db = await SqliteDatabase.OpenDatabase(this.#dbPath(), true /*allowCreate*/);
 
         // Copied from Server/ImportExport.js
         let query = new TransactionBuilder(db);

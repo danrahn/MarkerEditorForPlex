@@ -6,21 +6,21 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
-import DatabaseWrapper from './DatabaseWrapper.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import { ProjectRoot } from './MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
+import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
 /** @typedef {!import('http').IncomingMessage} IncomingMessage */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
-/** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
-/** @typedef {!import('./FormDataParse.js').ParsedFormField} ParsedFormField */
+/** @typedef {!import('./FormDataParse').ParsedFormData} ParsedFormData */
+/** @typedef {!import('./FormDataParse').ParsedFormField} ParsedFormField */
 /** @typedef {!import('./MarkerCacheManager').MarkerQueryResult} MarkerQueryResult */
-/** @typedef {!import('./DatabaseWrapper.js').DbDictParameters} DbDictParameters */
+/** @typedef {!import('./SqliteDatabase').DbDictParameters} DbDictParameters */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../Shared/PlexTypes').OldMarkerTimings} OldMarkerTimings */
 
@@ -146,7 +146,7 @@ class DatabaseImportExport {
             rmSync(backupFullPath); // Just bubble up any errors
         }
 
-        const db = await DatabaseWrapper.CreateDatabase(backupFullPath, true /*allowCreate*/);
+        const db = await SqliteDatabase.OpenDatabase(backupFullPath, true /*allowCreate*/);
         await db.exec(CheckVersionTable);
         await db.exec(ExportTable);
 
@@ -265,7 +265,7 @@ WHERE t.tag_id=$tagId`;
      * @param {number} sectionId Section ID to apply markers to. -1 to apply server-wide
      * @param {number} resolveType The MarkerConflictResolution type */
     static async #doImport(importedFile, sectionId, resolveType) {
-        const db = await DatabaseWrapper.CreateDatabase(importedFile, false /*allowCreate*/);
+        const db = await SqliteDatabase.OpenDatabase(importedFile, false /*allowCreate*/);
         try {
             let row = await db.get('SELECT version FROM schema_version;');
             if (row.version > CurrentSchemaVersion) {

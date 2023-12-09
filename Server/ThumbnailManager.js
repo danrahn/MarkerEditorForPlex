@@ -7,7 +7,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
 
-/** @typedef {!import('./DatabaseWrapper'.default) DatabaseWrapper} */
+/** @typedef {!import('./SqliteDatabase'.default) SqliteDatabase} */
 
 
 const Log = new ContextualLog('ThumbManager');
@@ -23,12 +23,12 @@ let Instance;
  * for a specific timestamp in an episode. */
 class ThumbnailManager {
     /** The Plex database connection.
-     * @type {DatabaseWrapper} */
+     * @type {SqliteDatabase} */
     database;
 
     /**
      * Create the singleton ThumbnailManager instance
-     * @param {DatabaseWrapper} db The database connection
+     * @param {SqliteDatabase} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory */
     static Create(db, metadataPath) {
         if (Instance) {
@@ -49,7 +49,7 @@ class ThumbnailManager {
      * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
     static Close(fullShutdown) { Instance?.close(fullShutdown); Instance = null; }
 
-    /** @param {DatabaseWrapper} db */
+    /** @param {SqliteDatabase} db */
     constructor(db) {
         this.database = db;
     }
@@ -111,7 +111,7 @@ class BifThumbnailManager extends ThumbnailManager {
 
     /**
      * Create a new ThumbnailManager
-     * @param {DatabaseWrapper} db The database connection
+     * @param {SqliteDatabase} db The database connection
      * @param {string} metadataPath The path to the root of Plex's data directory */
     constructor(db, metadataPath) {
         super(db);

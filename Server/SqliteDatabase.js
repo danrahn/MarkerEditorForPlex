@@ -1,7 +1,6 @@
-import CreateDatabase from './CreateDatabase.cjs';
-import ServerError from './ServerError.js';
+import Sqlite3 from 'sqlite3';
 
-/** @typedef {!import('./CreateDatabase.cjs').SqliteDatabase} SqliteDatabase */
+import ServerError from './ServerError.js';
 
 /**
  * @typedef {(number|string|boolean|null)[]} DbArrayParameters
@@ -9,27 +8,45 @@ import ServerError from './ServerError.js';
  * @typedef {DbArrayParameters|DbDictParameters} DbQueryParameters
  */
 
+/** @typedef {Sqlite3.Database} Database */
+
+/**
+ * Create and return a connection to an Sqlite3 database.
+ * @param {string} path The path to the database.
+ * @param {boolean} allowCreate Determines whether we're okay with creating a new database if it doesn't exist.
+ * @returns {Promise<SqliteDatabase>} */
+function OpenSqlite3Database(path, allowCreate) {
+    const openFlags = Sqlite3.OPEN_READWRITE | (allowCreate ? Sqlite3.OPEN_CREATE : 0);
+    return new Promise((resolve, _) => {
+        const db = new Sqlite3.Database(path, openFlags, (err) => {
+            if (err) { throw new ServerError(err.message, 500); }
+
+            resolve(db);
+        });
+    });
+}
+
 /**
  * A wrapper around a Sqlite3 database that allows for async/await interaction,
  * something that can't be done with the base database as it's async
  * implementation is callback-based.
  */
-class DatabaseWrapper {
+class SqliteDatabase {
     /**
      * Return a new database wrapper for the database at the given path.
      * @param {string} path The path to the database.
      * @param {boolean} allowCreate Determines whether we're okay with create a new database if it doesn't exist.
-     * @returns {Promise<DatabaseWrapper>} */
-    static async CreateDatabase(path, allowCreate) {
-        return new DatabaseWrapper(await CreateDatabase(path, allowCreate));
+     * @returns {Promise<SqliteDatabase>} */
+    static async OpenDatabase(path, allowCreate) {
+        return new SqliteDatabase(await OpenSqlite3Database(path, allowCreate));
     }
 
-    /** @type {SqliteDatabase} */
+    /** @type {Database} */
     #db;
 
     /**
      * Construct a new database wrapper
-     * @param {SqliteDatabase} database */
+     * @param {Database} database */
     constructor(database) {
         this.#db = database;
     }
@@ -83,7 +100,7 @@ class DatabaseWrapper {
     /**
      * Perform a database action and return a Promise
      * instead of dealing with callbacks.
-     * @param {(sql : string, ...args : any) => SqliteDatabase} fn
+     * @param {(sql : string, ...args : any) => Database} fn
      * @param {string} query
      * @param {DbQueryParameters|null} parameters
      * @returns {Promise<any>} */
@@ -108,14 +125,14 @@ class DatabaseWrapper {
      * @throws {ServerError} If there are too many or too few parameters, or if there's a non-number/string parameter. */
     static parameterize(query, parameters) {
         if (parameters instanceof Array) {
-            return DatabaseWrapper.#parameterizeArray(query, parameters);
+            return SqliteDatabase.#parameterizeArray(query, parameters);
         }
 
         if (!(parameters instanceof Object)) {
             throw new ServerError(`Cannot parameterize query, expected an array or object of parameters`);
         }
 
-        return DatabaseWrapper.#parameterizeNamed(query, parameters);
+        return SqliteDatabase.#parameterizeNamed(query, parameters);
     }
 
 
@@ -206,4 +223,4 @@ class DatabaseWrapper {
     }
 }
 
-export default DatabaseWrapper;
+export default SqliteDatabase;

@@ -2,9 +2,9 @@ import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerDat
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 
-import DatabaseWrapper from './DatabaseWrapper.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
+import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
 /** @typedef {!import('../Shared/PlexTypes').BulkAddResultEntry} BulkAddResultEntry */
@@ -14,7 +14,7 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
 /** @typedef {!import('../Shared/PlexTypes').LibrarySection} LibrarySection */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
-/** @typedef {!import('./DatabaseWrapper').DbDictParameters} DbDictParameters */
+/** @typedef {!import('./SqliteDatabase').DbDictParameters} DbDictParameters */
 
 /**
  * @typedef {{ id : number, index : number, start : number, end : number, modified_date : number|null, created_at : number,
@@ -151,7 +151,7 @@ class PlexQueryManager {
      * @type {number} */
     #markerTagId;
 
-    /** @type {DatabaseWrapper} */
+    /** @type {SqliteDatabase} */
     #database;
 
     /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
@@ -202,10 +202,10 @@ FROM taggings
         }
 
         Log.info(`Verifying database ${databasePath}...`);
-        /** @type {DatabaseWrapper} */
+        /** @type {SqliteDatabase} */
         let db;
         try {
-            db = await DatabaseWrapper.CreateDatabase(databasePath, false /*fAllowCreate*/);
+            db = await SqliteDatabase.OpenDatabase(databasePath, false /*fAllowCreate*/);
         } catch (err) {
             Log.error(`Unable to open database. Are you sure "${databasePath}" exists?`);
             throw ServerError.FromDbError(err);
@@ -251,7 +251,7 @@ FROM taggings
 
     /**
      * Initializes the query manager. Should only be called via the static CreateInstance.
-     * @param {DatabaseWrapper} database
+     * @param {SqliteDatabase} database
      * @param {markerTagId} markerTagId The database tag id that represents markers. */
     constructor(database, markerTagId) {
         this.#database = database;

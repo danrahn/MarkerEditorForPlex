@@ -1,5 +1,5 @@
 /* eslint-disable max-len */
-/** @typedef {!import('../Server/DatabaseWrapper').default} DatabaseWrapper */
+/** @typedef {!import('../Server/SqliteDatabase').default} SqliteDatabase */
 /** @typedef {!import('../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 /**
@@ -19,7 +19,7 @@ class TestHelpers {
      * @param {number?} expectedEnd
      * @param {number?} expectedIndex
      * @param {boolean?} expectedFinal
-     * @param {DatabaseWrapper?} database The test database
+     * @param {SqliteDatabase?} database The test database
      * @param {boolean} isDeleted Whether markerData is a deleted marker (i.e. we should verify it doesn't exist in the database)
      * @throws if the marker is not valid.
      * TODO: indexRemove: replace index with order for all callers.

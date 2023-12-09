@@ -1,21 +1,21 @@
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import DatabaseWrapper from './DatabaseWrapper.js';
+import SqliteDatabase from './SqliteDatabase.js';
 
-/** @typedef {!import('./DatabaseWrapper').DbQueryParameters} DbQueryParameters */
+/** @typedef {!import('./SqliteDatabase.js').DbQueryParameters} DbQueryParameters */
 
 const Log = new ContextualLog('SQLiteTxn');
 
 class TransactionBuilder {
     /** @type {string[]} */
     #commands = [];
-    /** @type {DatabaseWrapper} */
+    /** @type {SqliteDatabase} */
     #db;
     /** @type {string|undefined} */
     #cache;
 
     /**
-     * @param {DatabaseWrapper} database */
+     * @param {SqliteDatabase} database */
     constructor(database) {
         this.#db = database;
     }
@@ -30,7 +30,7 @@ class TransactionBuilder {
             statement += ';';
         }
 
-        this.#commands.push(DatabaseWrapper.parameterize(statement, parameters));
+        this.#commands.push(SqliteDatabase.parameterize(statement, parameters));
         this.#cache = null;
     }
 

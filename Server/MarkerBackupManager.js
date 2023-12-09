@@ -10,10 +10,10 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 import { Config } from './MarkerEditorConfig.js';
-import DatabaseWrapper from './DatabaseWrapper.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
+import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
@@ -22,8 +22,8 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('../Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('../Shared/PlexTypes').PurgeShowSection} PurgeShowSection */
 /** @typedef {!import('../Shared/PlexTypes').PurgeShow} PurgeShow */
-/** @typedef {!import('./DatabaseWrapper.js').DbArrayParameters} DbArrayParameters */
-/** @typedef {!import('./DatabaseWrapper.js').DbDictParameters} DbDictParameters */
+/** @typedef {!import('./SqliteDatabase').DbArrayParameters} DbArrayParameters */
+/** @typedef {!import('./SqliteDatabase').DbDictParameters} DbDictParameters */
 /** @typedef {!import('./PlexQueryManager').MultipleMarkerQuery} MultipleMarkerQuery */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
@@ -328,7 +328,7 @@ let Instance;
  *       3. Iterate - if timestamps exactly match, report it.
  */
 class MarkerBackupManager {
-    /** @type {DatabaseWrapper} */
+    /** @type {SqliteDatabase} */
     #actions;
 
     /** Unique identifiers for the library sections of the existing database.
@@ -397,7 +397,7 @@ class MarkerBackupManager {
         }
 
         try {
-            const db = await DatabaseWrapper.CreateDatabase(fullPath, true /*allowCreate*/);
+            const db = await SqliteDatabase.OpenDatabase(fullPath, true /*allowCreate*/);
             Log.tmi('Opened database, checking schema');
             await db.exec(CheckVersionTable);
             if (!dbExists) {
@@ -452,7 +452,7 @@ class MarkerBackupManager {
      * @param {{[sectionId: number]: string}} uuids A map of section ids to UUIDs to uniquely identify a section across severs.
      * @param {{[sectionId: number]: number}} sectionTypes A map of section ids to the type of library it is.
      *                                                     Used to differentiate hierarchies in the purge map.
-     * @param {DatabaseWrapper} actionsDatabase The connection to the backup database. */
+     * @param {SqliteDatabase} actionsDatabase The connection to the backup database. */
     constructor(uuids, sectionTypes, actionsDatabase) {
         this.#uuids = uuids;
         this.#sectionTypes = sectionTypes;
