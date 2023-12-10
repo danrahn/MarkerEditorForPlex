@@ -1870,12 +1870,21 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
                 }
 
                 for (const chapter of json.Chapters.Chapter) {
+                    const start = parseInt(chapter.start * 1000); // Stored as decimal seconds, convert to ms.
+
+                    // If the start of a chapter is the end of the previous chapter, decrease
+                    // the previous end to avoid overlap.
+                    if (chapters.length && start === chapters[chapters.length - 1].end) {
+                        --chapters[chapters.length - 1].end;
+                    }
+
                     chapters.push({
                         name : chapter.name,
-                        start : parseInt(chapter.start * 1000), // Stored as decimal seconds, convert to ms.
+                        start : start,
                         end : parseInt(chapter.end * 1000)
                     });
                 }
+
 
                 result[baseId] = chapters;
             } catch (e) {
