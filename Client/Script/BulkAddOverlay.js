@@ -717,16 +717,27 @@ class BulkAddRow extends BulkActionRow {
             };
         }
 
+        // Exact name match trumps all
+        const nameMatches = this.#chapters.filter(c => c.name.length !== 0 && c.name === baseline.name);
+        if (nameMatches.length > 0) {
+            let closest = nameMatches[0][type];
+            for (const chapter of nameMatches) {
+                const chapterTime = chapter[type];
+                if (Math.abs(baselineTime - closest) > Math.abs(baselineTime - chapter[type])) {
+                    closest = chapterTime;
+                }
+            }
+
+            return {
+                mode : ChapterMatchMode.NameMatch,
+                time : closest,
+            };
+        }
+
+        // If no name match, find the chapter with the closest timestamp.
         let fuzzyTime = this.#chapters[0][type];
         for (const chapter of this.#chapters) {
             const chapterTime = chapter[type];
-            if (chapter.name.length !== 0 && chapter.name === baseline.name) {
-                return {
-                    mode : ChapterMatchMode.NameMatch,
-                    time : chapterTime,
-                };
-            }
-
             if (chapterTime === baselineTime) {
                 return {
                     mode : ChapterMatchMode.TimestampMatch,
