@@ -639,6 +639,7 @@ input:focus-visible {
   position: fixed;
   top: 20px;
   left: 20px;
+  z-index: 4; /* Show over nav/overlay */
 }
 
 .errorToast {
@@ -651,7 +652,6 @@ input:focus-visible {
   border-radius: 3px;
   opacity: 0;
   font-size: smaller;
-  z-index: 4; /* Show over nav/overlay */
 
   & h4 {
     padding: 0;
