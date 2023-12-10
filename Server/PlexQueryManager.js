@@ -1650,9 +1650,10 @@ ORDER BY e.\`index\` ASC;`;
         for (const episodeId of episodeIds) {
             const newMarker = newMarkers[episodeId];
             const newStart = newMarker.start;
-            const newEnd = Math.min(episodeMarkerMap[episodeId].episodeData.duration, newMarker.end);
+            const duration = episodeMarkerMap[episodeId].episodeData.duration;
+            const newEnd = Math.min(duration, newMarker.end);
             // bool vs number shouldn't matter, since it only really matters for backup db purposes, but be consistent.
-            const final = (markerType === MarkerType.Credits && newMarker.end >= newEnd) ? 1 : 0;
+            const final = (markerType === MarkerType.Credits && newMarker.end >= duration) ? 1 : 0;
             const episodeMarkers = episodeMarkerMap[episodeId].existingMarkers;
             if (!episodeMarkers || episodeMarkers.length === 0) {
                 this.#addMarkerStatement(transaction, episodeId, 0 /*newIndex*/, newStart, newEnd, markerType, final);
