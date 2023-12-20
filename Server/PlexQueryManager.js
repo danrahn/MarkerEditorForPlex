@@ -56,16 +56,33 @@ const Log = new ContextualLog('PlexDB');
  * @enum */
 const ExtraData = {
     /** @readonly Intro marker */
-    Intro        : 'pv%3Aversion=5',
+    Intro           : '{"pv:version":"5","url":"pv%3Aversion=5"}',
     /** @readonly Non-final credit marker */
-    Credits      : 'pv%3Aversion=4',
+    Credits         : '{"pv:version":"4","url":"pv%3Aversion=4"}',
     /** @readonly Final credit marker (goes to the end of the media item) */
-    CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
+    CreditsFinal    : '{"pv:final":"1","pv:version":"4","url":"pv%3Afinal=1&pv%3Aversion=4"}',
+
+    /** @readonly extra_data for PMS <1.40 */
+    Legacy : {
+        /** @readonly Pre PMS 1.40 Intro marker */
+        Intro : 'pv%3Aversion=5',
+        /** @readonly Pre PMS 1.40 non-final credits marker */
+        Credits : 'pv%3Aversion=4',
+        /** @readonly Pre PMS 1.40 final credits marker (goes to the end of the media item) */
+        CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
+    },
+
     /**
      * Convert marker type string and final flag to ExtraData type
      * @param {string} markerType Value from MarkerType
      * @param {number} final */
-    get : (markerType, final) => markerType === MarkerType.Intro ? ExtraData.Intro : final ? ExtraData.CreditsFinal : ExtraData.Credits,
+    get : (markerType, final) => {
+        const data = ExtraData._isLegacy ? ExtraData.Legacy : ExtraData;
+        return markerType === MarkerType.Intro ? data.Intro : final ? data.CreditsFinal : data.Credits;
+    },
+
+    /** Determines whether the user is running an older version of PMS, before extra_data's JSON conversion. Set on boot. */
+    isLegacy : false,
 };
 
 /**
@@ -227,6 +244,18 @@ FROM taggings
                 Log.error(`See https://support.plex.tv/articles/repair-a-corrupted-database/ for more information on Plex`);
                 Log.error(`SQLite and the database location.`);
                 throw new ServerError(`Plex database must contain at least one marker.`, 500);
+            }
+
+            // Need to check extra_data of a marker to determine whether we should use plain text or JSON strings
+            // for markers' extra_data.
+            const marker = await db.get('SELECT extra_data FROM taggings WHERE tag_id=?', [row.id]);
+            if (!marker) {
+                Log.warn('No existing markers found. Assuming PMS >=1.40. If you are not running PMS >= 1.40, DO NOT ADD CUSTOM MARKERS.');
+            } else if (marker.extra_data && marker.extra_data[0] !== '{') {
+                Log.verbose('PMS < 1.40 detected, falling back to legacy extra_data (non-JSON)');
+                ExtraData.isLegacy = true;
+            } else {
+                Log.verbose('PMS >= 1.40 detected, using JSON for extra_data');
             }
 
             Log.info('Database verified');
@@ -943,9 +972,9 @@ ORDER BY e.\`index\` ASC;`;
 
         const addQuery =
             'INSERT INTO taggings ' +
-                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, created_at, extra_data) ' +
+                '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `($metadataId, $tagId, $index, $text, $startMs, $endMs, $createdAt, $extraData);`;
+                `($metadataId, $tagId, $index, $text, $startMs, $endMs, "", $createdAt, $extraData);`;
 
         /** @type {DbDictParameters} */
         const parameters = {

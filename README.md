@@ -1,5 +1,3 @@
-> > ⚠️ PMS 1.40.x [updated the database schema](https://forums.plex.tv/t/1-40-0-7775-database-changes/863317/2) in a way that affects this tool. For now, do _not_ use this if you're on 1.40.x.
-
 # Marker Editor for Plex
 
 Plex does not let users modify or manually add markers, relying solely on their own detection processes. This project aims to make it easier to view/edit/add/delete individual markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple markers, for example a "previously on XYZ" section (as seen in the image below).
