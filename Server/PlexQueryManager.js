@@ -77,7 +77,7 @@ const ExtraData = {
      * @param {string} markerType Value from MarkerType
      * @param {number} final */
     get : (markerType, final) => {
-        const data = ExtraData._isLegacy ? ExtraData.Legacy : ExtraData;
+        const data = ExtraData.isLegacy ? ExtraData.Legacy : ExtraData;
         return markerType === MarkerType.Intro ? data.Intro : final ? data.CreditsFinal : data.Credits;
     },
 
