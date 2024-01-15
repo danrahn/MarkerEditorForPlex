@@ -430,9 +430,15 @@ input:focus-visible {
   border-color:var(--theme-focus-color);
 }
 
+#topRightControls {
+  position: relative;
+  top: 30px;
+}
+
 #helpContainer {
   position: absolute;
-  top: 30px;
+  top: 0;
+  right: 0;
 }
 
 #helpBtn {
@@ -446,8 +452,7 @@ input:focus-visible {
 
 #toggleContainer {
   position: absolute;
-  top: 30px;
-  right: 60px;
+  right: 30px;
 }
 
 #darkModeToggle {
@@ -713,7 +718,7 @@ input:focus-visible {
     height: 10px;
   }
 
-  #helpContainer {
+  #topRightControls {
     right: 30px;
   }
 }
@@ -733,7 +738,7 @@ input:focus-visible {
 
   /* The help button runs into the same issues as the theme toggle.
   * We don't want to hide it though, so just adjust its right margin to give it more room. */
-  #helpContainer {
+  #topRightControls {
     right: 10px;
   }
 }
