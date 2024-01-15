@@ -977,6 +977,8 @@ ORDER BY id DESC;`;
 
         /** @type {{ [sectionId: number]: number[] }} */
         const disconnected = {};
+        /** @type {Set<number>} */
+        const noGuid = new Set();
         for (const action of actions) {
             if (action.op === MarkerOp.Delete) {
                 continue; // Last action was a user delete, ignore it.
@@ -997,8 +999,7 @@ ORDER BY id DESC;`;
                     PlexQueries.getMovieFromGuid(action.parent_guid) :
                     PlexQueries.getEpisodeFromGuid(action.parent_guid));
                 if (!fromGuid) {
-                    Log.verbose(`No episode found for marker id ${action.id}, ` +
-                        `but keeping around in case the episode guid is added in the future.`);
+                    noGuid.add(action.id);
                     continue;
                 }
 
@@ -1010,6 +1011,12 @@ ORDER BY id DESC;`;
             if (MarkerCache.baseItemExists(action.parent_id) && !MarkerCache.markerExists(action.marker_id)) {
                 this.#addToPurgeMap(action);
             }
+        }
+
+        if (noGuid.size > 0) {
+            Log.verbose(`No episode found for ${noGuid.size} marker ids` +
+                (noGuid.size < 10 ? ` (${Array.from(noGuid).join(', ')})` : '') +
+                `, but keeping around in case the episode guid is added in the future.`);
         }
 
         // Ignore disconnected markers all at once
