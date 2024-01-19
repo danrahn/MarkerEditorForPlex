@@ -1885,7 +1885,14 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
 
             let chapterEnd = extraData.indexOf('&', chapterStart);
             if (chapterEnd === -1) {
-                chapterEnd = extraData.length;
+                // With PMS >=1.40, the url-encoded chapter data is its own element in a JSON string,
+                // so adjust the cutoff accordingly.
+                // TODO: Use ExtraData.isLegacy, and parse the JSON directly if we're not legacy.
+                if (extraData[extraData.length - 1] === '}') {
+                    chapterEnd = extraData.length - 2;
+                } else {
+                    chapterEnd = extraData.length;
+                }
             }
 
             /** @type {{ Chapters : { Chapter : { name : string, start : number, end : number }[] }}} */
