@@ -1875,38 +1875,17 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
                 continue;
             }
 
-            /** @type {string} */
-            const extraData = baseItem.extra_data;
-            const chapterStart = extraData.indexOf('pv%3Achapters=');
-            if (chapterStart === -1) {
-                result[baseId] ??= [];
-                continue;
-            }
-
-            let chapterEnd = extraData.indexOf('&', chapterStart);
-            if (chapterEnd === -1) {
-                // With PMS >=1.40, the url-encoded chapter data is its own element in a JSON string,
-                // so adjust the cutoff accordingly.
-                // TODO: Use ExtraData.isLegacy, and parse the JSON directly if we're not legacy.
-                if (extraData[extraData.length - 1] === '}') {
-                    chapterEnd = extraData.length - 2;
-                } else {
-                    chapterEnd = extraData.length;
-                }
-            }
-
-            /** @type {{ Chapters : { Chapter : { name : string, start : number, end : number }[] }}} */
-            let json = {};
-            /** @type {ChapterData[]} */
-            const chapters = [];
             try {
-                json = JSON.parse(decodeURIComponent(extraData.substring(chapterStart + 14, chapterEnd)));
-                if (!json.Chapters.Chapter || json.Chapters.Chapter.length === 0) {
+                /** @type {{ name : string, start : number, end : number }[]} */
+                const rawChapters = this.#getChapterJson(baseItem.extra_data);
+                if (!rawChapters || rawChapters.length === 0) {
                     result[baseId] ??= [];
                     continue;
                 }
 
-                for (const chapter of json.Chapters.Chapter) {
+                /** @type {ChapterData[]} */
+                const chapters = [];
+                for (const chapter of rawChapters) {
                     const start = parseInt(chapter.start * 1000); // Stored as decimal seconds, convert to ms.
 
                     // If the start of a chapter is the end of the previous chapter, decrease
@@ -1930,6 +1909,35 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
         }
 
         return result;
+    }
+
+    /**
+     * Parse chapter data from the given extraData
+     * @param {string} extraData
+     * @returns {{ name : string, start : number, end : number }[]?} */
+    #getChapterJson(extraData) {
+        if (!ExtraData.isLegacy) {
+            try {
+                const chapters = JSON.parse(extraData)['pv:chapters'];
+                if (chapters) {
+                    return JSON.parse(chapters).Chapters?.Chapter;
+                }
+            } catch (ex) {
+                Log.warn('getChapterJson - Expected PMS >=1.40 to have JSON chapter data, but it could not be found.');
+            }
+        }
+
+        const chapterStart = extraData.indexOf('pv%3Achapters=');
+        if (chapterStart === -1) {
+            return;
+        }
+
+        let chapterEnd = extraData.indexOf('&', chapterStart);
+        if (chapterEnd === -1) {
+            chapterEnd = extraData.length;
+        }
+
+        return JSON.parse(decodeURIComponent(extraData.substring(chapterStart + 14, chapterEnd))).Chapters?.Chapter;
     }
 }
 
