@@ -54,15 +54,11 @@ table .buttonIconAndText {
 }
 
 .timeColumn {
-  width: 150px !important;
+  min-width: 60px;
 }
 
 .shortTimeColumn {
   width: 80px !important;
-}
-
-.thumbnailEnabledTimeColumn {
-  width: 250px !important;
 }
 
 .centeredColumn {
@@ -71,10 +67,6 @@ table .buttonIconAndText {
 
 .userModifiedMarker {
   font-weight: bold;
-}
-
-.optionsColumn {
-  min-width: 130px; /* "It works on my machine" */
 }
 
 .topAligned {
@@ -162,6 +154,14 @@ table .buttonIconAndText {
     width: 0;
     height: 5px;
   }
+
+  .thumbnailEnabledTimeColumn {
+    width: 250px !important;
+  }
+
+  .optionsColumn {
+    min-width: 150px; /* "It works on my machine" */
+  }
 }
 
 @media all and (max-width: 767px) { /* Probably a phone */
@@ -184,5 +184,13 @@ table .buttonIconAndText {
 
   .tableHolder td {
     font-size: smaller;
+  }
+
+  .thumbnailEnabledTimeColumn {
+    width: 190px !important;
+  }
+
+  .optionsColumn {
+    min-width: 60px; /* "It works on my machine" */
   }
 }

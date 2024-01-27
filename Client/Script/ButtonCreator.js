@@ -1,8 +1,9 @@
-import { $$, appendChildren, buildNode } from './Common.js';
+import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
+import { PlexUI } from './PlexUI.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -16,11 +17,37 @@ const Log = new ContextualLog('ButtonCreator');
  * A static class that creates various buttons used throughout the app.
  */
 class ButtonCreator {
+
     /**
-     * Creates a tabbable button with an associated icon.
+     * One-time setup that initializes the window resize event listener that determines whether to show
+     * text labels for dynamic buttons. */
+    static Setup() {
+        PlexUI.addResizeListener(() => {
+            const small = PlexUI.isSmallScreen();
+            $('.button.resizable').forEach((button) => {
+                const buttonText = $$('.buttonText', button);
+                buttonText.classList[small ? 'add' : 'remove']('hidden');
+
+                // Don't override the tooltip if it was user-set.
+                if (!button.hasAttribute('data-default-tooltip')) {
+                    return;
+                }
+
+                if (small) {
+                    Tooltip.setTooltip(button, buttonText.innerText);
+                } else {
+                    Tooltip.removeTooltip(button);
+                }
+
+            });
+        });
+    }
+
+    /**
+     * Creates a tabbable button with an associated icon and text.
      * @param {string} text The text of the button.
      * @param {keyof Icons} icon The icon to use.
-     * @param {keyof ThemeColors} color The color of the icon as a hex string (without the leading '#')
+     * @param {keyof ThemeColors} color The theme color of the icon.
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static fullButton(text, icon, color, clickHandler, attributes={}) {
@@ -28,6 +55,35 @@ class ButtonCreator {
         return appendChildren(button,
             getSvgIcon(icon, color),
             buildNode('span', { class : 'buttonText' }, text));
+    }
+
+    /**
+     * Creates a tabbable button with the associated icon and text. On small-width devices, hides the text.
+     * @param {string} text The text of the button.
+     * @param {keyof Icons} icon The icon to use.
+     * @param {keyof ThemeColors} color The theme color of the icon.
+     * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
+     * @param {AttributeMap} attributes Additional attributes to set on the button. */
+    static dynamicButton(text, icon, color, clickHandler, attributes={}) {
+        if (attributes.class) {
+            attributes.class += ' resizable';
+        } else {
+            attributes.class = 'resizable';
+        }
+
+        const button = ButtonCreator.fullButton(text, icon, color, clickHandler, attributes);
+        if (!attributes.tooltip) {
+            button.setAttribute('data-default-tooltip', 1);
+        }
+
+        if (PlexUI.isSmallScreen()) {
+            $$('.buttonText', button).classList.add('hidden');
+            if (!attributes.tooltip) {
+                Tooltip.setTooltip(button, text);
+            }
+        }
+
+        return button;
     }
 
     /**

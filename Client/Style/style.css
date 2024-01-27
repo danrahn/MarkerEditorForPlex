@@ -686,6 +686,11 @@ input:focus-visible {
   color: var(--theme-orange);
 }
 
+.smallScreenMarkerCount {
+  border-left: 1px solid var(--theme-border);
+  padding-left: 3px;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
@@ -740,5 +745,9 @@ input:focus-visible {
   * We don't want to hide it though, so just adjust its right margin to give it more room. */
   #topRightControls {
     right: 10px;
+  }
+
+  .buttonIconAndText.shrinkable .buttonText {
+    display: none;
   }
 }

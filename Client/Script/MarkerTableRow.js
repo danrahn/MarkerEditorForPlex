@@ -182,8 +182,8 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.fullButton('Edit', Icons.Edit, ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
-            ButtonCreator.fullButton('Delete', Icons.Delete, ThemeColors.Red,
+            ButtonCreator.dynamicButton('Edit', Icons.Edit, ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
+            ButtonCreator.dynamicButton('Delete', Icons.Delete, ThemeColors.Red,
                 this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn' })
         );
     }
@@ -205,10 +205,15 @@ class ExistingMarkerRow extends MarkerRow {
         dateAdded.appendChild(text);
 
         options.children[0].style.display = 'none';
-        const cancel = ButtonCreator.fullButton('No', Icons.Cancel, ThemeColors.Red, this.#onMarkerDeleteCancel.bind(this));
+        const cancel = ButtonCreator.dynamicButton('No', Icons.Cancel, ThemeColors.Red, this.#onMarkerDeleteCancel.bind(this));
         const delOptions = appendChildren(
             buildNode('div', { class : 'markerOptionsHolder inlineMarkerDeleteButtons' }),
-            ButtonCreator.fullButton('Yes', Icons.Confirm, ThemeColors.Green, this.#onMarkerDelete.bind(this), { class : 'confirmDelete' }),
+            ButtonCreator.dynamicButton('Yes',
+                Icons.Confirm,
+                ThemeColors.Green,
+                this.#onMarkerDelete.bind(this),
+                { class : 'confirmDelete' }
+            ),
             cancel,
         );
 

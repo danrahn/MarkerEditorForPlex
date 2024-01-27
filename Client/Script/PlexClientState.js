@@ -67,6 +67,22 @@ class PlexClientStateManager {
         }
 
         Instance = new PlexClientStateManager();
+
+        // When the window resizes, let search results know so they can
+        // adjust their UI accordingly.
+        PlexUI.addResizeListener(() => {
+            if (Instance.#activeSeason) {
+                Instance.#activeSeason.notifyWindowResize();
+            }
+
+            if (Instance.#activeSectionType === SectionType.Movie) {
+                /** @type {MovieResultRow} */
+                let searchRow;
+                for (searchRow of PlexUI.getActiveSearchRows()) {
+                    searchRow.updateMarkerBreakdown();
+                }
+            }
+        });
     }
 
     constructor() {

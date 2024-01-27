@@ -3,10 +3,12 @@ import { BaseLog } from '../../Shared/ConsoleLog.js';
 
 import { ClientSettings, SettingsManager } from './ClientSettings.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
+import ButtonCreator from './ButtonCreator.js';
 import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
+import { ThumbnailMarkerEdit } from './MarkerEdit.js';
 import Tooltip from './Tooltip.js';
 import VersionManager from './VersionManager.js';
 
@@ -18,9 +20,11 @@ window.addEventListener('load', setup);
 function setup() {
     HelpOverlay.SetupHelperListeners();
     SettingsManager.CreateInstance();
-    PlexClientStateManager.CreateInstance();
     PlexUIManager.CreateInstance();
+    PlexClientStateManager.CreateInstance();
     Tooltip.Setup();
+    ButtonCreator.Setup();
+    ThumbnailMarkerEdit.Setup();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.

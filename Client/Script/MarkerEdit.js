@@ -19,6 +19,7 @@ import Icons from './Icons.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
+import { PlexUI } from './PlexUI.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -374,7 +375,7 @@ class MarkerEdit {
             child.classList.add('hidden');
         }
 
-        const btn = ButtonCreator.fullButton(
+        const btn = ButtonCreator.dynamicButton(
             'Chapters',
             Icons.Chapter,
             ThemeColors.Primary,
@@ -569,6 +570,17 @@ class MarkerEdit {
  * An extension of MarkerEdit that handles showing/hiding thumbnails associated with the input timestamps.
  */
 class ThumbnailMarkerEdit extends MarkerEdit {
+
+    /**
+     * One-time initialization to set up the window resize listener that adjusts the size of preview thumbnails. */
+    static Setup() {
+        PlexUI.addResizeListener(() => {
+            const width = PlexUI.isSmallScreen() ? 180 : 240;
+            $('.inputThumb').forEach(thumb => {
+                thumb.width = width;
+            });
+        });
+    }
     /**
      * Whether we ran into an error when loading a start/end thumbnail.
      * @type {boolean[]} */
@@ -599,13 +611,15 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
         const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
+        // Not dynamic, but good enough for government work.
+        const width = document.body.clientWidth < 768 ? '180px' : '240px';
         const thumbnail = buildNode(
             'img',
             {
                 src : src,
                 class : `inputThumb loading thumb${isEnd ? 'End' : 'Start' }`,
                 alt : 'Timestamp thumbnail',
-                width : '240px',
+                width : width,
                 style : 'height: 0'
             },
             0,
@@ -630,11 +644,12 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         this.#thumbnailsCollapsed = ClientSettings.collapseThumbnails();
         const startText = this.#thumbnailsCollapsed ? 'Show' : 'Hide';
-        const btn = ButtonCreator.fullButton(
+        const btn = ButtonCreator.dynamicButton(
             startText,
             Icons.Img,
             ThemeColors.Primary,
-            this.#expandContractThumbnails.bind(this));
+            this.#expandContractThumbnails.bind(this),
+            { tooltip : startText + ' thumbnails' });
 
         btn.classList.add('thumbnailShowHide');
         const options = this.markerRow.row().children[4];
@@ -783,7 +798,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         this.#cachedHeight = realHeight;
         thumb.setAttribute('realheight', realHeight);
         if (!this.#thumbnailsCollapsed && parseInt(thumb.style.height) === 0) {
-            slideDown(thumb, `${realHeight}px`, { duration : 250, noReset : true });
+            slideDown(thumb, `${realHeight}px`, { duration : 250, noReset : true }, () => thumb.style.removeProperty('height'));
         }
     }
 
@@ -806,7 +821,11 @@ class ThumbnailMarkerEdit extends MarkerEdit {
                 }
             }));
 
-            if (button) { $$('span', button).innerText = hidden ? 'Show' : 'Hide'; }
+            if (button) {
+                const text = hidden ? 'Show' : 'Hide';
+                $$('span', button).innerText = text;
+                Tooltip.setText(button, text + ' thumbnails');
+            }
 
             if (!this.#thumbnailsCollapsed) {
                 this.#refreshImage(thumb.parentNode);

@@ -277,7 +277,8 @@ class ResultRow {
             tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 
-        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(2);
+        // TODO: Is it worth making toFixed dynamic? I don't think so.
+        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(PlexUI.isSmallScreen() ? 0 : 2);
         const innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
 
         if (this.hasPurgedMarkers()) {
@@ -1135,6 +1136,18 @@ class SeasonResultRow extends ResultRow {
 
         super.updateMarkerBreakdown();
     }
+
+    /** Ensure all episode results marker counts are expanded/minified when the
+     * window is resized. */
+    notifyWindowResize() {
+        if (!this.#episodes) {
+            return;
+        }
+
+        for (const episode of Object.values(this.#episodes)) {
+            episode.updateMarkerBreakdown();
+        }
+    }
 }
 
 /**
@@ -1384,7 +1397,13 @@ class EpisodeResultRow extends BaseItemResultRow {
     #buildMarkerText() {
         const episode = this.episode();
         const hasPurges = this.hasPurgedMarkers();
-        const text = buildNode('span', {}, plural(episode.markerTable().markerCount(), 'Marker'));
+        const smallScreen = PlexUI.isSmallScreen();
+        const markerCount = episode.markerTable().markerCount();
+        const text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
+        if (smallScreen) {
+            text.classList.add('smallScreenMarkerCount');
+        }
+
         if (hasPurges) {
             text.appendChild(purgeIcon());
         }
@@ -1546,7 +1565,11 @@ class MovieResultRow extends BaseItemResultRow {
                 markerCount = movie.markerTable().markerCount();
             }
 
-            text = buildNode('span', {}, plural(markerCount, 'Marker'));
+            const smallScreen = PlexUI.isSmallScreen();
+            text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
+            if (smallScreen) {
+                text.classList.add('smallScreenMarkerCount');
+            }
         }
 
         if (hasPurges) {
