@@ -335,4 +335,11 @@ export default class Overlay {
     static get() {
         return $$('body>#mainOverlay');
     }
+
+    /**
+     * Sets whether the overlay can be dismissed by the user via Escape/clicking outside of the main content.
+     * @param {boolean} dismissible */
+    static setDismissible(dismissible) {
+        Overlay.get().setAttribute('dismissible', dismissible ? 1 : 0);
+    }
 }

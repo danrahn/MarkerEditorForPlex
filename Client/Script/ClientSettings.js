@@ -549,6 +549,7 @@ class ClientSettingsUI {
     async #fullRestart() {
         try {
             await ServerCommand.restart();
+            Overlay.setDismissible(false);
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
@@ -621,6 +622,7 @@ class ClientSettingsUI {
             return;
         }
 
+        Overlay.setDismissible(false);
         $('#serverStateMessage').innerText = 'Server is shutting down now.';
         const btnHolder = $('#srCancel').parentElement;
         clearEle(btnHolder);
