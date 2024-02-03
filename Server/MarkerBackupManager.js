@@ -664,32 +664,6 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
                 throw new ServerError(`Unknown marker backup operation (${markerOp}), cannot back up action.`, 500);
         }
 
-        /** @type {DbDictParameters} */
-        const parameters = {
-            $op : markerOp,
-            $id : marker.id,
-            $pid : marker.parentId,
-            $seasonId : marker.seasonId,
-            $showId : marker.showId,
-            $sectionId : marker.sectionId,
-            $start : marker.start,
-            $end : marker.end,
-            $oldStart : oldTimings.start,
-            $oldEnd : oldTimings.end,
-            $modifiedAt : modifiedAt,
-            $createdAt : createdAt,
-            $extraData : ExtraData.get(marker.markerType, marker.isFinal),
-            $sectionUUID : this.#uuids[marker.sectionId],
-            $restoresId : restoresAction?.marker_id ?? null,
-            $parentGuid : marker.parentGuid,
-            $markerType : marker.markerType,
-            $final : marker.isFinal ? 1 : 0,
-            $userCreated : marker.createdByUser,
-            _asRaw : asRaw,
-        };
-
-        transaction.addStatement(query, parameters);
-
         // Update our timestamp cache
         switch (markerOp) {
             case MarkerOp.Add:
@@ -717,6 +691,32 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
                 break;
             }
         }
+
+        /** @type {DbDictParameters} */
+        const parameters = {
+            $op : markerOp,
+            $id : marker.id,
+            $pid : marker.parentId,
+            $seasonId : marker.seasonId,
+            $showId : marker.showId,
+            $sectionId : marker.sectionId,
+            $start : marker.start,
+            $end : marker.end,
+            $oldStart : oldTimings.start,
+            $oldEnd : oldTimings.end,
+            $modifiedAt : modifiedAt,
+            $createdAt : createdAt,
+            $extraData : ExtraData.get(marker.markerType, marker.isFinal),
+            $sectionUUID : this.#uuids[marker.sectionId],
+            $restoresId : restoresAction?.marker_id ?? null,
+            $parentGuid : marker.parentGuid,
+            $markerType : marker.markerType,
+            $final : marker.isFinal ? 1 : 0,
+            $userCreated : marker.createdByUser,
+            _asRaw : asRaw,
+        };
+
+        transaction.addStatement(query, parameters);
     }
 
     /**
