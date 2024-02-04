@@ -17,6 +17,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -67,6 +68,8 @@ class BulkAddOverlay {
     #cachedChapterStart;
     /** @type {ChapterData} Cached baseline end chapter data. */
     #cachedChapterEnd;
+    /** @type {boolean} Determines whether to favor chapter indexes or timestamps for fuzzy matching. */
+    #chapterIndexMode;
 
     /**
      * List of descriptions for the various bulk marker resolution actions. */
@@ -77,6 +80,11 @@ class BulkAddOverlay {
         'If any added marker conflicts with existing markers, don\'t add the marker to the episode',
         'If any added marker conflicts with existing markers, delete the existing markers',
     ];
+
+    static #indexMatchingTooltip = buildNode('span',
+        { class : 'smallerTooltip' },
+        "When an exact chapter name match isn't available, " +
+        "use the chapter's index to find matching chapters, not the closest timestamp");
 
     /**
      * Construct a new bulk add overlay.
@@ -128,7 +136,18 @@ class BulkAddOverlay {
                 buildNode('label', { for : 'addStartChapter' }, 'Start: '),
                 buildNode('select', { id : 'addStartChapter' }, 0, { change : this.#onChapterChanged.bind(this) }),
                 buildNode('label', { for : 'addEndChapter' }, 'End: '),
-                buildNode('select', { id : 'addEndChapter' }, 0, { change : this.#onChapterChanged.bind(this) })
+                buildNode('select', { id : 'addEndChapter' }, 0, { change : this.#onChapterChanged.bind(this) }),
+                buildNode('br'),
+                appendChildren(buildNode('span', { id : 'chapterIndexModeContainer' }),
+                    buildNode('label', { for : 'chapterIndexMode' }, 'Force index matching: '),
+                    buildNode('input',
+                        { type : 'checkbox', id : 'chapterIndexMode' },
+                        0,
+                        { change : this.#onChapterIndexModeChanged.bind(this) }),
+                    appendChildren(buildNode('span', { id : 'chapterIndexModeHelp' }),
+                        getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 15, height : 15 })
+                    )
+                )
             ),
             appendChildren(buildNode('div', { id : 'bulkAddInputMethod' }),
                 ButtonCreator.fullButton(
@@ -171,6 +190,7 @@ class BulkAddOverlay {
         );
 
         this.#inputMode = $('#switchInputMethod', container);
+        Tooltip.setTooltip($('#chapterIndexModeHelp', container), BulkAddOverlay.#indexMatchingTooltip);
 
         Overlay.build({
             dismissible : true,
@@ -281,6 +301,13 @@ class BulkAddOverlay {
             this.#cachedChapterEnd = this.#chapterMap[eid][e.target.value];
         }
 
+        this.#updateTableStats();
+    }
+
+    /**
+     * Update chapter index mode, i.e. whether chapter indexes or timestamps take precedence for fuzzy matching. */
+    #onChapterIndexModeChanged() {
+        this.#chapterIndexMode = $('#chapterIndexMode').checked;
         this.#updateTableStats();
     }
 
@@ -601,6 +628,7 @@ class BulkAddOverlay {
     chapterMode() { return $('#timeZone').classList.contains('hidden'); }
     chapterStart() { return this.#cachedChapterStart; }
     chapterEnd() { return this.#cachedChapterEnd; }
+    chapterIndexMode() { return this.#chapterIndexMode; }
 
     /** Update all items in the customization table, if present. */
     #updateTableStats() {
@@ -619,10 +647,12 @@ const ChapterMatchMode = {
     NameMatch : 1,
     /** @readonly We found a chapter with the same timestamp as the baseline. */
     TimestampMatch : 2,
+    /** @readonly The user is using index mode, and we found a chapter at the same index. */
+    IndexMatch : 3,
     /** @readonly We're returning the marker closest to the baseline, but it doesn't match exactly. */
-    Fuzzy : 3,
+    Fuzzy : 4,
     /** @readonly This item has no markers. */
-    NoMatch : 4,
+    NoMatch : 5,
 };
 
 /**
@@ -681,26 +711,28 @@ class BulkAddRow extends BulkActionRow {
 
     /**
      * Same as #calculateStart, but for the end timestamp. */
-    #calculateEnd() {
-        return this.#calculateStartEnd('end', this.#parent.chapterEnd());
+    #calculateEnd(min=-1) {
+        return this.#calculateStartEnd('end', this.#parent.chapterEnd(), min);
     }
 
     /**
      * Return the start and end timestamp for this row. */
     getChapterTimestampData() {
         Log.assert(this.#parent.chapterMode(), `We should be in chapterMode if we're calling getChapterTimestampData`);
+        const start = this.#calculateStartEnd('start', this.#parent.chapterStart()).time;
         return {
-            start : this.#calculateStartEnd('start', this.#parent.chapterStart()).time,
-            end : this.#calculateStartEnd('end', this.#parent.chapterEnd()).time
+            start : start,
+            end : this.#calculateStartEnd('end', this.#parent.chapterEnd(), start).time
         };
     }
 
     /**
      * Find the best timestamp for this row based on the bulk add type (raw/chapter)
      * @param {'start'|'end'} type
-     * @param {ChapterData} Baseline
+     * @param {ChapterData} baseline
+     * @param {number} min
      * @returns {{ mode : number, time : number }} */
-    #calculateStartEnd(type, baseline) {
+    #calculateStartEnd(type, baseline, min=-1) {
         if (!this.#parent.chapterMode()) {
             return {
                 mode : ChapterMatchMode.Disabled,
@@ -734,10 +766,33 @@ class BulkAddRow extends BulkActionRow {
             };
         }
 
-        // If no name match, find the chapter with the closest timestamp.
-        let fuzzyTime = this.#chapters[0][type];
-        for (const chapter of this.#chapters) {
-            const chapterTime = chapter[type];
+        // If the user selects 'index mode', ignore timestamps and just
+        // pick the chapter with the same index (if it exists)
+        if (this.#parent.chapterIndexMode() && this.#chapters.length > baseline.index) {
+            return {
+                mode : ChapterMatchMode.IndexMatch,
+                time : this.#chapters[baseline.index][type]
+            };
+        }
+
+        // If no name match, find the chapter with the closest timestamp, or index.
+        let index = 0;
+        while (index < this.#chapters.length && this.#chapters[index][type] <= min) {
+            ++index;
+        }
+
+        // All timestamps are less than the minimum. This shouldn't happen, but just
+        // return the last chapter.
+        if (index === this.#chapters.length) {
+            return {
+                mode : ChapterMatchMode.Fuzzy,
+                time : this.#chapters[this.#chapters.length - 1][type],
+            };
+        }
+
+        let fuzzyTime = this.#chapters[index][type];
+        for (; index < this.#chapters.length; ++index) {
+            const chapterTime = this.#chapters[index][type];
             if (chapterTime === baselineTime) {
                 return {
                     mode : ChapterMatchMode.TimestampMatch,
@@ -769,8 +824,8 @@ class BulkAddRow extends BulkActionRow {
         this.row.classList.remove('bulkActionInactive');
 
         const startData = this.#calculateStart();
-        const endData = this.#calculateEnd();
         const startTimeBase = startData.time;
+        const endData = this.#calculateEnd(startTimeBase);
         const endTimeBase = endData.time;
         const resolveType = this.#parent.resolveType();
         const warnClass = resolveType === BulkMarkerResolveType.Merge ? 'bulkActionSemi' : 'bulkActionOff';
@@ -886,6 +941,7 @@ class BulkAddRow extends BulkActionRow {
      * @param {number} startMode
      * @param {number} endMode
      * @returns {void} */
+    // eslint-disable-next-line complexity
     #setChapterMatchModeText(startMode, endMode) {
         // In "normal" mode - nothing extra to do.
         if (startMode === ChapterMatchMode.Disabled) {
@@ -915,6 +971,7 @@ class BulkAddRow extends BulkActionRow {
                     case ChapterMatchMode.NameMatch:
                         return setTitleInfo('bulkActionOn', 'This episode has matching chapter name data.');
                     case ChapterMatchMode.TimestampMatch:
+                    case ChapterMatchMode.IndexMatch:
                         return setTitleInfo('bulkActionOn', 'This episode has matching chapter data.');
                     case ChapterMatchMode.Fuzzy:
                         return setTitleInfo('bulkActionSemi',
@@ -925,6 +982,7 @@ class BulkAddRow extends BulkActionRow {
             case ChapterMatchMode.TimestampMatch:
                 switch (endMode) {
                     case ChapterMatchMode.NameMatch:
+                    case ChapterMatchMode.IndexMatch:
                         return setTitleInfo('bulkActionOn', 'This episode has matching chapter data.');
                     case ChapterMatchMode.TimestampMatch:
                         return setTitleInfo('bulkActionOn', 'This episode has matching chapter timestamp data.');
@@ -934,14 +992,30 @@ class BulkAddRow extends BulkActionRow {
                     default:
                         return Log.warn(`Unexpected ChapterMatchMode ${endMode}`);
                 }
+            case ChapterMatchMode.IndexMatch:
+                switch (endMode) {
+                    case ChapterMatchMode.TimestampMatch:
+                    case ChapterMatchMode.NameMatch:
+                        return setTitleInfo('bulkActionOn', 'This episode has matching chapter data.');
+                    case ChapterMatchMode.IndexMatch:
+                        return setTitleInfo('bulkActionOn', 'This episode has matching chapter index data.');
+                    case ChapterMatchMode.Fuzzy:
+                        return setTitleInfo('bulkActionSemi',
+                            'Start chapter has an index match, but end chapter does not, using closest timestamp.');
+                    default:
+                        return Log.warn(`Unexpected ChapterMatchMode ${endMode}`);
+                }
             case ChapterMatchMode.Fuzzy:
                 switch (endMode) {
                     case ChapterMatchMode.NameMatch:
                         return setTitleInfo('bulkActionSemi',
-                            'End chapter has a match, but start does not, using closest timestamp.');
+                            'End chapter has a match, but start does not. Using closest timestamp.');
                     case ChapterMatchMode.TimestampMatch:
                         return setTitleInfo('bulkActionSemi',
-                            'End chapter has a timestamp match, but start does not, using closest timestamp.');
+                            'End chapter has a timestamp match, but start does not. Using closest timestamp.');
+                    case ChapterMatchMode.IndexMatch:
+                        return setTitleInfo('bulkActionSemi',
+                            'End chapter has an index match, but start does not. Using closest timestamp');
                     case ChapterMatchMode.Fuzzy:
                         return setTitleInfo('bulkActionSemi', 'No matching chapters found, using chapter with the closest timestamps.');
                     default:

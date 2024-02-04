@@ -84,4 +84,28 @@
     /** Icon-based buttons don't have a border by default, but we want one in the overlay. */
     border: 1px solid var(--bulk-action-button-border);
   }
+
+  & #chapterIndexModeContainer {
+    font-size: smaller;
+
+    & input[type=checkbox] {
+      margin: 0;
+      vertical-align: text-bottom;
+    }
+
+    & #chapterIndexModeHelp {
+      margin: 0 0 0 5px;
+      padding: 0;
+      vertical-align: text-bottom;
+      opacity: 0.8;
+    }
+
+    & #chapterIndexModeHelp:hover {
+      opacity: 1;
+    }
+
+    & #chapterIndexModeHelp svg {
+      vertical-align: text-bottom;
+    }
+  }
 }

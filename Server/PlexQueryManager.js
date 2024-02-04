@@ -1896,6 +1896,7 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id`;
 
                     chapters.push({
                         name : chapter.name,
+                        index : chapters.length,
                         start : start,
                         end : parseInt(chapter.end * 1000)
                     });
