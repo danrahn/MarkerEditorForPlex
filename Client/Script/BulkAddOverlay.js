@@ -16,6 +16,7 @@ import {
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
 import ButtonCreator from './ButtonCreator.js';
+import { ClientSettings } from './ClientSettings.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
@@ -37,6 +38,8 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 const Log = new ContextualLog('BulkAddOverlay');
+
+/** @typedef {{ chapterMode : boolean, chapterIndexMode : boolean }} BulkAddSettings */
 
 /**
  * UI for bulk adding markers to a given show/season
@@ -69,7 +72,7 @@ class BulkAddOverlay {
     /** @type {ChapterData} Cached baseline end chapter data. */
     #cachedChapterEnd;
     /** @type {boolean} Determines whether to favor chapter indexes or timestamps for fuzzy matching. */
-    #chapterIndexMode;
+    #chapterIndexMode = false;
 
     /**
      * List of descriptions for the various bulk marker resolution actions. */
@@ -85,6 +88,8 @@ class BulkAddOverlay {
         { class : 'smallerTooltip' },
         "When an exact chapter name match isn't available, " +
         "use the chapter's index to find matching chapters, not the closest timestamp");
+
+    static #settingsKey = 'bulkAdd';
 
     /**
      * Construct a new bulk add overlay.
@@ -243,6 +248,7 @@ class BulkAddOverlay {
             ButtonCreator.setIcon(this.#inputMode, Icons.Chapter, ThemeColors.Primary);
         }
 
+        this.#saveSessionSettings();
         this.#updateTableStats();
     }
 
@@ -308,6 +314,7 @@ class BulkAddOverlay {
      * Update chapter index mode, i.e. whether chapter indexes or timestamps take precedence for fuzzy matching. */
     #onChapterIndexModeChanged() {
         this.#chapterIndexMode = $('#chapterIndexMode').checked;
+        this.#saveSessionSettings();
         this.#updateTableStats();
     }
 
@@ -343,13 +350,32 @@ class BulkAddOverlay {
         if (allEmpty) {
             tooltipText = 'No episodes have chapters, chapter mode unavailable';
         } else if (anyEmpty) {
-            this.#inputMode.classList.remove('disabled');
             tooltipText += '<br>WARN: Not all episodes have chapter data available';
-        } else {
-            this.#inputMode.classList.remove('disabled');
         }
 
         Tooltip.setText(this.#inputMode, tooltipText);
+
+        if (!allEmpty) {
+            this.#inputMode.classList.remove('disabled');
+
+            /** @type {BulkAddSettings?} */
+            const sessionSettings = ClientSettings.getSessionSetting(BulkAddOverlay.#settingsKey);
+            if (sessionSettings?.chapterMode) {
+                if (sessionSettings.chapterIndexMode) {
+                    this.#chapterIndexMode = true;
+                    $('#chapterIndexMode').checked = true;
+                }
+
+                await this.#onInputMethodChanged();
+            }
+        }
+    }
+
+    #saveSessionSettings() {
+        ClientSettings.saveSessionSetting(BulkAddOverlay.#settingsKey, {
+            chapterMode : this.chapterMode(),
+            chapterIndexMode : this.chapterIndexMode()
+        });
     }
 
     /**

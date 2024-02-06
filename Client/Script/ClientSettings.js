@@ -791,6 +791,8 @@ class SettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
+    static #sessionStorageKey = 'plexIntro_session';
+
     /** Creates the singleton SettingsManager for this session */
     static CreateInstance() {
         if (Instance) {
@@ -993,6 +995,27 @@ class SettingsManager {
     #onSystemThemeChanged(e) {
         if (this.toggleTheme(e.matches, false /*manual*/)) {
             this.#checkbox.checked = e.matches;
+        }
+    }
+
+    /**
+     * Save a session-specific setting outside of the "main" client settings.
+     * @param {string} setting The setting name
+     * @param {string|Object} value The value. Either a string or an object to be JSON stringified. */
+    saveSessionSetting(setting, value) {
+        const parsedValue = (typeof value === 'string' ? value : JSON.stringify(value));
+        sessionStorage.setItem(`${SettingsManager.#sessionStorageKey}_${setting}`, parsedValue);
+    }
+
+    /**
+     * Retrieve a value from session storage.
+     * @param {string} setting */
+    getSessionSetting(setting) {
+        const value = sessionStorage.getItem(`${SettingsManager.#sessionStorageKey}_${setting}`);
+        try {
+            return JSON.parse(value);
+        } catch {
+            return value;
         }
     }
 }
