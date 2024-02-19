@@ -10,6 +10,7 @@ import {
     ServerCommand } from './Common.js';
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { StickySettingsChangedEventName, StickySettingsType } from './StickySettings/StickySettingsTypes.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { getSvgIcon } from './SVGHelper.js';
@@ -229,6 +230,33 @@ class RememberLastSectionSetting extends SettingBase {
 }
 
 /**
+ * Setting for determining whether settings (e.g. chapter mode/bulk overlay options) should be
+ * remembered for the session, always, or never. */
+class StickySettingsSetting extends SettingBase {
+    /**
+     * The StickySettings value determining whether client choices should be remembered.
+     * @type {number} */
+    stickiness;
+
+    constructor(settings) {
+        super('stickySettings');
+        const stickyData = this.fieldOrDefault(settings, this.settingsKey, {});
+        this.stickiness = this.fieldOrDefault(stickyData, 'stickiness', 0);
+        if (this.stickiness < StickySettingsType.None || this.stickiness > StickySettingsType.Always) {
+            Log.warn(`stickySettings set to invalid value ${this.stickiness}, resetting.`);
+            this.stickiness = StickySettingsType.None;
+        }
+    }
+
+    /**
+     * Add this setting to the given setting object in preparation for serialization.
+     * @param {{string : any}} object The settings object to attach ourselves to. */
+    serialize(object) {
+        object[this.settingsKey] = { stickiness : this.stickiness };
+    }
+}
+
+/**
  * `ClientSettings` is responsible for holding the local user settings for the editor.
  */
 class ClientSettings {
@@ -251,6 +279,10 @@ class ClientSettings {
      * @type {RememberLastSectionSetting} */
     lastSection;
 
+    /** Whether to remember user options.
+     * @type {StickySettingsSetting} */
+    stickySettings;
+
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
      * Default values are used if the `localStorage` key doesn't exist. */
@@ -266,6 +298,7 @@ class ClientSettings {
         this.previewThumbnails = new PreviewThumbnailsSetting(json);
         this.extendedMarkerStats = new ExtendedMarkerStatsSetting(json);
         this.lastSection = new RememberLastSectionSetting(json);
+        this.stickySettings = new StickySettingsSetting(json);
         if (SettingBase.needsSave) {
             Log.info('Not all expected settings were in localStorage. Saving them now.');
             this.save();
@@ -292,6 +325,7 @@ class ClientSettings {
         this.previewThumbnails.serialize(json);
         this.extendedMarkerStats.serialize(json);
         this.lastSection.serialize(json);
+        this.stickySettings.serialize(json);
         Log.verbose(json, 'Settings to be serialized');
         return JSON.stringify(json);
     }
@@ -422,6 +456,19 @@ class ClientSettingsUI {
                 `When browsing shows/seasons, show a breakdown<br>of how many episodes have markers.`
             ));
         }
+
+        options.push(this.#buildSettingDropdown(
+            'Remember User Choices',
+            'stickySettingsSetting',
+            {
+                'Don\'t Remember' : StickySettingsType.None,
+                'Per Session' : StickySettingsType.Session,
+                'Across Sessions' : StickySettingsType.Always,
+            },
+            this.#settingsManager.stickySetting(),
+            'Choose how user choices are preserved, if at all. E.g. if you enter chapter edit mode when adding a marker, ' +
+            'this setting determines whether chapter edit mode is entered automatically the next time you add a marker.'
+        ));
 
         options.push(buildNode('hr'));
 
@@ -661,11 +708,7 @@ class ClientSettingsUI {
      * @returns A new checkbox setting for the settings dialog.
      */
     #buildSettingCheckbox(label, name, checked, tooltip='') {
-        const labelNode = buildNode('label', { for : name }, label + ': ');
-        if (tooltip) {
-            Tooltip.setTooltip(labelNode, tooltip);
-        }
-
+        const labelNode = this.#buildLabelNode(label, name, tooltip);
         const checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
         if (checked) {
             checkbox.setAttribute('checked', 'checked');
@@ -683,14 +726,9 @@ class ClientSettingsUI {
      * @param {string} name The internal name/id to use.
      * @param {{label: string, number}} options The options to add to the dropdown.
      * @param {number} [selectedValue] The item to preselect in the dropdown.
-     * @param {string} [tooltip] The tooltip text, if any.
-     */
+     * @param {string} [tooltip] The tooltip text, if any. */
     #buildSettingDropdown(title, name, options, selectedValue=null, tooltip='') {
-        const labelNode = buildNode('label', { for : name }, title + ':');
-        if (tooltip) {
-            Tooltip.setTooltip(labelNode, tooltip);
-        }
-
+        const labelNode = this.#buildLabelNode(title, name, tooltip);
         const select = buildNode('select', { name : name, id : name });
         for (const [label, value] of Object.entries(options)) {
             select.appendChild(buildNode('option', { value }, label));
@@ -701,6 +739,28 @@ class ClientSettingsUI {
         }
 
         return appendChildren(buildNode('div', { class : 'formInput' }), labelNode, select);
+    }
+
+    /**
+     * Builds a settings label with a small help icon if a tooltip is provided.
+     * @param {string} label The setting name
+     * @param {string} name The id of the setting
+     * @param {string} tooltip The tooltip, if any */
+    #buildLabelNode(label, name, tooltip) {
+        if (tooltip) {
+            const node = appendChildren(buildNode('span'),
+                buildNode('label', { for : name }, label + ' '),
+                appendChildren(buildNode('span', { class : 'labelHelpIcon' }),
+                    getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 12, height : 12 })
+                ),
+                buildNode('span', {}, ': ')
+            );
+
+            Tooltip.setTooltip($$('.labelHelpIcon', node), tooltip);
+            return node;
+        }
+
+        return buildNode('label', { for : name }, label + ': ');
     }
 
     /** Apply and save settings after the user chooses to commit their changes. */
@@ -716,6 +776,8 @@ class ClientSettingsUI {
             // setLastSection usually immediately saves out settings. No need to here though since we call it below.
             this.#settingsManager.setLastSection(parseInt($('#libraries').value), false /*save*/);
         }
+
+        this.#settingsManager.setStickySetting(+$('#stickySettingsSetting').value);
 
         shouldResetView = this.#updateSetting('showThumbnailsSetting', 'useThumbnails', 'setThumbnails')
                        || this.#updateSetting('collapseThumbnailsSetting', 'collapseThumbnails', 'setCollapseThumbnails')
@@ -790,8 +852,6 @@ class SettingsManager {
     /** The UI manager that handles displaying the settings dialog.
      * @type {ClientSettingsUI} */
     #uiManager;
-
-    static #sessionStorageKey = 'plexIntro_session';
 
     /** Creates the singleton SettingsManager for this session */
     static CreateInstance() {
@@ -931,6 +991,17 @@ class SettingsManager {
         }
     }
 
+    /** @returns The stickiness of client interactions. */
+    stickySetting() { return this.#settings.stickySettings.stickiness; }
+
+    /**
+     * Set the stickiness of client interactions (e.g. remembering the user entered chapter mode).
+     * @param {number} stickiness */
+    setStickySetting(stickiness) {
+        this.#settings.stickySettings.stickiness = stickiness;
+        window.dispatchEvent(new CustomEvent(StickySettingsChangedEventName, { detail : stickiness }));
+    }
+
     /** Save the currently active settings to {@linkcode localStorage} */
     save() {
         this.#settings.save();
@@ -995,27 +1066,6 @@ class SettingsManager {
     #onSystemThemeChanged(e) {
         if (this.toggleTheme(e.matches, false /*manual*/)) {
             this.#checkbox.checked = e.matches;
-        }
-    }
-
-    /**
-     * Save a session-specific setting outside of the "main" client settings.
-     * @param {string} setting The setting name
-     * @param {string|Object} value The value. Either a string or an object to be JSON stringified. */
-    saveSessionSetting(setting, value) {
-        const parsedValue = (typeof value === 'string' ? value : JSON.stringify(value));
-        sessionStorage.setItem(`${SettingsManager.#sessionStorageKey}_${setting}`, parsedValue);
-    }
-
-    /**
-     * Retrieve a value from session storage.
-     * @param {string} setting */
-    getSessionSetting(setting) {
-        const value = sessionStorage.getItem(`${SettingsManager.#sessionStorageKey}_${setting}`);
-        try {
-            return JSON.parse(value);
-        } catch {
-            return value;
         }
     }
 }

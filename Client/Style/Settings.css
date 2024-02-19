@@ -75,6 +75,19 @@
     background-color: var(--settings-checkbox-background) !important;
     border-color: #53575a !important;
   }
+
+  & .labelHelpIcon {
+    margin: 0 2px 0 2px;
+    opacity: 0.8;
+  }
+
+  & .labelHelpIcon:hover {
+    opacity: 1;
+  }
+
+  & .labelHelpIcon svg {
+    vertical-align: top;
+  }
 }
 
 .serverStateButton {

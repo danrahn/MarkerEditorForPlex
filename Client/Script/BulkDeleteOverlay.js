@@ -1,6 +1,7 @@
 import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
+import BulkDeleteStickySettings from './StickySettings/BulkDeleteStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
 import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
@@ -26,6 +27,9 @@ class BulkDeleteOverlay {
     /** @type {HTMLSelectElement} */
     #appliesToDropdown;
 
+    /** @type {BulkDeleteStickySettings} */
+    #stickySettings = new BulkDeleteStickySettings();
+
     /**
      * Construct a new bulk delete overlay.
      * @param {ShowData|SeasonData} mediaItem */
@@ -43,7 +47,7 @@ class BulkDeleteOverlay {
             title,
             buildNode('hr'),
             buildNode('h4', {}, `Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
-            BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this)),
+            BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.fullButton('Delete All',
                     Icons.Confirm,
@@ -76,6 +80,7 @@ class BulkDeleteOverlay {
     /** Adjusts the customization table (if visible) after the marker apply type is changed. */
     #onApplyToChanged() {
         const applyTo = this.#applyTo();
+        this.#stickySettings.setApplyTo(applyTo);
         this.#table?.rows().forEach(row => {
             if (!(row instanceof BulkDeleteRow)) {
                 return;

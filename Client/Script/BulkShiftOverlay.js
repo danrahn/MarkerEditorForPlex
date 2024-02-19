@@ -2,6 +2,7 @@ import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeInputSh
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
+import BulkShiftStickySettings from './StickySettings/BulkShiftStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
 import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
@@ -42,9 +43,6 @@ class BulkShiftOverlay {
     /** @type {HTMLInputElement} */
     #endTimeInput;
 
-    /** @type {boolean} */
-    #separateShift = false;
-
     /** @type {HTMLSelectElement} */
     #appliesToDropdown;
 
@@ -67,6 +65,8 @@ class BulkShiftOverlay {
 
     /** @type {number} Cached end shift time, in milliseconds */
     #endShiftMs;
+
+    #stickySettings = new BulkShiftStickySettings();
 
     /**
      * Construct a new shift overlay.
@@ -93,12 +93,13 @@ class BulkShiftOverlay {
               keydown : timeInputShortcutHandler
             });
 
+        const endVisible = this.#stickySettings.separateShift();
         this.#endTimeInput = buildNode('input',
             {   type : 'text',
                 placeholder : 'ms or mm:ss[.000]',
                 name : 'shiftEndTime',
                 id : 'shiftEndTime',
-                class : 'hidden' },
+                class : endVisible ? '' : 'hidden' },
             0,
             { keyup : this.#onTimeShiftChange.bind(this),
               keydown : timeInputShortcutHandler
@@ -112,18 +113,19 @@ class BulkShiftOverlay {
             });
 
         separateShiftCheck.addEventListener('change', this.#onSeparateShiftChange.bind(this, separateShiftCheck));
+        separateShiftCheck.checked = endVisible;
         appendChildren(container,
             title,
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'shiftZone' }),
                 buildNode('label', { for : 'shiftStartTime', id : 'shiftStartTimeLabel' }, 'Time shift: '),
                 this.#startTimeInput,
-                buildNode('label', { for : 'shiftEndTime', class : 'hidden', id : 'shiftEndTimeLabel' }, 'End shift: '),
+                buildNode('label', { for : 'shiftEndTime', class : endVisible ? '' : 'hidden', id : 'shiftEndTimeLabel' }, 'End shift: '),
                 this.#endTimeInput),
             appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
                 buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
                 separateShiftCheck),
-            BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this)),
+            BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.fullButton('Apply',
                     Icons.Confirm,
@@ -182,8 +184,8 @@ class BulkShiftOverlay {
      * Update UI when the user enables/disables the 'separate start/end' checkbox
      * @param {HTMLInputElement} checkbox */
     #onSeparateShiftChange(checkbox) {
-        this.#separateShift = checkbox.checked;
-        if (this.#separateShift) {
+        this.#stickySettings.setSeparateShift(checkbox.checked);
+        if (this.#stickySettings.separateShift()) {
             $('#shiftStartTimeLabel').innerText = 'Start shift: ';
             $('#shiftEndTimeLabel').classList.remove('hidden');
             this.#endTimeInput.classList.remove('hidden');
@@ -209,6 +211,7 @@ class BulkShiftOverlay {
     /**
      * Recreate the marker table if it's showing and the marker apply type was changed. */
     #onApplyToChanged() {
+        this.#stickySettings.setApplyTo(this.#applyTo());
         if (this.#table) {
             this.#check();
         }
@@ -417,7 +420,7 @@ class BulkShiftOverlay {
     /**
      * Retrieve the current ms time of the end shift input, or the start time if we're not separating the shift.
      * @returns {number} */
-    shiftEndValue() { return this.#separateShift ? this.#endShiftMs : this.#startShiftMs; }
+    shiftEndValue() { return this.#stickySettings.separateShift() ? this.#endShiftMs : this.#startShiftMs; }
 
     table() { return this.#table; }
 
@@ -433,7 +436,7 @@ class BulkShiftOverlay {
 
         this.#startShiftMs = timeToMs(this.#startTimeInput.value, true /*allowNegative*/);
         checkTime(this.#startShiftMs, this.#startTimeInput);
-        if (this.#separateShift) {
+        if (this.#stickySettings.separateShift()) {
             this.#endShiftMs = timeToMs(this.#endTimeInput.value, true /*allowNegative*/);
             // If end is less than or equal to start, mark it invalid.
             checkTime(this.#endShiftMs, this.#endTimeInput);

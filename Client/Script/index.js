@@ -8,6 +8,7 @@ import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
+import StickySettingsBase from './StickySettings/StickySettingsBase.js';
 import { ThumbnailMarkerEdit } from './MarkerEdit.js';
 import Tooltip from './Tooltip.js';
 import VersionManager from './VersionManager.js';
@@ -25,6 +26,7 @@ function setup() {
     Tooltip.Setup();
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();
+    StickySettingsBase.Setup();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.

@@ -16,6 +16,7 @@ import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import Icons from './Icons.js';
+import MarkerAddStickySettings from './StickySettings/MarkerAddStickySettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
@@ -27,7 +28,6 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
-
 
 const Log = new ContextualLog('MarkerEdit');
 
@@ -49,6 +49,11 @@ class MarkerEdit {
     #chapters;
 
     /**
+     * Saved user state settings for adding markers.
+     * @type {MarkerAddStickySettings} */
+    #stickyAddSettings;
+
+    /**
      * @param {MarkerRow} markerRow The marker row to edit.
      * @param {ChapterData[]} chapters Chapter data (if any) for the media item associated with this marker. */
     constructor(markerRow, chapters) {
@@ -66,6 +71,9 @@ class MarkerEdit {
             return false;
         }
 
+        // Only initialize this once we're actually editing.
+        this.#stickyAddSettings = new MarkerAddStickySettings();
+        startInChapterMode ||= (this.markerRow.forAdd() && this.#stickyAddSettings.chapterMode());
         this.editing = true;
         this.#buildMarkerType();
         this.#buildTimeEdit();
@@ -208,10 +216,11 @@ class MarkerEdit {
     #buildMarkerType() {
         const span = this.markerRow.row().children[0];
         clearEle(span);
-        const select = buildNode('select', { class : 'inlineMarkerType' });
+        const select = buildNode('select', { class : 'inlineMarkerType' }, 0, { change : this.#onMarkerTypeChanged.bind(this) });
+        const initialValue = this.markerRow.forAdd() ? this.#stickyAddSettings.markerType() : this.markerRow.markerType();
         for (const [title, value] of Object.entries(MarkerType)) {
             const option = buildNode('option', { value }, title);
-            if (value === this.markerRow.markerType()) {
+            if (value === initialValue) {
                 option.selected = true;
             }
 
@@ -219,6 +228,12 @@ class MarkerEdit {
         }
 
         span.appendChild(select);
+    }
+
+    /** Handle the user changing the marker type (when not using keyboard shortcuts). */
+    #onMarkerTypeChanged() {
+        const markerType = this.markerRow.row().children[0].querySelector('select').value;
+        this.#stickyAddSettings.setMarkerType(markerType);
     }
 
     /**
@@ -230,6 +245,7 @@ class MarkerEdit {
             return;
         }
 
+        this.#stickyAddSettings.setMarkerType(markerType);
         switch (markerType) {
             case MarkerType.Intro:
                 select.value = 'intro';
@@ -424,8 +440,10 @@ class MarkerEdit {
             input.dispatchEvent(new KeyboardEvent('keyup', { key : 'Enter', keyCode : 13 }));
         });
 
+        const chapterMode = $('.timeInput', row)?.[0].classList.contains('hidden');
+        this.#stickyAddSettings.setChapterMode(chapterMode);
         const toggle = $$('.chapterToggle', row);
-        if ($('.timeInput', row)?.[0].classList.contains('hidden')) {
+        if (chapterMode) {
             ButtonCreator.setText(toggle, 'Manual');
             ButtonCreator.setIcon(toggle, Icons.Cursor, ThemeColors.Primary);
             Tooltip.setText(toggle, 'Enter Manual Mode');

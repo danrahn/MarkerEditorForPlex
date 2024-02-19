@@ -142,6 +142,10 @@ table .buttonIconAndText {
   padding: 0;
 }
 
+.inlineMarkerType {
+  margin-top: 0;
+}
+
 @media (min-width: 767px) { /* Probably not a phone */
   .tableHolder::-webkit-scrollbar {
     width: 0;

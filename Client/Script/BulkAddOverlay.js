@@ -15,11 +15,12 @@ import {
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+import BulkAddStickySettings from './StickySettings/BulkAddStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import TableElements from './TableElements.js';
@@ -38,8 +39,6 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 const Log = new ContextualLog('BulkAddOverlay');
-
-/** @typedef {{ chapterMode : boolean, chapterIndexMode : boolean }} BulkAddSettings */
 
 /**
  * UI for bulk adding markers to a given show/season
@@ -61,8 +60,6 @@ class BulkAddOverlay {
     #cachedStart = NaN;
     /** @type {number} Cached ms of the current end input to prevent repeated calculations. */
     #cachedEnd = NaN;
-    /** @type {number} The current resolution type. */
-    #cachedApplyType = BulkMarkerResolveType.Fail;
     /** @type {HTMLElement} Cached chapter/manual mode toggle. */
     #inputMode;
     /** @type {ChapterMap} Chapter data for all individual episodes in this overlay. */
@@ -71,8 +68,8 @@ class BulkAddOverlay {
     #cachedChapterStart;
     /** @type {ChapterData} Cached baseline end chapter data. */
     #cachedChapterEnd;
-    /** @type {boolean} Determines whether to favor chapter indexes or timestamps for fuzzy matching. */
-    #chapterIndexMode = false;
+    /** @type {BulkAddStickySettings} Applicable settings that might "stick" depending on client settings. */
+    #stickySettings = new BulkAddStickySettings();
 
     /**
      * List of descriptions for the various bulk marker resolution actions. */
@@ -88,8 +85,6 @@ class BulkAddOverlay {
         { class : 'smallerTooltip' },
         "When an exact chapter name match isn't available, " +
         "use the chapter's index to find matching chapters, not the closest timestamp");
-
-    static #settingsKey = 'bulkAdd';
 
     /**
      * Construct a new bulk add overlay.
@@ -169,15 +164,15 @@ class BulkAddOverlay {
             ),
             appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
                 buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
-                appendChildren(buildNode('select', { id : 'markerTypeSelect' }),
-                    buildNode('option', { value : 'intro', selected : 'selected' }, 'Intro'),
-                    buildNode('option', { value : 'credits' }, 'Credits'))
+                appendChildren(buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onMarkerTypeChanged.bind(this) }),
+                    buildNode('option', { value : MarkerType.Intro }, 'Intro'),
+                    buildNode('option', { value : MarkerType.Credits }, 'Credits'))
             ),
             appendChildren(buildNode('div', { id : 'bulkAddApplyType' }),
                 buildNode('label', { for : 'applyTypeSelect' }, 'Apply Action: '),
                 appendChildren(
                     buildNode('select', { id : 'applyTypeSelect' }, 0, { change : this.#onApplyTypeChange.bind(this) }),
-                    buildNode('option', { value : 1, selected : 'selected' }, 'Fail'),
+                    buildNode('option', { value : 1 }, 'Fail'),
                     buildNode('option', { value : 4 }, 'Overwrite'),
                     buildNode('option', { value : 2 }, 'Merge'),
                     buildNode('option', { value : 3 }, 'Ignore')),
@@ -196,6 +191,8 @@ class BulkAddOverlay {
 
         this.#inputMode = $('#switchInputMethod', container);
         Tooltip.setTooltip($('#chapterIndexModeHelp', container), BulkAddOverlay.#indexMatchingTooltip);
+        $('#markerTypeSelect', container).value = this.#stickySettings.markerType();
+        $('#applyTypeSelect', container).value = this.#stickySettings.applyType();
 
         Overlay.build({
             dismissible : true,
@@ -240,7 +237,8 @@ class BulkAddOverlay {
         const tz = $('#timeZone');
         tz.classList.toggle('hidden');
         $('#chapterZone').classList.toggle('hidden');
-        if (tz.classList.contains('hidden')) {
+        const chapterMode = tz.classList.contains('hidden');
+        if (chapterMode) {
             ButtonCreator.setText(this.#inputMode, 'Manual Mode');
             ButtonCreator.setIcon(this.#inputMode, Icons.Cursor, ThemeColors.Primary);
         } else {
@@ -248,8 +246,13 @@ class BulkAddOverlay {
             ButtonCreator.setIcon(this.#inputMode, Icons.Chapter, ThemeColors.Primary);
         }
 
-        this.#saveSessionSettings();
+        this.#stickySettings.setChapterMode(chapterMode);
         this.#updateTableStats();
+    }
+
+    /** Update the type of marker to create. */
+    #onMarkerTypeChanged() {
+        this.#stickySettings.setMarkerType($('#markerTypeSelect').value);
     }
 
     /**
@@ -313,8 +316,7 @@ class BulkAddOverlay {
     /**
      * Update chapter index mode, i.e. whether chapter indexes or timestamps take precedence for fuzzy matching. */
     #onChapterIndexModeChanged() {
-        this.#chapterIndexMode = $('#chapterIndexMode').checked;
-        this.#saveSessionSettings();
+        this.#stickySettings.setChapterIndexMode($('#chapterIndexMode').checked);
         this.#updateTableStats();
     }
 
@@ -357,25 +359,14 @@ class BulkAddOverlay {
 
         if (!allEmpty) {
             this.#inputMode.classList.remove('disabled');
-
-            /** @type {BulkAddSettings?} */
-            const sessionSettings = ClientSettings.getSessionSetting(BulkAddOverlay.#settingsKey);
-            if (sessionSettings?.chapterMode) {
-                if (sessionSettings.chapterIndexMode) {
-                    this.#chapterIndexMode = true;
+            if (this.#stickySettings.chapterMode()) {
+                if (this.#stickySettings.chapterIndexMode()) {
                     $('#chapterIndexMode').checked = true;
                 }
 
                 await this.#onInputMethodChanged();
             }
         }
-    }
-
-    #saveSessionSettings() {
-        ClientSettings.saveSessionSetting(BulkAddOverlay.#settingsKey, {
-            chapterMode : this.chapterMode(),
-            chapterIndexMode : this.chapterIndexMode()
-        });
     }
 
     /**
@@ -429,7 +420,7 @@ class BulkAddOverlay {
         if (!sel) { return; }
 
         const val = parseInt(sel.value);
-        this.#cachedApplyType = val;
+        this.#stickySettings.setApplyType(val);
         $('#applyTypeDescription').innerText = BulkAddOverlay.#descriptions[val];
         this.#updateTableStats();
     }
@@ -647,14 +638,14 @@ class BulkAddOverlay {
 
     startTime() { return this.#cachedStart; }
     endTime() { return this.#cachedEnd; }
-    resolveType() { return this.#cachedApplyType; }
+    resolveType() { return this.#stickySettings.applyType(); }
     /** @returns {string} */
     markerType() { return $('#markerTypeSelect').value; }
     /** @returns {boolean} */
     chapterMode() { return $('#timeZone').classList.contains('hidden'); }
     chapterStart() { return this.#cachedChapterStart; }
     chapterEnd() { return this.#cachedChapterEnd; }
-    chapterIndexMode() { return this.#chapterIndexMode; }
+    chapterIndexMode() { return this.#stickySettings.chapterIndexMode(); }
 
     /** Update all items in the customization table, if present. */
     #updateTableStats() {

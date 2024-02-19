@@ -521,16 +521,21 @@ class BulkActionCommon {
     /**
      * Common UI to select specific marker type(s) for bulk operations.
      * @param {string} label The label for the dropdown
-     * @param {() => void} callback The function to call when the value changes. */
-    static markerSelectType(label, callback) {
+     * @param {() => void} callback The function to call when the value changes.
+     * @param {number} initialValue The initial value to select in the dropdown. Defaults to 'All'. */
+    static markerSelectType(label, callback, initialValue=MarkerEnum.All) {
+        const select = appendChildren(
+            buildNode('select', { id : 'markerTypeSelect' }, 0, { change : callback }),
+            buildNode('option', { value : MarkerEnum.All }, 'All'),
+            buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
+            buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
+        );
+
+        select.value = initialValue;
+
         return appendChildren(buildNode('div'),
             buildNode('label', { for : 'markerTypeSelect' }, label),
-            appendChildren(
-                buildNode('select', { id : 'markerTypeSelect' }, 0, { change : callback }),
-                buildNode('option', { value : MarkerEnum.All, selected : 'selected' }, 'All'),
-                buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
-                buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
-            )
+            select
         );
     }
 }
