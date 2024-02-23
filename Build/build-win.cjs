@@ -35,7 +35,7 @@ async function transpile() {
         }
     }).then((bundle) => {
         bundle.write({
-            file : resolve(__dirname, '../dist/built.js'),
+            file : resolve(__dirname, '../dist/built.cjs'),
             format : 'cjs',
         });
     });
@@ -45,9 +45,10 @@ async function transpile() {
  * Takes rollup's cjs output and writes the exe. */
 async function toExe() {
     await exeCompile({
-        input : resolve(__dirname, '../dist/built.js'),
+        input : resolve(__dirname, '../dist/built.cjs'),
         output : resolve(__dirname, '../dist/MarkerEditorForPlex.exe'),
         build : true,
+        loglevel : process.argv.includes('verbose') ? 'verbose' : 'info',
         ico : iconPath,
         rc : {
             PRODUCTVERSION : version,
@@ -60,7 +61,7 @@ async function toExe() {
             resolve(__dirname, '../SVG/*svg'),
             resolve(__dirname, '../Shared/**'),
             resolve(__dirname, '../Client/**'),
-            resolve(__dirname, '../dist/built.js'),
+            resolve(__dirname, '../dist/built.cjs'),
         ],
         patches : [
             async (compiler, next) => {
@@ -106,7 +107,7 @@ async function buildWin() {
         { overwrite : true, recursive : true });
 
     msg('Removing transpiled output');
-    fs.unlinkSync(resolve(__dirname, '../dist/built.js'));
+    fs.unlinkSync(resolve(__dirname, '../dist/built.cjs'));
 
     if (~process.argv.indexOf('--zip')) {
         msg('Zipping everything up');
