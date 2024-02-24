@@ -1,5 +1,6 @@
 import { dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
@@ -68,6 +69,12 @@ class ConfigBase {
         if (!Object.prototype.hasOwnProperty.call(this.#json, key)) {
             if (defaultValue === null) {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
+            }
+
+            // Some default values are non-trivial to determine, so don't compute it
+            // until we know we need it.
+            if (typeof defaultValue === 'function')  {
+                defaultValue = defaultValue();
             }
 
             Log.info(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
@@ -270,7 +277,7 @@ class MarkerEditorConfig extends ConfigBase {
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath());
+            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath);
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
@@ -320,22 +327,48 @@ class MarkerEditorConfig extends ConfigBase {
         const platform = process.platform;
         switch (platform) {
             case 'win32':
+            {
+                const registryOverride = getWin32DataPathFromRegistry();
+                if (registryOverride.length > 0) {
+                    return join(registryOverride, 'Plex Media Server');
+                }
+
                 if (!process.env.LOCALAPPDATA) {
+                    Log.warn('LOCALAPPDTA could not be found, manual intervention required.');
                     return '';
                 }
 
                 return join(process.env.LOCALAPPDATA, 'Plex Media Server');
+            }
             case 'darwin':
                 return '~/Library/Application Support/Plex Media Server';
             case 'linux':
             case 'aix':
             case 'openbsd':
             case 'sunos':
-                if (!process.env.PLEX_HOME) {
-                    return '';
+            {
+                if (process.env.PLEX_HOME) {
+                    return join(process.env.PLEX_HOME, 'Library/Application Support/Plex Media Server');
                 }
 
-                return join(process.env.PLEX_HOME, 'Library/Application Support/Plex Media Server');
+                // Common Plex data locations
+                const testPaths = [
+                    '/var/lib/plexmediaserver/Library/Application Support',
+                    '/var/snap/plexmediaserver/common/Library/Application Support',
+                    '/var/lib/plex',
+                    '/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData',
+                    '/volume1/Plex/Library',
+                ];
+
+                for (const path of testPaths) {
+                    const fullPath = join(path, 'Plex Media Server');
+                    if (existsSync(fullPath)) {
+                        return fullPath;
+                    }
+                }
+
+                return '';
+            }
             case 'freebsd':
                 return '/usr/local/plexdata/Plex Media Server';
             default:
@@ -359,6 +392,30 @@ class MarkerEditorConfig extends ConfigBase {
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     appVersion() { return this.#version; }
+}
+
+/**
+ * Look for the LocalAppDataPath override in the Windows registry.
+ * Just use exec instead of importing an entirely new dependency just to grab a single value on Windows. */
+function getWin32DataPathFromRegistry() {
+    if (process.platform !== 'win32') {
+        Log.error('Attempting to access Windows registry on non-Windows system. Don\'t do that!');
+        return '';
+    }
+
+    try {
+        // Valid output should be formatted as follows:
+        // HKEY_CURRENT_USER\SOFTWARE\Plex, Inc.\Plex Media Server{\r\n}
+        //     LocalAppDataPath    REG_SZ    D:\Path\To\Folder{\r\n}{\r\n}
+        const data = execSync('REG QUERY "HKCU\\SOFTWARE\\Plex, Inc.\\Plex Media Server" /v LocalAppDataPath',
+            { timeout : 10000 });
+
+        return /REG_SZ\s+(?<dataPath>[^\r\n]+)/.exec(data.toString()).groups.dataPath;
+    } catch (_ex) {
+        Log.verbose('LocalAppData registry key does not exist or could not be parsed, assuming default location.');
+    }
+
+    return '';
 }
 
 /**

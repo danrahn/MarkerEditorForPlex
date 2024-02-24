@@ -48,6 +48,9 @@ async function FirstRunConfig(dataRoot) {
     console.log();
     console.log('If you are asked to provide a path, provide it without quotes or other escaped characters.');
     console.log();
+    console.log('NOTE: the user account running this program must have read access to the database to view');
+    console.log('      markers, and write access to add, edit, or delete markers.');
+    console.log();
     /* eslint-disable-next-line max-len */
     console.log('For more information about what these settings control, see https://github.com/danrahn/MarkerEditorForPlex/wiki/Configuration');
     console.log();

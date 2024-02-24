@@ -750,4 +750,8 @@ input:focus-visible {
   .buttonIconAndText.shrinkable .buttonText {
     display: none;
   }
+
+  .dynamicText {
+    font-size: smaller;
+  }
 }
