@@ -93,12 +93,13 @@ class ConfigBase {
     #checkType(key, value, defaultValue) {
         const vt = typeof value;
         const dt = typeof defaultValue;
-        if (defaultValue === null || vt === dt) {
+        if (defaultValue === null || vt === dt || dt === 'function') {
             Log.verbose(`Setting ${key} to ${value}`);
             return value;
         }
 
         Log.warn(`Type Mismatch: '${key}' should have a type of '${dt}', found '${vt}'. Attempting to coerce...`);
+
         const space = '                ';
         // Allow some simple conversions
         switch (dt) {
