@@ -63,9 +63,10 @@ class ConfigBase {
     /**
      * @param {string} key The config property to retrieve.
      * @param {*} [defaultValue=null] The default value if the property doesn't exist.
+     * @param {string?} defaultType If defaultValue is a function, defaultType indicates the return value type.
      * @returns The retrieved property value.
      * @throws if `value` is not in the config and `defaultValue` is not set. */
-    #getOrDefault(key, defaultValue=null) {
+    #getOrDefault(key, defaultValue=null, defaultType=null) {
         if (!Object.prototype.hasOwnProperty.call(this.#json, key)) {
             if (defaultValue === null) {
                 throw new Error(`'${key}' not found in config file, and no default is available.`);
@@ -83,17 +84,24 @@ class ConfigBase {
 
         // If we have a default value and its type doesn't match what's in the config, reset it to default.
         const value = this.#json[key];
-        return this.#checkType(key, value, defaultValue);
+        return this.#checkType(key, value, defaultValue, defaultType);
     }
 
     /**
      * @param {string} key
      * @param {any} value
-     * @param {any} defaultValue */
-    #checkType(key, value, defaultValue) {
+     * @param {any} defaultValue
+     * @param {string?} defaultType */
+    #checkType(key, value, defaultValue, defaultType) {
         const vt = typeof value;
-        const dt = typeof defaultValue;
-        if (defaultValue === null || vt === dt || dt === 'function') {
+        let dt = typeof defaultValue;
+
+        if (dt === 'function') {
+            Log.assert(defaultType !== null, '#checkType - Cant have a null defaultType if defaultValue is a function.');
+            dt = defaultType;
+        }
+
+        if (defaultValue === null || vt === dt) {
             Log.verbose(`Setting ${key} to ${value}`);
             return value;
         }
@@ -134,8 +142,9 @@ class ConfigBase {
             }
         }
 
-        Log.error(`${space}Could not coerce. Ignoring value '${value}' and setting to '${defaultValue}'`);
-        return defaultValue;
+        const ret = (typeof defaultValue === 'function') ? defaultValue() : defaultValue;
+        Log.error(`${space}Could not coerce. Ignoring value '${value}' and setting to '${ret}'`);
+        return ret;
     }
 }
 
@@ -278,7 +287,7 @@ class MarkerEditorConfig extends ConfigBase {
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath);
+            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath, 'string');
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
@@ -379,8 +388,8 @@ class MarkerEditorConfig extends ConfigBase {
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`} */
-    #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault.bind(this.#Base.baseInstance)(key, defaultValue);
+    #getOrDefault(key, defaultValue=null, defaultType=null) {
+        return this.#Base.getOrDefault.bind(this.#Base.baseInstance)(key, defaultValue, defaultType);
     }
 
     databasePath() { return this.#dbPath; }
