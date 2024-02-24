@@ -503,6 +503,8 @@ class ShowResultRow extends ResultRow {
                 await PlexUI.hideSections(UISection.Seasons | UISection.Episodes);
                 PlexUI.showSections(UISection.MoviesOrShows);
             });
+
+            row.classList.add('dynamicText');
         }
 
         this.setHtml(row);
@@ -798,7 +800,7 @@ class SeasonResultRow extends ResultRow {
 
         const season = this.season();
         const title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
-        if (season.title.toLowerCase() !== `season ${season.index}`) {
+        if (season.title.length > 0 && season.title.toLowerCase() !== `season ${season.index}`) {
             title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
         }
 
@@ -809,6 +811,8 @@ class SeasonResultRow extends ResultRow {
                 PlexUI.clearSections(UISection.Episodes);
                 PlexUI.showSections(UISection.Seasons);
             });
+
+            row.classList.add('dynamicText');
         }
 
         this.setHtml(row);
