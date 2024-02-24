@@ -277,7 +277,7 @@ class MarkerEditorConfig extends ConfigBase {
             this.#host = '0.0.0.0';
             this.#port = 3232;
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath);
+            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
