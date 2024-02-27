@@ -6,8 +6,7 @@
   "main": "app.js",
   "scripts": {
     "test": "node Test/Test.js --test",
-    "build-win": "node Build/build-win.cjs",
-    "build-win-pack": "node Build/build-win.cjs --zip",
+    "build": "node Build/build.cjs",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix"
   },
@@ -19,7 +18,7 @@
   "dependencies": {
     "mime-types": "^2.1.35",
     "open": "^8.4.0",
-    "sqlite3": "^5.0.11"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "eslint": "^8.34.0",
