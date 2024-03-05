@@ -15,7 +15,7 @@ try {
     }
 } catch (ex) {
     TestLog.error(`Failed to run tests.`);
-    TestLog.error(ex.message);
+    TestLog.error(ex.message || ex);
     TestLog.error(ex.stack ? ex.stack : `[No stack trace available]`);
 }
 

@@ -118,7 +118,7 @@ class ChapterTest extends TestBase {
         TestHelpers.verify(chapters.length === count, `Expected chapters to have ${count} items, found ${chapters.length}.`);
         for (const chapter of chapters) {
             const keyLen = Object.keys(chapter).length;
-            TestHelpers.verify(keyLen === 3, `Each chapter should have 3 values, found ${keyLen}`);
+            TestHelpers.verify(keyLen === 4, `Each chapter should have 4 values, found ${keyLen}`);
             TestHelpers.verify(chapter.name !== undefined, `Each chapter should have a name (even if empty), but none was found`);
             if (prefix) {
                 TestHelpers.verify(chapter.name.startsWith(prefix), `Unexpected chapter name`);
@@ -128,6 +128,8 @@ class ChapterTest extends TestBase {
 
             TestHelpers.verify(chapter.start !== undefined, `Each chapter should have a start timestamp, but none was found.`);
             TestHelpers.verify(chapter.end !== undefined, `Each chapter should have an end timestamp, but none was found.`);
+            TestHelpers.verify(typeof chapter.index === 'number' && chapter.index >= 0,
+                `Each chapter should have a positive index, but found '${chapter.index}'`);
         }
     }
 }

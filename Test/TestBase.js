@@ -357,6 +357,9 @@ class TestBase {
             return;
         }
 
+        // TODO: update for PMS 1.40 extra_data format
+        ExtraData.isLegacy = true;
+
         const tables = TestHelpers.getCreateTables();
 
         // Create the intro marker tag.

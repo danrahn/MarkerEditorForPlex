@@ -81,10 +81,16 @@ class BulkAddOverlay {
         'If any added marker conflicts with existing markers, delete the existing markers',
     ];
 
-    static #indexMatchingTooltip = buildNode('span',
-        { class : 'smallerTooltip' },
-        "When an exact chapter name match isn't available, " +
-        "use the chapter's index to find matching chapters, not the closest timestamp");
+    /** @type {Element?} */
+    static #indexMatchingTooltip;
+
+    static #getIndexMatchingTooltip() {
+        BulkAddOverlay.#indexMatchingTooltip ??= buildNode('span',
+            { class : 'smallerTooltip' },
+            "When an exact chapter name match isn't available, " +
+                "use the chapter's index to find matching chapters, not the closest timestamp");
+        return BulkAddOverlay.#indexMatchingTooltip;
+    }
 
     /**
      * Construct a new bulk add overlay.
@@ -190,7 +196,7 @@ class BulkAddOverlay {
         );
 
         this.#inputMode = $('#switchInputMethod', container);
-        Tooltip.setTooltip($('#chapterIndexModeHelp', container), BulkAddOverlay.#indexMatchingTooltip);
+        Tooltip.setTooltip($('#chapterIndexModeHelp', container), BulkAddOverlay.#getIndexMatchingTooltip());
         $('#markerTypeSelect', container).value = this.#stickySettings.markerType();
         $('#applyTypeSelect', container).value = this.#stickySettings.applyType();
 
