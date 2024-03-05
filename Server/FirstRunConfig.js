@@ -8,6 +8,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEditorConfig } from './MarkerEditorConfig.js';
 import { testFfmpeg } from './ServerHelpers.js';
 
+/** @typedef {!import('./MarkerEditorConfig.js').PathMapping} PathMapping */
 /** @typedef {!import('./MarkerEditorConfig.js').RawConfigFeatures} RawConfigFeatures */
 /** @typedef {!import('./MarkerEditorConfig.js').RawConfig} RawConfig */
 
@@ -68,10 +69,19 @@ async function FirstRunConfig(dataRoot) {
         config.host = '0.0.0.0';
         config.port = 3232;
     } else {
+        // DataPath isn't needed if a db path is provided and bif preview thumbnails are disabled.
         const defaultPath = MarkerEditorConfig.getDefaultPlexDataPath();
-        config.dataPath = await askUserPath('Plex data directory path', rl, defaultPath);
-        const defaultDb = join(config.dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
-        config.database = await askUserPath('Plex database path', rl, defaultDb);
+        const dataPath = await askUserPath('Plex data directory path', rl, defaultPath, true /*canSkip*/);
+        if (dataPath !== null) {
+            config.dataPath = dataPath;
+        }
+
+        const defaultDb = join(dataPath ? config.dataPath : defaultPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
+        const database = await askUserPath('Plex database path', rl, defaultDb, dataPath !== null);
+        if (database !== null) {
+            config.database = database;
+        }
+
         config.host = await askUser('Editor host', 'localhost', rl);
         config.port = parseInt(await askUser('Editor port', '3232', rl, validPort, 'Invalid port number'));
     }
@@ -80,15 +90,14 @@ async function FirstRunConfig(dataRoot) {
     config.features = {};
     config.features.autoOpen = !isDocker && await askUserYesNo('Do you want the app to open in the browser automatically', true, rl);
     config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
-    config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
-    if (config.features.previewThumbnails && testFfmpeg()) {
-        console.log();
-        console.log(`Preview thumbnails can use either Plex's generated thumbnails or generate them`);
-        console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);
-        console.log(`and use fewer resources, they are far less accurate, and are not available if`);
-        console.log(`they are disabled in your library.`);
-        config.features.preciseThumbnails =
-            !await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
+    await getThumbnailSettings(config, rl);
+
+    // Path mappings are only used for ffmpeg thumbnails, so no need to query otherwise
+    if (config.features.preciseThumbnails) {
+        const mappings = await getPathMappings(rl);
+        if (mappings !== null) {
+            config.pathMappings = mappings;
+        }
     }
 
     console.log();
@@ -98,17 +107,123 @@ async function FirstRunConfig(dataRoot) {
 }
 
 /**
+ * Determine the type of thumbnails to use, if any.
+ * @param {RawConfig} config
+ * @param {Interface} rl */
+async function getThumbnailSettings(config, rl) {
+    config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
+    if (!config.features.previewThumbnails) {
+        return;
+    }
+
+    // Four possible states:
+    // * Ffmpeg on path, and Plex data directory provided: ask what the user wants to use
+    // * Ffmpeg on path, Plex data directory not provided: enable precise thumbnails, warn about media location
+    // * Ffmpeg not on path, Plex data directory provided: enabled standard thumbnails, warn about accuracy
+    // * Ffmpeg not on path, data directory not provided: disable preview thumbnails, warn about why.
+    const ffmpegExists = testFfmpeg();
+    const canUsePlexThumbs = !!config.dataPath;
+    console.log();
+
+    /* eslint-disable require-atomic-updates */ // Something's gone horribly wrong if config is updated while awaiting user input.
+    if (canUsePlexThumbs && ffmpegExists) {
+        console.log(`Preview thumbnails can use either Plex's generated thumbnails or generate them`);
+        console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);
+        console.log(`and use fewer resources, they are far less accurate, and are not available if`);
+        console.log(`they are disabled in your library.`);
+        const standardThumbs = await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
+        config.features.preciseThumbnails = !standardThumbs;
+    } else if (ffmpegExists) { // !canUsePlexThumbs
+        console.log(`WARN: No data path was provided, so Plex's generated thumbnails cannot be used.`);
+        console.log(`      However, because FFmpeg has been detected, precise thumbnails can be enabled.`);
+        console.log(`      For this to work, the path to your media must match what's in Plex's, or be`);
+        console.log(`      properly mapped via pathMappings.\n`);
+        config.features.preciseThumbnails = await askUserYesNo(`Do you want to keep FFmpeg-based thumbnails enabled`, true, rl);
+    } else if (canUsePlexThumbs) { // !ffmpegExists
+        console.log(`NOTE: Precise thumbnails cannot be enabled - FFmpeg not found on path.`);
+        console.log(`      If you want to enable on-the-fly thumbnail generation, make sure FFmpeg`);
+        console.log(`      is available.\n`);
+        await rl.question('Press Enter to continue: ');
+        config.features.preciseThumbnails = false;
+    } else { // !ffmpegExists && !canUsePlexThumbs
+        console.log('WARN: Cannot enable preview thumbnails - no data path provided, and FFmpeg was');
+        console.log('      not found. To enable this feature in the future, provide your Plex data');
+        console.log('      path in config.json, or ensure FFmpeg exists on your path.\n');
+        await rl.question('Press Enter to continue: ');
+        config.features.previewThumbnails = false;
+    }
+    /* eslint-enable require-atomic-updates */
+}
+
+/**
+ * Retrieve mapped paths from the user, if any.
+ * @param {Interface} rl */
+async function getPathMappings(rl) {
+    /** @type {PathMapping[]} */
+    const mappings = [];
+    console.log();
+    console.log('Path Mappings:');
+    console.log(`If you're running Marker Editor and Plex Media Server on different devices, file paths`);
+    console.log(`may be different between this machine and what's in Plex's database. If so, FFmpeg`);
+    console.log(`generated thumbnails won't work. However, you can specify path mappings below to replace`);
+    console.log(`path prefixes (e.g. replace 'Z:\\Media\\Movies' with '/mnt/Media/Movies').\n`);
+    console.log(`NOTE: Path mappings are case-sensitive.\n`);
+
+    const endsWithSep = /[/\\]$/;
+
+    let msg = 'Do you want to add a path mapping';
+    while (await askUserYesNo(msg, false, rl)) {
+        const from = await askUser(`Map from: `, null, rl);
+        const to = await askUser(`Map to: `, null, rl);
+
+        // If one path ends with a separator but the other doesn't, print a warning since that's likely not
+        // what the user intended (e.g. if replacing 'Z:\Movies' with '/mnt/data/Movies', the user probably doesn't
+        // want to replace 'Z:\Movies\Some Movie' with '/mnt/data/MoviesSome Movie').
+        const fromEndsWithSep = endsWithSep.test(from);
+        if (fromEndsWithSep !== endsWithSep.test(to)) {
+            console.log(`WARN: 'from' path ${fromEndsWithSep ? 'ends with' : 'does not end with' } a path separator, but`);
+            console.log(`      'to' path does${fromEndsWithSep ? ' not' : ''}. Is that intentional?`);
+        }
+
+        const confirm = await askUserYesNo(`Confirm mapping from '${from}' to '${to}'`, true, rl);
+        if (confirm) {
+            mappings.push({ from, to });
+            console.log('Mapping added!');
+        } else {
+            console.log('Mapping not added.');
+        }
+
+        msg = 'Do you want to add another path mapping';
+    }
+
+    return mappings.length === 0 ? null : mappings;
+}
+
+/**
  * Asks the user to provide a path. If the default path provided exists,
  * return that if the users enters 'auto', otherwise continue asking until
  * a valid path is provided.
  * @param {string} question
  * @param {Interface} rl
  * @param {string} defaultPath */
-async function askUserPath(question, rl, defaultPath) {
+async function askUserPath(question, rl, defaultPath, canSkip=false) {
     const defaultExists = defaultPath.length !== 0 && existsSync(defaultPath);
+    const validate = path => {
+        if (canSkip && path === '-1') {
+            return true;
+        }
+
+        return existsSync(path);
+    };
+
     for (;;) {
-        const answer = await askUser(question, 'auto', rl, existsSync, 'Path does not exist');
-        if (answer !== 'auto') {
+        const defaultText = 'auto' + (canSkip ? ', -1 to skip' : '');
+        const answer = await askUser(question, defaultText, rl, validate, 'Path does not exist');
+        if (answer === '-1') {
+            return null;
+        }
+
+        if (answer !== defaultText) {
             return answer;
         }
 
@@ -116,7 +231,7 @@ async function askUserPath(question, rl, defaultPath) {
             return defaultPath;
         }
 
-        console.log('Sorry, default path could not be found, please enter the full path to your Plex data directory.');
+        console.log('Sorry, default path could not be found, please enter the full path.');
     }
 }
 
@@ -129,7 +244,10 @@ async function askUserPath(question, rl, defaultPath) {
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
 async function askUser(question, defaultValue, rl, validateFunc=null, validateMsg=null) {
-    question += ` (default: ${defaultValue}): `;
+    if (defaultValue) {
+        question += ` (default: ${defaultValue}): `;
+    }
+
     for (;;) {
         const answer = await rl.question(question);
         if (answer.length === 0 || !validateFunc || validateFunc(answer)) {

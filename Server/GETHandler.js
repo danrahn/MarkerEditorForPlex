@@ -8,10 +8,10 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
+import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
 import DatabaseImportExport from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
-import { Thumbnails } from './ThumbnailManager.js';
 
 
 const Log = new ContextualLog('GETHandler');
@@ -166,8 +166,8 @@ class ImageHandler {
                 'x-content-type-options' : 'nosniff'
             }).end(data);
         } catch (err) {
-            if ((err instanceof ServerError) && err.message.endsWith('duration.')) {
-                Log.warn(`Failed to retrieve thumbnail for ${metadataId} at timestamp ${timestamp}, likely due to duration differences.`);
+            if (err instanceof ThumbnailNotGeneratedError) {
+                Log.warn(err.message); // This error is expected in some cases, so just warn.
             } else {
                 Log.error(err, 'Failed to retrieve thumbnail');
             }

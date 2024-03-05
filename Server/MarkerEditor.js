@@ -175,12 +175,12 @@ async function handleClose(signal, restart=false) {
 async function cleanupForShutdown(fullShutdown) {
     LegacyMarkerBreakdown.Clear();
     MarkerCacheManager.Close();
-    ThumbnailManager.Close(fullShutdown);
     DatabaseImportExport.Close(fullShutdown);
 
     await Promise.all([
         PlexQueryManager.Close(),
         MarkerBackupManager.Close(),
+        ThumbnailManager.Close(fullShutdown),
     ]);
 
     // Ensure this is always last, as some classes

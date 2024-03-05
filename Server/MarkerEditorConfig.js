@@ -15,12 +15,18 @@ import { testFfmpeg } from './ServerHelpers.js';
  * }} RawConfigFeatures
  *
  * @typedef {{
+ *  from: string,
+ *  to: string
+ * }} PathMapping
+ *
+ * @typedef {{
  *  dataPath?: string,
  *  database?: string,
  *  host?: string,
  *  port?: number,
  *  logLevel?: string,
- *  features?: RawConfigFeatures
+ *  features?: RawConfigFeatures,
+ *  pathMappings?: PathMapping[],
  * }} RawConfig
  */
 
@@ -28,7 +34,7 @@ const Log = new ContextualLog('EditorConfig');
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.
- * @typedef {{json : Object, getOrDefault : Function, baseInstance : ConfigBase}} ConfigBaseProtected */
+ * @typedef {{json : Object, getOrDefault : Function }} ConfigBaseProtected */
 
 /**
  * Base class for a piece of a configuration file.
@@ -36,10 +42,9 @@ const Log = new ContextualLog('EditorConfig');
  * Note that this is also acting as a bit of an experiment with "protected" members, i.e. members
  * that are only accessible to the base class and those that derive from it. To accomplish this,
  * derived classes pass in an empty object to this base class's constructor, and this class
- * populates it with the "protected" members, in addition to the base class itself as
- * 'baseInstance'. Derived classes then set their own private #Base member to that object, and use
- * it as a proxy to this classes private members, binding functions to #Base.baseInstance if
- * required (i.e. the private method itself uses private members of the base class).
+ * populates it with the "protected" members, bound to this base instance. Derived classes then
+ * set their own private #Base member to that object, and use it as a proxy to this classes
+ * private members.
  *
  * It's not super clean, and probably much easier to just make the base members public, or
  * duplicate the code between PlexFeatures and MarkerEditorConfig, but where's the fun in that?
@@ -55,9 +60,8 @@ class ConfigBase {
      * to share with the derived class that called us, making them "protected" */
     constructor(json, protectedFields) {
         this.#json = json || {};
-        protectedFields.getOrDefault = this.#getOrDefault;
+        protectedFields.getOrDefault = this.#getOrDefault.bind(this);
         protectedFields.json = this.#json;
-        protectedFields.baseInstance = this;
     }
 
     /**
@@ -102,7 +106,7 @@ class ConfigBase {
         }
 
         if (defaultValue === null || vt === dt) {
-            Log.verbose(`Setting ${key} to ${value}`);
+            Log.verbose(`Setting ${key} to ${dt === 'object' ? JSON.stringify(value) : value}`);
             return value;
         }
 
@@ -197,7 +201,7 @@ class PlexFeatures extends ConfigBase {
     /** Forwards to {@link ConfigBase}s `#getOrDefault`
      * @type {GetOrDefault} */
     #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault.bind(this.#Base.baseInstance)(key, defaultValue);
+        return this.#Base.getOrDefault(key, defaultValue);
     }
 }
 
@@ -251,6 +255,10 @@ class MarkerEditorConfig extends ConfigBase {
      * @type {PlexFeatures} */
     #features;
 
+    /** Prefix path mappings used to adjust file paths for FFmpeg-generated thumbnails.
+     * @type {PathMapping[]} */
+    #mappings = [];
+
     /** Current app version, retrieved from package.json
      * @type {string} */
     #version;
@@ -299,6 +307,8 @@ class MarkerEditorConfig extends ConfigBase {
         this.#verifyPathExists(this.#dbPath, 'database');
         this.#features = new PlexFeatures(this.#Base.json.features);
 
+        this.#getPathMappings();
+
         // We only need the data path if BIF-based preview thumbnails are enabled,
         // so don't fail if we're not using them.
         if (this.#features.previewThumbnails && !this.#features.preciseThumbnails) {
@@ -326,6 +336,29 @@ class MarkerEditorConfig extends ConfigBase {
     #verifyPathExists(file, key) {
         if (!existsSync(file)) {
             throw new Error(`Path for ${key} ('${file}') does not exist, cannot continue.`);
+        }
+    }
+
+    /**
+     * Retrieve and validate any path mappings from the config file. */
+    #getPathMappings() {
+        const mappings = this.#getOrDefault('pathMappings', []);
+
+        for (const mapping of mappings) {
+            if (!mapping.from || !mapping.to) {
+                Log.warn(mapping, `Malformed mapping. Could not find both 'from' and 'to' field, skipping`);
+                continue;
+            }
+
+            const fromType = typeof mapping.from;
+            const toType = typeof mapping.to;
+            if (fromType !== 'string' || toType !== 'string') {
+                Log.warn(mapping, `Malformed mapping. 'from' and 'to' must be strings, found [${fromType}, ${toType}]'`);
+            }
+
+            // Pass from/to directly instead of just pushing the mapping to get rid of any
+            // extra fields that might be in the config file.
+            this.#mappings.push({ from : mapping.from, to : mapping.to });
         }
     }
 
@@ -389,7 +422,7 @@ class MarkerEditorConfig extends ConfigBase {
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`} */
     #getOrDefault(key, defaultValue=null, defaultType=null) {
-        return this.#Base.getOrDefault.bind(this.#Base.baseInstance)(key, defaultValue, defaultType);
+        return this.#Base.getOrDefault(key, defaultValue, defaultType);
     }
 
     databasePath() { return this.#dbPath; }
@@ -402,6 +435,7 @@ class MarkerEditorConfig extends ConfigBase {
     extendedMarkerStats() { return this.#features.extendedMarkerStats; }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     appVersion() { return this.#version; }
+    pathMappings() { return this.#mappings; }
 }
 
 /**

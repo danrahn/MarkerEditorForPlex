@@ -1,16 +1,34 @@
-import { existsSync, mkdirSync, readFile, readFileSync, rmSync, statSync } from 'fs';
+import { access, constants as fsConstants, mkdir, readFile, rm, stat } from 'fs/promises';
 import { join, join as joinPath } from 'path';
-import { execFileSync } from 'child_process';
+import { execFile as execFileCb } from 'child_process';
+import { default as util } from 'util';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
 
+const execFile = util.promisify(execFileCb);
+
 /** @typedef {!import('./SqliteDatabase'.default) SqliteDatabase} */
 
 
 const Log = new ContextualLog('ThumbManager');
+
+/**
+ * Thin wrapper around a ServerError to let callers know that
+ * ffmpeg failed to generate a thumbnail. */
+class ThumbnailNotGeneratedError extends ServerError {
+
+    /**
+     * Create a new error indicating that the thumbnail for the given metadata
+     * id and timestamp could not be generated.
+     * @param {number} metadataId
+     * @param {number} timestamp */
+    constructor(metadataId, timestamp) {
+        super(`Failed to retrieve thumbnail for ${metadataId} at timestamp ${timestamp}, likely due to duration differences`, 404);
+    }
+}
 
 /**
  * Singleton thumbnail manager instance
@@ -47,7 +65,11 @@ class ThumbnailManager {
     /**
      * Clears out the thumbnail manager instance
      * @param {boolean} fullShutdown Whether this close is coming from a full shutdown request. */
-    static Close(fullShutdown) { Instance?.close(fullShutdown); Instance = null; }
+    static async Close(fullShutdown) {
+        const instanceT = Instance;
+        Instance = null; // Ensure we fail fast if we attempt to access Instance during close.
+        await instanceT?.close(fullShutdown);
+    }
 
     /** @param {SqliteDatabase} db */
     constructor(db) {
@@ -79,7 +101,7 @@ class ThumbnailManager {
     }
 
     /** @param {boolean} _fullShutdown */
-    close(_fullShutdown) {}
+    async close(_fullShutdown) {}
 }
 
 /**
@@ -144,14 +166,16 @@ class BifThumbnailManager extends ThumbnailManager {
                 'Indexes',
                 'index-sd.bif');
 
-            const stats = statSync(bifPath, { throwIfNoEntry : false });
-            if (stats !== undefined) {
+            try {
+                const stats = await stat(bifPath);
                 if (stats.mtimeMs > newest.mtime) {
                     newest.path = bifPath;
                     newest.mtime = stats.mtimeMs;
                 }
 
                 ++newest.found;
+            } catch {
+                continue; // File doesn't exist
             }
         }
 
@@ -215,60 +239,51 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} timestamp The timestamp of the thumbnail, in seconds.
      * @param {BifMediaItemCache} thumbCache
      * @returns {Promise<Buffer>}*/
-    #readThumbnail(metadataId, timestamp, thumbCache) {
-        return new Promise((resolve, reject) => {
+    async #readThumbnail(metadataId, timestamp, thumbCache) {
+        // File layout:
+        // Starts with magic 89 42 49 46 0D 0A 1A 0A (0x89 BIF \r\n\sub\n)
+        // 32(?)-bit integer at offset 0xC indicating the number of thumbnails in the file
+        // Index table starts at 0x40, with 8-byte records:
+        //   * A 32-bit little-endian integer timestamp (in seconds) -> 02 00 00 00 -> 2 seconds
+        //   * A 32-bit little-endian integer offset into the file indicating the start of the thumbnail.
+        const data = await readFile(thumbCache.bifPath);
 
-            // File layout:
-            // Starts with magic 89 42 49 46 0D 0A 1A 0A (0x89 BIF \r\n\sub\n)
-            // 32(?)-bit integer at offset 0xC indicating the number of thumbnails in the file
-            // Index table starts at 0x40, with 8-byte records:
-            //   * A 32-bit little-endian integer timestamp (in seconds) -> 02 00 00 00 -> 2 seconds
-            //   * A 32-bit little-endian integer offset into the file indicating the start of the thumbnail.
-            readFile(thumbCache.bifPath, (err, data) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
+        const thumbnailCountOffset = 0xC;
+        const indexTableStart = 0x40;
+        const recordSize = 0x8;
+        const timestampSize = 0x4;
+        const getOffset = (index) => data.readInt32LE(indexTableStart + (index * recordSize) + timestampSize);
+        const getTimestamp = (index) => data.readInt32LE(indexTableStart + (index * recordSize));
 
-                const thumbnailCountOffset = 0xC;
-                const indexTableStart = 0x40;
-                const recordSize = 0x8;
-                const timestampSize = 0x4;
-                const getOffset = (index) => data.readInt32LE(indexTableStart + (index * recordSize) + timestampSize);
-                const getTimestamp = (index) => data.readInt32LE(indexTableStart + (index * recordSize));
+        if (thumbCache.interval === 0) {
+            const verify = getTimestamp(0);
+            if (verify !== 0) {
+                throw new ServerError('Unexpected thumbnail file contents', 500);
+            }
 
-                if (thumbCache.interval === 0) {
-                    const verify = getTimestamp(0);
-                    if (verify !== 0) {
-                        reject(new ServerError('Unexpected thumbnail file contents', 500));
-                        return;
-                    }
+            thumbCache.interval = getTimestamp(1);
+        }
 
-                    thumbCache.interval = getTimestamp(1);
-                }
+        let index = Math.floor(timestamp / thumbCache.interval);
 
-                let index = Math.floor(timestamp / thumbCache.interval);
+        // Last index points to the end of the file, so the real max is the
+        // number of indexes minus 1.
+        const maxIndex = data.readInt32LE(thumbnailCountOffset) - 1;
+        if (index > maxIndex) {
+            Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
+            index = maxIndex;
+        } else if (index < 0) {
+            Log.warn('Received negative thumbnail request. Retrieving first thumbnail instead.');
+            index = 0;
+        }
 
-                // Last index points to the end of the file, so the real max is the
-                // number of indexes minus 1.
-                const maxIndex = data.readInt32LE(thumbnailCountOffset) - 1;
-                if (index > maxIndex) {
-                    Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
-                    index = maxIndex;
-                } else if (index < 0) {
-                    Log.warn('Received negative thumbnail request. Retrieving first thumbnail instead.');
-                    index = 0;
-                }
-
-                const thumbStart = getOffset(index);
-                const thumbEnd = index === maxIndex ? data.length : getOffset(index + 1);
-                const thumbBuf = Buffer.alloc(thumbEnd - thumbStart);
-                data.copy(thumbBuf, 0, thumbStart, thumbEnd);
-                Log.verbose(`Thumbnail found, caching (${thumbEnd - thumbStart} bytes).`);
-                this.#cache.add(metadataId, index, thumbBuf);
-                resolve(thumbBuf);
-            });
-        });
+        const thumbStart = getOffset(index);
+        const thumbEnd = index === maxIndex ? data.length : getOffset(index + 1);
+        const thumbBuf = Buffer.alloc(thumbEnd - thumbStart);
+        data.copy(thumbBuf, 0, thumbStart, thumbEnd);
+        Log.verbose(`Thumbnail found, caching (${thumbEnd - thumbStart} bytes).`);
+        this.#cache.add(metadataId, index, thumbBuf);
+        return thumbBuf;
     }
 }
 
@@ -310,14 +325,20 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             return cached.hasThumbs;
         }
 
+        /** @type {{ readonly file: string, readonly size: number, readonly duration: number }[]} */
         const rows = await this.database.all(FfmpegThumbnailManager.#fileQuery, [metadataId]);
 
         let bestFile = null;
-        for (const file of rows) {
-            if (existsSync(file.file)) {
-                Log.verbose(file.file, `Found file for ${metadataId}`);
-                if (file.size > (bestFile?.size || 0)) {
-                    bestFile = file;
+        for (const entry of rows) {
+            const paths = this.#getFilePaths(entry.file);
+            for (const file of paths) {
+                if (await this.#canReadFile(file)) {
+                    Log.verbose(file, `Found file for ${metadataId}`);
+                    if (entry.size > (bestFile?.size || 0)) {
+                        bestFile = entry;
+                    }
+
+                    break;
                 }
             }
         }
@@ -330,6 +351,32 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         Log.verbose(`No file found for ${metadataId}`);
         this.#cache.addItem(metadataId, false);
         return false;
+    }
+
+    /**
+     * Get all possible file paths to test based on the path in Plex's database
+     * and any configured path mappings.
+     * @param {string} filePath */
+    #getFilePaths(filePath) {
+        /** @type {string[]} */
+        const paths = [];
+
+        for (const mapping of Config.pathMappings()) {
+            if (filePath.startsWith(mapping.from)) {
+                let newPath = filePath.replace(mapping.from, mapping.to);
+                const forward = mapping.from.includes('/');
+                if (forward !== mapping.to.includes('/')) {
+                    // Path separator is different. Replace that as well.
+                    newPath = newPath.replace(forward ? /\\/g : /\//g, forward ? '/' : '\\');
+                }
+
+                paths.push(newPath);
+            }
+        }
+
+        // Even if we have a matching path mapping, still try the original path.
+        paths.push(filePath);
+        return paths;
     }
 
     /**
@@ -347,6 +394,18 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         }
 
         return this.#getThumbnailCore(metadataId, timestamp, thumbCache);
+    }
+
+    /**
+     * Determines if the given file exists and can be read.
+     * @param {string} file */
+    async #canReadFile(file) {
+        try {
+            await access(file, fsConstants.R_OK);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -382,19 +441,19 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId
      * @param {number} timestamp Timestamp, in milliseconds
      * @param {FfmpegMediaItemCache} episodeCache */
-    #fileCacheOrGenerate(metadataId, timestamp, episodeCache) {
+    async #fileCacheOrGenerate(metadataId, timestamp, episodeCache) {
         const savePath = join(ProjectRoot(), 'cache', `${metadataId}`);
         const saveFile = join(savePath, `${timestamp}.jpg`);
-        if (existsSync(saveFile)) {
+        if (await this.#canReadFile(saveFile)) {
             Log.tmi(`Found cached thumbnail file for ${metadataId}:${timestamp}`);
-            const data = readFileSync(saveFile);
+            const data =  await readFile(saveFile);
             this.#cache.add(metadataId, timestamp, data);
             return data;
         }
 
-        mkdirSync(savePath, { recursive : true });
+        await mkdir(savePath, { recursive : true });
         const execStart = performance.now();
-        execFileSync('ffmpeg',
+        await execFile('ffmpeg',
             [   '-loglevel', 'error',        // We don't care about the output
                 '-noaccurate_seek',          // Seek quickly, it's okay if we're slightly off
                 '-ss', `${timestamp}ms`,     // NOTE: 000ms syntax requires a somewhat modern version of ffmpeg (>=4?)
@@ -409,11 +468,9 @@ class FfmpegThumbnailManager extends ThumbnailManager {
         // the reported duration and the real duration of the video stream. Return 404
         let data;
         try {
-            data = readFileSync(saveFile);
+            data = await readFile(saveFile);
         } catch (ex) {
-            // NOTE: if you change this error message, also adjust GETHandler's error handler, as we hackily use
-            // this specific message to indicate this specific error.
-            throw new ServerError(`Unable to retrieve thumbnail. Video stream likely doesn't line up with reported duration.`, 404);
+            throw new ThumbnailNotGeneratedError(metadataId, timestamp);
         }
 
         this.#cache.add(metadataId, timestamp, data);
@@ -425,20 +482,22 @@ class FfmpegThumbnailManager extends ThumbnailManager {
     /**
      * On full shutdown, wipe out the cache folder.
      * @param {boolean} fullShutdown Whether we're completely shutting down, or just suspended/restarting. */
-    close(fullShutdown) {
+    async close(fullShutdown) {
         if (!fullShutdown) {
             Log.verbose(`FfmpegThumbnailManager: Not a full shutdown, not clearing cache.`);
             return;
         }
 
         const cacheRoot = join(ProjectRoot(), 'cache');
-        if (!existsSync(cacheRoot)) {
-            // Nothing to clear
+        try {
+            await access(cacheRoot);
+        } catch (ex) {
+            // Nothing to clear.
             return;
         }
 
         try {
-            rmSync(cacheRoot, { recursive : true, force : true });
+            await rm(cacheRoot, { recursive : true, force : true });
             Log.verbose(`FfmpegThumbnailManager: Successfully removed cached thumbnails.`);
         } catch (err) {
             Log.warn(err.message, `FfmpegThumbnailManager: Failed to clear cached thumbnails.`);
@@ -653,4 +712,4 @@ class CachedThumbnail {
     }
 }
 
-export { ThumbnailManager, Instance as Thumbnails };
+export { ThumbnailManager, Instance as Thumbnails, ThumbnailNotGeneratedError };
