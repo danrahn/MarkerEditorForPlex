@@ -1150,6 +1150,7 @@ class SeasonResultRow extends ResultRow {
 
         for (const episode of Object.values(this.#episodes)) {
             episode.updateMarkerBreakdown();
+            episode.updateTitleOnWindowResize();
         }
     }
 }
@@ -1349,8 +1350,6 @@ class EpisodeResultRow extends BaseItemResultRow {
         const ep = this.episode();
         ep.createMarkerTable(this, markerData, chapters);
         const titleText = 'Click to expand/contract. Control+Click to expand/contract all';
-        const sXeY = `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`;
-        const episodeTitle = `${ep.showName} - ${sXeY} - ${ep.title || 'Episode ' + ep.index}`;
         const row = buildNode('div');
         appendChildren(row,
             appendChildren(
@@ -1365,7 +1364,7 @@ class EpisodeResultRow extends BaseItemResultRow {
                           this.#onEpisodeRowKeydown.bind(this) ] }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
                     this.getExpandArrow(),
-                    buildNode('span', {}, episodeTitle)
+                    buildNode('span', { class : 'episodeRowTitle' }, this.#displayTitle())
                 ),
                 this.#buildMarkerText()
             ),
@@ -1375,6 +1374,26 @@ class EpisodeResultRow extends BaseItemResultRow {
 
         this.setHtml(row);
         return row;
+    }
+
+    /**
+     * Adjust episode title text depending on the new screen size. */
+    updateTitleOnWindowResize() {
+        $$('.episodeRowTitle', this.html()).innerText = this.#displayTitle();
+    }
+
+    /**
+     * Return the episode title text depending on the screen size. Small screens
+     * omit the show name. */
+    #displayTitle() {
+        const ep = this.episode();
+        const sXeY = `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`;
+        const base = `${sXeY} - ${ep.title || 'Episode ' + ep.index}`;
+        if (PlexUI.isSmallScreen()) {
+            return base;
+        }
+
+        return `${ep.showName} - ${base}`;
     }
 
     /**
