@@ -325,7 +325,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
             return cached.hasThumbs;
         }
 
-        /** @type {{ readonly file: string, readonly size: number, readonly duration: number }[]} */
+        /** @type {{ file: string, readonly size: number, readonly duration: number }[]} */
         const rows = await this.database.all(FfmpegThumbnailManager.#fileQuery, [metadataId]);
 
         let bestFile = null;
@@ -335,6 +335,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
                 if (await this.#canReadFile(file)) {
                     Log.verbose(file, `Found file for ${metadataId}`);
                     if (entry.size > (bestFile?.size || 0)) {
+                        entry.file = file;
                         bestFile = entry;
                     }
 
@@ -367,7 +368,7 @@ class FfmpegThumbnailManager extends ThumbnailManager {
                 const forward = mapping.from.includes('/');
                 if (forward !== mapping.to.includes('/')) {
                     // Path separator is different. Replace that as well.
-                    newPath = newPath.replace(forward ? /\\/g : /\//g, forward ? '/' : '\\');
+                    newPath = newPath.replace(forward ? /\//g : /\\/g, forward ? '\\' : '/');
                 }
 
                 paths.push(newPath);
