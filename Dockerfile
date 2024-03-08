@@ -1,5 +1,5 @@
-# LTS
-FROM node:18
+# LTS (as of 2024/03)
+FROM node:20
 
 # Set production env
 ARG NODE_ENV=production

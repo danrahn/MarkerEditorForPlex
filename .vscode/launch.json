@@ -45,6 +45,14 @@
             "skipFiles": [ "<node_internals>/**" ],
             "args": [ "--test", "--ask-input" ],
             "program": "${workspaceFolder}\\Test\\Test.js"
+        },
+        {
+            "type" : "node",
+            "request": "launch",
+            "name" : "Debug Build Command",
+            "skipFiles": [ "<node_internals>/**" ],
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "build", "ia32", "verbose", "pack"]
         }
     ]
 }

@@ -1,27 +1,32 @@
 const fs = require('fs');
 const { copySync } = require('fs-extra');
 const { compile : exeCompile } = require('nexe');
+const { homedir } = require('os');
 const { resolve, join } = require('path');
 const rcedit = require('rcedit');
 const { rollup } = require('rollup');
 const { exec } = require('child_process');
 
-const { version } = require('../package.json');
+const { version, dependencies } = require('../package.json');
 const iconPath = resolve(__dirname, 'app.ico');
 
 const appName = 'Marker Editor for Plex';
 const binaryName = 'MarkerEditorForPlex';
+
+// Can't have -beta/-rc/etc in version name for Windows FILEVERSION
+const rcVersion = version.replace(/-(?:alpha|beta|rc)(?:\.\d+)?$/, '');
+
 const rc = {
     CompanyName : appName,
     ProductName : appName,
     FileDescription : appName,
-    FileVersion : version,
-    ProductVersion : version,
+    FileVersion : rcVersion,
+    ProductVersion : rcVersion,
     InternalappName : appName + 'exe',
     LegalCopyright : 'MarkerEditorForPlex.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
 };
 
-const defaultNodeVersion = '18.17.1';
+const defaultNodeVersion = '20.11.1'; // LTS as of 2024/03/07
 
 const args = process.argv.map(a => a.toLowerCase());
 const verbose = args.includes('verbose');
@@ -48,6 +53,33 @@ async function transpile() {
 }
 
 /**
+ * Get the architecture to build for. In general uses the system architecture,
+ * but Windows can be overridden to compile for a specific target based on input parameters. */
+function getArch() {
+
+    if (args.includes('x64') || args.includes('amd64') || args.includes('x86_64')) {
+        return 'x64';
+    }
+
+    if (args.includes('x86') || args.includes('ia32')) {
+        return 'ia32';
+    }
+
+    if (args.includes('arm64') || args.includes('aarch64')) {
+        return 'arm64';
+    }
+
+    switch (process.arch) {
+        case 'arm64':
+        case 'ia32':
+        case 'x64':
+            return process.arch;
+        default:
+            throw new Error(`Unsupported build architecture "${process.arch}, exiting...`);
+    }
+}
+
+/**
  * Takes rollup's cjs output and writes the exe. */
 async function toExe() {
     let platform;
@@ -60,24 +92,14 @@ async function toExe() {
         case 'linux':
             platform = 'linux';
             break;
+        case 'darwin':
+            platform = 'mac';
+            break;
         default:
             throw new Error(`Unsupported build platform "${process.platform}", exiting...`);
     }
 
-    let arch = '';
-    switch (process.arch) {
-        case 'arm64':
-            arch = 'arm64';
-            break;
-        case 'ia32':
-            arch = 'ia32';
-            break;
-        case 'x64':
-            arch = ('x86' in args || 'ia32' in args) ? 'ia32' : 'x64';
-            break;
-        default:
-            throw new Error(`Unsupported build architecture "${process.arch}, exiting...`);
-    }
+    const arch = getArch();
 
     let nodeVersion = defaultNodeVersion;
     if (args.includes('version')) {
@@ -85,6 +107,34 @@ async function toExe() {
         if (idx < args.length - 1) {
             nodeVersion = args[idx + 1];
         }
+    }
+
+    console.log(`Attempting to build ${platform}-${arch}-${nodeVersion}`);
+
+    // nexe doesn't appear to take into account that the currently cached build output is a different
+    // target architecture. To get around that, ignore the standard 'out' folder and check for
+    // architecture-specific output folders. If it doesn't exist, do a full build and rename the
+    // output to an architecture-specific folder, and link that to the standard 'out' folder. This
+    // relies on internal nexe behavior, but since it's dev-only, nothing user-facing should break if
+    // nexe changes, this section will just have to be updated.
+    const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
+    const oldOut = join(temp, nodeVersion, 'out');
+    const archOut = oldOut + arch;
+    const hadCache = fs.existsSync(archOut);
+    if (hadCache) {
+        console.log(`Found cached output for ${arch}-${nodeVersion}, using that.`);
+
+        // Wipe out any existing out link and replace with cached out{arch} link
+        if (fs.existsSync(oldOut)) {
+            console.log(`Removing old link to 'out'`);
+            fs.rmSync(oldOut, { recursive : true, force : true });
+        }
+
+        fs.symlinkSync(archOut, oldOut, 'junction');
+    } else {
+        // Always clear out the build directory if we don't have the
+        // target architecture cached.
+        fs.rmSync(oldOut, { recursive : true, force : true });
     }
 
     await exeCompile({
@@ -113,26 +163,32 @@ async function toExe() {
                     return next();
                 }
 
-                const exePath = compiler.getNodeExecutableLocation();
+                const binaryPath = compiler.getNodeExecutableLocation();
                 try {
                     // RC overrides are only applied if we're doing a clean build,
                     // hack around it by using rcedit on the binary to ensure they're added.
-                    if (fs.statSync(exePath).size > 0) {
-                        await rcedit(exePath, {
+                    if (fs.statSync(binaryPath).size > 0) {
+                        await rcedit(binaryPath, {
                             'version-string' : rc,
-                            'file-version' : version,
-                            'product-version' : version,
+                            'file-version' : rcVersion,
+                            'product-version' : rcVersion,
                             icon : iconPath,
                         });
                     }
                 } catch {
-                    console.log('Unable to modify exe resources with rcedit.');
+                    console.log('\nUnable to modify exe resources with rcedit. This is expected if we\'re doing a clean build');
                 }
 
                 return next();
             }
         ]
     }); // Don't catch, interrupt on failure.
+
+    // After everything is compiled, cache the output directory if needed.
+    if (!hadCache) {
+        fs.renameSync(oldOut, archOut);
+        fs.symlinkSync(archOut, oldOut, 'junction');
+    }
 }
 
 /**
@@ -141,6 +197,10 @@ async function build() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous build output');
     const dist = resolve(__dirname, '../dist');
+    if (!fs.existsSync(dist)) {
+        fs.mkdirSync(dist);
+    }
+
     for (const file of fs.readdirSync(dist)) {
         // Don't remove zip files
         if (file.endsWith('.zip')) {
@@ -149,13 +209,13 @@ async function build() {
 
         const fullPath = join(dist, file);
         if (fs.statSync(fullPath).isDirectory()) {
-            fs.rmSync(fullPath, { recursive : true, force : true });
+            if (file !== 'archCache') {
+                fs.rmSync(fullPath, { recursive : true, force : true });
+            }
         } else {
             fs.unlinkSync(fullPath);
         }
     }
-
-    // fs.rmSync(resolve(__dirname, '../dist'), { recursive : true, force : true });
 
     msg('Transpiling to cjs');
     await transpile();
@@ -165,33 +225,56 @@ async function build() {
 
     msg('Copying native modules');
 
-    // We don't actually need most of the files under node_modules/sqlite3 but
-    // keep them anyway, except for sqlite-autoconf-***-tar.gz, as it's 3MB of unnecessary bloat.
-    copySync(
-        resolve(__dirname, '../node_modules/sqlite3'),
-        resolve(__dirname, '../dist/node_modules/sqlite3'),
-        { overwrite : true, recursive : true });
-
-    const tarGzPath = resolve(__dirname, '../dist/node_modules/sqlite3/deps');
-    if (fs.existsSync(tarGzPath)) {
-        for (const file of fs.readdirSync(tarGzPath)) {
-            const fullPath = join(tarGzPath, file);
-            if (/sqlite-autoconf-\d+\.tar\.gz/.test(file)) {
-                if (verbose) {
-                    console.log(`Deleting ${file} from sqlite3 module to reduce bloat`);
-                }
-
-                fs.unlinkSync(fullPath);
-            }
-        }
+    let sqlite3Version = dependencies.sqlite3;
+    if (/^[^~]/.test(sqlite3Version)) {
+        // Always use the exact version listed
+        sqlite3Version = sqlite3Version.substring(1);
     }
+
+    const cacheDir = resolve(__dirname, '../dist/archCache');
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir);
+    }
+
+    const arch = getArch();
+
+    if (process.arch === arch) {
+        // destination arch is the same as the system arch. Just copy the existing node_modules dir
+
+        copySync(
+            resolve(__dirname, '../node_modules/sqlite3/build/Release/node_sqlite3.node'),
+            resolve(__dirname, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'),
+            { overwrite : true, recursive : true });
+    } else {
+        const cacheVersion = join(cacheDir, `sqlite3-${sqlite3Version}-${arch}`);
+
+        // Cross-compilation (e.g. --dest-cpu=ia32 on a 64-bit OS).
+        // Instead of creating the infra to support downloading and un-taring sqlite3
+        // binaries, it's required to manually build the dist/archCache structure using self/pre-built
+        // binaries, using the naming outlined above in cacheVersion.
+        if (!fs.existsSync(cacheVersion) || !fs.statSync(cacheVersion).isDirectory()) {
+            throw new Error(`Unable to copy native sqlite3 module, archCache folder "${cacheVersion}" does not exist.`);
+        }
+
+        copySync(
+            join(cacheVersion, 'node_sqlite3.node'),
+            resolve(__dirname, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'),
+            { overwrite : true, recursive : true }
+        );
+    }
+
+    copySync(
+        resolve(__dirname, '../node_modules/sqlite3/package.json'),
+        resolve(__dirname, '../dist/node_modules/sqlite3/package.json'),
+        { overwrite : true }
+    );
 
     msg('Removing transpiled output');
     fs.unlinkSync(resolve(__dirname, '../dist/built.cjs'));
 
     if (args.includes('zip') || args.includes('pack')) {
         msg('Zipping everything up');
-        const zipName = `${binaryName}.v${version}-${process.platform}-${process.arch}`;
+        const zipName = `${binaryName}.v${version}-${process.platform}-${arch}`;
         let cmd;
         if (process.platform === 'win32') {
             cmd = `powershell Compress-Archive "${dist}/node_modules", "${dist}/${binaryName}.exe" "${dist}/${zipName}.zip" -Force`;
