@@ -262,7 +262,8 @@ class MarkerCacheManager {
         }
 
         if (missingData > 0) {
-            Log.warn(`Found ${missingData} marker(s) without an associated media item, these can't be tracked.`);
+            Log.warn(`Found ${missingData} marker(s) without an associated media item, these can't be tracked. ` +
+                `Optimizing you database and cleaning bundles may remove these.`);
         }
 
         Log.verbose(`Analyzed all markers in ${Date.now() - end}ms (${((Date.now() - start) / 1000).toFixed(2)} seconds total)`);
