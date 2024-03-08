@@ -224,7 +224,7 @@ async function askUserPath(question, rl, defaultPath, canSkip=false) {
         }
 
         if (answer !== defaultText) {
-            return answer;
+            return answer.trim();
         }
 
         if (defaultExists) {
