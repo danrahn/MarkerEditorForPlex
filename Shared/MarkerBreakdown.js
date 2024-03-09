@@ -20,6 +20,7 @@ class MarkerBreakdown {
     constructor() {}
 
     /**
+     * Retrieve the key representing the given marker number and type.
      * @param {number} delta
      * @param {string} markerType */
     static deltaFromType(delta, markerType) {
@@ -36,12 +37,14 @@ class MarkerBreakdown {
     }
 
     /**
+     * Return the number of markers represented by the given key.
      * @param {number} key */
     static markerCountFromKey(key) {
         return (key >> CreditsShift) + (key & IntroMask);
     }
 
     /**
+     * Retrieve the key representing the given number of intros and credits.
      * @param {number} intros
      * @param {number} credits */
     static keyFromMarkerCount(intros, credits) {
@@ -59,9 +62,14 @@ class MarkerBreakdown {
         return this;
     }
 
+    /**
+     * Return the number of unique marker type combinations for this breakdown.
+     * E.g. 3 will be returned if 5 episodes have 1 intro and no credits, 10 have
+     * no intros and 1 credits, and 2 have no intros and no credits. */
     buckets() { return Object.keys(this.#counts).filter(c => this.#counts[c] !== 0).length; }
 
     /**
+     * Retrieve consolidated buckets that don't differentiate between marker types.
      * @returns {MarkerBreakdownMap} */
     collapsedBuckets() {
         /** @type {MarkerBreakdownMap} */
@@ -86,41 +94,39 @@ class MarkerBreakdown {
     }
 
     /**
+     * Return a breakdown only consisting of intro markers.
      * @returns {MarkerBreakdownMap} */
     introBuckets() {
-        /** @type {MarkerBreakdownMap} */
-        const collapsed = {};
-        for (const [key, value] of Object.entries(this.#counts)) {
-            if (value === 0) {
-                continue;
-            }
-
-            const introKey = this.#ic(key);
-            collapsed[introKey] ??= 0;
-            collapsed[introKey] += value;
-        }
-
-        return collapsed;
+        return this.#buckets(this.#ic);
     }
 
     /**
+     * Return a breakdown only consisting of credits markers.
      * @returns {MarkerBreakdownMap} */
     creditsBuckets() {
+        return this.#buckets(this.#cc);
+    }
+
+    /**
+     * @param {(key: number|string) => number} keyFunc */
+    #buckets(keyFunc) {
         const collapsed = {};
         for (const [key, value] of Object.entries(this.#counts)) {
             if (value === 0) {
                 continue;
             }
 
-            const creditsKey = this.#cc(key);
-            collapsed[creditsKey] ??= 0;
-            collapsed[creditsKey] += value;
+            const typeKey = keyFunc(key);
+            collapsed[typeKey] ??= 0;
+            collapsed[typeKey] += value;
         }
 
         return collapsed;
     }
 
+    /** Intro count from key */
     #ic(v) { return +v & IntroMask; }
+    /** Credits count from key */
     #cc(v) { return +v >> CreditsShift; }
 
     /**
@@ -165,11 +171,14 @@ class MarkerBreakdown {
         return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#cc(kv[0]) > 0 ? kv[1] : 0), 0);
     }
 
-    /** @returns {MarkerBreakdownMap} */
+    /**
+     * Retrieve the full breakdown that includes marker type info.
+     * @returns {MarkerBreakdownMap} */
     data() {
-        // Create a copy by stringifying/serializing to prevent underlying data from being overwritten.
+        // Create a copy to prevent underlying data from being overwritten.
+        // Since it's just a number-to-number mapping, the spread operator is sufficient.
         this.#minify();
-        return JSON.parse(JSON.stringify(this.#counts));
+        return { ...this.#counts };
     }
 
     /** Adjust the marker count for an episode that previously had `oldCount` markers

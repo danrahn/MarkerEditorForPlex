@@ -2,8 +2,7 @@ node_modules/*
 
 # Ignore everything in .vscode, except launch.json
 # for running the program/tests in vscode.
-.vscode/*
-!.vscode/launch.json
+.vscode/settings.json
 
 # Ignore the backup database
 Backup/*

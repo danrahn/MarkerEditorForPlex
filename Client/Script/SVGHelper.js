@@ -43,13 +43,13 @@ function getPlaceholder() {
 /**
  * Cache of all icon's that we've retrieved to avoid asking the server
  * for the same icon over and over.
- * @type {Map<string, SVGElement} */
+ * @type {Map<string, SVGElement>} */
 const svgCache = new Map();
 
 /**
  * Keeps track of in-progress requests so when we e.g. add 100 expand/collapse arrows
  * at the same time, we only ask the server for it once.
- * @type {Map<string, Promise<void>} */
+ * @type {Map<string, Promise<void>>} */
 const svgFetchMap = new Map();
 
 /**
