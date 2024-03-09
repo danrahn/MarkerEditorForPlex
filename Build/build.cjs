@@ -6,12 +6,31 @@ const { resolve, join } = require('path');
 const rcedit = require('rcedit');
 const { rollup } = require('rollup');
 const { exec } = require('child_process');
+const semver = require('semver');
+
+const ReadMeGenerator = require('./ReadMeGenerator.cjs');
+
+/**
+ * @typedef {{
+ *  version: string,
+ *  date: string,
+ *  files: string[],
+ *  lts: string|false,
+ *  security: boolean,
+ *  npm?: string,
+ *  v8?: string,
+ *  uv?: string,
+ *  zlib?: string,
+ *  openssl?: string,
+ *  modules?: string,
+ * }} NodeVersionInfo
+ * */
 
 const { version, dependencies } = require('../package.json');
 const iconPath = resolve(__dirname, 'app.ico');
 
 const appName = 'Marker Editor for Plex';
-const binaryName = 'MarkerEditorForPlex';
+const binaryName = 'MarkerEditor';
 
 // Can't have -beta/-rc/etc in version name for Windows FILEVERSION
 const rcVersion = version.replace(/-(?:alpha|beta|rc)(?:\.\d+)?$/, '');
@@ -23,10 +42,10 @@ const rc = {
     FileVersion : rcVersion,
     ProductVersion : rcVersion,
     InternalappName : appName + 'exe',
-    LegalCopyright : 'MarkerEditorForPlex.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
+    LegalCopyright : 'MarkerEditor.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
 };
 
-const defaultNodeVersion = '20.11.1'; // LTS as of 2024/03/07
+const fallbackNodeVersion = '20.11.1'; // LTS as of 2024/03/07
 
 const args = process.argv.map(a => a.toLowerCase());
 const verbose = args.includes('verbose');
@@ -101,11 +120,23 @@ async function toExe() {
 
     const arch = getArch();
 
-    let nodeVersion = defaultNodeVersion;
+    let nodeVersion = fallbackNodeVersion;
     if (args.includes('version')) {
         const idx = args.indexOf('version');
         if (idx < args.length - 1) {
             nodeVersion = args[idx + 1];
+        }
+    } else {
+        // Find the latest LTS version
+        try {
+            /** @type {NodeVersionInfo[]} */
+            const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
+            versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
+
+            nodeVersion = versions[0].version.substring(1);
+            console.log(`Found latest LTS: ${nodeVersion}`);
+        } catch (ex) {
+            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
         }
     }
 
@@ -192,7 +223,56 @@ async function toExe() {
 }
 
 /**
- * Full pipeline to create MarkerEditorForPlex. */
+ * Write a small README to include in the package. On Windows/Mac, simply
+ * direct users to the wiki. Add a bit more information about launching
+ * on Linux, as it's not "double-clickable" on all variants. */
+function writeReadme() {
+    const recipeHeader = `~\n!\n-:-MARKER EDITOR ${version}\n!\n~\n!\n`;
+
+    const recipeFooter = `
+!\n${process.platform === 'linux' ? '' : '-:-'}For complete usage instructions,
+||visit the wiki at https://github.com/danrahn/MarkerEditorForPlex/wiki\n!\n~`;
+
+    let recipe;
+    switch (process.platform) {
+        default:
+            console.warn(`WARN: Unknown platform '${process.platform}'. How did we get here?`);
+            // __fallthrough
+        case 'win32':
+        case 'darwin':
+            recipe = `-:-Welcome to Marker Editor for Plex!`;
+            break;
+        case 'linux':
+            recipe = `Welcome to Marker Editor for Plex! If double-clicking MarkerEditor doesn't start
+||the program, there are a couple ways to launch the editor:
+!
+1. Via start.sh. Depending on your system, you may have to rich-click the file and "Run as a Program",
+||or choose to "Execute in Terminal."!!3
+2. Open a new terminal window, navigate to the folder with MarkerEditor, and execute it from there:!!3
+!
+   ~ $ cd /path/to/MarkerEditorForPlex
+   MarkerEditorForPlex $ ./MarkerEditor`;
+            break;
+    }
+
+    fs.writeFileSync(resolve(__dirname, '../dist/README.txt'), new ReadMeGenerator(80).parse(recipeHeader + recipe + recipeFooter));
+}
+
+/**
+ * On Linux, launching MarkerEditor might not be as simple as double-clicking the binary.
+ * Include a simple launch script in addition to the main binary. */
+function writeStartSh() {
+    const startSh =
+`#!/usr/bin/env bash
+cd "\`dirname "$0"\`"
+./MarkerEditor
+`;
+
+    fs.writeFileSync(resolve(__dirname, '../dist/start.sh'), startSh, { mode : 0o755 });
+}
+
+/**
+ * Full pipeline to create MarkerEditor. */
 async function build() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous build output');
@@ -269,6 +349,14 @@ async function build() {
         { overwrite : true }
     );
 
+    msg('Writing README');
+    writeReadme();
+
+    if (process.platform !== 'win32' && process.platform !== 'darwin') {
+        msg(`Writing Linux Start script`);
+        writeStartSh();
+    }
+
     msg('Removing transpiled output');
     fs.unlinkSync(resolve(__dirname, '../dist/built.cjs'));
 
@@ -276,11 +364,15 @@ async function build() {
         msg('Zipping everything up');
         const zipName = `${binaryName}.v${version}-${process.platform}-${arch}`;
         let cmd;
+        /* eslint-disable max-len */
         if (process.platform === 'win32') {
-            cmd = `powershell Compress-Archive "${dist}/node_modules", "${dist}/${binaryName}.exe" "${dist}/${zipName}.zip" -Force`;
+            cmd = `powershell Compress-Archive "${dist}/node_modules", "${dist}/README.txt", "${dist}/${binaryName}.exe" "${dist}/${zipName}.zip" -Force`;
+        } else if (process.platform === 'darwin') {
+            cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules README.txt '${binaryName}'`;
         } else {
-            cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules '${binaryName}'`;
+            cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules start.sh README.txt '${binaryName}'`;
         }
+        /* eslint-enable max-len */
 
         if (verbose) {
             console.log(`Running "${cmd}"`);
