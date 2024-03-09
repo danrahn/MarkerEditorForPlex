@@ -9,6 +9,3 @@ export const StickySettingsType = {
     /** @readonly Remember across sessions. */
     Always : 2,
 };
-
-/** Event name triggered when the stickiness setting changes. */
-export const StickySettingsChangedEventName = 'stickySettingsChanged';

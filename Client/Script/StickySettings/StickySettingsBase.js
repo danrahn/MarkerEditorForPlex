@@ -1,7 +1,8 @@
 import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
-import { StickySettingsChangedEventName, StickySettingsType } from './StickySettingsTypes.js';
 import { ClientSettings } from '../ClientSettings.js';
+import { CustomEvents } from '../CustomEvents.js';
+import { StickySettingsType } from './StickySettingsTypes.js';
 
 const Log = new ContextualLog('StickySettings');
 
@@ -26,7 +27,7 @@ export default class StickySettingsBase {
 
     /** One-time setup to initialize client settings callback. */
     static Setup() {
-        window.addEventListener(StickySettingsChangedEventName, StickySettingsBase.onStickyTypeChange);
+        window.addEventListener(CustomEvents.StickySettingsChanged, StickySettingsBase.onStickyTypeChange);
     }
 
     /**

@@ -1,12 +1,14 @@
-import { $, appendChildren, buildNode, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
+import { $, appendChildren, buildNode, pad0 } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import BulkDeleteStickySettings from './StickySettings/BulkDeleteStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
+import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 
@@ -120,7 +122,7 @@ class BulkDeleteOverlay {
         const ignored = this.#table?.getIgnored();
         const applyTo = this.#applyTo();
         try {
-            const result = await ServerCommand.bulkDelete(this.#mediaItem.metadataId, applyTo, ignored);
+            const result = await ServerCommands.bulkDelete(this.#mediaItem.metadataId, applyTo, ignored);
             const markerMap = BulkActionCommon.markerMapFromList(result.deletedMarkers);
 
             PlexClientState.notifyBulkActionChange(markerMap, BulkActionType.Delete);
@@ -143,7 +145,7 @@ class BulkDeleteOverlay {
     /**
      * Display a table of all markers associated with the overlay's metadata id. */
     async #showCustomizationTable() {
-        const data = await ServerCommand.checkBulkDelete(this.#mediaItem.metadataId);
+        const data = await ServerCommands.checkBulkDelete(this.#mediaItem.metadataId);
         this.#table?.remove();
         this.#table = new BulkActionTable();
 

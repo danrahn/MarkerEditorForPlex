@@ -4,20 +4,20 @@ import {
     appendChildren,
     buildNode,
     clearEle,
-    clickOnEnterCallback,
-    errorMessage,
-    errorResponseOverlay,
-    ServerCommand } from './Common.js';
+    clickOnEnterCallback } from './Common.js';
 import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { StickySettingsChangedEventName, StickySettingsType } from './StickySettings/StickySettingsTypes.js';
+import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { CustomEvents } from './CustomEvents.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
+import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+import { StickySettingsType } from './StickySettings/StickySettingsTypes.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
@@ -554,7 +554,7 @@ class ClientSettingsUI {
     async #onPauseConfirm() {
         Log.info('Attempting to pause server.');
         try {
-            await ServerCommand.suspend();
+            await ServerCommands.suspend();
             ServerPausedOverlay.Show();
         } catch (err) {
             errorResponseOverlay('Failed to pause server.', err);
@@ -595,7 +595,7 @@ class ClientSettingsUI {
      * before bringing everything back online. */
     async #fullRestart() {
         try {
-            await ServerCommand.restart();
+            await ServerCommands.restart();
             Overlay.setDismissible(false);
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to initiate restart: ${errorMessage(err)}`;
@@ -637,7 +637,7 @@ class ClientSettingsUI {
      * Do a mini-restart (quick suspend/resume), without restarting the HTTP server. */
     async #quickReload() {
         try {
-            await ServerCommand.reload();
+            await ServerCommands.reload();
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to reload data: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
@@ -662,7 +662,7 @@ class ClientSettingsUI {
     async #onShutdownConfirm() {
         Log.info('Attempting to shut down server.');
         try {
-            await ServerCommand.shutdown();
+            await ServerCommands.shutdown();
         } catch (err) {
             $('#serverStateMessage').innerText = `Failed to shut down server: ${errorMessage(err)}`;
             $('#srConfirm').value = 'Try Again.';
@@ -793,7 +793,7 @@ class ClientSettingsUI {
         // but for now assume that only one person is interacting with the application, and keep
         // the client and server side logging levels in sync.
         try {
-            await ServerCommand.logSettings(logLevel, Log.getDarkConsole(), Log.getTrace());
+            await ServerCommands.logSettings(logLevel, Log.getDarkConsole(), Log.getTrace());
         } catch (err) {
             // For logging
             errorMessage(err);
@@ -999,7 +999,7 @@ class SettingsManager {
      * @param {number} stickiness */
     setStickySetting(stickiness) {
         this.#settings.stickySettings.stickiness = stickiness;
-        window.dispatchEvent(new CustomEvent(StickySettingsChangedEventName, { detail : stickiness }));
+        window.dispatchEvent(new CustomEvent(CustomEvents.StickySettingsChanged, { detail : stickiness }));
     }
 
     /** Save the currently active settings to {@linkcode localStorage} */

@@ -4,10 +4,8 @@ import {
     appendChildren,
     buildNode,
     clearEle,
-    errorResponseOverlay,
     msToHms,
     realMs,
-    ServerCommand,
     timeInputShortcutHandler,
     timeToMs } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
@@ -15,12 +13,14 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
 import MarkerAddStickySettings from './StickySettings/MarkerAddStickySettings.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexUI } from './PlexUI.js';
+import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -327,7 +327,7 @@ class MarkerEdit {
         const mediaItem = this.markerRow.parent().mediaItem();
         const metadataId = mediaItem.metadataId;
         try {
-            const rawMarkerData = await ServerCommand.add(markerType, metadataId, startTime, endTime, +final);
+            const rawMarkerData = await ServerCommands.add(markerType, metadataId, startTime, endTime, +final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
             mediaItem.markerTable().addMarker(newMarker, this.markerRow.row());
         } catch (err) {
@@ -351,7 +351,7 @@ class MarkerEdit {
         }
 
         try {
-            const rawMarkerData = await ServerCommand.edit(markerType, markerId, startTime, endTime, +final);
+            const rawMarkerData = await ServerCommands.edit(markerType, markerId, startTime, endTime, +final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
             this.markerRow.parent().baseItem().markerTable().editMarker(editedMarker);
             this.resetAfterEdit();

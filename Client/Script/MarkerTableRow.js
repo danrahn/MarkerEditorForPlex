@@ -1,5 +1,5 @@
 
-import { $$, appendChildren, buildNode, clearEle, errorToast, ServerCommand } from './Common.js';
+import { $$, appendChildren, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { animateOpacity, flashBackground } from './AnimationHelpers.js';
@@ -8,9 +8,11 @@ import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
+import { errorToast } from './ErrorHandling.js';
 import Icons from './Icons.js';
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
+import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import Tooltip from './Tooltip.js';
 
@@ -231,7 +233,7 @@ class ExistingMarkerRow extends MarkerRow {
         const confirmBtn = $$('.confirmDelete', this.html);
         try {
             ButtonCreator.setIcon(confirmBtn, Icons.Loading, ThemeColors.Green);
-            const rawMarkerData = await ServerCommand.delete(this.markerId());
+            const rawMarkerData = await ServerCommands.delete(this.markerId());
             ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Green);
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
             /** @type {MediaItemWithMarkerTable} */

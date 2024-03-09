@@ -1,19 +1,8 @@
-import {
-    $,
-    $$,
-    appendChildren,
-    buildNode,
-    clearEle,
-    clickOnEnterCallback,
-    errorMessage,
-    errorResponseOverlay,
-    errorToast,
-    pad0,
-    plural,
-    ServerCommand } from './Common.js';
+import { $, $$, appendChildren, buildNode, clearEle, clickOnEnterCallback, pad0, plural } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
+import { errorMessage, errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PlexUI, UISection } from './PlexUI.js';
 import { BulkActionType } from './BulkActionCommon.js';
@@ -30,6 +19,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { SeasonData } from '../../Shared/PlexTypes.js';
 import SectionOptionsOverlay from './SectionOptionsOverlay.js';
+import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -591,7 +581,7 @@ class ShowResultRow extends ResultRow {
     async #getSeasons() {
         const show = this.show();
         try {
-            this.#showSeasons(await ServerCommand.getSeasons(show.metadataId));
+            this.#showSeasons(await ServerCommands.getSeasons(show.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the seasons for ${show.title}`, err);
         }
@@ -926,7 +916,7 @@ class SeasonResultRow extends ResultRow {
         this.insertInlineLoadingIcon('.showResultEpisodes');
         const season = this.season();
         try {
-            await this.#parseEpisodes(await ServerCommand.getEpisodes(season.metadataId));
+            await this.#parseEpisodes(await ServerCommands.getEpisodes(season.metadataId));
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the episodes for ${season.title}.`, err);
         } finally {
@@ -943,7 +933,7 @@ class SeasonResultRow extends ResultRow {
         /** @type {ChapterMap?} */
         let chapterData;
         try {
-            chapterData = await ServerCommand.getChapters(this.season().metadataId);
+            chapterData = await ServerCommands.getChapters(this.season().metadataId);
         } catch (ex) {
             Log.warn(ex.message, `parseEpisodes - could not get bulk chapter data`);
         }
@@ -955,7 +945,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         try {
-            this.#showEpisodesAndMarkers(await ServerCommand.query(queryIds), chapterData);
+            this.#showEpisodesAndMarkers(await ServerCommands.query(queryIds), chapterData);
         } catch (err) {
             errorResponseOverlay(`Something went wrong when retrieving the markers for these episodes, please try again.`, err);
         }
@@ -1673,7 +1663,7 @@ class MovieResultRow extends BaseItemResultRow {
         const metadataId = mov.metadataId;
         this.#markersGrabbed = true;
         try {
-            const movieInfo = await ServerCommand.extendedQuery(metadataId);
+            const movieInfo = await ServerCommands.extendedQuery(metadataId);
             mov.hasThumbnails = movieInfo.hasThumbnails;
 
             movieInfo.markers.sort((a, b) => a.start - b.start);

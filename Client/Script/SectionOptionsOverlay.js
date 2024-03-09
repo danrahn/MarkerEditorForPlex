@@ -1,13 +1,15 @@
-import { $, $$, appendChildren, buildNode, errorResponseOverlay, ServerCommand } from './Common.js';
+import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { errorResponseOverlay } from './ErrorHandling.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ServerCommands } from './Commands.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {import('./Overlay').OverlayOptions} OverlayOptions */
@@ -153,7 +155,7 @@ class SectionOptionsOverlay {
 
         Log.info(file.name, `Uploading File`);
         try {
-            const result = await ServerCommand.importDatabase(
+            const result = await ServerCommands.importDatabase(
                 file,
                 $('#applyGlobally').checked ? -1 : PlexClientState.activeSection(),
                 $('#resolutionType').value);
@@ -229,7 +231,7 @@ class SectionOptionsOverlay {
         Log.warn(`Attempting to delete markers for an entire section.`);
         const deleteType = parseInt($('#deleteAllTypeSelect').value);
         try {
-            const result = await ServerCommand.sectionDelete(PlexClientState.activeSection(), deleteType);
+            const result = await ServerCommands.sectionDelete(PlexClientState.activeSection(), deleteType);
             await Overlay.show(
                 `<h2>Section Delete Succeeded</h2><hr>` +
                     `Markers Deleted: ${result.deleted}<br>` +

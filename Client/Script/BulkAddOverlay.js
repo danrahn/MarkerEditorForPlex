@@ -3,18 +3,16 @@ import {
     appendChildren,
     buildNode,
     clearEle,
-    errorResponseOverlay,
-    errorToast,
     msToHms,
     pad0,
     realMs,
-    ServerCommand,
     timeInputShortcutHandler,
     timeToMs,
     waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import BulkAddStickySettings from './StickySettings/BulkAddStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
@@ -23,6 +21,7 @@ import Icons from './Icons.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
@@ -333,7 +332,7 @@ class BulkAddOverlay {
         // successful/failed operation, and chapter data should always be static.
         if (!this.#chapterMap) {
             try {
-                this.#chapterMap = await ServerCommand.getChapters(this.#mediaItem.metadataId);
+                this.#chapterMap = await ServerCommands.getChapters(this.#mediaItem.metadataId);
             } catch {
                 Tooltip.setText(this.#inputMode, 'Unable to get chapter data, chapter mode unavailable');
                 this.#chapterMap = null;
@@ -457,7 +456,7 @@ class BulkAddOverlay {
         }
 
         try {
-            const result = await ServerCommand.bulkAdd(
+            const result = await ServerCommands.bulkAdd(
                 markerType,
                 this.#mediaItem.metadataId,
                 startTime,
@@ -513,7 +512,7 @@ class BulkAddOverlay {
         const resolveType = this.resolveType();
         const markerType = this.markerType();
         try {
-            const result = await ServerCommand.bulkAddCustom(
+            const result = await ServerCommands.bulkAddCustom(
                 markerType,
                 this.#mediaItem.metadataId,
                 resolveType,
@@ -595,7 +594,7 @@ class BulkAddOverlay {
      * a bulk add will conflict with anything. */
     async #check() {
         try {
-            this.#serverResponse = await ServerCommand.checkBulkAdd(this.#mediaItem.metadataId);
+            this.#serverResponse = await ServerCommands.checkBulkAdd(this.#mediaItem.metadataId);
             await this.#showCustomizeTable();
         } catch (err) {
             errorResponseOverlay('Unable to check bulk add, please try again later', err, this.show.bind(this));
