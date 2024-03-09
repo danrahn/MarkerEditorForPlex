@@ -10,6 +10,7 @@ import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+import { SetupWindowResizeEventHandler } from './WindowResizeEventHandler.js';
 import StickySettingsBase from './StickySettings/StickySettingsBase.js';
 import { ThumbnailMarkerEdit } from './MarkerEdit.js';
 import Tooltip from './Tooltip.js';
@@ -30,6 +31,7 @@ function setup() {
     ThumbnailMarkerEdit.Setup();
     StickySettingsBase.Setup();
     ServerPausedOverlay.Setup();
+    SetupWindowResizeEventHandler();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
