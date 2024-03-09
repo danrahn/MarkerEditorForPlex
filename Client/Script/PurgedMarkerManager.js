@@ -16,10 +16,10 @@ import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { CustomEvents } from './CustomEvents.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
-import { PlexUI } from './PlexUI.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import Tooltip from './Tooltip.js';
@@ -1026,7 +1026,7 @@ class PurgedMarkerManager {
 
     static CreateInstance(findAllEnabled) {
         if (PurgeManagerSingleton) {
-            Log.error('We should only have a single PlexUI instance!');
+            Log.error('We should only have a single PurgedMarkerManager instance!');
             return;
         }
 
@@ -1199,7 +1199,7 @@ class PurgedMarkerManager {
         }
 
         // After everything's updated, reapply the current filter in case the new/removed items affected anything
-        PlexUI.onFilterApplied();
+        window.dispatchEvent(new Event(CustomEvents.MarkerFilterApplied));
     }
 
     /**
