@@ -7,4 +7,6 @@ export const CustomEvents = {
     ServerPaused : 'serverPaused',
     /** @readonly The user committed changes to client settings. */
     ClientSettingsApplied : 'clientSettingsApplied',
+    /** @readonly The user applied new filter settings. */
+    MarkerFilterApplied : 'markerFilterApplied',
 };
