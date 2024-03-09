@@ -3,7 +3,6 @@ import { $$, appendChildren, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { animateOpacity, flashBackground } from './AnimationHelpers.js';
-import { EpisodeResultRow, MovieResultRow } from './ResultRow.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -44,20 +43,9 @@ class MarkerRow {
      * @param {ChapterData[]} [chapters] The chapter data (if any) for the media item associated with this marker. */
     constructor(parent, chapters) {
         this.#parentRow = parent;
-        const useThumbs = ClientSettings.useThumbnails();
-        let hasThumbs = false;
-        if (useThumbs) {
-            if (parent instanceof MovieResultRow) {
-                hasThumbs = parent.movie().hasThumbnails;
-            } else if (parent instanceof EpisodeResultRow) {
-                hasThumbs = parent.episode().hasThumbnails;
-            } else {
-                Log.warn(`Attempting to create a marker row for something that's not a movie or episode. That's not right!`);
-                hasThumbs = false;
-            }
-        }
+        const useThumbs = ClientSettings.useThumbnails() && parent.baseItem().hasThumbnails;
 
-        if (hasThumbs) {
+        if (useThumbs) {
             this.#editor = new ThumbnailMarkerEdit(this, chapters);
         } else {
             this.#editor = new MarkerEdit(this, chapters);
