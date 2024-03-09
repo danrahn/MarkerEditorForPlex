@@ -1,9 +1,9 @@
 import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
-import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
-import { animateOpacity } from './AnimationHelpers.js';
+import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
+import { MovieResultRow, ResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
+import { UISection, UISections } from './ResultSections.js';
 import { ClientSettings } from './ClientSettings.js';
 import { CustomEvents } from './CustomEvents.js';
 import Overlay from './Overlay.js';
@@ -17,17 +17,6 @@ import { SectionType } from '../../Shared/PlexTypes.js';
 
 
 const BaseLog = new ContextualLog('PlexUI');
-
-/**
- * The result sections of the application.
- * Can be bitwise-or'd and -and'd to pass in multiple
- * sections at once to relevant methods.
- * @enum */
-const UISection = {
-    MoviesOrShows : 0x1,
-    Seasons       : 0x2,
-    Episodes      : 0x4
-};
 
 /**
  * OR-able modifier states
@@ -70,16 +59,6 @@ class PlexUIManager {
      * The container that encapsulates the three result groups
      * @type {HTMLElement} */
     #searchContainer = $('#container');
-
-    /**
-     * The three result sections: shows, seasons, and episodes.
-     * @type {{[group: number]: HTMLElement}}
-     * */
-    #uiSections = {
-        [UISection.MoviesOrShows] : $('#toplevellist'),
-        [UISection.Seasons]       : $('#seasonlist'),
-        [UISection.Episodes]      : $('#episodelist')
-    };
 
     /**
      * timerID for the search timeout
@@ -209,77 +188,13 @@ class PlexUIManager {
      * was changed, requiring the current view to be reset. */
     onSettingsApplied(shouldResetView) {
         if (shouldResetView) {
-            this.clearAllSections();
+            UISections.clearAllSections();
         }
 
         if (!this.#searchBox.classList.contains('hidden')) {
             this.#searchBox.value = '';
             this.#searchBox.focus();
         }
-    }
-
-    /**
-     * Add a row to the given UI section.
-     * @param {UISection} uiSection
-     * @param {HTMLElement} row */
-    addRow(uiSection, row) {
-        this.#uiSections[uiSection].appendChild(row);
-    }
-
-    /** Clears data from the show, season, and episode lists. */
-    clearAllSections() {
-        this.clearAndShowSections(UISection.MoviesOrShows | UISection.Seasons | UISection.Episodes);
-        PlexClientState.clearActiveShow();
-    }
-
-    /**
-     * Clear out all child elements from the specified UI sections
-     * @param {UISection} uiSection */
-    clearSections(uiSection) {
-        this.#sectionOperation(uiSection, ele => {
-            clearEle(ele);
-        });
-    }
-
-    showSections(uiSection) {
-        const promises = [];
-        this.#sectionOperation(uiSection, ele => {
-            const isHidden = ele.classList.contains('hidden');
-            ele.classList.remove('hidden');
-            if (isHidden) {
-                ele.style.opacity = 0;
-                ele.style.height = 0;
-                promises.push(animateOpacity(ele, 0, 1, { noReset : true, duration : 100 }, () => {
-                    if (document.activeElement?.id !== 'search') {
-                        $$('.tabbableRow', ele)?.focus();
-                    }
-                }));
-            }
-        });
-
-        return Promise.all(promises);
-    }
-
-    hideSections(uiSection) {
-        /** @type {Promise<void>[]} */
-        const promises = [];
-        this.#sectionOperation(uiSection, ele => {
-            if (ele.classList.contains('hidden')) {
-                promises.push(Promise.resolve());
-            } else {
-                promises.push(animateOpacity(ele, 1, 0, 100, () => { ele.classList.add('hidden'); }));
-            }
-        });
-
-        return Promise.all(promises);
-    }
-
-    /**
-     * Clear the given result group of any elements and ensure it's not hidden.
-     * @param {number} uiSections The group(s) to clear and unhide. */
-    clearAndShowSections(uiSections) {
-        this.clearSections(uiSections);
-        this.showSections(uiSections);
     }
 
     async #libraryChanged() {
@@ -304,7 +219,7 @@ class PlexUIManager {
         }
 
         await PlexClientState.setSection(section, libType);
-        this.clearAllSections();
+        UISections.clearAllSections();
         if (!isNaN(section) && section !== -1) {
             ClientSettings.setLastSection(section);
             this.#searchContainer.classList.remove('hidden');
@@ -349,7 +264,7 @@ class PlexUIManager {
             if (this.#lastSearch?.length !== 0 && !FilterSettings.hasFilter()) {
                 // Previous search was deleted, and we have no filter. Go to default state,
                 // not loading any results.
-                this.clearAllSections();
+                UISections.clearAllSections();
                 this.#noSearch();
                 return;
             } else if (!FilterSettings.hasFilter()) {
@@ -375,17 +290,17 @@ class PlexUIManager {
         // If we're adjusting the list due to a filter change, we
         // don't want to reapply the search itself, just decide what
         // items we want to display, unless the sort order has changed.
-        if (!forFilterReapply || (newSort && !this.#uiSections[UISection.MoviesOrShows].classList.contains('hidden'))) {
+        if (!forFilterReapply || (newSort && UISections.sectionVisible(UISection.MoviesOrShows))) {
 
             // Remove any existing show/season/marker data
-            this.clearAllSections();
+            UISections.clearAllSections();
 
             PlexClientState.search(this.#searchBox.value);
 
-            this.clearAndShowSections(UISection.MoviesOrShows);
+            UISections.clearAndShowSections(UISection.MoviesOrShows);
         } else {
             // Clear the section, but don't show it
-            this.clearSections(UISection.MoviesOrShows);
+            UISections.clearSections(UISection.MoviesOrShows);
         }
 
         switch (PlexClientState.activeSectionType()) {
@@ -409,13 +324,13 @@ class PlexUIManager {
             return;
         }
 
-        const itemList = this.#uiSections[UISection.MoviesOrShows];
+        const itemList = UISections.getSection(UISection.MoviesOrShows);
         itemList.appendChild(new SectionOptionsResultRow().buildRow());
         itemList.appendChild(this.noResultsBecauseNoSearchRow());
     }
 
     #searchMovies() {
-        const movieList = this.#uiSections[UISection.MoviesOrShows];
+        const movieList = UISections.getSection(UISection.MoviesOrShows);
         if (ClientSettings.showExtendedMarkerInfo()) {
             movieList.appendChild(new SectionOptionsResultRow().buildRow());
         }
@@ -447,7 +362,7 @@ class PlexUIManager {
         }
 
         if (nonFiltered === 0) {
-            movieList.appendChild(this.noResultsBecauseOfFilterRow());
+            movieList.appendChild(ResultRow.NoResultsBecauseOfFilterRow());
         }
 
         if (searchResults.length > nextFilterIndex) {
@@ -483,7 +398,7 @@ class PlexUIManager {
             PlexClientState.clearActiveShow();
         }
 
-        const showList = this.#uiSections[UISection.MoviesOrShows];
+        const showList = UISections.getSection(UISection.MoviesOrShows);
         if (ClientSettings.showExtendedMarkerInfo()) {
             showList.appendChild(new SectionOptionsResultRow().buildRow());
         }
@@ -506,23 +421,10 @@ class PlexUIManager {
         }
 
         if (filteredResults.length === 0) {
-            showList.appendChild(this.noResultsBecauseOfFilterRow());
+            showList.appendChild(ResultRow.NoResultsBecauseOfFilterRow());
         }
 
         PlexClientState.setActiveSearchRows(filteredResults);
-    }
-
-    /**
-     * Return a row indicating that there are no rows to show because
-     * the active filter is hiding all of them. Clicking the row displays the filter UI.
-     * @returns {HTMLElement} */
-    noResultsBecauseOfFilterRow() {
-        return buildNode(
-            'div',
-            { class : 'topLevelResult tabbableRow', tabindex : 0 },
-            'No results with the current filter.',
-            { click : () => new FilterDialog(PlexClientState.activeSectionType()).show(),
-              keydown : clickOnEnterCallback });
     }
 
     noResultsBecauseNoSearchRow() {
@@ -536,23 +438,11 @@ class PlexUIManager {
     }
 
     /**
-     * Apply the given function to all UI sections specified in uiSections.
-     * @param {number} uiSections
-     * @param {(ele: HTMLElement) => void} fn */
-    #sectionOperation(uiSections, fn) {
-        for (const group of Object.values(UISection)) {
-            if (group & uiSections) {
-                fn(this.#uiSections[group]);
-            }
-        }
-    }
-
-    /**
      * Callback invoked when a new filter is applied. */
     onFilterApplied() {
         // Don't start a search if we don't have any existing items, unless
         // we're in the "start" page.
-        const showingStartScreen = $$('.noSearchRow', this.#uiSections[UISection.MoviesOrShows]);
+        const showingStartScreen = $$('.noSearchRow', UISections.getSection(UISection.MoviesOrShows));
         const newSort = FilterSettings.sortBy !== this.#lastSort.by || FilterSettings.sortOrder !== this.#lastSort.order;
         this.#lastSort.by = FilterSettings.sortBy;
         this.#lastSort.order = FilterSettings.sortOrder;
