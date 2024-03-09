@@ -9,5 +9,11 @@
         "extendedMarkerStats" : true,
         "previewThumbnails" : true,
         "preciseThumbnails" : false
-    }
+    },
+    "pathMappings": [
+        {
+            "from": "Z:\\",
+            "to": "/mnt/data"
+        }
+    ]
 }
