@@ -10,6 +10,7 @@ import {
     timeToMs } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
@@ -19,7 +20,6 @@ import MarkerAddStickySettings from './StickySettings/MarkerAddStickySettings.js
 import { MarkerData } from '../../Shared/PlexTypes.js';
 import { MarkerType } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
-import { PlexUI } from './PlexUI.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
@@ -592,8 +592,8 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     /**
      * One-time initialization to set up the window resize listener that adjusts the size of preview thumbnails. */
     static Setup() {
-        PlexUI.addResizeListener(() => {
-            const width = PlexUI.isSmallScreen() ? 180 : 240;
+        addWindowResizedListener(() => {
+            const width = isSmallScreen() ? 180 : 240;
             $('.inputThumb').forEach(thumb => {
                 thumb.width = width;
             });

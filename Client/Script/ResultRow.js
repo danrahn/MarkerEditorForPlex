@@ -13,6 +13,7 @@ import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
+import { isSmallScreen } from './WindowResizeEventHandler.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -268,7 +269,7 @@ class ResultRow {
         }
 
         // TODO: Is it worth making toFixed dynamic? I don't think so.
-        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(PlexUI.isSmallScreen() ? 0 : 2);
+        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(isSmallScreen() ? 0 : 2);
         const innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
 
         if (this.hasPurgedMarkers()) {
@@ -1379,7 +1380,7 @@ class EpisodeResultRow extends BaseItemResultRow {
         const ep = this.episode();
         const sXeY = `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`;
         const base = `${sXeY} - ${ep.title || 'Episode ' + ep.index}`;
-        if (PlexUI.isSmallScreen()) {
+        if (isSmallScreen()) {
             return base;
         }
 
@@ -1410,7 +1411,7 @@ class EpisodeResultRow extends BaseItemResultRow {
     #buildMarkerText() {
         const episode = this.episode();
         const hasPurges = this.hasPurgedMarkers();
-        const smallScreen = PlexUI.isSmallScreen();
+        const smallScreen = isSmallScreen();
         const markerCount = episode.markerTable().markerCount();
         const text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
         if (smallScreen) {
@@ -1578,7 +1579,7 @@ class MovieResultRow extends BaseItemResultRow {
                 markerCount = movie.markerTable().markerCount();
             }
 
-            const smallScreen = PlexUI.isSmallScreen();
+            const smallScreen = isSmallScreen();
             text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
             if (smallScreen) {
                 text.classList.add('smallScreenMarkerCount');

@@ -93,11 +93,6 @@ class PlexUIManager {
         order : SortOrder.Ascending
     };
 
-    /**
-     * Determines whether the window is classified as "small".
-     * Cached to avoid unnecessary queries if a resize event doesn't change our window size classification. */
-    #smallScreen = {};
-
     /** Creates the singleton PlexUI for this session. */
     static CreateInstance() {
         if (Instance) {
@@ -557,24 +552,6 @@ class PlexUIManager {
         // they both are UI-related.
         PlexClientState.onFilterApplied();
     }
-
-    /**
-     * Adds an listener to the window resize event.
-     * Ensures the event is only triggered when the small/large screen threshold is crossed.
-     * @param {(e: Event) => void} callback */
-    addResizeListener(callback) {
-        this.#smallScreen[callback] = document.body.clientWidth < 768;
-        window.addEventListener('resize', () => {
-            if (this.#smallScreen[callback] === document.body.clientWidth < 768) {
-                return;
-            }
-
-            this.#smallScreen[callback] = !this.#smallScreen[callback];
-            callback();
-        });
-    }
-
-    isSmallScreen() { return document.body.clientWidth < 768; }
 }
 
 export { PlexUIManager, UISection, Instance as PlexUI };

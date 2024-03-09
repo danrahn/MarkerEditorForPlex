@@ -1,9 +1,9 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
-import { PlexUI } from './PlexUI.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -22,8 +22,8 @@ class ButtonCreator {
      * One-time setup that initializes the window resize event listener that determines whether to show
      * text labels for dynamic buttons. */
     static Setup() {
-        PlexUI.addResizeListener(() => {
-            const small = PlexUI.isSmallScreen();
+        addWindowResizedListener(() => {
+            const small = isSmallScreen();
             $('.button.resizable').forEach((button) => {
                 const buttonText = $$('.buttonText', button);
                 buttonText.classList[small ? 'add' : 'remove']('hidden');
@@ -76,7 +76,7 @@ class ButtonCreator {
             button.setAttribute('data-default-tooltip', 1);
         }
 
-        if (PlexUI.isSmallScreen()) {
+        if (isSmallScreen()) {
             $$('.buttonText', button).classList.add('hidden');
             if (!attributes.tooltip) {
                 Tooltip.setTooltip(button, text);

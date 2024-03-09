@@ -4,6 +4,7 @@ import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
 import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import { addWindowResizedListener } from './WindowResizeEventHandler.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
@@ -71,7 +72,7 @@ class PlexClientStateManager {
 
         // When the window resizes, let search results know so they can
         // adjust their UI accordingly.
-        PlexUI.addResizeListener(() => {
+        addWindowResizedListener(() => {
             if (Instance.#activeSeason) {
                 Instance.#activeSeason.notifyWindowResize();
             }
