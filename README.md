@@ -12,7 +12,7 @@ Plex does not let users modify or manually add markers, relying solely on their 
 
 For detailed instructions, see [Prerequisites and Downloading the Project](https://github.com/danrahn/MarkerEditorForPlex/wiki/installation).
 
-If running Windows, download the latest [release](https://github.com/danrahn/MarkerEditorForPlex/releases), extract the contents to a new folder, and double click MarkerEditorForPlex.exe.
+If available, download the latest [release](https://github.com/danrahn/MarkerEditorForPlex/releases) that matches your system, extract the contents to a new folder, and run MarkerEditorForPlex.
 
 In Docker:
 
@@ -23,11 +23,12 @@ docker run -p 3233:3232 \
            -it danrahn/intro-editor-for-plex:latest
 ```
 
-For all other platforms (or to run from source):
+For platforms that don't have a binary release available (or to run from source):
 
 1. Install [Node.js](https://nodejs.org/en/)
 2. [`git clone`](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository or [Download it as a ZIP](https://github.com/danrahn/MarkerEditorForPlex/archive/refs/heads/main.zip)
 3. Install dependencies by running `npm install` from the root of the project
+4. Run `node app.js` from the root of the project
 
 ## Configuration
 
