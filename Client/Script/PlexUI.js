@@ -5,6 +5,7 @@ import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './Filte
 import { MovieResultRow, SectionOptionsResultRow, ShowResultRow } from './ResultRow.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import { ClientSettings } from './ClientSettings.js';
+import { CustomEvents } from './CustomEvents.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
@@ -101,6 +102,15 @@ class PlexUIManager {
         }
 
         Instance = new PlexUIManager();
+        window.addEventListener(CustomEvents.ClientSettingsApplied, PlexUIManager.OnSettingsApplied);
+    }
+
+    /**
+     * Callback invoked when settings are applied.
+     * @param {CustomEvent} e A custom event whose `detail indicates whether a setting that
+     * that affects the display of markers was changed, requiring the current view to be reset. */
+    static OnSettingsApplied(e) {
+        Instance?.onSettingsApplied(e.detail);
     }
 
     /** Constructs a new PlexUI and begins listening for change events. */
