@@ -14,7 +14,6 @@ import { CustomEvents } from './CustomEvents.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
-import { PlexUI } from './PlexUI.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import { StickySettingsType } from './StickySettings/StickySettingsTypes.js';
@@ -801,7 +800,7 @@ class ClientSettingsUI {
 
         this.#settingsManager.save();
         Overlay.dismiss();
-        PlexUI.onSettingsApplied(shouldResetView);
+        window.dispatchEvent(new CustomEvent(CustomEvents.ClientSettingsApplied, { detail : shouldResetView }));
     }
 
     /**
