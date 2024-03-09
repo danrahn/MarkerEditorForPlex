@@ -1,13 +1,15 @@
-import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { BaseLog } from '../../Shared/ConsoleLog.js';
 
 import { ClientSettings, SettingsManager } from './ClientSettings.js';
+import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
 import ButtonCreator from './ButtonCreator.js';
 import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
+import { ServerCommands } from './Commands.js';
+import ServerPausedOverlay from './ServerPausedOverlay.js';
 import StickySettingsBase from './StickySettings/StickySettingsBase.js';
 import { ThumbnailMarkerEdit } from './MarkerEdit.js';
 import Tooltip from './Tooltip.js';
@@ -27,6 +29,7 @@ function setup() {
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();
     StickySettingsBase.Setup();
+    ServerPausedOverlay.Setup();
 
     // MarkerBreakdownManager is self-contained - we don't need anything from it,
     // and it doesn't need anything from us, so no need to keep a reference to it.
@@ -42,7 +45,7 @@ function setup() {
 async function mainSetup() {
     let config = {};
     try {
-        config = await ServerCommand.getConfig();
+        config = await ServerCommands.getConfig();
     } catch (err) {
         BaseLog.warn(errorMessage(err), 'ClientCore: Unable to get app config, assuming everything is disabled. Server responded with');
     }
@@ -52,7 +55,7 @@ async function mainSetup() {
     VersionManager.CheckForUpdates(config.version);
 
     try {
-        PlexUI.init(await ServerCommand.getSections());
+        PlexUI.init(await ServerCommands.getSections());
     } catch (err) {
         errorResponseOverlay('Error getting libraries, please verify you have provided the correct database path and try again.', err);
     }

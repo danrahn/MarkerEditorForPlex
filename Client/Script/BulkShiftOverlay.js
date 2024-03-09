@@ -1,13 +1,14 @@
-import { $, appendChildren, buildNode, msToHms, pad0, ServerCommand, timeInputShortcutHandler, timeToMs } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import BulkShiftStickySettings from './StickySettings/BulkShiftStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import Icons from './Icons.js';
 import { MarkerEnum } from '../../Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
@@ -314,7 +315,7 @@ class BulkShiftOverlay {
             return this.#showMessage('error', true);
         }
 
-        const shiftResult = await ServerCommand.shift(
+        const shiftResult = await ServerCommands.shift(
             this.#mediaItem.metadataId,
             startShift, endShift,
             this.#applyTo(),
@@ -377,7 +378,7 @@ class BulkShiftOverlay {
         // Brute force through everything, applying to all checked items (or all items if the conflict table isn't showing)
         const ignoreInfo = this.#getIgnored();
         try {
-            const shiftResult = await ServerCommand.shift(
+            const shiftResult = await ServerCommands.shift(
                 this.#mediaItem.metadataId,
                 startShift,
                 endShift,
@@ -407,7 +408,7 @@ class BulkShiftOverlay {
     /**
      * Retrieves marker information for the current metadata id and displays it in a table for the user. */
     async #check() {
-        const shiftResult = await ServerCommand.checkShift(this.#mediaItem.metadataId, this.#applyTo());
+        const shiftResult = await ServerCommands.checkShift(this.#mediaItem.metadataId, this.#applyTo());
         this.#showCustomizeTable(shiftResult);
     }
 

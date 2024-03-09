@@ -1,12 +1,14 @@
-import { $, appendChildren, buildNode, errorResponseOverlay, plural, ServerCommand } from './Common.js';
+import { $, appendChildren, buildNode, plural } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
+import { errorResponseOverlay } from './ErrorHandling.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
+import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
@@ -69,7 +71,7 @@ class MarkerBreakdownManager {
         Overlay.setFocusBackElement($('#markerBreakdown'));
 
         try {
-            const rawBreakdown = await ServerCommand.getMarkerStats(PlexClientState.activeSection());
+            const rawBreakdown = await ServerCommands.getMarkerStats(PlexClientState.activeSection());
             this.#currentBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
             this.#showMarkerBreakdown(BreakdownType.Combined);
         } catch (err) {

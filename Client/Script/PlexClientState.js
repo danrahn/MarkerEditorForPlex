@@ -1,6 +1,6 @@
-import { errorMessage, errorResponseOverlay, ServerCommand } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
 import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
@@ -8,6 +8,7 @@ import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
 import { PlexUI } from './PlexUI.js';
+import { ServerCommands } from './Commands.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 /** @typedef {!import('../../Shared/PlexTypes').MovieMap} MovieMap */
@@ -288,7 +289,7 @@ class PlexClientStateManager {
 
         let response;
         try {
-            response = await ServerCommand.getBreakdown(show.show().metadataId, seasons.length !== 0 /*includeSeasons*/);
+            response = await ServerCommands.getBreakdown(show.show().metadataId, seasons.length !== 0 /*includeSeasons*/);
         } catch (err) {
             Log.warn(`Failed to update ("${errorMessage(err)}"), marker stats will be incorrect.`);
             return;
@@ -329,7 +330,7 @@ class PlexClientStateManager {
         Log.verbose(`Updating breakdown for inactive item ${topLevelItem.metadataId}`);
         let response;
         try {
-            response = await ServerCommand.getBreakdown(topLevelItem.metadataId, false /*includeSeasons*/);
+            response = await ServerCommands.getBreakdown(topLevelItem.metadataId, false /*includeSeasons*/);
         } catch (err) {
             Log.warn(`Failed to update ("${errorMessage(err)}'), marker stats may be incorrect.`);
             return;
@@ -700,7 +701,7 @@ class PlexClientStateManager {
         }
 
         try {
-            const items = await ServerCommand.getSection(this.#activeSection);
+            const items = await ServerCommands.getSection(this.#activeSection);
             const allItems = {};
             this.#sections[this.#activeSection] = { items : allItems, searchTokens : new SearchTokenMaps() };
             const section = this.#sections[this.#activeSection];

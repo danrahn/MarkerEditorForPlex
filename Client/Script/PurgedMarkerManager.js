@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clearEle, errorMessage, errorResponseOverlay, pad0, ServerCommand } from './Common.js';
+import { $, $$, appendChildren, buildNode, clearEle, pad0 } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import {
@@ -12,6 +12,7 @@ import {
     PurgedShow,
     PurgedTVSection } from './PurgedMarkerCache.js';
 import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js';
+import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -19,6 +20,7 @@ import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PlexUI } from './PlexUI.js';
+import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import Tooltip from './Tooltip.js';
 
@@ -181,7 +183,7 @@ class PurgeOptions {
         ButtonCreator.setIcon($$('.restoreButton', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
-            const restoreData = await ServerCommand.restorePurge(markers,
+            const restoreData = await ServerCommands.restorePurge(markers,
                 PlexClientState.activeSection(),
                 PurgeConflictControl.CurrentResolutionType());
             const newMarkers = {};
@@ -230,7 +232,7 @@ class PurgeOptions {
         ButtonCreator.setIcon($$('.ignoreConfirm', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
-            await ServerCommand.ignorePurge(markers, PlexClientState.activeSection());
+            await ServerCommands.ignorePurge(markers, PlexClientState.activeSection());
             this.#resetConfirmImg('ignoreConfirm');
             this.#ignoreConfirmInfo.successFn();
         } catch (err) {
@@ -1064,7 +1066,7 @@ class PurgedMarkerManager {
         }
 
         try {
-            this.#onMarkersFound(await ServerCommand.allPurges(section), dryRun);
+            this.#onMarkersFound(await ServerCommands.allPurges(section), dryRun);
         } catch (err) {
             errorResponseOverlay(`Something went wrong retrieving purged markers. Please try again later.`, err);
         }
@@ -1119,7 +1121,7 @@ class PurgedMarkerManager {
 
         // No try/catch, caller must handle
         /** @type {MarkerAction[]} */
-        const actions = await ServerCommand.purgeCheck(metadataId);
+        const actions = await ServerCommands.purgeCheck(metadataId);
         for (const action of actions) {
             this.#addToCache(action);
         }
