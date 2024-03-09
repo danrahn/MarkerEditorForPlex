@@ -9,6 +9,7 @@ node_modules
 .git
 
 Backup
+cache
 dist
 Logs
 Test

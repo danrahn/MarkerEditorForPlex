@@ -265,8 +265,7 @@ class BulkShiftOverlay {
         const container = $('#bulkActionContainer');
         const currentNode = $('#resolveShiftMessage');
         if (currentNode) {
-            container.insertBefore(node, currentNode);
-            container.removeChild(currentNode);
+            currentNode.replaceWith(node);
             return;
         }
 

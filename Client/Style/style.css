@@ -9,12 +9,7 @@ body {
   color: var(--theme-primary);
 }
 
-/* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar appears/
-* disappears. There are some behavioral tradeoffs here (content is slightly off-center when no scrollbar
-* is visible, but the lack of shifting wins for me. Also, apply this to #plexFrame instead of body, because
-* overriding the body itself will prevent scrolling overlays from having a visible scrollbar. */
 #plexFrame {
-  overflow-y: scroll;
   height: 100vh;
   scrollbar-width: thin !important;
 }
@@ -725,6 +720,15 @@ input:focus-visible {
 
   #topRightControls {
     right: 30px;
+  }
+
+  /* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar appears/
+  * disappears. There are some behavioral tradeoffs here (content is slightly off-center when no scrollbar
+  * is visible, but the lack of shifting wins for me. Also, apply this to #plexFrame instead of body, because
+  * overriding the body itself will prevent scrolling overlays from having a visible scrollbar. Only apply it
+  * to "probably not a phone", since this causes issues with mobile browsers' auto-hiding address bar */
+  #plexFrame {
+    overflow-y: scroll;
   }
 }
 
