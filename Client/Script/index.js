@@ -8,6 +8,7 @@ import HelpOverlay from './HelpOverlay.js';
 import MarkerBreakdownManager from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
+import { ResultSections } from './ResultSections.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import { SetupWindowResizeEventHandler } from './WindowResizeEventHandler.js';
@@ -26,6 +27,7 @@ function setup() {
     SettingsManager.CreateInstance();
     PlexUIManager.CreateInstance();
     PlexClientStateManager.CreateInstance();
+    ResultSections.CreateInstance();
     Tooltip.Setup();
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();

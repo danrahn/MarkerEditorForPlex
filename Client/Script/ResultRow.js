@@ -4,7 +4,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { ClientEpisodeData, ClientMovieData } from './ClientDataExtensions.js';
 import { errorMessage, errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import { FilterDialog, FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
-import { PlexUI, UISection } from './PlexUI.js';
+import { UISection, UISections } from './ResultSections.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import BulkAddOverlay from './BulkAddOverlay.js';
 import BulkDeleteOverlay from './BulkDeleteOverlay.js';
@@ -60,6 +60,20 @@ function filteredListIcon() {
 
 /** Represents a single row of a show/season/episode in the results page. */
 class ResultRow {
+
+    /**
+     * Return a row indicating that there are no rows to show because
+     * the active filter is hiding all of them. Clicking the row displays the filter UI.
+     * @returns {HTMLElement} */
+    static NoResultsBecauseOfFilterRow() {
+        return buildNode(
+            'div',
+            { class : 'topLevelResult tabbableRow', tabindex : 0 },
+            'No results with the current filter.',
+            { click : () => new FilterDialog(PlexClientState.activeSectionType()).show(),
+              keydown : clickOnEnterCallback });
+    }
+
     /** The HTML of the row.
      * @type {HTMLElement} */
     #html;
@@ -490,9 +504,9 @@ class ShowResultRow extends ResultRow {
         const row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to results', async () => {
-                PlexUI.clearSections(UISection.Seasons | UISection.Episodes);
-                await PlexUI.hideSections(UISection.Seasons | UISection.Episodes);
-                PlexUI.showSections(UISection.MoviesOrShows);
+                UISections.clearSections(UISection.Seasons | UISection.Episodes);
+                await UISections.hideSections(UISection.Seasons | UISection.Episodes);
+                UISections.showSections(UISection.MoviesOrShows);
             });
 
             row.classList.add('dynamicText');
@@ -592,10 +606,10 @@ class ShowResultRow extends ResultRow {
      * Takes the seasons retrieved for a show and creates and entry for each season.
      * @param {SerializedSeasonData[]} seasons List of serialized {@linkcode SeasonData} seasons for a given show. */
     async #showSeasons(seasons) {
-        await PlexUI.hideSections(UISection.MoviesOrShows);
-        PlexUI.clearAndShowSections(UISection.Seasons);
+        await UISections.hideSections(UISection.MoviesOrShows);
+        UISections.clearAndShowSections(UISection.Seasons);
 
-        const addRow = row => PlexUI.addRow(UISection.Seasons, row);
+        const addRow = row => UISections.addRow(UISection.Seasons, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
             addRow(this.#sectionTitle.buildRow());
@@ -634,7 +648,7 @@ class ShowResultRow extends ResultRow {
 
 
         if (!firstRow) {
-            firstRow = PlexUI.noResultsBecauseOfFilterRow();
+            firstRow = ResultRow.NoResultsBecauseOfFilterRow();
             addRow(firstRow);
         }
 
@@ -681,8 +695,8 @@ class ShowResultRow extends ResultRow {
     /**
      * Update what rows are visible based on the new filter. */
     onFilterApplied() {
-        PlexUI.clearSections(UISection.Seasons);
-        const addRow = row => PlexUI.addRow(UISection.Seasons, row);
+        UISections.clearSections(UISection.Seasons);
+        const addRow = row => UISections.addRow(UISection.Seasons, row);
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
         addRow(new BulkActionResultRow(this.show()).buildRow());
@@ -700,7 +714,7 @@ class ShowResultRow extends ResultRow {
         }
 
         if (!anyShowing) {
-            addRow(PlexUI.noResultsBecauseOfFilterRow());
+            addRow(ResultRow.NoResultsBecauseOfFilterRow());
         }
 
         this.#onFilterStatusChanged();
@@ -798,9 +812,9 @@ class SeasonResultRow extends ResultRow {
         const row = this.buildRowColumns(title, null, selected ? null : this.#seasonClick.bind(this));
         if (selected) {
             this.addBackButton(row, 'Back to seasons', async () => {
-                await PlexUI.hideSections(UISection.Episodes);
-                PlexUI.clearSections(UISection.Episodes);
-                PlexUI.showSections(UISection.Seasons);
+                await UISections.hideSections(UISection.Episodes);
+                UISections.clearSections(UISection.Episodes);
+                UISections.showSections(UISection.Seasons);
             });
 
             row.classList.add('dynamicText');
@@ -958,9 +972,9 @@ class SeasonResultRow extends ResultRow {
      * serialized {@linkcode MarkerData} for the episode.
      * @param {ChapterMap?} chapterData */
     async #showEpisodesAndMarkers(data, chapterData) {
-        await PlexUI.hideSections(UISection.Seasons);
-        PlexUI.clearAndShowSections(UISection.Episodes);
-        const addRow = row => PlexUI.addRow(UISection.Episodes, row);
+        await UISections.hideSections(UISection.Seasons);
+        UISections.clearAndShowSections(UISection.Episodes);
+        const addRow = row => UISections.addRow(UISection.Episodes, row);
         if (ClientSettings.showExtendedMarkerInfo()) {
             this.#sectionTitle = new SectionOptionsResultRow();
             addRow(this.#sectionTitle.buildRow());
@@ -1002,7 +1016,7 @@ class SeasonResultRow extends ResultRow {
             // Episode rows are tabbed a bit differently because of its marker table
             $$('.tabbableRow', firstRow)?.focus();
         } else {
-            firstRow = PlexUI.noResultsBecauseOfFilterRow();
+            firstRow = ResultRow.NoResultsBecauseOfFilterRow();
             addRow(firstRow);
             firstRow.focus();
         }
@@ -1059,8 +1073,8 @@ class SeasonResultRow extends ResultRow {
             return;
         }
 
-        PlexUI.clearSections(UISection.Episodes);
-        const addRow = row => PlexUI.addRow(UISection.Episodes, row);
+        UISections.clearSections(UISection.Episodes);
+        const addRow = row => UISections.addRow(UISection.Episodes, row);
 
         // Recreate headers
         addRow(this.#sectionTitle.html());
@@ -1082,7 +1096,7 @@ class SeasonResultRow extends ResultRow {
         }
 
         if (!anyShowing) {
-            addRow(PlexUI.noResultsBecauseOfFilterRow());
+            addRow(ResultRow.NoResultsBecauseOfFilterRow());
         }
 
         this.#onFilterStatusChanged();
