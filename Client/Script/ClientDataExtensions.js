@@ -1,27 +1,25 @@
 import { $$ } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { EpisodeData, MarkerData, MovieData, PlexData } from '../../Shared/PlexTypes.js';
+import { EpisodeData, MarkerData, MovieData } from '../../Shared/PlexTypes.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import MarkerTable from './MarkerTable.js';
 
+/** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('./ResultRow').EpisodeResultRow} EpisodeResultRow */
 /** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
 
 const Log = new ContextualLog('ClientData');
 
 /**
- * Note: This class is never actually instantiated. It's only used for
- * intellisense to get around issues arising from JS's inability to support multiple inheritance. */
-class MediaItemWithMarkerTable extends PlexData {
-    /**
-     * The duration of this media item, in milliseconds.
-     * @type {number} */
-    duration;
-    constructor() { super(); throw new Error(`We shouldn't ever actually create a MediaItemWithMarkerTable`); }
-    /** @returns {MarkerTable} */
-    markerTable() { return null; }
-}
+ * @typedef {Object} BaseItemCommon
+ * @property {number} duration The duration of this media item, in milliseconds.
+ * @property {boolean?} hasThumbnails Whether thumbnails are available for this item.
+ * @property {() => MarkerTable} markerTable
+ *
+ * @typedef {PlexData & BaseItemCommon} MediaItemWithMarkerTable Defines the fields common
+ *  between base Plex data types (Episodes and Movies).
+ */
 
 /**
  * An extension of the client/server-agnostic MovieData to include client-specific functionality (connecting with the marker table)
@@ -123,4 +121,4 @@ class ClientEpisodeData extends EpisodeData {
     markerTable() { return this.#markerTable; }
 }
 
-export { MediaItemWithMarkerTable, ClientEpisodeData, ClientMovieData };
+export { ClientEpisodeData, ClientMovieData };
