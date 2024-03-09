@@ -182,7 +182,7 @@ class BulkAddOverlay {
                     buildNode('option', { value : 4 }, 'Overwrite'),
                     buildNode('option', { value : 2 }, 'Merge'),
                     buildNode('option', { value : 3 }, 'Ignore')),
-                buildNode('div', { id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[BulkMarkerResolveType.Fail])
+                buildNode('div', { id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[this.#stickySettings.applyType()])
             ),
             buildNode('hr'),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
