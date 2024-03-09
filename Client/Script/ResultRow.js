@@ -1712,7 +1712,7 @@ class MovieResultRow extends BaseItemResultRow {
      * @param {boolean} hide Whether to hide or show all marker tables. */
     showHideMarkerTables(hide) {
         /** @type {MovieResultRow[]} */
-        const movies = PlexUI.getActiveSearchRows();
+        const movies = PlexClientState.getActiveSearchRows();
         if (!hide) {
             // Check how many requests for markers we'll have to make if we try
             // to expand everything. If it's greater than 100, ignore the bulk request.
@@ -1730,7 +1730,7 @@ class MovieResultRow extends BaseItemResultRow {
             }
         }
 
-        return BaseItemResultRow.ShowHideMarkerTables(hide, PlexUI.getActiveSearchRows());
+        return BaseItemResultRow.ShowHideMarkerTables(hide, PlexClientState.getActiveSearchRows());
     }
 
 

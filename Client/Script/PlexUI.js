@@ -86,9 +86,6 @@ class PlexUIManager {
      * @type {number} */
     #searchTimer;
 
-    /** @type {ShowResultRow[]|MovieResultRow[]} */
-    #activeSearch = [];
-
     #lastSort = {
         by : SortConditions.Alphabetical,
         order : SortOrder.Ascending
@@ -285,12 +282,6 @@ class PlexUIManager {
         this.showSections(uiSections);
     }
 
-    /**
-     * Retrieve all ShowResultRows in the search result list. */
-    getActiveSearchRows() {
-        return this.#activeSearch;
-    }
-
     async #libraryChanged() {
         this.#searchContainer.classList.add('hidden');
         this.#lastSearch = null;
@@ -436,7 +427,8 @@ class PlexUIManager {
             return;
         }
 
-        this.#activeSearch = [];
+        /** @type {MovieResultRow[]} */
+        const filteredResults = [];
         const rowsLimit = 250; // Most systems should still be fine with this. Even 1000 might not be horrible, but play it safe.
         let nonFiltered = 0;
         let nextFilterIndex = 0;
@@ -445,7 +437,7 @@ class PlexUIManager {
             if (!FilterSettings.shouldFilter(movie.markerBreakdown())) {
                 ++nonFiltered;
                 const newRow = new MovieResultRow(movie);
-                this.#activeSearch.push(newRow);
+                filteredResults.push(newRow);
                 movieList.appendChild(newRow.buildRow());
             }
 
@@ -465,7 +457,7 @@ class PlexUIManager {
                 for (const movie of searchResults.slice(nextFilterIndex)) {
                     if (!FilterSettings.shouldFilter(movie.markerBreakdown())) {
                         const newRow = new MovieResultRow(movie);
-                        this.#activeSearch.push(newRow);
+                        filteredResults.push(newRow);
                         movieList.appendChild(newRow.buildRow());
                     }
                 }
@@ -480,6 +472,8 @@ class PlexUIManager {
                     text,
                     { click : loadTheRest }));
         }
+
+        PlexClientState.setActiveSearchRows(filteredResults);
     }
 
     #searchShows(forFilterReapply=false) {
@@ -501,18 +495,21 @@ class PlexUIManager {
             return;
         }
 
-        this.#activeSearch = [];
+        /** @type {ShowResultRow[]} */
+        const filteredResults = [];
         for (const show of searchResults) {
             if (!FilterSettings.shouldFilter(show.markerBreakdown())) {
                 const newRow = new ShowResultRow(show);
-                this.#activeSearch.push(newRow);
+                filteredResults.push(newRow);
                 showList.appendChild(newRow.buildRow());
             }
         }
 
-        if (this.#activeSearch.length === 0) {
+        if (filteredResults.length === 0) {
             showList.appendChild(this.noResultsBecauseOfFilterRow());
         }
+
+        PlexClientState.setActiveSearchRows(filteredResults);
     }
 
     /**
