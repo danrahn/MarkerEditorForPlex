@@ -8,7 +8,6 @@ import { addWindowResizedListener } from './WindowResizeEventHandler.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
-import { PlexUI } from './PlexUI.js';
 import { ServerCommands } from './Commands.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
@@ -53,7 +52,9 @@ class PlexClientStateManager {
     /** @type {{[sectionId: number]: { items: ShowMap|MovieMap, searchTokens: SearchTokenMaps }}} */
     #sections = {};
     /** @type {ShowData[]|ClientMovieData[]} */
-    activeSearchUnfiltered = [];
+    #activeSearchUnfiltered = [];
+    /** @type {ShowResultRow[]|MovieResultRow[]} */
+    #activeSearchFiltered = [];
     /** @type {ShowResultRow} */
     #activeShow;
     /** @type {SeasonResultRow} */
@@ -80,7 +81,7 @@ class PlexClientStateManager {
             if (Instance.#activeSectionType === SectionType.Movie) {
                 /** @type {MovieResultRow} */
                 let searchRow;
-                for (searchRow of PlexUI.getActiveSearchRows()) {
+                for (searchRow of Instance.#activeSearchFiltered) {
                     searchRow.updateMarkerBreakdown();
                 }
             }
@@ -112,7 +113,20 @@ class PlexClientStateManager {
 
     /** @returns The list of shows that match the current search. */
     getUnfilteredSearchResults() {
-        return this.activeSearchUnfiltered;
+        return this.#activeSearchUnfiltered;
+    }
+
+    /**
+     * Retrieve all result rows in the search result list. */
+    getActiveSearchRows() {
+        return this.#activeSearchFiltered;
+    }
+
+    /**
+     * Set the currently active search rows.
+     * @param {{ShowResultRow[]|MovieResultRow[]}} rows */
+    setActiveSearchRows(rows) {
+        this.#activeSearchFiltered = rows;
     }
 
     /**
@@ -425,7 +439,7 @@ class PlexClientStateManager {
             return this.#defaultSort(a, b);
         });
 
-        this.activeSearchUnfiltered = resultArr;
+        this.#activeSearchUnfiltered = resultArr;
     }
 
     /**
@@ -507,7 +521,7 @@ class PlexClientStateManager {
             // Update any visible movies
             /** @type {MovieResultRow} */
             let searchRow;
-            for (searchRow of PlexUI.getActiveSearchRows()) {
+            for (searchRow of this.#activeSearchFiltered) {
                 const metadataId = searchRow.mediaItem().metadataId;
                 activeIds.add(metadataId);
                 const newItems = unpurged.get(metadataId);
@@ -531,7 +545,7 @@ class PlexClientStateManager {
         // Update non-active shows (as they're all cached for quick search results)
         /** @type {ShowResultRow} */
         let searchRow;
-        for (searchRow of PlexUI.getActiveSearchRows()) {
+        for (searchRow of this.#activeSearchFiltered) {
             activeIds.add(searchRow.mediaItem().metadataId);
             if (unpurged.get(searchRow.mediaItem().metadataId)) {
                 Log.verbose(`Updating search result show row ${searchRow.show().title} after purge update.`);
@@ -625,7 +639,7 @@ class PlexClientStateManager {
 
         const affectedShows = Object.keys(markers).length;
         Log.assert(affectedShows <= 1, `Bulk actions should target a single show, found ${affectedShows}`);
-        for (const searchRow of PlexUI.getActiveSearchRows()) {
+        for (const searchRow of this.#activeSearchFiltered) {
             if (markers[searchRow.show().metadataId]) {
                 return this.updateNonActiveBreakdown(searchRow, []);
             }
