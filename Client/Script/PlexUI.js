@@ -103,6 +103,7 @@ class PlexUIManager {
 
         Instance = new PlexUIManager();
         window.addEventListener(CustomEvents.ClientSettingsApplied, PlexUIManager.OnSettingsApplied);
+        window.addEventListener(CustomEvents.MarkerFilterApplied, PlexUIManager.OnFilterApplied);
     }
 
     /**
@@ -111,6 +112,12 @@ class PlexUIManager {
      * that affects the display of markers was changed, requiring the current view to be reset. */
     static OnSettingsApplied(e) {
         Instance?.onSettingsApplied(e.detail);
+    }
+
+    /**
+     * Callback invoked when a new filter is applied. */
+    static OnFilterApplied() {
+        Instance?.onFilterApplied();
     }
 
     /** Constructs a new PlexUI and begins listening for change events. */

@@ -3,10 +3,10 @@ import { $, $$, appendChildren, buildNode } from './Common.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { CustomEvents } from './CustomEvents.js';
 import { flashBackground } from './AnimationHelpers.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
-import { PlexUI } from './PlexUI.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
 
 /** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
@@ -431,7 +431,7 @@ class FilterDialog {
         FilterSettings.sortBy = parseInt($('#sortBy').value);
         FilterSettings.sortOrder = parseInt($('#sortOrder').value);
         Overlay.dismiss();
-        PlexUI.onFilterApplied();
+        window.dispatchEvent(new Event(CustomEvents.MarkerFilterApplied));
     }
 
     /**
@@ -440,7 +440,7 @@ class FilterDialog {
         FilterSettings.resetFilter();
         FilterSettings.resetSort();
         Overlay.dismiss();
-        PlexUI.onFilterApplied();
+        window.dispatchEvent(new Event(CustomEvents.MarkerFilterApplied));
     }
 }
 
