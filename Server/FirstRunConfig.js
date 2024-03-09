@@ -213,7 +213,7 @@ async function askUserPath(question, rl, defaultPath, canSkip=false) {
             return true;
         }
 
-        return existsSync(path);
+        return existsSync(path.trim());
     };
 
     for (;;) {
