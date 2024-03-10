@@ -15,7 +15,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import SectionOptionsResultRow from './SectionOptionsResultRow.js';
 import { ServerCommands } from './Commands.js';
-import ShowResultRow from './ShowResultRow.js';
+import ShowTitleResultRow from './ShowTitleResultRow.js';
 import Tooltip from './Tooltip.js';
 
 /**
@@ -33,8 +33,8 @@ export default class SeasonResultRow extends ResultRow {
     #sectionTitle;
 
     /**
-     * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in episode view.
-     * @type {ShowResultRow} */
+     * The placeholder {@linkcode ShowTitleResultRow} that displays the show name/stats when in episode view.
+     * @type {ShowTitleResultRow} */
     #showTitle;
 
     /**
@@ -250,8 +250,8 @@ export default class SeasonResultRow extends ResultRow {
             addRow(this.#sectionTitle.buildRow());
         }
 
-        this.#showTitle = new ShowResultRow(PlexClientState.getActiveShow());
-        addRow(this.#showTitle.buildRow(true));
+        this.#showTitle = new ShowTitleResultRow(PlexClientState.getActiveShow());
+        addRow(this.#showTitle.buildRow());
         addRow(buildNode('hr'));
         this.#seasonTitle = new SeasonResultRow(PlexClientState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow(true));

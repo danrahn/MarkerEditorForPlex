@@ -13,7 +13,14 @@ import { SeasonData } from '../../Shared/PlexTypes.js';
 import SeasonResultRow from './SeasonResultRow.js';
 import SectionOptionsResultRow from './SectionOptionsResultRow.js';
 import { ServerCommands } from './Commands.js';
+import ShowResultRowBase from './ShowResultRowBase.js';
+import ShowTitleResultRow from './ShowTitleResultRow.js';
 import Tooltip from './Tooltip.js';
+
+/** @typedef {!import('./PurgedMarkerCache').PurgedShow} PurgedShow */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
 
 
 const Log = new ContextualLog('ShowRow');
@@ -21,7 +28,7 @@ const Log = new ContextualLog('ShowRow');
 /**
  * A result row for a single show in the library.
  */
-export default class ShowResultRow extends ResultRow {
+export default class ShowResultRow extends ShowResultRowBase {
     /**
      * When this show is active, holds a map of season metadata ids to its corresponding SeasonResultRow
      * @type {{[metadataId: number]: SeasonResultRow}} */
@@ -36,14 +43,9 @@ export default class ShowResultRow extends ResultRow {
     #sectionTitle;
 
     /**
-     * The placeholder {@linkcode ShowResultRow} that displays the show name/stats when in season view.
-     * @type {ShowResultRow} */
+     * The placeholder {@linkcode ShowTitleResultRow} that displays the show name/stats when in season view.
+     * @type {ShowTitleResultRow} */
     #showTitle;
-
-    /**
-     * Whether this is a "dummy" row when displaying seasons/episodes
-     * @type {boolean} */
-    #selected;
 
     /** @param {ShowData} show */
     constructor(show) {
@@ -56,52 +58,9 @@ export default class ShowResultRow extends ResultRow {
     show() { return this.mediaItem(); }
 
     /**
-     * Creates a DOM element for this show.
-     * Each entry contains three columns - the show name, the number of seasons, and the number of episodes.
-     * @param {boolean} [selected=false] True if this row is selected and should be treated like
-     * a header opposed to a clickable entry. */
-    buildRow(selected = false) {
-        this.#selected = selected;
-        if (this.html()) {
-            Log.warn('buildRow has already been called for this SeasonResultRow, that shouldn\'t happen');
-            return this.html();
-        }
-
-        const show = this.show();
-        const titleNode = buildNode('div', {}, show.title);
-        if (show.originalTitle) {
-            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${show.originalTitle})`));
-        }
-
-        const customColumn = buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
-        const row = this.buildRowColumns(titleNode, customColumn, selected ? null : this.#showClick.bind(this));
-        if (selected) {
-            this.addBackButton(row, 'Back to results', async () => {
-                UISections.clearSections(UISection.Seasons | UISection.Episodes);
-                await UISections.hideSections(UISection.Seasons | UISection.Episodes);
-                UISections.showSections(UISection.MoviesOrShows);
-            });
-
-            row.classList.add('dynamicText');
-        }
-
-        this.setHtml(row);
-        return row;
-    }
-
-    /**
-     * Returns the callback invoked when clicking on the marker count when purged markers are present. */
-    getPurgeEventListener() {
-        return this.#onShowPurgeClick.bind(this);
-    }
-
-    /**
-     * Launches the purge overlay for this show. */
-    #onShowPurgeClick() {
-        // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
-        const focusBack = this.#selected ? $$('.tabbableRow', this.html().parentElement) : this.html();
-        PurgedMarkers.showSingleShow(this.show().metadataId, focusBack);
-    }
+     * Callback to invoke when the row is clicked.
+     * @returns {(e: MouseEvent) => any} */
+    onClick() { return this.#showClick.bind(this); }
 
     /**
      * Updates various UI states after purged markers are restored/ignored.
@@ -188,8 +147,8 @@ export default class ShowResultRow extends ResultRow {
             addRow(this.#sectionTitle.buildRow());
         }
 
-        this.#showTitle = new ShowResultRow(this.show());
-        addRow(this.#showTitle.buildRow(true /*selected*/));
+        this.#showTitle = new ShowTitleResultRow(this.show());
+        addRow(this.#showTitle.buildRow());
         addRow(new BulkActionResultRow(this.show()).buildRow());
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
         this.#seasonsFiltered = 0;
