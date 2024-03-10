@@ -1,6 +1,6 @@
-import { $$, buildNode, plural } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
+import { $$, buildNode, plural } from '../Common.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ResultRow } from './ResultRow.js';
 
 const Log = new ContextualLog('ShowRowBase');

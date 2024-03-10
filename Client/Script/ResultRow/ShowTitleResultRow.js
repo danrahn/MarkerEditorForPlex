@@ -1,8 +1,8 @@
-import { UISection, UISections } from './ResultSections.js';
-import { PlexClientState } from './PlexClientState.js';
+import { UISection, UISections } from '../ResultSections.js';
+import { PlexClientState } from '../PlexClientState.js';
 import ShowResultRowBase from './ShowResultRowBase.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('../../../Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * A show result row that's used as a placeholder when a specific show/season is active.

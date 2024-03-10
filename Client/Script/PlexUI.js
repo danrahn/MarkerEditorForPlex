@@ -5,14 +5,14 @@ import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { UISection, UISections } from './ResultSections.js';
 import { ClientSettings } from './ClientSettings.js';
 import { CustomEvents } from './CustomEvents.js';
-import MovieResultRow from './MovieResultRow.js';
+import MovieResultRow from './ResultRow/MovieResultRow.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
-import { ResultRow } from './ResultRow.js';
-import SectionOptionsResultRow from './SectionOptionsResultRow.js';
+import { ResultRow } from './ResultRow/ResultRow.js';
+import SectionOptionsResultRow from './ResultRow/SectionOptionsResultRow.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
-import ShowResultRow from './ShowResultRow.js';
+import ShowResultRow from './ResultRow/ShowResultRow.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */

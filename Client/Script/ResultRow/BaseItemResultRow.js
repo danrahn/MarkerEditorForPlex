@@ -1,12 +1,12 @@
-import { $, $$ } from './Common.js';
-import { ClientMovieData } from './ClientDataExtensions.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
-import { getSvgIcon } from './SVGHelper.js';
-import Icons from './Icons.js';
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import { $, $$ } from '../Common.js';
+import { ClientMovieData } from '../ClientDataExtensions.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { getSvgIcon } from '../SVGHelper.js';
+import Icons from '../Icons.js';
+import MarkerBreakdown from '../../../Shared/MarkerBreakdown.js';
 import { ResultRow } from './ResultRow.js';
-import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
+import { ThemeColors } from '../ThemeColors.js';
+import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('../ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 

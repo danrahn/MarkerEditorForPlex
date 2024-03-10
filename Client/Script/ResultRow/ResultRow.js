@@ -1,33 +1,36 @@
-import { $$, appendChildren, buildNode, clickOnEnterCallback, plural } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { $$, appendChildren, buildNode, clickOnEnterCallback, plural } from '../Common.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
-import { FilterDialog } from './FilterDialog.js';
-import { getSvgIcon } from './SVGHelper.js';
-import Icons from './Icons.js';
-import { isSmallScreen } from './WindowResizeEventHandler.js';
-import { PlexClientState } from './PlexClientState.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
-import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { FilterDialog } from '../FilterDialog.js';
+import { getSvgIcon } from '../SVGHelper.js';
+import Icons from '../Icons.js';
+import { isSmallScreen } from '../WindowResizeEventHandler.js';
+import { PlexClientState } from '../PlexClientState.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
+import { ThemeColors } from '../ThemeColors.js';
+import Tooltip from '../Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
-/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
-/** @typedef {!import('./PurgedMarkerCache').PurgedSeason} PurgedSeason */
-/** @typedef {!import('./PurgedMarkerCache').PurgedShow} PurgedShow */
+/** @typedef {!import('../../../Shared/PlexTypes').PlexData} PlexData */
 
 
 const Log = new ContextualLog('ResultRow');
+
+/**
+ * ResultRow is the base class that all result rows inherit from in some capacity.
+ * The current inheritance tree is outlined below:
+ *
+ *                                ResultRow
+ *               ________________/ /  |  \ \____________________
+ *              /         ________/   |   \______               \
+ *             /         /            |         /                \
+ *            /    BulkAction  SectionOptions  /                  \
+ *           /                                /                    \
+ *       BaseItem                        SeasonBase             ShowBase
+ *      /        \                      /          \           /        \
+ *  Episode     Movie               Season    SeasonTitle   Show     ShowTitle
+ */
 
 /**
  * Return a warning icon used to represent that a show/season/episode has purged markers.

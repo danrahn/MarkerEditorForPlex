@@ -19,9 +19,9 @@ import { ServerCommands } from './Commands.js';
 /** @typedef {!import('./BulkActionCommon').BulkActionCommon} BulkMarkerResult */
 /** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
-/** @typedef {!import('./MovieResultRow').default} MovieResultRow */
-/** @typedef {!import('./SeasonResultRow').default} SeasonResultRow */
-/** @typedef {!import('./ShowResultRow').default} ShowResultRow */
+/** @typedef {!import('./ResultRow/MovieResultRow').default} MovieResultRow */
+/** @typedef {!import('./ResultRow/SeasonResultRow').default} SeasonResultRow */
+/** @typedef {!import('./ResultRow/ShowResultRow').default} ShowResultRow */
 
 const Log = new ContextualLog('PlexClientState');
 

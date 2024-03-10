@@ -1,9 +1,9 @@
-import { appendChildren, buildNode } from './Common.js';
-import BulkAddOverlay from './BulkAddOverlay.js';
-import BulkDeleteOverlay from './BulkDeleteOverlay.js';
-import BulkShiftOverlay from './BulkShiftOverlay.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { appendChildren, buildNode } from '../Common.js';
+import BulkAddOverlay from '../BulkAddOverlay.js';
+import BulkDeleteOverlay from '../BulkDeleteOverlay.js';
+import BulkShiftOverlay from '../BulkShiftOverlay.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
 import { ResultRow } from './ResultRow.js';
 
 const Log = new ContextualLog('BulkActionRow');

@@ -1,9 +1,9 @@
-import { $$, buildNode } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
+import { $$, buildNode } from '../Common.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ResultRow } from './ResultRow.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../../Shared/PlexTypes').SeasonData} SeasonData */
 
 
 const Log = new ContextualLog('SeasonRowBase');

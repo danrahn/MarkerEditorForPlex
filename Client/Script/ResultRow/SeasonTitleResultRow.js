@@ -1,4 +1,4 @@
-import { UISection, UISections } from './ResultSections.js';
+import { UISection, UISections } from '../ResultSections.js';
 import SeasonResultRowBase from './SeasonResultRowBase.js';
 
 export default class SeasonTitleResultRow extends SeasonResultRowBase {

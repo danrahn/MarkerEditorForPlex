@@ -1,15 +1,14 @@
-import { $$, appendChildren, buildNode, pad0, plural } from './Common.js';
+import { $$, appendChildren, buildNode, pad0, plural } from '../Common.js';
 import BaseItemResultRow from './BaseItemResultRow.js';
-import { ClientSettings } from './ClientSettings.js';
-import { isSmallScreen } from './WindowResizeEventHandler.js';
-import { PlexClientState } from './PlexClientState.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { isSmallScreen } from '../WindowResizeEventHandler.js';
+import { PlexClientState } from '../PlexClientState.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { purgeIcon } from './ResultRow.js';
-import Tooltip from './Tooltip.js';
+import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('../../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
-/** @typedef {!import('./SeasonResultRow').default} SeasonResultRow */
+/** @typedef {!import ('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
 
 /**
  * A result row for a single episode of a show.

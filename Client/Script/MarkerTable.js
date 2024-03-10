@@ -11,7 +11,7 @@ import TableElements from './TableElements.js';
 /** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
-/** @typedef {!import('./BaseItemResultRow').default} BaseItemResultRow */
+/** @typedef {!import('./ResultRow/BaseItemResultRow').default} BaseItemResultRow */
 
 const Log = new ContextualLog('MarkerTable');
 

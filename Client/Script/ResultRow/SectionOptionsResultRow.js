@@ -1,14 +1,14 @@
-import { appendChildren, buildNode } from './Common.js';
-import { FilterDialog, FilterSettings } from './FilterDialog.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
-import Icons from './Icons.js';
-import { PlexClientState } from './PlexClientState.js';
+import { appendChildren, buildNode } from '../Common.js';
+import { FilterDialog, FilterSettings } from '../FilterDialog.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import Icons from '../Icons.js';
+import { PlexClientState } from '../PlexClientState.js';
 import { ResultRow } from './ResultRow.js';
-import SectionOptionsOverlay from './SectionOptionsOverlay.js';
-import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
+import SectionOptionsOverlay from '../SectionOptionsOverlay.js';
+import { ThemeColors } from '../ThemeColors.js';
+import Tooltip from '../Tooltip.js';
 
 const Log = new ContextualLog('SectionOptionsRow');
 
