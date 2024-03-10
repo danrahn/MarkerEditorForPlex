@@ -2,7 +2,6 @@ import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
-import { ResultRow, ShowResultRow } from './ResultRow.js';
 import { UISection, UISections } from './ResultSections.js';
 import { ClientSettings } from './ClientSettings.js';
 import { CustomEvents } from './CustomEvents.js';
@@ -10,8 +9,10 @@ import MovieResultRow from './MovieResultRow.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
+import { ResultRow } from './ResultRow.js';
 import { SectionOptionsResultRow } from './SectionOptionsResultRow.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
+import ShowResultRow from './ShowResultRow.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').LibrarySection} LibrarySection */
 /** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */

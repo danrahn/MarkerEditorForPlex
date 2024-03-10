@@ -21,7 +21,7 @@ import { ServerCommands } from './Commands.js';
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 /** @typedef {!import('./MovieResultRow').default} MovieResultRow */
 /** @typedef {!import('./SeasonResultRow').default} SeasonResultRow */
-/** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
+/** @typedef {!import('./ShowResultRow').default} ShowResultRow */
 
 const Log = new ContextualLog('PlexClientState');
 

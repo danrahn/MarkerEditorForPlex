@@ -1,5 +1,5 @@
 import { $$, buildNode, plural } from './Common.js';
-import { filteredListIcon, Log, ResultRow, ShowResultRow } from './ResultRow.js';
+import { filteredListIcon, Log, ResultRow } from './ResultRow.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { UISection, UISections } from './ResultSections.js';
 import BaseItemResultRow from './BaseItemResultRow.js';
@@ -15,6 +15,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import SectionOptionsResultRow from './SectionOptionsResultRow.js';
 import { ServerCommands } from './Commands.js';
+import ShowResultRow from './ShowResultRow.js';
 import Tooltip from './Tooltip.js';
 
 /**
