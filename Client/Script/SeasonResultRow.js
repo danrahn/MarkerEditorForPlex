@@ -1,5 +1,5 @@
 import { $$, buildNode, plural } from './Common.js';
-import { filteredListIcon, Log, ResultRow } from './ResultRow.js';
+import { filteredListIcon, ResultRow } from './ResultRow.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { UISection, UISections } from './ResultSections.js';
 import BaseItemResultRow from './BaseItemResultRow.js';
@@ -7,21 +7,34 @@ import BulkActionResultRow from './BulkActionResultRow.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import { ClientEpisodeData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import EpisodeResultRow from './EpisodeResultRow.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
-import { PurgedMarkers } from './PurgedMarkerManager.js';
+import SeasonResultRowBase from './SeasonResultRowBase.js';
+import SeasonTitleResultRow from './SeasonTitleResultRow.js';
 import SectionOptionsResultRow from './SectionOptionsResultRow.js';
 import { ServerCommands } from './Commands.js';
 import ShowTitleResultRow from './ShowTitleResultRow.js';
 import Tooltip from './Tooltip.js';
 
+/** @typedef {!import('./PurgedMarkerCache').PurgedSeason} PurgedSeason */
+/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+
+
+const Log = new ContextualLog('SeasonRow');
+
 /**
  * A result row for a single season of a show.
  */
-export default class SeasonResultRow extends ResultRow {
+export default class SeasonResultRow extends SeasonResultRowBase {
     /**
      * A dictionary of {@linkcode EpisodeResultRow}s for keeping track of marker tables to show/expand if needed.
      * @type {{[episodeId: number]: EpisodeResultRow}} */
@@ -47,52 +60,12 @@ export default class SeasonResultRow extends ResultRow {
      * @type {number} */
     #episodesFiltered = 0;
 
-    /**
-     * Whether this is a "dummy" row used to navigate back to the season list.
-     * @type {boolean} */
-    #selected;
-
+    /** @param {SeasonData} season */
     constructor(season) {
         super(season, 'seasonResult');
     }
 
-    /**
-     * Return the underlying season data associated with this result row.
-     * @returns {SeasonData} */
-    season() { return this.mediaItem(); }
-
-    /**
-     * Creates a DOM element for this season.
-     * Each row contains the season number, the season title (if applicable), and the number of episodes in the season.
-     * @param {boolean} [selected=false] `true` if this row is selected and should be treated like a header
-     * header opposed to a clickable entry. */
-    buildRow(selected = false) {
-        this.#selected = selected;
-        if (this.html()) {
-            Log.warn('buildRow has already been called for this SeasonResultRow, that shouldn\'t happen');
-            return this.html();
-        }
-
-        const season = this.season();
-        const title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
-        if (season.title.length > 0 && season.title.toLowerCase() !== `season ${season.index}`) {
-            title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
-        }
-
-        const row = this.buildRowColumns(title, null, selected ? null : this.#seasonClick.bind(this));
-        if (selected) {
-            this.addBackButton(row, 'Back to seasons', async () => {
-                await UISections.hideSections(UISection.Episodes);
-                UISections.clearSections(UISection.Episodes);
-                UISections.showSections(UISection.Seasons);
-            });
-
-            row.classList.add('dynamicText');
-        }
-
-        this.setHtml(row);
-        return row;
-    }
+    onClick() { return this.#seasonClick.bind(this); }
 
     /**
      * Updates various UI states after purged markers are restored/ignored
@@ -133,6 +106,8 @@ export default class SeasonResultRow extends ResultRow {
                 episode.updateMarkerBreakdown(0 /*delta*/);
             }
         }.bind(this));
+
+        // TODO: Need to do anything for show/seasonTitle?
     }
 
     /**
@@ -164,20 +139,8 @@ export default class SeasonResultRow extends ResultRow {
                     return;
             }
         }
-    }
 
-    /**
-     * Returns the callback invoked when clicking on the marker count when purged markers are present. */
-    getPurgeEventListener() {
-        return this.#onSeasonPurgeClick.bind(this);
-    }
-
-    /**
-     * Show the purge overlay for this season. */
-    #onSeasonPurgeClick() {
-        // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
-        const focusBack = this.#selected ? $$('.tabbableRow', this.html().parentElement) : this.html();
-        PurgedMarkers.showSingleSeason(this.season().metadataId, focusBack);
+        // TODO: Need to do anything for show/seasonTitle?
     }
 
     /**
@@ -253,8 +216,8 @@ export default class SeasonResultRow extends ResultRow {
         this.#showTitle = new ShowTitleResultRow(PlexClientState.getActiveShow());
         addRow(this.#showTitle.buildRow());
         addRow(buildNode('hr'));
-        this.#seasonTitle = new SeasonResultRow(PlexClientState.getActiveSeason());
-        addRow(this.#seasonTitle.buildRow(true));
+        this.#seasonTitle = new SeasonTitleResultRow(PlexClientState.getActiveSeason());
+        addRow(this.#seasonTitle.buildRow());
         addRow(new BulkActionResultRow(this.season()).buildRow());
         addRow(buildNode('hr', { style : 'margin-top: 0' }));
 

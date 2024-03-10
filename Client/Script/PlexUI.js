@@ -10,7 +10,7 @@ import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { PurgedMarkers } from './PurgedMarkerManager.js';
 import { ResultRow } from './ResultRow.js';
-import { SectionOptionsResultRow } from './SectionOptionsResultRow.js';
+import SectionOptionsResultRow from './SectionOptionsResultRow.js';
 import { SectionType } from '../../Shared/PlexTypes.js';
 import ShowResultRow from './ShowResultRow.js';
 
