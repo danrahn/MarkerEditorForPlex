@@ -8,7 +8,7 @@ import {
     realMs,
     timeInputShortcutHandler,
     timeToMs } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
@@ -17,15 +17,15 @@ import { ClientSettings } from './ClientSettings.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
 import MarkerAddStickySettings from './StickySettings/MarkerAddStickySettings.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
-import { MarkerType } from '../../Shared/MarkerType.js';
+import { MarkerData } from '/Shared/PlexTypes.js';
+import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 

@@ -1,7 +1,8 @@
-import { UISection, UISections } from '../ResultSections.js';
-import SeasonResultRowBase from './SeasonResultRowBase.js';
+import { SeasonResultRowBase } from './SeasonResultRowBase.js';
 
-export default class SeasonTitleResultRow extends SeasonResultRowBase {
+import { UISection, UISections } from '../ResultSections.js';
+
+export class SeasonTitleResultRow extends SeasonResultRowBase {
 
     /** @param {SeasonData} season */
     constructor(season) {

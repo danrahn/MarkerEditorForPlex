@@ -1,17 +1,18 @@
+import { ResultRow } from './ResultRow.js';
+
 import { appendChildren, buildNode } from '../Common.js';
 import BulkAddOverlay from '../BulkAddOverlay.js';
 import BulkDeleteOverlay from '../BulkDeleteOverlay.js';
 import BulkShiftOverlay from '../BulkShiftOverlay.js';
 import ButtonCreator from '../ButtonCreator.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
-import { ResultRow } from './ResultRow.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 const Log = new ContextualLog('BulkActionRow');
 
 /**
  * A result row that offers bulk marker actions, like shifting everything X milliseconds.
  */
-export default class BulkActionResultRow extends ResultRow {
+export class BulkActionResultRow extends ResultRow {
     /** @type {HTMLElement} */
     #bulkAddButton;
     /** @type {HTMLElement} */

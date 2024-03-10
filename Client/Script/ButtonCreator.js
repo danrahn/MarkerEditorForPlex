@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { getSvgIcon } from './SVGHelper.js';

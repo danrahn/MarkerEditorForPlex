@@ -11,14 +11,14 @@ import {
     waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
-import { BulkMarkerResolveType, MarkerData } from '../../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import BulkAddStickySettings from './StickySettings/BulkAddStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
-import { MarkerType } from '../../Shared/MarkerType.js';
+import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
@@ -26,16 +26,16 @@ import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
-/** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
-/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResultEntry} SerializedBulkAddResultEntry */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
+/** @typedef {!import('/Shared/PlexTypes').ChapterMap} ChapterMap */
+/** @typedef {!import('/Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
+/** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('/Shared/PlexTypes').SerializedBulkAddResultEntry} SerializedBulkAddResultEntry */
+/** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 const Log = new ContextualLog('BulkAddOverlay');
 

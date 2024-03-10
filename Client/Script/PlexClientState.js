@@ -1,21 +1,21 @@
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { PurgedMovieSection, PurgedTVSection } from './PurgedMarkerCache.js';
-import { SectionType, ShowData } from '../../Shared/PlexTypes.js';
+import { SectionType, ShowData } from '/Shared/PlexTypes.js';
 import { addWindowResizedListener } from './WindowResizeEventHandler.js';
 import { BulkActionType } from './BulkActionCommon.js';
 import { ClientMovieData } from './ClientDataExtensions.js';
 import { ClientSettings } from './ClientSettings.js';
 import { ServerCommands } from './Commands.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
-/** @typedef {!import('../../Shared/PlexTypes').MovieMap} MovieMap */
-/** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
-/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').ShowMap} ShowMap */
-/** @typedef {!import('../../Shared/PlexTypes').TopLevelData} TopLevelData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('/Shared/PlexTypes').MovieMap} MovieMap */
+/** @typedef {!import('/Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('/Shared/PlexTypes').ShowMap} ShowMap */
+/** @typedef {!import('/Shared/PlexTypes').TopLevelData} TopLevelData */
 /** @typedef {!import('./BulkActionCommon').BulkActionCommon} BulkMarkerResult */
 /** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */

@@ -1,6 +1,6 @@
 import { $, appendChildren, buildNode } from './Common.js';
 import { animate } from './AnimationHelpers.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import FetchError from './FetchError.js';
 import Overlay from './Overlay.js';
 

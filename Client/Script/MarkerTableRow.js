@@ -1,6 +1,6 @@
 
 import { $$, appendChildren, buildNode, clearEle } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, flashBackground } from './AnimationHelpers.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
@@ -9,8 +9,8 @@ import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { errorToast } from './ErrorHandling.js';
 import Icons from './Icons.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
-import { MarkerType } from '../../Shared/MarkerType.js';
+import { MarkerData } from '/Shared/PlexTypes.js';
+import { MarkerType } from '/Shared/MarkerType.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import Tooltip from './Tooltip.js';

@@ -1,12 +1,12 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { flashBackground } from './AnimationHelpers.js';
-import { MarkerConflictResolution } from '../../Shared/PlexTypes.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { MarkerConflictResolution } from '/Shared/PlexTypes.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';

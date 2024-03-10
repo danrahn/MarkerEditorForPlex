@@ -1,15 +1,15 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { flashBackground } from './AnimationHelpers.js';
-import { MarkerData } from '../../Shared/PlexTypes.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { MarkerData } from '/Shared/PlexTypes.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import TableElements from './TableElements.js';
 import { Theme } from './ThemeColors.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 
 /** @typedef {{ [showId: number] : { [seasonId: number]: MarkerData[] } }} BulkMarkerResult */

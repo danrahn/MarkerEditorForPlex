@@ -1,6 +1,6 @@
 import { $, $$, clearEle } from './Common.js';
 import { animateOpacity } from './AnimationHelpers.js';
-import { BaseLog } from '../../Shared/ConsoleLog.js';
+import { BaseLog } from '/Shared/ConsoleLog.js';
 import { PlexClientState } from './PlexClientState.js';
 
 /**

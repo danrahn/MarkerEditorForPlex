@@ -5,16 +5,16 @@ import BulkDeleteStickySettings from './StickySettings/BulkDeleteStickySettings.
 import ButtonCreator from './ButtonCreator.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * UI for bulk deleting markers for a given show/season.

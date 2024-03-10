@@ -1,4 +1,4 @@
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 /** @typedef {!import('./Icons').IconKeys} IconKeys */
 

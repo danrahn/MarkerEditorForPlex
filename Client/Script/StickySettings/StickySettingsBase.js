@@ -1,4 +1,4 @@
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { ClientSettings } from '../ClientSettings.js';
 import { CustomEvents } from '../CustomEvents.js';

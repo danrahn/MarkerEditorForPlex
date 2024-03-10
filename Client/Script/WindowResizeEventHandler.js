@@ -1,4 +1,4 @@
-import { BaseLog } from '../../Shared/ConsoleLog.js';
+import { BaseLog } from '/Shared/ConsoleLog.js';
 
 /**
  * Set of all registered event listeners.

@@ -2,15 +2,15 @@ import { $, $$, appendChildren, buildNode } from './Common.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from './CustomEvents.js';
 import { flashBackground } from './AnimationHelpers.js';
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
-import { SectionType } from '../../Shared/PlexTypes.js';
+import { SectionType } from '/Shared/PlexTypes.js';
 
-/** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 
 const Log = new ContextualLog('SortFilter');
 

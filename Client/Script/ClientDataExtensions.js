@@ -1,11 +1,11 @@
 import { $$ } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { EpisodeData, MarkerData, MovieData } from '../../Shared/PlexTypes.js';
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import { EpisodeData, MarkerData, MovieData } from '/Shared/PlexTypes.js';
+import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import MarkerTable from './MarkerTable.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
+/** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('./ResultRow/EpisodeResultRow').default} EpisodeResultRow */
 /** @typedef {!import('./ResultRow/MovieResultRow').default} MovieResultRow */
 

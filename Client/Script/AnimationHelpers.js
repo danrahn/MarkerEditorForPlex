@@ -1,4 +1,4 @@
-import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 import { $$ } from './Common.js';
 
 const Log = new ContextualLog('Animate');

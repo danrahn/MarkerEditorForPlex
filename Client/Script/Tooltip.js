@@ -1,5 +1,5 @@
 import { $, buildNode } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 const Log = new ContextualLog('Tooltip');
 

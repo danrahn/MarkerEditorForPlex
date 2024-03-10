@@ -1,14 +1,15 @@
-import { $$, buildNode, plural } from '../Common.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
-import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ResultRow } from './ResultRow.js';
+
+import { $$, buildNode, plural } from '../Common.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
 
 const Log = new ContextualLog('ShowRowBase');
 
 /**
  * Base class for a show result row, either a "real" one or a title placeholder.
  */
-export default class ShowResultRowBase extends ResultRow {
+export class ShowResultRowBase extends ResultRow {
 
     /** @param {ShowData} show */
     constructor(show) {

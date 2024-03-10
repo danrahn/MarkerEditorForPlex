@@ -1,14 +1,15 @@
-import { $$, buildNode } from '../Common.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
-import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ResultRow } from './ResultRow.js';
 
-/** @typedef {!import('../../../Shared/PlexTypes').SeasonData} SeasonData */
+import { $$, buildNode } from '../Common.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
+
+/** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
 
 
 const Log = new ContextualLog('SeasonRowBase');
 
-export default class SeasonResultRowBase extends ResultRow {
+export class SeasonResultRowBase extends ResultRow {
 
     /** @param {SeasonData} season */
     constructor(season) {

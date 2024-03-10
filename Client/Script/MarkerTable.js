@@ -1,15 +1,15 @@
 import { $$, appendChildren, buildNode, clearEle, msToHms } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import ButtonCreator from './ButtonCreator.js';
 import { errorToast } from './ErrorHandling.js';
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import TableElements from './TableElements.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 /** @typedef {!import('./ResultRow/BaseItemResultRow').default} BaseItemResultRow */
 

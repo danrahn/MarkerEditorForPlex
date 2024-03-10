@@ -1,11 +1,11 @@
 import { $, appendChildren, buildNode, plural } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
-import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
+import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';

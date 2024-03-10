@@ -5,7 +5,7 @@ import {
     buildNode,
     clearEle,
     clickOnEnterCallback } from './Common.js';
-import { ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { Theme, ThemeColors } from './ThemeColors.js';

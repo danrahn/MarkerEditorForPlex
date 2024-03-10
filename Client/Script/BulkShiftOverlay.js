@@ -3,9 +3,9 @@ import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import BulkShiftStickySettings from './StickySettings/BulkShiftStickySettings.js';
 import ButtonCreator from './ButtonCreator.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import Icons from './Icons.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
@@ -13,12 +13,12 @@ import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').EpisodeData} EpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').SeasonData} SeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
-/** @typedef {!import('../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('/Shared/PlexTypes').EpisodeData} EpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').ShiftResult} ShiftResult */
+/** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * @typedef {Object} IgnoreInfo

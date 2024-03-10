@@ -3,9 +3,9 @@
  * Most definitely overkill for its low-level purpose.
  */
 
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
+/** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 
 
 const Log = new ContextualLog('PurgedGroup');

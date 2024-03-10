@@ -1,6 +1,6 @@
 import StickySettingsBase from './StickySettingsBase.js';
 
-import { MarkerType } from '../../../Shared/MarkerType.js';
+import { MarkerType } from '/Shared/MarkerType.js';
 
 /** @typedef {!import('./StickySettingsBase').StickySettingsBaseProtected} StickySettingsBaseProtected */
 

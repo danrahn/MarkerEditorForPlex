@@ -1,26 +1,27 @@
+import { filteredListIcon, ResultRow } from './ResultRow.js';
+import { BulkActionResultRow } from './BulkActionResultRow.js';
+import { SeasonResultRow } from './SeasonResultRow.js';
+import { SectionOptionsResultRow } from './SectionOptionsResultRow.js';
+import { ShowResultRowBase } from './ShowResultRowBase.js';
+import { ShowTitleResultRow } from './ShowTitleResultRow.js';
+
 import { $$, buildNode, clearEle, plural } from '../Common.js';
 import { errorMessage, errorResponseOverlay } from '../ErrorHandling.js';
-import { filteredListIcon, ResultRow } from './ResultRow.js';
 import { FilterSettings, SortConditions, SortOrder } from '../FilterDialog.js';
 import { UISection, UISections } from '../ResultSections.js';
-import BulkActionResultRow from './BulkActionResultRow.js';
 import { ClientSettings } from '../ClientSettings.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import Overlay from '../Overlay.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
-import { SeasonData } from '../../../Shared/PlexTypes.js';
-import SeasonResultRow from './SeasonResultRow.js';
-import SectionOptionsResultRow from './SectionOptionsResultRow.js';
+import { SeasonData } from '/Shared/PlexTypes.js';
 import { ServerCommands } from '../Commands.js';
-import ShowResultRowBase from './ShowResultRowBase.js';
-import ShowTitleResultRow from './ShowTitleResultRow.js';
 import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('../PurgedMarkerCache').PurgedShow} PurgedShow */
-/** @typedef {!import('../../../Shared/PlexTypes').MarkerData} MarkerData */
-/** @typedef {!import('../../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
-/** @typedef {!import('../../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 
 const Log = new ContextualLog('ShowRow');
@@ -28,7 +29,7 @@ const Log = new ContextualLog('ShowRow');
 /**
  * A result row for a single show in the library.
  */
-export default class ShowResultRow extends ShowResultRowBase {
+export class ShowResultRow extends ShowResultRowBase {
     /**
      * When this show is active, holds a map of season metadata ids to its corresponding SeasonResultRow
      * @type {{[metadataId: number]: SeasonResultRow}} */

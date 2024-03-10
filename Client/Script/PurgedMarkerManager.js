@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, clearEle, pad0 } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import {
     AgnosticPurgeCache,
@@ -13,7 +13,7 @@ import {
     PurgedTVSection } from './PurgedMarkerCache.js';
 import { animateOpacity, flashBackground, slideUp } from './AnimationHelpers.js';
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
-import { MarkerConflictResolution, MarkerData, SectionType } from '../../Shared/PlexTypes.js';
+import { MarkerConflictResolution, MarkerData, SectionType } from '/Shared/PlexTypes.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { CustomEvents } from './CustomEvents.js';
@@ -24,10 +24,10 @@ import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import Tooltip from './Tooltip.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').MarkerAction} MarkerAction */
+/** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Server/PlexQueryManager').RawMarkerData} RawMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
-/** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('/Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
+/** @typedef {!import('/Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('./PurgedMarkerCache').PurgedGroup} PurgedGroup */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 

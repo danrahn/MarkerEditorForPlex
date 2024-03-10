@@ -1,4 +1,4 @@
-import { BaseLog } from '../../Shared/ConsoleLog.js';
+import { BaseLog } from '/Shared/ConsoleLog.js';
 
 import { ClientSettings, SettingsManager } from './ClientSettings.js';
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';

@@ -1,23 +1,23 @@
-import { BulkMarkerResolveType } from '../../Shared/PlexTypes.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { BulkMarkerResolveType } from '/Shared/PlexTypes.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from './CustomEvents.js';
 import FetchError from './FetchError.js';
-import { MarkerEnum } from '../../Shared/MarkerType.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 
-/** @typedef {!import('../../Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
-/** @typedef {!import('../../Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
-/** @typedef {!import('../../Shared/PlexTypes').ChapterMap} ChapterMap */
-/** @typedef {!import('../../Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
-/** @typedef {!import('../../Shared/PlexTypes').ExtendedQueryInfo} ExtendedQueryInfo */
-/** @typedef {!import('../../Shared/PlexTypes').PurgeSection} PurgeSection */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedMovieData} SerializedMovieData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
-/** @typedef {!import('../../Shared/PlexTypes').SerializedShowData} SerializedShowData */
-/** @typedef {!import('../../Shared/PlexTypes').ShiftResult} ShiftResult */
-/** @typedef {!import('../../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('/Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
+/** @typedef {!import('/Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
+/** @typedef {!import('/Shared/PlexTypes').ChapterMap} ChapterMap */
+/** @typedef {!import('/Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
+/** @typedef {!import('/Shared/PlexTypes').ExtendedQueryInfo} ExtendedQueryInfo */
+/** @typedef {!import('/Shared/PlexTypes').PurgeSection} PurgeSection */
+/** @typedef {!import('/Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
+/** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedMovieData} SerializedMovieData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedShowData} SerializedShowData */
+/** @typedef {!import('/Shared/PlexTypes').ShiftResult} ShiftResult */
+/** @typedef {!import('/Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 
 const Log = new ContextualLog('ServerCommands');
 

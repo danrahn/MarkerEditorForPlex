@@ -1,13 +1,14 @@
+import { ShowResultRowBase } from './ShowResultRowBase.js';
+
 import { UISection, UISections } from '../ResultSections.js';
 import { PlexClientState } from '../PlexClientState.js';
-import ShowResultRowBase from './ShowResultRowBase.js';
 
-/** @typedef {!import('../../../Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 /**
  * A show result row that's used as a placeholder when a specific show/season is active.
  */
-export default class ShowTitleResultRow extends ShowResultRowBase {
+export class ShowTitleResultRow extends ShowResultRowBase {
     /**
      * @param {ShowData} show */
     constructor(show) {

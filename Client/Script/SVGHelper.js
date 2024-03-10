@@ -1,4 +1,4 @@
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { buildNode, buildNodeNS } from './Common.js';
 

@@ -1,8 +1,8 @@
 import { $$, appendChildren, buildNode, plural } from '../Common.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
-import BaseItemResultRow from './BaseItemResultRow.js';
+import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { ClientSettings } from '../ClientSettings.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
@@ -10,7 +10,7 @@ import { purgeIcon } from './ResultRow.js';
 import { ServerCommands } from '../Commands.js';
 import Tooltip from '../Tooltip.js';
 
-/** @typedef {!import('../../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 
 
 const Log = new ContextualLog('MovieRow');
@@ -18,7 +18,7 @@ const Log = new ContextualLog('MovieRow');
 /**
  * A result row for a single movie.
  */
-export default class MovieResultRow extends BaseItemResultRow {
+export class MovieResultRow extends BaseItemResultRow {
 
     /** @type {boolean} */
     #markersGrabbed = false;

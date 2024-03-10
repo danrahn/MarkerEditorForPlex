@@ -5,7 +5,7 @@ import { ClientSettings } from './ClientSettings.js';
 import Tooltip from './Tooltip.js';
 
 
-/** @typedef {!import('../../Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 
 /** A custom object for {@linkcode TableElements.rawTableRow} to parse that will attach the given properties to the column. */
 class CustomClassColumn {

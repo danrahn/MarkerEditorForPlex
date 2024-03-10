@@ -1,0 +1,9 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "ResultRow": [ "Client/Script/ResultRow/index.js" ],
+            "/Shared/*": [ "Shared/*" ]
+        }
+    }
+}

@@ -1,6 +1,6 @@
 import StickySettingsBase from './StickySettingsBase.js';
 
-import { MarkerEnum } from '../../../Shared/MarkerType.js';
+import { MarkerEnum } from '/Shared/MarkerType.js';
 
 /** @typedef {!import('./StickySettingsBase').StickySettingsBaseProtected} StickySettingsBaseProtected */
 

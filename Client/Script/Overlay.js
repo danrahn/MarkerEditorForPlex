@@ -1,5 +1,5 @@
 import { $, $$, appendChildren, buildNode, clearEle } from './Common.js';
-import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';

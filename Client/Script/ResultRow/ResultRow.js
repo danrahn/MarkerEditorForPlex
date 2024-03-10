@@ -1,5 +1,5 @@
 import { $$, appendChildren, buildNode, clickOnEnterCallback, plural } from '../Common.js';
-import { ContextualLog } from '../../../Shared/ConsoleLog.js';
+import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import ButtonCreator from '../ButtonCreator.js';
 import { ClientSettings } from '../ClientSettings.js';
@@ -12,7 +12,7 @@ import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
 
-/** @typedef {!import('../../../Shared/PlexTypes').PlexData} PlexData */
+/** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
 
 
 const Log = new ContextualLog('ResultRow');
