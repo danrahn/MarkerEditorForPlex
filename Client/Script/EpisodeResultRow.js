@@ -8,7 +8,8 @@ import { purgeIcon } from './ResultRow.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('../../../Shared/PlexTypes').ChapterData} ChapterData */
-/** @typedef {!import ('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
+/** @typedef {!import('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
+/** @typedef {!import('./SeasonResultRow').default} SeasonResultRow */
 
 /**
  * A result row for a single episode of a show.

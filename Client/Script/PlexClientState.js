@@ -20,7 +20,7 @@ import { ServerCommands } from './Commands.js';
 /** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 /** @typedef {!import('./MovieResultRow').default} MovieResultRow */
-/** @typedef {!import('./ResultRow').SeasonResultRow} SeasonResultRow */
+/** @typedef {!import('./SeasonResultRow').default} SeasonResultRow */
 /** @typedef {!import('./ResultRow').ShowResultRow} ShowResultRow */
 
 const Log = new ContextualLog('PlexClientState');
