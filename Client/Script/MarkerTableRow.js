@@ -19,7 +19,7 @@ import Tooltip from './Tooltip.js';
 const Log = new ContextualLog('MarkerTableRow');
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
-/** @typedef {!import('./ResultRow').BaseItemResultRow} BaseItemResultRow */
+/** @typedef {!import('./BaseItemResultRow').default} BaseItemResultRow */
 
 class MarkerRow {
     /**

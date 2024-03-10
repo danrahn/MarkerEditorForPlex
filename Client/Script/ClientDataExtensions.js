@@ -7,7 +7,7 @@ import MarkerTable from './MarkerTable.js';
 
 /** @typedef {!import('../../Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('./ResultRow').EpisodeResultRow} EpisodeResultRow */
-/** @typedef {!import('./ResultRow').MovieResultRow} MovieResultRow */
+/** @typedef {!import('./MovieResultRow').default} MovieResultRow */
 
 const Log = new ContextualLog('ClientData');
 
