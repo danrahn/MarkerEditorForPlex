@@ -16,7 +16,7 @@ import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
-import { StickySettingsType } from './StickySettings/StickySettingsTypes.js';
+import { StickySettingsType } from 'StickySettings';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
@@ -245,6 +245,8 @@ class StickySettingsSetting extends SettingBase {
             Log.warn(`stickySettings set to invalid value ${this.stickiness}, resetting.`);
             this.stickiness = StickySettingsType.None;
         }
+
+        window.dispatchEvent(new CustomEvent(CustomEvents.StickySettingsChanged, { detail : this.stickiness }));
     }
 
     /**

@@ -13,7 +13,7 @@ import {
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
-import BulkAddStickySettings from './StickySettings/BulkAddStickySettings.js';
+import { BulkAddStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { getSvgIcon } from './SVGHelper.js';

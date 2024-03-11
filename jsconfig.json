@@ -3,6 +3,7 @@
         "baseUrl": ".",
         "paths": {
             "ResultRow": [ "Client/Script/ResultRow/index.js" ],
+            "StickySettings": [ "Client/Script/StickySettings/index.js" ],
             "/Shared/*": [ "Shared/*" ]
         }
     }

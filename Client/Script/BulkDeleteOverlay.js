@@ -1,7 +1,7 @@
 import { $, appendChildren, buildNode, pad0 } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
-import BulkDeleteStickySettings from './StickySettings/BulkDeleteStickySettings.js';
+import { BulkDeleteStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';

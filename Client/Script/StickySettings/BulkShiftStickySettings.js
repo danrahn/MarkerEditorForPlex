@@ -7,7 +7,7 @@ import { MarkerEnum } from '/Shared/MarkerType.js';
 /**
  * Contains bulk shift settings that can persist depending on client persistence setting.
  */
-export default class BulkShiftStickySettings extends StickySettingsBase {
+export class BulkShiftStickySettings extends StickySettingsBase {
     /**
      * Bulk shift settings that persist based on the user's stickiness setting. */
     static #keys = {

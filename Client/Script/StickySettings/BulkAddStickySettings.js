@@ -8,7 +8,7 @@ import { MarkerType } from '/Shared/MarkerType.js';
 /**
  * Contains Bulk Add settings that can persist depending on client persistence setting.
  */
-export default class BulkAddStickySettings extends StickySettingsBase {
+export class BulkAddStickySettings extends StickySettingsBase {
 
     /** Bulk add settings that persist based on the user's stickiness setting. */
     static #keys = {

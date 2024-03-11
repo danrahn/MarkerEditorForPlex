@@ -1,6 +1,5 @@
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { ClientSettings } from '../ClientSettings.js';
 import { CustomEvents } from '../CustomEvents.js';
 import { StickySettingsType } from './StickySettingsTypes.js';
 
@@ -25,6 +24,10 @@ export default class StickySettingsBase {
      * @type {{ [key: string]: { instance: StickySettingsBase, settings: Object } }} */
     static #sessionSettings = {};
 
+    /**
+     * The current stickiness. */
+    static #currentStickiness = StickySettingsType.None;
+
     /** One-time setup to initialize client settings callback. */
     static Setup() {
         window.addEventListener(CustomEvents.StickySettingsChanged, StickySettingsBase.onStickyTypeChange);
@@ -34,6 +37,7 @@ export default class StickySettingsBase {
      * Callback invoked when client setting stickiness changes.
      * @param {CustomEvent} event */
     static onStickyTypeChange(event) {
+        StickySettingsBase.#currentStickiness = event.detail;
         switch (event.detail) {
             case StickySettingsType.None: // Reset everything to default
                 StickySettingsBase.#resetCurrentToDefault();
@@ -46,6 +50,7 @@ export default class StickySettingsBase {
                 break;
             default:
                 Log.error(`Unknown StickySettingsType ${event.detail}.`);
+                this.#currentStickiness = StickySettingsType.None;
                 break;
         }
     }
@@ -103,7 +108,7 @@ export default class StickySettingsBase {
         this.#key = key;
         StickySettingsBase.#sessionSettings[key] ??= {};
         StickySettingsBase.#sessionSettings[key].instance = this;
-        switch (ClientSettings.stickySetting()) {
+        switch (StickySettingsBase.#currentStickiness) {
             case StickySettingsType.None:
                 StickySettingsBase.#sessionSettings[key].settings = this.defaultData();
                 break;
@@ -141,7 +146,7 @@ export default class StickySettingsBase {
         }
 
         this.#data[key] = value;
-        const stickiness = ClientSettings.stickySetting();
+        const stickiness = StickySettingsBase.#currentStickiness;
         if (stickiness === StickySettingsType.None) {
             return; // Nothing else to do, _registeredSettings doesn't need new data, since it always uses the default.
         }
@@ -159,7 +164,7 @@ export default class StickySettingsBase {
      * Save the given settings to localStorage using this instance's key.
      * @param {object} settings */
     #saveSettings(settings) {
-        Log.assert(ClientSettings.stickySetting() === StickySettingsType.Always,
+        Log.assert(StickySettingsBase.#currentStickiness === StickySettingsType.Always,
             `#saveSettings() should only be called if settings are being saved across sessions.`);
         localStorage.setItem(StickySettingsBase.#storageKey(this.#key), JSON.stringify(settings));
     }

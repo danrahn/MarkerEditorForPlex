@@ -1,7 +1,7 @@
 import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
-import BulkShiftStickySettings from './StickySettings/BulkShiftStickySettings.js';
+import { BulkShiftStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import Icons from './Icons.js';

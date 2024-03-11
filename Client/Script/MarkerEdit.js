@@ -16,7 +16,7 @@ import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
-import MarkerAddStickySettings from './StickySettings/MarkerAddStickySettings.js';
+import { MarkerAddStickySettings } from 'StickySettings';
 import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';

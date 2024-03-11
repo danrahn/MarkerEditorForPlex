@@ -7,7 +7,7 @@ import { MarkerEnum } from '/Shared/MarkerType.js';
 /**
  * Contains bulk delete settings that can persist depending on client persistence setting.
  */
-export default class BulkDeleteStickySettings extends StickySettingsBase {
+export class BulkDeleteStickySettings extends StickySettingsBase {
     /**
      * Bulk delete settings that persist based on the user's stickiness setting. */
     static #keys = {

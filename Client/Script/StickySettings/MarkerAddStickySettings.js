@@ -7,7 +7,7 @@ import { MarkerType } from '/Shared/MarkerType.js';
 /**
  * Contains marker add settings that can persist depending on client persistence setting.
  */
-export default class MarkerAddStickySettings extends StickySettingsBase {
+export class MarkerAddStickySettings extends StickySettingsBase {
     /** Marker add settings that persist based on the user's stickiness setting. */
     static #keys = {
         /** @readonly */
