@@ -19,11 +19,12 @@ import VersionManager from './VersionManager.js';
 
 window.Log = BaseLog; // Let the user interact with the class to tweak verbosity/other settings.
 
-window.addEventListener('load', setup);
+window.addEventListener('load', init);
 
 /** Initial setup on page load. */
-function setup() {
+function init() {
     HelpOverlay.SetupHelperListeners();
+    StickySettingsBase.Setup(); // MUST be before SettingsManager
     SettingsManager.CreateInstance();
     PlexUIManager.CreateInstance();
     PlexClientStateManager.CreateInstance();
@@ -31,7 +32,6 @@ function setup() {
     Tooltip.Setup();
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();
-    StickySettingsBase.Setup();
     ServerPausedOverlay.Setup();
     SetupWindowResizeEventHandler();
 
