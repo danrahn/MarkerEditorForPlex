@@ -21,6 +21,14 @@
   --section-options-hover: rgba(30,100,0,0.1);
   --section-options-input-hover: rgba(255,255,255,0.3);
 
+  /* Custom checkbox */
+  --custom-checkbox-background: #fec;
+  --custom-checkbox-checked: #706d6a;
+  --custom-checkbox-hover: #edb;
+  --custom-checkbox-checked-hover: #807d7a;
+  --custom-checkbox-checked-check: #d0edca;
+  --custom-checkbox-checked-hover-check: #d0edca;
+
   /* Marker Table */
   --table-odd-row: #fec6;
   --table-odd-hover: #ffeebb66;

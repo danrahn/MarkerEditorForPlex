@@ -42,27 +42,6 @@
     margin: 0;
   }
 
-  & input[type=checkbox] {
-    -webkit-appearance: none;
-    appearance: none;
-    padding: 6px;
-    margin: auto;
-    display: inline-block;
-    background-color: var(--settings-checkbox-background);
-  }
-
-  & input[type=checkbox]:checked {
-    background-color: var(--settings-checkbox-checked);
-  }
-
-  & input[type=checkbox]:hover {
-    background-color: var(--settings-checkbox-hover);
-  }
-
-  & input[type=checkbox]:checked:hover {
-    background-color: var(--settings-checkbox-checked-hover);
-  }
-
   & option {
     background-color: var(--theme-background);
   }
@@ -72,7 +51,7 @@
   }
 
   & .disabledSetting input[type=checkbox] {
-    background-color: var(--settings-checkbox-background) !important;
+    background-color: var(--custom-checkbox-background) !important;
     border-color: #53575a !important;
   }
 

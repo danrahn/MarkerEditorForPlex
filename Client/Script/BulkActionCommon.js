@@ -1,6 +1,7 @@
 import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
+import { customCheckbox } from './CommonUI.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
@@ -115,26 +116,18 @@ class BulkActionRow {
     createCheckbox(checked, mid, eid, attributes={}) {
         this.enabled = checked;
         const checkboxName = `mid_check_${mid || eid}`;
-        const checkbox = buildNode('input', {
-            type : 'checkbox',
-            name : checkboxName,
+        const checkbox = customCheckbox({
             id : checkboxName,
             mid : mid,
             eid : eid,
-        });
+            ...attributes,
+            checked : checked,
+        },
+        { change : this.onChecked },
+        {},
+        { thisArg : this });
 
-        if (checked) {
-            checkbox.setAttribute('checked', 'checked');
-        }
-
-        checkbox.addEventListener('change', this.onChecked.bind(this, checkbox));
-        for (const [key, value] of Object.entries(attributes)) {
-            checkbox.setAttribute(key, value);
-        }
-
-        return appendChildren(buildNode('div'),
-            buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${mid} Checkbox`),
-            checkbox);
+        return appendChildren(checkbox, buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${mid} Checkbox`));
     }
 }
 
@@ -237,8 +230,14 @@ class BulkActionTable {
             `BulkActionTable.buildTableHead: We should only be building a table header if the table doesn't already exist!`);
 
         this.#html = buildNode('table', { class : 'markerTable', id : 'bulkActionCustomizeTable' });
-        const mainCheckbox = buildNode('input', { type : 'checkbox', title : 'Select/unselect all', checked : 'checked' });
-        mainCheckbox.addEventListener('change', BulkActionCommon.selectUnselectAll.bind(this, mainCheckbox, 'bulkActionCustomizeTable'));
+        const mainCheckbox = customCheckbox({
+            title : 'Select/unselect all',
+            name : 'selAllCheck',
+            id : 'selAllCheck',
+            checked : 'checked'
+        },
+        { change : BulkActionCommon.selectUnselectAll });
+
         this.#html.appendChild(appendChildren(buildNode('thead'), TableElements.rawTableRow(mainCheckbox, ...columns)));
         this.#tbody = buildNode('tbody');
     }
@@ -304,16 +303,15 @@ class BulkActionTable {
             this.#multiSelectContainer.appendChild(label);
             let checked = true;
             for (const id of ['multiSelectSelect', 'multiSelectDeselect']) {
-                const checkbox = buildNode('input', {
-                    type : 'checkbox', id : id,
+                const checkbox = customCheckbox({
+                    id : id,
                     class : 'multiSelectCheck',
-                    title : id.substring(11) + ' Selected' });
-
-                checkbox.addEventListener('click', this.#onMultiSelectClick.bind(this, checkbox));
-                if (checked) {
-                    checkbox.checked = 'checked';
-                    checked = !checked;
-                }
+                    checked : checked,
+                },
+                { click : this.#onMultiSelectClick },
+                { title : id.substring(11) + ' Selected' },
+                { thisArg : this });
+                checked = !checked;
 
                 this.#multiSelectContainer.appendChild(checkbox);
 
@@ -346,6 +344,8 @@ class BulkActionTable {
                     newTop = bounds.y + overlay.scrollTop;
                 }
 
+                // Account for td padding from BulkActionOverlay.css
+                newTop += 3;
                 newTop += 'px';
                 this.#multiSelectContainer.style.top = newTop;
                 label.innerText = `[${this.#selected.size}]`;
@@ -453,44 +453,20 @@ class BulkActionCommon {
     }
 
     /**
-     * Create a marker table checkbox
-     * @param {boolean} checked
-     * @param {number} mid Marker id
-     * @param {number} eid Episode id
-     * @param {*} attributes Dictionary of extra attributes to apply to the checkbox.
-     * @param {(checkbox: HTMLInputElement) => void} callback
-     * @param {*} thisArg */
-    static checkbox(checked, mid, eid, attributes, callback, thisArg) {
-        const checkboxName = `mid_check_${mid}`;
-        const checkbox = buildNode('input', {
-            type : 'checkbox',
-            name : checkboxName,
-            id : checkboxName,
-            mid : mid,
-            eid : eid,
-        });
-
-        if (checked) {
-            checkbox.setAttribute('checked', 'checked');
-        }
-
-        checkbox.addEventListener('change', callback.bind(thisArg, checkbox));
-        for (const [key, value] of Object.entries(attributes)) {
-            checkbox.setAttribute(key, value);
-        }
-
-        return appendChildren(buildNode('div'),
-            buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${mid} Checkbox`),
-            checkbox);
-    }
-
-    /**
      * Bulk check/uncheck all items in the given table based on the checkbox state.
-     * @param {HTMLInputElement} checkbox
-     * @param {string} tableName */
-    static selectUnselectAll(checkbox, tableName) {
-        const table = $(`#${tableName}`);
-        if (!table) { return; } // How?
+     * @param {Event} e */
+    static selectUnselectAll(_e) {
+        const table = $(`#bulkActionCustomizeTable`);
+        if (!table) {
+            Log.assert(false, `How did we hit selectUnselectAll without a customization table?`);
+            return;
+        }
+
+        const checkbox = $('#selAllCheck', table);
+        if (!checkbox) {
+            Log.assert(false, `Why doesn't the selectUnselectAll checkbox exist if we're in selectUnselectAll?`);
+            return;
+        }
 
         $('tbody input[type=checkbox]', table).forEach(c => { c.checked = checkbox.checked; c.dispatchEvent(new Event('change')); });
     }

@@ -18,6 +18,8 @@
   /** Customization table row/data */
   & tr {
     cursor: default;
+    padding-top: 5px;
+    padding-bottom: 5px;
   }
 
   & tr.selectedRow {
@@ -26,6 +28,11 @@
 
   & tr:hover {
     background-color: var(--bulk-action-tr-hover);
+  }
+
+  & td {
+    padding-top: 3px;
+    padding-bottom: 3px;
   }
 
   & .bulkActionInactive {
@@ -87,6 +94,7 @@
 
   & #chapterIndexModeContainer {
     font-size: smaller;
+    display: inline-flex;
 
     & input[type=checkbox] {
       margin: 0;
@@ -94,7 +102,7 @@
     }
 
     & #chapterIndexModeHelp {
-      margin: 0 0 0 5px;
+      margin: 0 0 0 2px;
       padding: 0;
       vertical-align: text-bottom;
       opacity: 0.8;

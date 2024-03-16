@@ -3,6 +3,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { customCheckbox } from './CommonUI.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { flashBackground } from './AnimationHelpers.js';
 import { MarkerConflictResolution } from '/Shared/PlexTypes.js';
@@ -66,9 +67,11 @@ class SectionOptionsOverlay {
             buildNode('hr'),
             buildNode('span', {}, 'Export all markers to a database file that can be imported at a later date.'),
             buildNode('hr'),
-            appendChildren(buildNode('div'),
-                buildNode('label', { for : 'exportAll' }, 'Export all libraries '),
-                buildNode('input', { type : 'checkbox', id : 'exportAll' })),
+            appendChildren(buildNode('div', { class : 'inlineFlex' }),
+                buildNode('label', { for : 'exportAll' }, 'Export all libraries: '),
+                customCheckbox({ id : 'exportAll' })
+            ),
+            buildNode('br'),
             buildNode('br'),
             appendChildren(buildNode('div'),
                 ButtonCreator.textButton(
@@ -110,7 +113,7 @@ class SectionOptionsOverlay {
                 buildNode('input', { type : 'file', accept : '.db,application/x-sqlite3', id : 'databaseFile' })),
             appendChildren(buildNode('div'),
                 buildNode('label', { for : 'applyGlobally' }, 'Apply to all libraries: '),
-                buildNode('input', { type : 'checkbox', id : 'applyGlobally' })),
+                customCheckbox({ id : 'applyGlobally' })),
             appendChildren(buildNode('div'),
                 buildNode('label', { for : 'resolutionType' }, 'Conflict Resolution Type: '),
                 appendChildren(buildNode('select', { id : 'resolutionType' }),

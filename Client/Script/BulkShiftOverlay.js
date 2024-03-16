@@ -4,6 +4,7 @@ import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from
 import { BulkShiftStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { customCheckbox } from './CommonUI.js';
 import Icons from './Icons.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
@@ -106,15 +107,11 @@ class BulkShiftOverlay {
               keydown : timeInputShortcutHandler
             });
 
-        const separateShiftCheck = buildNode(
-            'input', {
-                type : 'checkbox',
-                name : 'separateShiftCheck',
-                id : 'separateShiftCheck'
-            });
-
-        separateShiftCheck.addEventListener('change', this.#onSeparateShiftChange.bind(this, separateShiftCheck));
-        separateShiftCheck.checked = endVisible;
+        const separateShiftCheckbox = customCheckbox(
+            { id : 'separateShiftCheck', checked : endVisible },
+            { change : this.#onSeparateShiftChange },
+            {},
+            { thisArg : this });
         appendChildren(container,
             title,
             buildNode('hr'),
@@ -124,8 +121,8 @@ class BulkShiftOverlay {
                 buildNode('label', { for : 'shiftEndTime', class : endVisible ? '' : 'hidden', id : 'shiftEndTimeLabel' }, 'End shift: '),
                 this.#endTimeInput),
             appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
-                buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately: '),
-                separateShiftCheck),
+                buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately:'),
+                separateShiftCheckbox),
             BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
             appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
                 ButtonCreator.fullButton('Apply',

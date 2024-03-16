@@ -16,6 +16,7 @@ import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import { BulkAddStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { customCheckbox } from './CommonUI.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import { MarkerType } from '/Shared/MarkerType.js';
@@ -144,11 +145,8 @@ class BulkAddOverlay {
                 buildNode('select', { id : 'addEndChapter' }, 0, { change : this.#onChapterChanged.bind(this) }),
                 buildNode('br'),
                 appendChildren(buildNode('span', { id : 'chapterIndexModeContainer' }),
-                    buildNode('label', { for : 'chapterIndexMode' }, 'Force index matching: '),
-                    buildNode('input',
-                        { type : 'checkbox', id : 'chapterIndexMode' },
-                        0,
-                        { change : this.#onChapterIndexModeChanged.bind(this) }),
+                    buildNode('label', { for : 'chapterIndexMode', id : 'chapterIndexModeLabel' }, 'Force index matching:'),
+                    customCheckbox({ id : 'chapterIndexMode' }, { change : this.#onChapterIndexModeChanged.bind(this) }),
                     appendChildren(buildNode('span', { id : 'chapterIndexModeHelp' }),
                         getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 15, height : 15 })
                     )

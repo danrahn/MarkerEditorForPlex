@@ -10,6 +10,7 @@ import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
+import { customCheckbox } from './CommonUI.js';
 import { CustomEvents } from './CustomEvents.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
@@ -436,15 +437,15 @@ class ClientSettingsUI {
             );
 
             if (!this.#settingsManager.useThumbnails()) {
-                this.#toggleSettingEnabled(collapsed);
-                this.#toggleSettingEnabled(autoload);
+                this.#toggleSettingEnabled($$('input[type=checkbox]', collapsed));
+                this.#toggleSettingEnabled($$('input[type=checkbox]', autoload));
             }
 
             options.push(collapsed);
             options.push(autoload);
             $$('input[type="checkbox"]', showThumbs).addEventListener('change', /**@this {ClientSettingsUI}*/ function() {
-                this.#toggleSettingEnabled($('#collapseThumbnailsSetting').parentNode);
-                this.#toggleSettingEnabled($('#autoloadThumbnailSetting').parentNode);
+                this.#toggleSettingEnabled($('#collapseThumbnailsSetting'));
+                this.#toggleSettingEnabled($('#autoloadThumbnailSetting'));
             }.bind(this));
 
         }
@@ -508,7 +509,7 @@ class ClientSettingsUI {
 
         options.forEach(option => container.appendChild(option));
 
-        appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
+        appendChildren(container.appendChild(buildNode('div', { class : 'formInput flexKeepRight' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'greenOnHover' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'redOnHover' })
@@ -687,15 +688,23 @@ class ClientSettingsUI {
     }
 
     /** Enables or disabled a dialog setting
-     * @param {HTMLElement} element The .formInput div that encapsulates a setting in the dialog. */
-    #toggleSettingEnabled(element) {
-        const check = $$('input[type="checkbox"]', element);
-        const currentlyDisabled = element.classList.contains('disabledSetting');
+     * @param {HTMLElement} check The .formInput div that encapsulates a setting in the dialog. */
+    #toggleSettingEnabled(check) {
+        let formInput = check;
+        while (formInput && !formInput.classList.contains('formInput')) {
+            formInput = formInput.parentElement;
+        }
+
+        if (!formInput) {
+            Log.warn(`Unable to update disabled styling of ${check.id} row.`);
+        }
+
+        const currentlyDisabled = formInput?.classList.contains('disabledSetting');
         if (currentlyDisabled) {
-            element.classList.remove('disabledSetting');
+            formInput?.classList.remove('disabledSetting');
             check.removeAttribute('disabled');
         } else {
-            element.classList.add('disabledSetting');
+            formInput?.classList.add('disabledSetting');
             check.setAttribute('disabled', '1');
         }
     }
@@ -709,16 +718,9 @@ class ClientSettingsUI {
      * @returns A new checkbox setting for the settings dialog.
      */
     #buildSettingCheckbox(label, name, checked, tooltip='') {
-        const labelNode = this.#buildLabelNode(label, name, tooltip);
-        const checkbox = buildNode('input', { type : 'checkbox', name : name, id : name });
-        if (checked) {
-            checkbox.setAttribute('checked', 'checked');
-        }
-
         return appendChildren(buildNode('div', { class : 'formInput' }),
-            labelNode,
-            checkbox
-        );
+            this.#buildLabelNode(label, name, tooltip),
+            customCheckbox({ id : name, checked : checked }));
     }
 
     /**
@@ -886,7 +888,6 @@ class SettingsManager {
         this.#themeStyles = [
             styleNode('theme'),
             styleNode('Overlay'),
-            styleNode('Settings'),
             styleNode('BulkActionOverlay'),
         ];
 

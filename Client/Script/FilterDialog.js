@@ -257,7 +257,7 @@ class FilterDialog {
             this.#sortOptions()
         );
 
-        appendChildren(container.appendChild(buildNode('div', { class : 'formInput' })),
+        appendChildren(container.appendChild(buildNode('div', { class : 'formInput flexKeepRight' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
                 ButtonCreator.textButton('Apply', this.#applyFilter.bind(this), { class : 'greenOnHover' }),
                 ButtonCreator.textButton('Reset', this.#resetFilter.bind(this), { id : 'resetFilter', class : 'yellowOnHover' }),

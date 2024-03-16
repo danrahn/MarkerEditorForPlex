@@ -69,6 +69,96 @@ hr {
 .formInput {
   padding: 5px;
   overflow: auto;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.flexKeepRight {
+  flex-direction: row-reverse;
+}
+
+.customCheckboxContainer {
+  display: inline-block;
+  margin: auto 3px auto 3px;
+  height: 13px;
+  width: 13px;
+}
+
+.customCheckboxInnerContainer {
+  display: block;
+  position: relative;
+}
+
+.customCheckboxInnerContainer input[type=checkbox] {
+  position: absolute;
+  opacity: 0;
+  height: 0;
+  width: 0;
+}
+
+.customCheckbox {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 13px;
+  width: 13px;
+  border-radius: 4px;
+  background-color: var(--custom-checkbox-background);
+  border: 1px solid #53575a;
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:disabled ~ .customCheckbox {
+  opacity: 0.5;
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:hover:not(:disabled) ~ .customCheckbox {
+  background-color: var(--custom-checkbox-hover);
+  border-color: #af4f00;
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:checked ~ .customCheckbox {
+  background-color: var(--custom-checkbox-checked);
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:checked:hover:not(:disabled) ~ .customCheckbox {
+  background-color: var(--custom-checkbox-checked-hover);
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:focus ~ .customCheckbox {
+  border-color: var(--theme-focus-color);
+}
+
+.customCheckbox:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:checked ~ .customCheckbox:after {
+  display: block;
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:checked:hover:not(:disabled) ~ .customCheckbox:after {
+  border-color: var(--custom-checkbox-checked-hover-check);
+}
+
+.customCheckboxInnerContainer input[type=checkbox]:hover:not(:checked):not(:disabled) ~ .customCheckbox:after {
+  display: block;
+  opacity: 0.4;
+  border-color: var(--custom-checkbox-checked);
+}
+
+.customCheckboxInnerContainer .customCheckbox:after {
+  left: 4px;
+  top: 2px;
+  width: 3px;
+  height: 6px;
+  border: solid var(--custom-checkbox-checked-check);
+  border-width: 0 2px 2px 0;
+  -webkit-transform: rotate(40deg);
+  -ms-transform: rotate(40deg);
+  transform: rotate(40deg);
 }
 
 .instructions {
@@ -684,6 +774,14 @@ input:focus-visible {
 .smallScreenMarkerCount {
   border-left: 1px solid var(--theme-border);
   padding-left: 3px;
+}
+
+.inlineFlex {
+  display: inline-flex;
+}
+
+.inlineFlex>label {
+  margin-right: 5px;
 }
 
 /* #616161C1 == rgba(97, 97, 97, 0.76)
