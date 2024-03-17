@@ -110,32 +110,33 @@ class PurgeOptions {
      * @param {PurgeActionInfo} ignoreConfirmInfo Properties for the 'Confirm ignore' button.
      * @param {PurgeNonActionInfo} ignoreCancelInfo Properties for the 'Cancel ignore' button.
      * @param {() => number[]} getMarkersFn Function that returns the list of marker ids this class applies to. */
-    addButtons(restoreInfo, ignoreInfo, ignoreConfirmInfo, ignoreCancelInfo, getMarkersFn) {
+    addButtons(restoreInfo, ignoreInfo, ignoreConfirmInfo, ignoreCancelInfo, getMarkersFn, dynamicButtons=false) {
         this.#restoreInfo = restoreInfo;
         this.#ignoreInfo = ignoreInfo;
         this.#ignoreConfirmInfo = ignoreConfirmInfo;
         this.#ignoreCancelInfo = ignoreCancelInfo;
         this.#getMarkersFn = getMarkersFn;
+        const buttonFn = dynamicButtons ? ButtonCreator.dynamicButton : ButtonCreator.fullButton;
         appendChildren(this.#parent,
-            ButtonCreator.fullButton(
+            buttonFn(
                 restoreInfo.text,
                 Icons.Confirm,
                 ThemeColors.Green,
                 this.#onRestore.bind(this),
                 { class : 'restoreButton' }),
-            ButtonCreator.fullButton(
+            buttonFn(
                 ignoreInfo.text,
                 Icons.Delete,
                 ThemeColors.Red,
                 this.#onIgnoreClick.bind(this),
                 { class : 'ignoreButton' }),
-            ButtonCreator.fullButton(
+            buttonFn(
                 ignoreConfirmInfo.text,
                 Icons.Confirm,
                 ThemeColors.Green,
                 this.#onIgnoreConfirm.bind(this),
                 { class : 'ignoreConfirm hidden' }),
-            ButtonCreator.fullButton(
+            buttonFn(
                 ignoreCancelInfo.text,
                 Icons.Cancel,
                 ThemeColors.Red,
@@ -220,6 +221,7 @@ class PurgeOptions {
         $$('.ignoreButton', this.#parent).classList.add('hidden');
         $$('.ignoreConfirm', this.#parent).classList.remove('hidden');
         $$('.ignoreCancel', this.#parent).classList.remove('hidden');
+        $$('.ignoreCancel', this.#parent).focus();
         this.#ignoreInfo.callback();
     }
 
@@ -329,7 +331,8 @@ class PurgeRow {
             new PurgeNonActionInfo('Ignore', this.#onIgnore.bind(this)),
             new PurgeActionInfo('Yes', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
             new PurgeNonActionInfo('No', this.#onIgnoreCancel.bind(this)),
-            /**@this {PurgeRow}*/function() { return [this.#markerAction.marker_id]; }.bind(this)
+            /**@this {PurgeRow}*/function() { return [this.#markerAction.marker_id]; }.bind(this),
+            true /*dynamicButtons*/
         );
 
         return holder;
