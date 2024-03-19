@@ -1,3 +1,6 @@
+import { join } from 'path';
+import { statSync } from 'fs';
+
 import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
@@ -219,6 +222,25 @@ FROM taggings
         }
 
         Log.info(`Verifying database ${databasePath}...`);
+        const dbInfo = statSync(databasePath, { throwIfNoEntry : false });
+        if (!dbInfo) {
+            throw new ServerError(`Database file "${databasePath}" could not be found.`);
+        }
+
+        if (dbInfo.isDirectory()) {
+            Log.warn(`Provided database path is a folder, expected the database itself. ` +
+                `Looking for database file in "${databasePath}"`);
+
+            const potentialDbPath = join(databasePath, 'com.plexapp.plugins.library.db');
+            const dbInfoMaybe = statSync(potentialDbPath, { throwIfNoEntry : false });
+            if (!dbInfoMaybe || !dbInfoMaybe.isFile()) {
+                Log.error(`Did not find expected database file in "${databasePath}", cannot continue`);
+                throw new ServerError('Database file not found.', 500);
+            }
+
+            databasePath = potentialDbPath;
+        }
+
         /** @type {SqliteDatabase} */
         let db;
         try {

@@ -77,7 +77,7 @@ async function FirstRunConfig(dataRoot) {
         }
 
         const defaultDb = join(dataPath ? config.dataPath : defaultPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
-        const database = await askUserPath('Plex database path', rl, defaultDb, dataPath !== null);
+        const database = await askUserPath('Plex database file (full path)', rl, defaultDb, dataPath !== null);
         if (database !== null) {
             config.database = database;
         }
