@@ -384,7 +384,11 @@ class MarkerEditorConfig extends ConfigBase {
                 return join(process.env.LOCALAPPDATA, 'Plex Media Server');
             }
             case 'darwin':
-                return '~/Library/Application Support/Plex Media Server';
+                if (process.env.HOME) {
+                    return join(process.env.HOME, 'Library/Application Support/Plex Media Server');
+                }
+
+                // __fallthrough
             case 'linux':
             case 'aix':
             case 'openbsd':
