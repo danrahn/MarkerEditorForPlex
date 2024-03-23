@@ -241,6 +241,8 @@ FROM taggings
             databasePath = potentialDbPath;
         }
 
+        Log.tmi(`File exists. Making sure it's a database.`);
+
         /** @type {SqliteDatabase} */
         let db;
         try {
@@ -252,6 +254,7 @@ FROM taggings
 
         Log.tmi(`Opened database, making sure it looks like the Plex database`);
         try {
+            Log.tmi(`Checking tags table for marker tag_type`);
             const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
             if (!row) {
                 // What's the path forward if/when Plex adds custom extensions to the `taggings` table?
@@ -267,6 +270,8 @@ FROM taggings
                 Log.error(`SQLite and the database location.`);
                 throw new ServerError(`Plex database must contain at least one marker.`, 500);
             }
+
+            Log.tmi(`Checking taggings table for extra_data to determine PMS version.`);
 
             // Need to check extra_data of a marker to determine whether we should use plain text or JSON strings
             // for markers' extra_data.
@@ -287,6 +292,10 @@ FROM taggings
             return Instance;
         } catch (err) {
             Log.error(`Are you sure "${databasePath}" is the Plex database, and has at least one existing marker?`);
+            if (err instanceof Error && err.message?.startsWith('SQLITE_CANTOPEN')) {
+                Log.error(`\tNOTE: This might be caused by attempting to open a database stored on a network drive.`);
+            }
+
             throw ServerError.FromDbError(err);
         }
     }
