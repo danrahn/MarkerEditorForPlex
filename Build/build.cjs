@@ -121,10 +121,41 @@ async function toExe() {
     const arch = getArch();
 
     let nodeVersion = fallbackNodeVersion;
+
+    // nexe doesn't appear to take into account that the currently cached build output is a different
+    // target architecture. To get around that, ignore the standard 'out' folder and check for
+    // architecture-specific output folders. If it doesn't exist, do a full build and rename the
+    // output to an architecture-specific folder, and link that to the standard 'out' folder. This
+    // relies on internal nexe behavior, but since it's dev-only, nothing user-facing should break if
+    // nexe changes, this section will just have to be updated.
+    const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
+    const oldOut = join(temp, nodeVersion, 'out');
+
     if (args.includes('version')) {
         const idx = args.indexOf('version');
         if (idx < args.length - 1) {
             nodeVersion = args[idx + 1];
+        }
+    } else if (args.includes('clean')) {
+        const tryRm = out => {
+            try {
+                fs.rmSync(out, { recursive : true, force : true });
+            } catch (ex) {
+                console.warn(`\tUnable to clear output ${out}`);
+            }
+        };
+
+        console.log('\nCleaning existing cached output');
+        if (fs.existsSync(oldOut)) {
+            console.log('\tClearing old output directory');
+            tryRm(oldOut);
+        }
+
+        for (const cachedOut of ['arm64', 'ia32', 'x64']) {
+            if (fs.existsSync(oldOut + cachedOut)) {
+                console.log(`\tClearing out ${cachedOut} cache`);
+                tryRm(oldOut + cachedOut);
+            }
         }
     } else {
         // Find the latest LTS version
@@ -142,14 +173,6 @@ async function toExe() {
 
     console.log(`Attempting to build ${platform}-${arch}-${nodeVersion}`);
 
-    // nexe doesn't appear to take into account that the currently cached build output is a different
-    // target architecture. To get around that, ignore the standard 'out' folder and check for
-    // architecture-specific output folders. If it doesn't exist, do a full build and rename the
-    // output to an architecture-specific folder, and link that to the standard 'out' folder. This
-    // relies on internal nexe behavior, but since it's dev-only, nothing user-facing should break if
-    // nexe changes, this section will just have to be updated.
-    const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
-    const oldOut = join(temp, nodeVersion, 'out');
     const archOut = oldOut + arch;
     const hadCache = fs.existsSync(archOut);
     if (hadCache) {
@@ -189,6 +212,26 @@ async function toExe() {
             resolve(__dirname, '../dist/built.cjs'),
         ],
         patches : [
+            async (compiler, next) => {
+                const isWin = process.platform === 'win32';
+                const bin = isWin ? '.\\\\MarkerEditor.exe' : './MarkerEditor';
+                await compiler.replaceInFileAsync(
+                    'src/node.cc',
+                    /\bNODE_VERSION\b/,
+                    `"Marker Editor: v${version}\\n` +
+                     `Node.js:       " NODE_VERSION ` +
+                    `"\\n\\nUse '--' to pass arguments directly to Marker Editor (e.g. ${bin} -- -v)\\n"`
+                );
+
+                await compiler.replaceInFileAsync(
+                    'lib/internal/main/print_help.js',
+                    /^ {4}'Usage: node/,
+                    `    'NOTE: Printing Node help use \\'--\\' to pass arguments directly to Marker Editor\\n` +
+                    `           e.g. ${bin} -- --help\\n\\n' +\n    'Usage: node`
+                );
+
+                return next();
+            },
             async (compiler, next) => {
                 if (process.platform !== 'win32') {
                     return next();

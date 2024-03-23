@@ -1,5 +1,5 @@
 /** External dependencies */
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createServer } from 'http';
 import { join } from 'path';
 import Open from 'open';
@@ -25,6 +25,14 @@ import ServerCommands from './ServerCommands.js';
 import ServerError from './ServerError.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
 
+/**
+ * @typedef {Object} CLIArguments
+ * @property {boolean} isTest Indicates this is a test run
+ * @property {string?} configOverride The path to a config file to override the existing one
+ * @property {boolean} version The user passed `-v`/`--version` to the command line
+ * @property {boolean} help The user passed `-h`/`--help`/`--?` to the command line
+ */
+
 const Log = new ContextualLog('ServerCore');
 
 /**
@@ -38,14 +46,18 @@ let IsTest = false;
 /** Initializes and starts the server */
 async function run() {
     setupTerminateHandlers();
-    const testData = checkTestData();
+    const argInfo = checkArgs();
+    if (shouldExitEarly(argInfo)) {
+        process.exit(0);
+    }
+
     // In docker, the location of the config and backup data files are not the project root.
     const dataRoot = process.env.IS_DOCKER ? '/Data' : ProjectRoot();
-    if (!testData.isTest) {
+    if (!argInfo.isTest) {
         await FirstRunConfig(dataRoot);
     }
 
-    const config = MarkerEditorConfig.Create(testData, dataRoot);
+    const config = MarkerEditorConfig.Create(argInfo, dataRoot);
 
     // Set up the database, and make sure it's the right one.
     const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
@@ -418,34 +430,87 @@ async function handlePost(req, res) {
 }
 
 /**
- * Returns test override data specified in the command line, if any.
- * @returns {{isTest: boolean, configOverride : string?}} */
-function checkTestData() {
-    const testData = {
+ * Parse command line arguments.
+ * @returns {CLIArguments} */
+function checkArgs() {
+    const argInfo = {
         isTest : false,
         configOverride : null,
+        version : false,
+        help : false,
     };
 
-    if (process.argv.indexOf('--test') !== -1) {
-        testData.isTest = true;
+    const argsLower = process.argv.map(x => x.toLowerCase());
+    if (argsLower.includes('-v') || argsLower.includes('--version')) {
+        argInfo.version = true;
+    }
+
+    if (argsLower.includes('-h') || argsLower.includes('--help') || argsLower.includes('-?') || argsLower.includes('/?')) {
+        argInfo.help = true;
+    }
+
+    if (argsLower.includes('--test')) {
+        argInfo.isTest = true;
         IsTest = true;
 
         // Tests default to testConfig.json, but it can be overridden below
-        testData.configOverride = 'testConfig.json';
+        argInfo.configOverride = 'testConfig.json';
     }
 
-    const configIndex = process.argv.indexOf('--config_override');
-    if (configIndex !== -1) {
-        if (process.argv.length <= configIndex - 1) {
+    const coi = argsLower.indexOf('--config_override');
+    if (coi !== -1) {
+        if (process.argv.length <= coi - 1) {
             Log.critical('Invalid config override file detected, aborting...');
             // We're very early into boot. Just get out of here.
             process.exit(1);
         }
 
-        testData.configOverride = process.argv[configIndex + 1];
+        argInfo.configOverride = process.argv[coi + 1];
     }
 
-    return testData;
+    return argInfo;
+}
+
+/**
+ * Process command line arguments, spits out info if needed, and returns
+ * whether we should exit the program early.
+ * @param {CLIArguments} args */
+function shouldExitEarly(args) {
+    let version;
+    if (args.version || args.help) {
+        const packagePath = join(ProjectRoot(), 'package.json');
+        if (existsSync(packagePath)) {
+            try {
+                version = JSON.parse(readFileSync(packagePath).toString()).version;
+                console.log(`Marker Editor version ${version}`);
+            } catch (err) {
+                console.log('Error retrieving version info.');
+            }
+        } else {
+            console.log('Error retrieving version info.');
+        }
+
+        if (args.version) {
+            return true;
+        }
+    }
+
+    if (args.help) {
+        const isBin = process.argv[1]?.includes('built.cjs');
+        const isWin = process.platform === 'win32';
+        const invoke = (isBin ? (isWin ? '.\\MarkerEditor.exe' : './MarkerEditor') : 'node app.js');
+        console.log(`Usage: ${invoke} [options]`);
+        console.log();
+        console.log(`  OPTIONS`);
+        console.log(`    -v | --version              Print out the current version of MarkerEditor.`);
+        console.log(`    -h | --help                 Print out this help text.`);
+        console.log(`    --config_override [config]  Use the given config file instead of the standard config.json`);
+        console.log(`    --test                      Indicates we're launching MarkerEditor for tests. Do not set manually.`);
+        console.log('\n    For setup and usage instructions, visit https://github.com/danrahn/MarkerEditorForPlex/wiki.');
+        return true;
+    }
+
+    return false;
 }
 
 export { run };
