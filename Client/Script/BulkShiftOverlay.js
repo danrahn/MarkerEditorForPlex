@@ -1,6 +1,7 @@
 import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
+import { Attributes } from './DataAttributes.js';
 import { BulkShiftStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -244,7 +245,7 @@ class BulkShiftOverlay {
             message = 'The shift could not be applied, please try again later.';
         }
 
-        const attributes = { id : 'resolveShiftMessage', resolveMessage : messageType };
+        const attributes = { id : 'resolveShiftMessage', [Attributes.BulkShiftResolveMessage] : messageType };
         let node;
         if (addForceButton) {
             node = appendChildren(buildNode('div', attributes),
@@ -284,7 +285,7 @@ class BulkShiftOverlay {
             return false;
         }
 
-        return message.getAttribute('resolveMessage');
+        return message.getAttribute(Attributes.BulkShiftResolveMessage);
     }
 
     /**
@@ -651,7 +652,7 @@ class BulkShiftRow extends BulkActionRow {
     /** Build and return the marker row. */
     build() {
         const row = this.buildRow(
-            this.createCheckbox(!this.#linked, this.#marker.id, this.#marker.parentId, { linked : this.#linked ? 1 : 0 }),
+            this.createCheckbox(!this.#linked, this.#marker.id),
             `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
             TableElements.timeData(this.#marker.start),
             TableElements.timeData(this.#marker.end),

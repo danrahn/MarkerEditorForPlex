@@ -103,8 +103,8 @@ class TableElements {
     /**
      * Create a table row that spans the entire length of the table.
      * @param {string|HTMLElement} column The content of the column. */
-    static spanningTableRow(content) {
-        return appendChildren(buildNode('tr'), buildNode('td', { colspan : 5, class : 'spanningTableRow' }, content));
+    static spanningTableRow(content, attributes={}) {
+        return appendChildren(buildNode('tr', attributes), buildNode('td', { colspan : 5, class : 'spanningTableRow' }, content));
     }
 
     /**

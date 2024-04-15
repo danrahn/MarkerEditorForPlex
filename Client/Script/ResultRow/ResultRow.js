@@ -1,6 +1,7 @@
-import { $$, appendChildren, buildNode, clickOnEnterCallback, plural } from '../Common.js';
+import { $, $$, appendChildren, buildNode, clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
+import { Attributes } from '../DataAttributes.js';
 import ButtonCreator from '../ButtonCreator.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { FilterDialog } from '../FilterDialog.js';
@@ -14,6 +15,8 @@ import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
 
+
+/** @typedef {{ scrollTo?: HTMLElement, focusTo?: HTMLElement}} FocusNext */
 
 const Log = new ContextualLog('ResultRow');
 
@@ -100,7 +103,7 @@ export class ResultRow {
     mediaItem() { return this.#mediaItem; }
 
     /** @returns The number of purged markers associated with this row. */
-    getPurgeCount() { return PurgedMarkers.getPurgeCount(this.#mediaItem.metadataId); }
+    getPurgeCount() { return PurgedMarkers.getPurgeCount(this.#mediaItem?.metadataId); }
 
     /** @returns Whether this media item has any purged markers. */
     hasPurgedMarkers() { return this.getPurgeCount() > 0; }
@@ -194,31 +197,157 @@ export class ResultRow {
     }
 
     /**
-     * Handles basic arrow navigation for a show/episode (i.e. non-"base" item) result row.
+     * Handles basic arrow navigation for all result rows and headers that aren't  "base" items.
+     * Movie and Episode rows have their own similar, but more complex logic since marker tables
+     * are also thrown into the mix.
      * @param {KeyboardEvent} e */
     onRowKeydown(e) {
         if (this.ignoreRowClick(e)) {
             return;
         }
 
-        if (e.ctrlKey || e.altKey || e.shiftKey) {
+        if (e.altKey) {
             return;
         }
 
+        /** @type {HTMLElement} */
+        const thisRow = this.html();
+        const thisTabbable = thisRow.classList.contains('tabbableRow');
+
         switch (e.key) {
             case 'Enter':
-                return e.target.click();
+                if (!e.ctrlKey && thisTabbable) {
+                    return thisRow.click();
+                }
+                break;
             case 'ArrowUp':
             case 'ArrowDown':
             {
-                const sibling = e.key === 'ArrowUp' ? e.target.previousSibling : e.target.nextSibling;
-                if (sibling) {
-                    e.preventDefault();
-                    sibling.focus();
+                this.#handleArrowUpDown(e);
+                break;
+            }
+            case 'ArrowLeft':
+            case 'ArrowRight':
+            {
+                if (thisTabbable || e.shiftKey) {
+                    return;
                 }
+
+                this.#scrollAndFocus(e, thisRow, this.#getNextRowNavElement(e, e.key === 'ArrowLeft', e.target));
                 break;
             }
         }
+    }
+
+    /**
+     * Select the next focus target, if any, based on an up or down arrow keypress.
+     * @param {KeyboardEvent} e */
+    #handleArrowUpDown(e) {
+        const thisRow = this.html();
+        const thisTabbable = thisRow.classList.contains('tabbableRow');
+        const up = e.key === 'ArrowUp';
+        /** @type {HTMLElement} */
+        const sibling = up ? thisRow.previousSibling : thisRow.nextSibling;
+        /** @type {FocusNext} */
+        const focusTarget = { scrollTo : null, focusTo : null };
+
+        // Ctrl+Click is limited to tabbable rows.
+        // Ctrl+Shift+Click goes all the way to the first focusable item.
+        if (e.ctrlKey && (e.shiftKey || (up && thisTabbable && !sibling.classList.contains('tabbableRow')))) {
+            this.getFirstNavElement(!up, up ? sibling.parentElement.firstChild : sibling.parentElement.lastChild, focusTarget);
+        } else if (e.ctrlKey) {
+            this.#getNextTabbableRow(up, focusTarget);
+        } else if (!e.shiftKey) {
+            this.getFirstNavElement(up, sibling, focusTarget);
+        }
+
+        this.#scrollAndFocus(e, focusTarget.scrollTo, focusTarget.focusTo);
+    }
+
+    /**
+     * Retrieve the nearest tabbable row from this row.
+     * @param {boolean} up Whether we're navigating up or down.
+     * @param {FocusNext} focusResult */
+    #getNextTabbableRow(up, focusResult) {
+        const tabbableRows = $('.tabbableRow', this.html().parentElement);
+        const nextRow = (up || !this.html().classList.contains('tabbableRow')) ? tabbableRows[0] : tabbableRows[tabbableRows.length - 1];
+        focusResult.scrollTo = nextRow;
+        focusResult.focusTo = nextRow;
+    }
+
+    /**
+     * Find the closest nav target to the given start, either a tabbable row or a navigable input.
+     * Public, as it's used by BaseItemResultRow, but should be treated as protected.
+     * @param {boolean} up
+     * @param {HTMLElement} start
+     * @param {FocusNext} focusResult */
+    getFirstNavElement(up, start, focusResult) {
+        let row = start;
+        while (row) {
+            const tabbable = row.classList.contains('tabbableRow') ? row : $$('.tabbableRow', row);
+            if (tabbable) {
+                focusResult.scrollTo = row;
+                focusResult.focusTo = tabbable;
+                return;
+            }
+
+            const navEle = this.#getNavElements(row)[0];
+            if (navEle) {
+                focusResult.scrollTo = row;
+                focusResult.focusTo = navEle;
+                return;
+            }
+
+            row = up ? row.previousSibling : row.nextSibling;
+        }
+    }
+
+    /**
+     * Return all valid navigation targets inside of the  given element.
+     * @param {HTMLElement} container */
+    #getNavElements(container) {
+        return Array.from($(`[${Attributes.TableNav}]`, container)).filter(navItem => {
+            if (navItem.disabled) {
+                return false;
+            }
+
+            let parent = navItem;
+            while (parent) {
+                if (parent.classList.contains('hidden') || parent.classList.contains('disabled')) {
+                    return false;
+                }
+
+                parent = parent.parentElement;
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Scroll the given scroll target into view and set
+     * focus to the given element, if focusTarget is valid.
+     * @param {KeyboardEvent} e The initiating event.
+     * @param {HTMLElement} scrollTarget The element to scroll into view.
+     * @param {HTMLElement} focusTarget The element to set focus to. */
+    #scrollAndFocus(e, scrollTarget, focusTarget) {
+        if (focusTarget) {
+            scrollAndFocus(e, scrollTarget, focusTarget);
+        }
+    }
+
+    /**
+     * Find the next item to set focus to in this row.
+     * @param {KeyboardEvent} e The initiating event.
+     * @param {boolean} left Whether we're moving left or right.
+     * @param {HTMLElement} currentFocus The element that currently has focus. */
+    #getNextRowNavElement(e, left, currentFocus) {
+        const navItems = this.#getNavElements(this.html());
+        if (e.ctrlKey) {
+            return navItems[left ? 0 : navItems.length - 1];
+        }
+
+        return navItems[Math.max(0, Math.min(navItems.indexOf(currentFocus) + (left ? -1 : 1), navItems.length - 1))];
     }
 
     /**
@@ -229,7 +358,7 @@ export class ResultRow {
     addBackButton(row, buttonText, callback) {
         row.classList.add('selected');
         appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
-            ButtonCreator.fullButton(buttonText, Icons.Back, ThemeColors.Primary, callback));
+            ButtonCreator.fullButton(buttonText, Icons.Back, ThemeColors.Primary, callback, { [Attributes.TableNav] : 'back' }));
     }
 
     /**

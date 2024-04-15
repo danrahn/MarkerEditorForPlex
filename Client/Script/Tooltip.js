@@ -1,4 +1,5 @@
 import { $, buildNode } from './Common.js';
+import { Attributes } from './DataAttributes.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 const Log = new ContextualLog('Tooltip');
@@ -57,7 +58,7 @@ export default class Tooltip {
     static setTooltip(element, tooltip, delay=250) {
         const hasTT = element.hasAttribute('tt');
         this.setText(element, tooltip);
-        element.setAttribute('ttDelay', delay);
+        element.setAttribute(Attributes.TooltipDelay, delay);
         if (!hasTT) {
             element.addEventListener('mousemove', Tooltip.#onMouseMove);
             element.addEventListener('mouseleave', Tooltip.dismiss);
@@ -70,7 +71,7 @@ export default class Tooltip {
      * Handles tooltip positioning when the mouse location moves
      * @param {MouseEvent} e */
     static #onMouseMove(e) {
-        Tooltip.showTooltip(e, this.getAttribute('tt'), this.getAttribute('ttDelay'));
+        Tooltip.showTooltip(e, this.getAttribute(Attributes.TooltipText), this.getAttribute(Attributes.TooltipDelay));
     }
 
     /**
@@ -97,8 +98,8 @@ export default class Tooltip {
         };
 
         // Focus delay is a bit more than the default value of 250ms
-        const delay = Math.max(500, parseInt(this.getAttribute('ttDelay')));
-        Tooltip.showTooltip(fakeE, this.getAttribute('tt'), delay);
+        const delay = Math.max(500, parseInt(this.getAttribute(Attributes.TooltipDelay)));
+        Tooltip.showTooltip(fakeE, this.getAttribute(Attributes.TooltipText), delay);
     }
 
     /**
@@ -108,7 +109,7 @@ export default class Tooltip {
      * @param {string|HTMLElement} tooltip */
     static setText(element, tooltip) {
         const asString = (typeof tooltip === 'string' ? tooltip : tooltip.outerHTML);
-        element.setAttribute('tt', asString);
+        element.setAttribute(Attributes.TooltipText, asString);
         if (Tooltip.#showingTooltip && Tooltip.#ttElement === element) {
             $('#tooltip').innerHTML = tooltip;
         }
@@ -129,7 +130,7 @@ export default class Tooltip {
      * @param {HTMLElement} element
      */
     static getText(element) {
-        return element.getAttribute('tt') || '';
+        return element.getAttribute(Attributes.TooltipText) || '';
     }
 
     /**
@@ -187,14 +188,14 @@ export default class Tooltip {
         }
 
         Tooltip.#ttElement = e.target;
-        while (Tooltip.#ttElement && !Tooltip.#ttElement.hasAttribute('tt')) {
+        while (Tooltip.#ttElement && !Tooltip.#ttElement.hasAttribute(Attributes.TooltipText)) {
             Tooltip.#ttElement = Tooltip.#ttElement.parentElement;
         }
 
         Tooltip.#showingTooltip = true;
         const tooltip = $('#tooltip');
 
-        const ttUpdated = Tooltip.#ttElement && Tooltip.#ttElement.getAttribute('tt');
+        const ttUpdated = Tooltip.#ttElement && Tooltip.#ttElement.getAttribute(Attributes.TooltipText);
         if (ttUpdated) {
             tooltip.innerHTML = ttUpdated;
         } else {

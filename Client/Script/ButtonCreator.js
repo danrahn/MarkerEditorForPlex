@@ -2,6 +2,7 @@ import { $, $$, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
+import { Attributes } from './DataAttributes.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import { ThemeColors } from './ThemeColors.js';
@@ -29,7 +30,7 @@ class ButtonCreator {
                 buttonText.classList[small ? 'add' : 'remove']('hidden');
 
                 // Don't override the tooltip if it was user-set.
-                if (!button.hasAttribute('data-default-tooltip')) {
+                if (!button.hasAttribute(Attributes.UseDefaultTooltip)) {
                     return;
                 }
 
@@ -73,7 +74,7 @@ class ButtonCreator {
 
         const button = ButtonCreator.fullButton(text, icon, color, clickHandler, attributes);
         if (!attributes.tooltip) {
-            button.setAttribute('data-default-tooltip', 1);
+            button.setAttribute(Attributes.UseDefaultTooltip, 1);
         }
 
         if (isSmallScreen()) {
@@ -147,6 +148,18 @@ class ButtonCreator {
         }
 
         svg.replaceWith(getSvgIcon(newIcon, theme));
+    }
+
+    /**
+     * Return the button, or undefined if the element is not part of a button.
+     * @param {HTMLElement} element */
+    static getButton(element) {
+        let current = element;
+        while (current && !current.classList.contains('button')) {
+            current = current.parentElement;
+        }
+
+        return current;
     }
 
     /**

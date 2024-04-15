@@ -2,6 +2,7 @@ import { ResultRow } from './ResultRow.js';
 
 import { appendChildren, buildNode } from '../Common.js';
 import { FilterDialog, FilterSettings } from '../FilterDialog.js';
+import { Attributes } from '../DataAttributes.js';
 import ButtonCreator from '../ButtonCreator.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -40,12 +41,12 @@ export class SectionOptionsResultRow extends ResultRow {
         }
 
         const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
-        const row = buildNode('div', { class : 'sectionOptionsResultRow' });
+        const row = buildNode('div', { class : 'sectionOptionsResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
         this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
             Icons.Filter,
             ThemeColors.Primary,
             function (_e, self) { new FilterDialog(PlexClientState.activeSectionType()).show(self); },
-            { class : 'filterBtn', style : 'margin-right: 10px' });
+            { class : 'filterBtn', style : 'margin-right: 10px', [Attributes.TableNav] : 'sort-filter' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
 
@@ -54,7 +55,7 @@ export class SectionOptionsResultRow extends ResultRow {
             Icons.Settings,
             ThemeColors.Primary,
             function (_e, self) { new SectionOptionsOverlay().show(self); },
-            { class : 'moreSectionOptionsBtn' });
+            { class : 'moreSectionOptionsBtn', [Attributes.TableNav] : 'more-options' });
 
         appendChildren(row,
             titleNode,

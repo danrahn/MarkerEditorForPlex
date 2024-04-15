@@ -99,6 +99,7 @@ class PlexClientStateManager {
       * @param {number} section The section to make active.
       * @param {number} sectionType The SectionType of the section. */
     async setSection(section, sectionType) {
+        section = +section;
         this.#activeSection = isNaN(section) ? -1 : section;
         this.#activeSectionType = sectionType;
         if (this.#activeSection !== -1) {

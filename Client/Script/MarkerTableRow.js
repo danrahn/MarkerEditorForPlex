@@ -3,6 +3,7 @@ import { $$, appendChildren, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, flashBackground } from './AnimationHelpers.js';
+import { Attributes, TableNavDelete } from './DataAttributes.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -128,7 +129,7 @@ class ExistingMarkerRow extends MarkerRow {
     /**
      * Builds the marker row based on the existing marker values. */
     buildRow() {
-        const tr = buildNode('tr');
+        const tr = buildNode('tr', { class : 'markerRow' });
 
         const td = (data, properties={}) => buildNode('td', properties, data);
 
@@ -172,9 +173,10 @@ class ExistingMarkerRow extends MarkerRow {
      * @returns {HTMLElement} */
     #buildOptionButtons() {
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.dynamicButton('Edit', Icons.Edit, ThemeColors.Primary, e => this.editor().onEdit(e.shiftKey)),
+            ButtonCreator.dynamicButton('Edit', Icons.Edit, ThemeColors.Primary,
+                e => this.editor().onEdit(e.shiftKey), { [Attributes.TableNav] : 'edit' }),
             ButtonCreator.dynamicButton('Delete', Icons.Delete, ThemeColors.Red,
-                this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn' })
+                this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn', [Attributes.TableNav] : TableNavDelete })
         );
     }
 
@@ -186,23 +188,28 @@ class ExistingMarkerRow extends MarkerRow {
         Log.assert(options.childNodes.length === 1, `Inline marker delete only expects a single child in the Options td.`);
 
         await Promise.all([
-            animateOpacity(dateAdded.children[0], 1, 0, { duration : 100, noReset : true }),
-            animateOpacity(options.children[0], 1, 0, { duration : 100, noReset : true }),
+            animateOpacity(dateAdded.children[0], 1, 0, { duration : 100, noReset : true },
+                () => dateAdded.children[0].classList.add('hidden')),
+            animateOpacity(options.children[0], 1, 0, { duration : 100, noReset : true },
+                () => options.children[0].classList.add('hidden')),
         ]);
 
-        dateAdded.children[0].style.display = 'none';
         const text = buildNode('span', { class : 'inlineMarkerDeleteConfirm' }, 'Are you sure? ');
         dateAdded.appendChild(text);
 
-        options.children[0].style.display = 'none';
-        const cancel = ButtonCreator.dynamicButton('No', Icons.Cancel, ThemeColors.Red, this.#onMarkerDeleteCancel.bind(this));
+        const cancel = ButtonCreator.dynamicButton(
+            'No',
+            Icons.Cancel,
+            ThemeColors.Red,
+            this.#onMarkerDeleteCancel.bind(this),
+            { [Attributes.TableNav] : 'cancel-del' });
         const delOptions = appendChildren(
             buildNode('div', { class : 'markerOptionsHolder inlineMarkerDeleteButtons' }),
             ButtonCreator.dynamicButton('Yes',
                 Icons.Confirm,
                 ThemeColors.Green,
                 this.#onMarkerDelete.bind(this),
-                { class : 'confirmDelete' }
+                { class : 'confirmDelete', [Attributes.TableNav] : 'confirm-del' }
             ),
             cancel,
         );
@@ -250,9 +257,9 @@ class ExistingMarkerRow extends MarkerRow {
         ]);
 
         dateAdded.removeChild(confText);
-        dateAdded.children[0].style.removeProperty('display');
+        dateAdded.children[0].classList.remove('hidden');
         options.removeChild(confButtons);
-        options.children[0].style.removeProperty('display');
+        options.children[0].classList.remove('hidden');
         $$('.deleteMarkerBtn', options)?.focus();
 
         return Promise.all([
@@ -280,7 +287,7 @@ class NewMarkerRow extends MarkerRow {
     buildRow() {
         const td = (data, properties={}) => buildNode('td', properties, data);
 
-        this.html = appendChildren(buildNode('tr'),
+        this.html = appendChildren(buildNode('tr', { class : 'markerRow' }),
             td('-', { class : 'topAlignedPlainText' }),
             td('-'),
             td('-'),

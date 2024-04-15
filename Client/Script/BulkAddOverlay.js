@@ -13,6 +13,7 @@ import {
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
+import { Attributes } from './DataAttributes.js';
 import { BulkAddStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -274,8 +275,8 @@ class BulkAddOverlay {
 
         const startChapter = $('#addStartChapter');
         const endChapter = $('#addEndChapter');
-        startChapter.setAttribute('data-switching-episode', 1); // Don't fire a bunch of change events when reorganizing.
-        endChapter.setAttribute('data-switching-episode', 1);
+        startChapter.setAttribute(Attributes.BulkAddUpdating, 1); // Don't fire a bunch of change events when reorganizing.
+        endChapter.setAttribute(Attributes.BulkAddUpdating, 1);
         clearEle(startChapter);
         clearEle(endChapter);
         const displayTitle = (name, index, timestamp) => `${name || 'Chapter ' + (parseInt(index) + 1)} (${msToHms(timestamp)})`;
@@ -290,8 +291,8 @@ class BulkAddOverlay {
         startChapter.title = startChapter.options[0].innerText;
         endChapter.title = endChapter.options[0].innerText;
 
-        startChapter.removeAttribute('data-switching-episode');
-        endChapter.removeAttribute('data-switching-episode');
+        startChapter.removeAttribute(Attributes.BulkAddUpdating);
+        endChapter.removeAttribute(Attributes.BulkAddUpdating);
 
         this.#updateTableStats();
     }
@@ -300,7 +301,7 @@ class BulkAddOverlay {
      * Update the customization table when the start/end chapter baseline is changed.
      * @param {Event} e */
     #onChapterChanged(e) {
-        if (e.target.getAttribute('data-switching-episode')) {
+        if (e.target.getAttribute(Attributes.BulkAddUpdating)) {
             // We're repopulating the chapter list due to a baseline episode change. Don't do anything yet.
             return;
         }
@@ -712,7 +713,7 @@ class BulkAddRow extends BulkActionRow {
         const startTime = this.#parent.startTime();
         const endTime = this.#parent.endTime();
         this.buildRow(
-            this.createCheckbox(true, null /*mid*/, this.#episodeInfo.metadataId),
+            this.createCheckbox(true, this.#episodeInfo.metadataId),
             `S${pad0(this.#episodeInfo.seasonIndex, 2)}E${pad0(this.#episodeInfo.index, 2)}`,
             this.#episodeInfo.title,
             isNaN(startTime) ? '-' : TableElements.timeData(endTime),

@@ -380,6 +380,24 @@ function waitFor(condition, timeout) {
     });
 }
 
+/**
+ * Stop the current event from propagating and smoothly scroll a specific element into view, setting focus to it or sub-node.
+ * @param {Event} e The initiating event.
+ * @param {HTMLElement} scrollTarget The block to scroll into view
+ * @param {HTMLElement?} focusTarget The element within scrollTarget to focus on, or scrollTarget if not provided */
+function scrollAndFocus(e, scrollTarget, focusTarget) {
+    // Stop propagation in addition to preventDefault, since we don't want any
+    // subsequent events firing and causing potentially unexpected side-effects,
+    // like a keyboard event preventing tooltips from displaying after arrow navigation.
+    e?.stopPropagation();
+    e?.preventDefault();
+    const focusTo = focusTarget || scrollTarget;
+    if (focusTo) {
+        focusTo.focus({ preventScroll : true });
+        scrollTarget.scrollIntoView({ behavior : 'smooth', block : 'nearest' });
+    }
+}
+
 export {
     $,
     $$,
@@ -393,6 +411,7 @@ export {
     plural,
     realMs,
     roundDelta,
+    scrollAndFocus,
     timeInputShortcutHandler,
     timeToMs,
     waitFor,

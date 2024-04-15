@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode } from './Common.js';
+import { $, $$, appendChildren, buildNode, clickOnEnterCallback, scrollAndFocus } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { customCheckbox } from './CommonUI.js';
@@ -59,7 +59,7 @@ class BulkActionRow {
         }
 
         // Otherwise, hand it off to the parent for multi-select handling
-        this.parent.onRowClicked(e, this);
+        this.parent.onRowClicked(e, this, false /*fFromKeyboard*/);
     }
 
     /**
@@ -102,6 +102,37 @@ class BulkActionRow {
         selected ? this.row.classList.add('selectedRow') : this.row.classList.remove('selectedRow');
     }
 
+    /**
+     * @param {HTMLInputElement} checkbox
+     * @param {KeyboardEvent} e */
+    onCheckboxKeydown(checkbox, e) {
+        switch (e.key) {
+            case 'Enter':
+                if (!e.ctrlKey && !e.shiftKey && !e.altKey && (e.target instanceof HTMLInputElement)) {
+                    checkbox.checked = !checkbox.checked;
+                    this.update();
+                }
+                break;
+            case 's':
+                this.parent.onRowClicked(new MouseEvent('click', { ctrlKey : true }), this, true /*fromKeyboard*/);
+                break;
+            case 'c':
+                this.parent.toggleAllSelected(this.selected ? !this.enabled : undefined);
+                break;
+            case 'C':
+            {
+                const mainCheck = $('#selAllCheck', this.table);
+                mainCheck.checked = !mainCheck.checked;
+                BulkActionCommon.selectUnselectAll();
+                break;
+            }
+            case 'ArrowUp':
+            case 'ArrowDown':
+                this.parent.onCheckboxNav(e, this);
+                break;
+        }
+    }
+
     /** Build the table row. To be implemented by the concrete class. */
     build() { Log.error('BulkActionRow.build should be overridden.'); }
     /** Updates the contents/style of the table row. To be implemented by the concrete class. */
@@ -110,24 +141,22 @@ class BulkActionRow {
     /**
      * Create a marker table checkbox
      * @param {boolean} checked
-     * @param {number} mid Marker id
-     * @param {number} eid Episode id
+     * @param {number} identifier Unique identifier for this checkbox
      * @param {*} attributes Dictionary of extra attributes to apply to the checkbox. */
-    createCheckbox(checked, mid, eid, attributes={}) {
+    createCheckbox(checked, identifier, attributes={}) {
         this.enabled = checked;
-        const checkboxName = `mid_check_${mid || eid}`;
+        const checkboxName = `mid_check_${identifier}`;
         const checkbox = customCheckbox({
             id : checkboxName,
-            mid : mid,
-            eid : eid,
             ...attributes,
             checked : checked,
         },
-        { change : this.onChecked },
+        { change : this.onChecked,
+          keydown : this.onCheckboxKeydown },
         {},
         { thisArg : this });
 
-        return appendChildren(checkbox, buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${mid} Checkbox`));
+        return appendChildren(checkbox, buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${identifier} Checkbox`));
     }
 }
 
@@ -154,6 +183,10 @@ class BulkActionTable {
      * Whether the last row selection was a select or deselect operation, which can affect Ctrl and Ctrl+Shift actions.
      * @type {boolean} */
     #lastSelectedWasDeselect = false;
+    /**
+     * Whether our last selection was initiated from keyboard input, not a mouse click.
+     * @type {boolean} */
+    #inKeyboardSelection = false;
     /**
      * Holds the bulk check/uncheck checkboxes and label.
      * @type {HTMLDivElement} */
@@ -236,10 +269,21 @@ class BulkActionTable {
             id : 'selAllCheck',
             checked : 'checked'
         },
-        { change : BulkActionCommon.selectUnselectAll });
+        { change : BulkActionCommon.selectUnselectAll,
+          keydown : [ clickOnEnterCallback, this.#onMainCheckboxKeydown.bind(this) ] });
 
-        this.#html.appendChild(appendChildren(buildNode('thead'), TableElements.rawTableRow(mainCheckbox, ...columns)));
+        this.#html.appendChild(
+            appendChildren(buildNode('thead'), TableElements.rawTableRow(mainCheckbox, ...columns)));
         this.#tbody = buildNode('tbody');
+    }
+
+    #onMainCheckboxKeydown(e) {
+        if (e.key !== 'ArrowDown') {
+            return;
+        }
+
+        const target = (e.ctrlKey && e.shiftKey) ? this.#rows[this.#rows.length - 1] : this.#rows[0];
+        scrollAndFocus(e, $$('input[type="checkbox"]', target.row));
     }
 
     /**
@@ -287,9 +331,18 @@ class BulkActionTable {
      * @param {MouseEvent} e */
     #onMultiSelectClick(checkbox, e) {
         e.preventDefault(); // Don't change the check state
-        const select = checkbox.id === 'multiSelectSelect';
+        this.toggleAllSelected(checkbox.id === 'multiSelectSelect');
+    }
+
+    /**
+     * Check/Uncheck all selected markers. If check is undefined,
+     * toggle based on the first selected item's checked state.
+     * @param {boolean?} check */
+    toggleAllSelected(check) {
+        let setChecked = check;
         for (const row of this.#selected.values()) {
-            row.setChecked(select);
+            setChecked ??= !row.enabled;
+            row.setChecked(setChecked);
         }
     }
 
@@ -361,8 +414,10 @@ class BulkActionTable {
      * Process a row being clicked, selecting/deselecting all relevant rows
      * based on what modifier keys were used.
      * @param {MouseEvent} e
-     * @param {BulkActionRow} toggledRow */
-    onRowClicked(e, toggledRow) {
+     * @param {BulkActionRow} toggledRow
+     * @param {boolean} fromKeyboard */
+    onRowClicked(e, toggledRow, fromKeyboard) {
+        this.#inKeyboardSelection = fromKeyboard;
         // The following should match the behavior of Windows Explorer bulk-selection
         if (!e.ctrlKey && !e.shiftKey) {
             // If this is the only row that's currently selected, deselect with a plain click.
@@ -427,6 +482,61 @@ class BulkActionTable {
 
         this.#repositionMultiSelectCheckboxes();
     }
+
+    /**
+     * @param {KeyboardEvent} e
+     * @param {BulkActionRow} currentRow */
+    onCheckboxNav(e, currentRow) {
+        if (e.altKey) {
+            return;
+        }
+
+        const up = e.key === 'ArrowUp';
+        const thisIndex = this.#rowMap[currentRow.id].rowIndex;
+        if (up && thisIndex === 0) {
+            // Just set focus to the table head checkbox and return.
+            const thead = $$('#bulkActionCustomizeTable thead');
+            if (thead) {
+                scrollAndFocus(e, thead, $$('input[type="checkbox"]', thead));
+            }
+
+            return;
+        }
+
+        let nextIndex = 0;
+        if (e.ctrlKey) {
+            nextIndex = up ? 0 : this.#rows.length - 1;
+        } else {
+            nextIndex = Math.max(0, Math.min(thisIndex + (up ? -1 : 1), this.#rows.length - 1));
+        }
+
+        const nextRow = this.#rows[nextIndex];
+
+        // Shift creates a selection
+        if (e.shiftKey) {
+            if (this.#inKeyboardSelection) {
+                // If we're already in the middle of keyboard selection,
+                // treat the calling row as a Ctrl+Click if it's not already
+                // selected, and treat the new row as a Ctrl+Shift+Click.
+                if (!currentRow.selected) {
+                    this.onRowClicked(new MouseEvent('click', { ctrlKey : true }), currentRow, true /*fromKeyboard*/);
+                }
+
+                this.onRowClicked(new MouseEvent('click', { ctrlKey : true, shiftKey : true }), nextRow, true /*fromKeyboard*/);
+            } else {
+                // Fresh keyboard selection. Simulate a click of the initial row unless it's
+                // already the only item selected, and Shift+Click the next row.
+                if (this.#selected.size !== 1 || !currentRow.selected) {
+                    this.onRowClicked(new MouseEvent('click'), currentRow);
+                }
+
+                this.onRowClicked(new MouseEvent('click', { shiftKey : true }), nextRow, true /*fromKeyboard*/);
+            }
+        }
+
+        // Now set focus.
+        scrollAndFocus(e, nextRow.row, $$('input[type="checkbox"]', nextRow.row));
+    }
 }
 
 /**
@@ -454,7 +564,7 @@ class BulkActionCommon {
 
     /**
      * Bulk check/uncheck all items in the given table based on the checkbox state.
-     * @param {Event} e */
+     * @param {Event} _e */
     static selectUnselectAll(_e) {
         const table = $(`#bulkActionCustomizeTable`);
         if (!table) {

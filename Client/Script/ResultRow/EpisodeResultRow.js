@@ -2,6 +2,7 @@ import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { purgeIcon } from './ResultRow.js';
 
 import { $$, appendChildren, buildNode, pad0, plural } from '../Common.js';
+import { Attributes } from '../DataAttributes.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
@@ -40,7 +41,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
         const ep = this.episode();
         ep.createMarkerTable(this, markerData, chapters);
         const titleText = 'Click to expand/contract. Control+Click to expand/contract all';
-        const row = buildNode('div');
+        const row = buildNode('div', { class : 'resultRow', [Attributes.MetadataId] : ep.metadataId });
         appendChildren(row,
             appendChildren(
                 buildNode('div',
@@ -68,6 +69,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
         );
 
         this.setHtml(row);
+        this.register();
         return row;
     }
 

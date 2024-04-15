@@ -4,6 +4,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
 import { MovieResultRow, ResultRow, SectionOptionsResultRow, ShowResultRow } from 'ResultRow';
 import { UISection, UISections } from './ResultSections.js';
+import { Attributes } from './DataAttributes.js';
 import { ClientSettings } from './ClientSettings.js';
 import { CustomEvents } from './CustomEvents.js';
 import Overlay from './Overlay.js';
@@ -159,14 +160,14 @@ class PlexUIManager {
             return;
         }
 
-        this.#dropdown.appendChild(buildNode('option', { value : '-1', libtype : '-1' }, 'Select a library to parse'));
+        this.#dropdown.appendChild(buildNode('option', { value : '-1', [Attributes.LibraryType] : '-1' }, 'Select a library to parse'));
         const savedSection = ClientSettings.lastSection();
 
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
         for (const library of libraries) {
             lastSectionExists ||= library.id === savedSection;
-            this.#dropdown.appendChild(buildNode('option', { value : library.id, libtype : library.type }, library.name));
+            this.#dropdown.appendChild(buildNode('option', { value : library.id, [Attributes.LibraryType] : library.type }, library.name));
         }
 
         if (savedSection !== -1 && !lastSectionExists) {
@@ -201,7 +202,7 @@ class PlexUIManager {
         this.#searchContainer.classList.add('hidden');
         this.#lastSearch = null;
         const section = parseInt(this.#dropdown.value);
-        const libType = parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute('libtype'));
+        const libType = parseInt(this.#dropdown.childNodes[this.#dropdown.selectedIndex].getAttribute(Attributes.LibraryType));
         switch (libType) {
             case SectionType.Movie:
                 this.#searchBox.placeholder = 'Search for a Movie...';
@@ -368,7 +369,8 @@ class PlexUIManager {
         if (searchResults.length > nextFilterIndex) {
 
             const loadTheRest = () => {
-                movieList.removeChild(movieList.children[movieList.children.length - 1]);
+                const focusIndex = movieList.children.length - 1;
+                movieList.removeChild(movieList.children[focusIndex]);
                 for (const movie of searchResults.slice(nextFilterIndex)) {
                     if (!FilterSettings.shouldFilter(movie.markerBreakdown())) {
                         const newRow = new MovieResultRow(movie);
@@ -376,6 +378,8 @@ class PlexUIManager {
                         movieList.appendChild(newRow.buildRow());
                     }
                 }
+
+                $$('.tabbableRow', movieList[focusIndex]).focus();
             };
 
             const text = `Results are limited to the top ${rowsLimit} items, ` +
@@ -383,9 +387,10 @@ class PlexUIManager {
             `WARNING: loading too many rows might hang your browser page.<br>`;
             movieList.appendChild(
                 buildNode('div',
-                    { class : 'topLevelResult movieResult', style : 'text-align: center' },
+                    { class : 'topLevelResult movieResult tabbableRow', tabindex : 0, style : 'text-align: center' },
                     text,
-                    { click : loadTheRest }));
+                    { click : loadTheRest,
+                      keyup : clickOnEnterCallback }));
         }
 
         PlexClientState.setActiveSearchRows(filteredResults);
@@ -432,7 +437,15 @@ class PlexUIManager {
             'div',
             { class : 'topLevelResult noSearchRow tabbableRow', tabindex : 0 },
             'Click here to load all items, or narrow things down with a filter or search above.',
-            { click : /**@this {PlexUIManager}*/ function() { this.#search(); }.bind(this),
+            { click : /**@this {PlexUIManager}*/ function() {
+                this.#search();
+                const firstItem = PlexClientState.getActiveSearchRows()[0];
+                if (firstItem instanceof MovieResultRow) {
+                    firstItem.focus();
+                } else {
+                    firstItem.html().focus();
+                }
+            }.bind(this),
               keydown : clickOnEnterCallback }
         );
     }

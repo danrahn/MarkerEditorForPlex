@@ -1,5 +1,6 @@
 import { $$, appendChildren, buildNode, plural } from '../Common.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
+import { Attributes } from '../DataAttributes.js';
 import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -11,6 +12,7 @@ import { ServerCommands } from '../Commands.js';
 import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('../ClientDataExtensions').ClientMovieData} ClientMovieData */
 
 
 const Log = new ContextualLog('MovieRow');
@@ -59,7 +61,7 @@ export class MovieResultRow extends BaseItemResultRow {
             titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` [${mov.edition}]`));
         }
 
-        const row = buildNode('div');
+        const row = buildNode('div', { [Attributes.MetadataId] : mov.metadataId });
         appendChildren(row,
             appendChildren(
                 buildNode('div',
@@ -91,6 +93,7 @@ export class MovieResultRow extends BaseItemResultRow {
             }
         }
 
+        this.register();
         return row;
     }
 

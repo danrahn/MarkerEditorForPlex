@@ -1,6 +1,7 @@
 import { $, $$, clearEle } from './Common.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
+import { CustomEvents } from './CustomEvents.js';
 import { PlexClientState } from './PlexClientState.js';
 
 /**
@@ -132,6 +133,9 @@ class ResultSections {
     clearAndShowSections(uiSections) {
         this.clearSections(uiSections);
         this.showSections(uiSections);
+
+        // Let people know the active UI section has changed/been cleared.
+        window.dispatchEvent(new Event(CustomEvents.UISectionChanged));
     }
 
     /**

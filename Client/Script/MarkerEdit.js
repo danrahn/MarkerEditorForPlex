@@ -12,6 +12,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
+import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
@@ -121,6 +122,7 @@ class MarkerEdit {
                 placeholder : 'ms or mm:ss[.000]',
                 value : initialValue,
                 autocomplete : 'off',
+                [Attributes.TableNav] : `time-${isEnd ? 'end' : 'start'}`,
             },
             0,
             events,
@@ -216,7 +218,11 @@ class MarkerEdit {
     #buildMarkerType() {
         const span = this.markerRow.row().children[0];
         clearEle(span);
-        const select = buildNode('select', { class : 'inlineMarkerType' }, 0, { change : this.#onMarkerTypeChanged.bind(this) });
+        const select = buildNode(
+            'select',
+            { class : 'inlineMarkerType', [Attributes.TableNav] : 'marker-type' },
+            0,
+            { change : this.#onMarkerTypeChanged.bind(this) });
         const initialValue = this.markerRow.forAdd() ? this.#stickyAddSettings.markerType() : this.markerRow.markerType();
         for (const [title, value] of Object.entries(MarkerType)) {
             const option = buildNode('option', { value }, title);
@@ -286,8 +292,18 @@ class MarkerEdit {
         const destination = this.markerRow.row().children[3];
         clearEle(destination);
         appendChildren(destination,
-            ButtonCreator.iconButton(Icons.Confirm, `Confirm ${operation}`, ThemeColors.Green, this.#onMarkerActionConfirm.bind(this)),
-            ButtonCreator.iconButton(Icons.Cancel, `Cancel ${operation}`, ThemeColors.Red, this.#onMarkerActionCancel.bind(this))
+            ButtonCreator.iconButton(
+                Icons.Confirm,
+                `Confirm ${operation}`,
+                ThemeColors.Green,
+                this.#onMarkerActionConfirm.bind(this),
+                { [Attributes.TableNav] : 'edit-confirm' }),
+            ButtonCreator.iconButton(
+                Icons.Cancel,
+                `Cancel ${operation}`,
+                ThemeColors.Red,
+                this.#onMarkerActionCancel.bind(this),
+                { [Attributes.TableNav] : 'edit-cancel' }),
         );
     }
 
@@ -356,7 +372,7 @@ class MarkerEdit {
             this.markerRow.parent().baseItem().markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
-            this.onMarkerEditCancel();
+            this.#onMarkerEditCancel();
             errorResponseOverlay('Sorry, something went wrong with that request.', err);
         }
     }
@@ -398,7 +414,8 @@ class MarkerEdit {
             this.#toggleChapterEntry.bind(this),
             {
                 class : 'chapterToggle',
-                tooltip : 'Enter Chapter Mode'
+                tooltip : 'Enter Chapter Mode',
+                [Attributes.TableNav] : 'chapter-toggle'
             }
         );
 
@@ -434,7 +451,7 @@ class MarkerEdit {
             // In addition to toggling, set the raw input to the most recently selected chapter. While
             // not necessarily in all cases, it does ensure we properly adjust any preview thumbnails.
             const select = $$('select', r);
-            const valueFromChapter = msToHms(this.#chapters[select.value][select.getAttribute('data-chapterFn')]);
+            const valueFromChapter = msToHms(this.#chapters[select.value][select.getAttribute(Attributes.ChapterFn)]);
             const input = $$('.timeInput', r.parentElement);
             input.value = valueFromChapter;
             input.dispatchEvent(new KeyboardEvent('keyup', { key : 'Enter', keyCode : 13 }));
@@ -469,7 +486,11 @@ class MarkerEdit {
 
         const select = buildNode(
             'select',
-            { class : 'editByChapter', 'data-chapterFn' : end ? 'end' : 'start' },
+            {
+                class : 'editByChapter',
+                [Attributes.ChapterFn] : end ? 'end' : 'start',
+                [Attributes.TableNav] : `time-${end ? 'end' : 'start'}`
+            },
             0,
             { change : this.#onChapterInputChanged.bind(this) });
 
@@ -510,7 +531,7 @@ class MarkerEdit {
         // but clashes with the marker table's concept of separate starts and ends, and it was easier to keep
         // them separate for chapters as well in this initial implementation.
         const index = e.target.value;
-        const valueFromChapter = msToHms(this.#chapters[index][e.target.getAttribute('data-chapterFn')]);
+        const valueFromChapter = msToHms(this.#chapters[index][e.target.getAttribute([Attributes.ChapterFn])]);
         const input = $$('.timeInput', e.target.parentElement.parentElement);
         input.value = valueFromChapter;
         e.target.title = e.target.children[index].innerText;
@@ -544,7 +565,12 @@ class MarkerEdit {
      * Called immediately after we reset this row after a successful/canceled edit.
      * Currently fades the row back to fully opaque. */
     onAfterReset() {
-        return animateOpacity(this.markerRow.row(), 0, 1, { duration : 150, delay : 50, noReset : true });
+        return animateOpacity(
+            this.markerRow.row(),
+            0, 1,
+            { duration : 150, delay : 50, noReset : true },
+            () => { $$(`[${Attributes.TableNav}="edit"]`, this.markerRow.row())?.focus(); }
+        );
     }
 
     /**
@@ -667,7 +693,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             Icons.Img,
             ThemeColors.Primary,
             this.#expandContractThumbnails.bind(this),
-            { tooltip : startText + ' thumbnails' });
+            { tooltip : startText + ' thumbnails', [Attributes.TableNav] : 'thumb-collapse' });
 
         btn.classList.add('thumbnailShowHide');
         const options = this.markerRow.row().children[4];
@@ -814,7 +840,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         thumb.classList.add('loaded');
         const realHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
         this.#cachedHeight = realHeight;
-        thumb.setAttribute('realheight', realHeight);
+        thumb.setAttribute(Attributes.RealHeight, realHeight);
         if (!this.#thumbnailsCollapsed && parseInt(thumb.style.height) === 0) {
             slideDown(thumb, `${realHeight}px`, { duration : 250, noReset : true }, () => thumb.style.removeProperty('height'));
         }
@@ -835,7 +861,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
                 if (this.#thumbnailsCollapsed) {
                     slideUp(thumb, { duration : duration, noReset : true }, r);
                 } else {
-                    slideDown(thumb, thumb.getAttribute('realHeight') + 'px', { duration : duration, noReset : true }, r);
+                    slideDown(thumb, thumb.getAttribute(Attributes.RealHeight) + 'px', { duration : duration, noReset : true }, r);
                 }
             }));
 

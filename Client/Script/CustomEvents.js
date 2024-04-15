@@ -9,4 +9,6 @@ export const CustomEvents = {
     ClientSettingsApplied : 'clientSettingsApplied',
     /** @readonly The user applied new filter settings. */
     MarkerFilterApplied : 'markerFilterApplied',
+    /** @readonly The active UI section changed or was cleared. */
+    UISectionChanged : 'uiSectionChanged',
 };

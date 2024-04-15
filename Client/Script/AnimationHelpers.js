@@ -1,5 +1,6 @@
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 import { $$ } from './Common.js';
+import { Attributes } from './DataAttributes.js';
 
 const Log = new ContextualLog('Animate');
 
@@ -106,7 +107,7 @@ export function animateOpacity(ele, start, end, options, callback) {
  * @param {string} prop */
 function checkProp(ele, prop) {
     const sav = ele.style[prop];
-    prop = `data-${prop}-reset`;
+    prop = Attributes.PropReset(prop);
     const isAnimating = ele.getAttribute(prop);
     if (isAnimating !== null) {
         return isAnimating;
@@ -121,7 +122,7 @@ function checkProp(ele, prop) {
  * @param {HTMLElement} ele
  * @param {string} prop */
 function removeProp(ele, prop) {
-    ele.removeAttribute(`data-${prop}-reset`);
+    ele.removeAttribute(Attributes.PropReset(prop));
 }
 
 /**

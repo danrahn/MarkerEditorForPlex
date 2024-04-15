@@ -194,7 +194,7 @@ class BulkDeleteRow extends BulkActionRow {
     /** Construct the table row. */
     build() {
         const row = this.buildRow(
-            this.createCheckbox(true /*checked*/, this.#marker.id, this.#marker.parentId),
+            this.createCheckbox(true /*checked*/, this.#marker.id),
             `S${pad0(this.#episode.seasonIndex, 2)}E${pad0(this.#episode.index, 2)}`,
             this.#marker.markerType[0].toUpperCase() + this.#marker.markerType.substring(1),
             TableElements.customClassColumn(this.#episode.title, 'bulkActionEpisodeColumn'),

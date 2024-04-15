@@ -2,6 +2,7 @@ import { $, $$, appendChildren, buildNode, clearEle } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity } from './AnimationHelpers.js';
+import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
@@ -126,7 +127,7 @@ export default class Overlay {
             // handing back the top-level node and container
             Log.verbose('Replacing existing overlay to display a new one.');
             const overlayNode = Overlay.get();
-            overlayNode.setAttribute('dismissible', options.dismissible ? '1' : '0');
+            overlayNode.setAttribute(Attributes.OverlayDismissible, options.dismissible ? '1' : '0');
             /** @type {HTMLElement} */
             const container = $('#overlayContainer', overlayNode);
             const delay = options.delay === 0 ? 0 : (options.delay || 250);
@@ -236,7 +237,7 @@ export default class Overlay {
             {
                 id : 'mainOverlay',
                 style : `opacity: ${options.delay === 0 ? '1' : '0'}`,
-                dismissible : options.dismissible ? '1' : '0'
+                [Attributes.OverlayDismissible] : options.dismissible ? '1' : '0'
             },
             0,
             {
@@ -244,7 +245,7 @@ export default class Overlay {
                     /** @type {HTMLElement} */
                     const overlayElement = $('#mainOverlay');
                     if (overlayElement
-                        && overlayElement.getAttribute('dismissible') === '1'
+                        && overlayElement.getAttribute(Attributes.OverlayDismissible) === '1'
                         && (e.target.id === 'mainOverlay' || (options.noborder && e.target.id === 'overlayContainer'))
                         && getComputedStyle(overlayElement).opacity === '1') {
                         Overlay.dismiss();
@@ -317,7 +318,7 @@ export default class Overlay {
         if (e.key === 'Escape') {
             /** @type {HTMLElement} */
             const overlayNode = Overlay.get();
-            if (overlayNode && overlayNode.getAttribute('dismissible') === '1') {
+            if (overlayNode && overlayNode.getAttribute(Attributes.OverlayDismissible) === '1') {
                 Overlay.dismiss();
             }
         }
@@ -340,6 +341,6 @@ export default class Overlay {
      * Sets whether the overlay can be dismissed by the user via Escape/clicking outside of the main content.
      * @param {boolean} dismissible */
     static setDismissible(dismissible) {
-        Overlay.get().setAttribute('dismissible', dismissible ? 1 : 0);
+        Overlay.get().setAttribute(Attributes.OverlayDismissible, dismissible ? 1 : 0);
     }
 }
