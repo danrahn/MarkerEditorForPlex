@@ -17,8 +17,8 @@ export const Attributes = {
     TooltipText : 'data-tt',
     /** @readonly Time in ms to delay showing a tooltip after it gets focus/hovered. */
     TooltipDelay : 'data-tt-delay',
-    /** @readonly Indicates the real height of a thumbnail. */
-    RealHeight : `data-real-height`,
+    /** @readonly Indicates the expected full height of a thumbnail. */
+    DisplayHeight : `data-display-height`,
     /** @readonly Indicates whether the overlay can be dismissed by the user. */
     OverlayDismissible : 'data-dismissible',
     /** @readonly Library type of a library in the selection dropdown. */

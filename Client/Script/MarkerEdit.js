@@ -630,7 +630,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @type {boolean[]} */
     #thumbnailError = [false, false];
     #thumbnailsCollapsed = ClientSettings.collapseThumbnails();
-    #cachedHeight = 0;
+    #cachedHeight = 135; // Until we get a real thumbnail to test, use 240x135 (16:9) as the default size.
 
     /**
      * @param {MarkerRow} markerRow The marker row to edit.
@@ -838,11 +838,17 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         thumb.classList.remove('loading');
         thumb.classList.add('loaded');
-        const realHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
-        this.#cachedHeight = realHeight;
-        thumb.setAttribute(Attributes.RealHeight, realHeight);
+
+
+        // If the original is e.g. 300 x 200, the error thumb should be scaled down to 240 x 160
+        // NOTE: Keep in sync with badThumb.svg width, as this calculation is based on
+        // its hardcoded width of 240px.
+        this.#cachedHeight = thumb.naturalHeight * (240 / thumb.naturalWidth);
+
+        const displayHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
+        thumb.setAttribute(Attributes.DisplayHeight, displayHeight);
         if (!this.#thumbnailsCollapsed && parseInt(thumb.style.height) === 0) {
-            slideDown(thumb, `${realHeight}px`, { duration : 250, noReset : true }, () => thumb.style.removeProperty('height'));
+            slideDown(thumb, `${displayHeight}px`, { duration : 250, noReset : true }, () => thumb.style.removeProperty('height'));
         }
     }
 
@@ -861,7 +867,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
                 if (this.#thumbnailsCollapsed) {
                     slideUp(thumb, { duration : duration, noReset : true }, r);
                 } else {
-                    slideDown(thumb, thumb.getAttribute(Attributes.RealHeight) + 'px', { duration : duration, noReset : true }, r);
+                    slideDown(thumb, thumb.getAttribute(Attributes.DisplayHeight) + 'px', { duration : duration, noReset : true }, r);
                 }
             }));
 
