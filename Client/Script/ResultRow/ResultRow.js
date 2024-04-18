@@ -94,7 +94,11 @@ export class ResultRow {
     /**
      * Sets the HTML for this row.
      * @param {HTMLElement} html */
-    setHtml(html) { this.#html = html; }
+    setHtml(html) {
+        this.#html = html;
+        this.#html.classList.add('dynamicText');
+        this.#html.classList.add('resultRow');
+    }
 
     /** Build a row's HTML. Unimplemented in the base class. */
     buildRow() {}
@@ -138,6 +142,15 @@ export class ResultRow {
             || (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText'))
             || this.isClickTargetInImage(e.target))) {
             return true; // Don't show/hide if we're repurposing the marker display.
+        }
+
+        let parent = e.target;
+        while (parent && !(parent instanceof HTMLSpanElement)) {
+            if (parent.classList.contains('markerInfoIcon')) {
+                return true;
+            }
+
+            parent = parent.parentElement;
         }
 
         return false;
@@ -403,8 +416,21 @@ export class ResultRow {
         }
 
         // TODO: Is it worth making toFixed dynamic? I don't think so.
-        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(isSmallScreen() ? 0 : 2);
-        const innerText = buildNode('span', {}, `${atLeastOne}/${mediaItem.episodeCount} (${percent}%)`);
+        const smallScreen = isSmallScreen();
+        const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(smallScreen ? 0 : 2);
+        let displayText = `${atLeastOne}/${mediaItem.episodeCount} `;
+        if (smallScreen) {
+            displayText = appendChildren(buildNode('span'),
+                document.createTextNode(displayText),
+                buildNode('i',
+                    { class : 'markerInfoIcon' },
+                    getSvgIcon(Icons.Help, ThemeColors.Primary, { height : 14 }),
+                    { click : () => { if (Tooltip.active()) { Tooltip.dismiss(); } } }));
+        } else {
+            displayText += `(${percent}%)`;
+        }
+
+        const innerText = buildNode('span', {}, displayText);
 
         if (this.hasPurgedMarkers()) {
             innerText.appendChild(purgeIcon());

@@ -135,7 +135,7 @@ class ExistingMarkerRow extends MarkerRow {
 
         const tableData = this.#tableData(true);
         appendChildren(tr,
-            td(tableData[0], { class : 'topAlignedPlainText' }),
+            td(tableData[0]),
             td(tableData[1]),
             td(tableData[2]),
             td(tableData[3], { class : 'centeredColumn timeColumn topAlignedPlainText' }),
@@ -288,7 +288,7 @@ class NewMarkerRow extends MarkerRow {
         const td = (data, properties={}) => buildNode('td', properties, data);
 
         this.html = appendChildren(buildNode('tr', { class : 'markerRow' }),
-            td('-', { class : 'topAlignedPlainText' }),
+            td('-'),
             td('-'),
             td('-'),
             td('-', { class : 'centeredColumn timeColumn topAlignedPlainText' }),

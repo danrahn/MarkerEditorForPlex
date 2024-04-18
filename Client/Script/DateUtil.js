@@ -1,3 +1,4 @@
+import { isSmallScreen } from './WindowResizeEventHandler.js';
 import { plural } from './Common.js';
 
 /**
@@ -6,12 +7,34 @@ import { plural } from './Common.js';
  * Adapted from PlexWeb/script/DateUtil.js
  */
 
+const Timespans = {
+    Second  : { long : 'second', short : 's'  },
+    Minute  : { long : 'minute', short : 'm'  },
+    Hour    : { long : 'hour',   short : 'h'  },
+    Day     : { long : 'day',    short : 'd'  },
+    Week    : { long : 'week',   short : 'w'  },
+    Month   : { long : 'month',  short : 'mo' },
+    Year    : { long : 'year',   short : 'y'  },
+    Invalid : { long : '???',    short : '?'  },
+};
+
 /**
  * Helper that returns "In X" or "X ago" depending on whether the given value
  * is in the past or the future.
  * @param {string} val The user-friendly timespan
  * @param {boolean} isFuture */
 function tense(val, isFuture) { return isFuture ? `In ${val}` : `${val} ago`; }
+
+/**
+ * Get the display text for the given count of str.
+ * For desktop screens, this will be something like '2 weeks'.
+ * For small screens, this weill be something like '2w'.
+ * @param {number} count
+ * @param {keyof Timespans} timespan */
+function getText(count, timespan) {
+    const ts = Timespans[timespan] || Timespans.Invalid;
+    return isSmallScreen() ? count + ts.short : plural(count, ts.long);
+}
 
 /**
  * Determine if the given value meets our cutoff criteria.
@@ -27,7 +50,7 @@ function checkDate(value, cutoff, stringVal) {
 
     const count = Math.floor(abs);
     // Really shouldn't be happening, but handle future dates
-    return tense(plural(count, stringVal), value < 0);
+    return tense(getText(count, stringVal), value < 0);
 }
 
 
@@ -46,10 +69,10 @@ export function getDisplayDate(date) {
         return 'Just Now';
     }
 
-    const underTwoWeeks = checkDate(dateDiff /= 1000, 60, 'second')
-        || checkDate(dateDiff /= 60, 60, 'minute')
-        || checkDate(dateDiff /= 60, 24, 'hour')
-        || checkDate(dateDiff /= 24, 14, 'day');
+    const underTwoWeeks = checkDate(dateDiff /= 1000, 60, 'Second')
+        || checkDate(dateDiff /= 60, 60, 'Minute')
+        || checkDate(dateDiff /= 60, 24, 'Hour')
+        || checkDate(dateDiff /= 24, 14, 'Day');
 
     if (underTwoWeeks) {
         return underTwoWeeks;
@@ -60,15 +83,15 @@ export function getDisplayDate(date) {
 
     if (dateDiff <= 29) {
         const weeks = Math.floor(dateDiff / 7);
-        return tense(plural(weeks, 'week'), isFuture);
+        return tense(getText(weeks, 'Week'), isFuture);
     }
 
     if (dateDiff < 365) {
         const months = Math.round(dateDiff / 30.4); // "X / 30" is a bit more more natural than "May 1 - March 30 = 2 months"
-        return tense(plural(months || 1, 'month'), isFuture);
+        return tense(getText(months || 1, 'Month'), isFuture);
     }
 
-    return tense(plural(Math.abs(now.getFullYear() - date.getFullYear()), 'year'), isFuture);
+    return tense(getText(Math.abs(now.getFullYear() - date.getFullYear()), 'Year'), isFuture);
 }
 
 /**

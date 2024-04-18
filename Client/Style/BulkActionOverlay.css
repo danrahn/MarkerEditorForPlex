@@ -7,7 +7,7 @@
 
   & hr {
     width: 60%;
-    min-width: 600px;
+    min-width: calc(min(600px, 90%));
     margin-top: 15px;
   }
 

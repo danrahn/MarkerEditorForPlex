@@ -299,12 +299,12 @@ export default class Overlay {
         const close = appendChildren(
             buildNode(
                 'i',
-                { tabindex : 0, },
+                { tabindex : 0, class : 'overlayCloseButton' },
                 0,
                 { click : Overlay.dismiss,
                   keyup : (e) => { if (e.key === 'Enter') Overlay.dismiss(); } }
             ),
-            getSvgIcon(Icons.Cancel, ThemeColors.Primary, { class : 'overlayCloseButton' }));
+            getSvgIcon(Icons.Cancel, ThemeColors.Primary));
 
         Tooltip.setTooltip(close, 'Close');
         Overlay.get().appendChild(close);

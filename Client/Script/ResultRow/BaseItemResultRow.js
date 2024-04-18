@@ -269,14 +269,14 @@ export class BaseItemResultRow extends ResultRow {
     /**
      * Returns the expand/contract arrow element */
     getExpandArrow() {
-        return getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'markerExpand collapsed' });
+        return getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'expandIcon collapsed' });
     }
 
     /**
      * Rotates the expand/contract arrow after showing/hiding the marker table.
      * @param {boolean} hide Whether the marker table is being hidden */
     updateExpandArrow(hide) {
-        $$('.markerExpand', this.html()).classList[hide ? 'add' : 'remove']('collapsed');
+        $$('.expandIcon', this.html()).classList[hide ? 'add' : 'remove']('collapsed');
     }
 
     /**

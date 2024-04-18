@@ -17,6 +17,7 @@ import { MarkerConflictResolution, MarkerData, SectionType } from '/Shared/PlexT
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { CustomEvents } from './CustomEvents.js';
+import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
@@ -879,7 +880,7 @@ class PurgeConflictControl {
         const showHideResolutionStrategy = () => {
             const description = $$('#purgeResolutionDescription');
             const show = description.classList.contains('hidden');
-            $('#purgeResolutionLabel').innerHTML = (show ? '&#9660;' : '&#9205;') + ' Resolve Strategy:';
+            $$('.expandIcon', $('#purgeResolutionLabel')).classList[show ? 'remove' : 'add']('collapsed');
             description.classList.toggle('hidden');
         };
 
@@ -890,7 +891,9 @@ class PurgeConflictControl {
                     for : 'purgeResolution',
                     title : 'Click to show/hide resolve strategy descriptions'
                 },
-                '&#9205; Resolve Strategy: ',
+                appendChildren(buildNode('span'),
+                    getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'expandIcon collapsed' }),
+                    buildNode('span', {}, ' Resolve Strategy: ')),
                 { click : showHideResolutionStrategy }),
             select,
             buildNode('div',

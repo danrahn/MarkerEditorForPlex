@@ -6,8 +6,8 @@ import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import MarkerTable from './MarkerTable.js';
 
 /** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
-/** @typedef {!import('./ResultRow/EpisodeResultRow').default} EpisodeResultRow */
-/** @typedef {!import('./ResultRow/MovieResultRow').default} MovieResultRow */
+/** @typedef {!import('./ResultRow/EpisodeResultRow').EpisodeResultRow} EpisodeResultRow */
+/** @typedef {!import('./ResultRow/MovieResultRow').MovieResultRow} MovieResultRow */
 
 const Log = new ContextualLog('ClientData');
 

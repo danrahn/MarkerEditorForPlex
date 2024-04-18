@@ -700,6 +700,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
         // We want this as the first option. insertBefore properly handles the case where firstChild is null
         options.insertBefore(btn, options.firstChild);
+        this.markerRow.row().children[0].classList.toggle('topAlignedPlainText');
     }
 
     /**
@@ -713,6 +714,9 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     }
 
     resetAfterEdit() {
+        // We ensure the marker type stays at the top of the cell when thumbnails are present,
+        // but that can mess with normal text alignment once we're done editing.
+        this.markerRow.row().children[0].classList.toggle('topAlignedPlainText');
         const showHide = $$('.thumbnailShowHide', this.markerRow.row());
         if (!showHide) {
             return;

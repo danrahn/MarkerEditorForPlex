@@ -373,6 +373,10 @@ input:focus-visible {
   flex: 1;
 }
 
+.sectionOptionsResultRow>.bulkActionTitle {
+  flex: 0 1 fit-content;
+}
+
 .showResultSeasons {
   text-align: center;
 }
@@ -465,14 +469,14 @@ input:focus-visible {
   margin: 1px;
 }
 
-.markerExpand {
+.expandIcon {
   height: 12px;
   margin-right: 5px;
   vertical-align: baseline;
   transition: transform 0.15s;
 }
 
-.markerExpand.collapsed {
+.expandIcon.collapsed {
   transform: rotate(-90deg);
   transition: transform 0.15s;
 }
@@ -602,6 +606,7 @@ input:focus-visible {
   & hr {
     width: 60%;
     min-width: 600px;
+    min-width: calc(min(90%, 600px));
     margin-top: 15px;
   }
 
@@ -613,7 +618,6 @@ input:focus-visible {
   & #purgeResolutionContainer {
     text-align: center;
     width: 60%;
-    min-width: 600px;
     margin: auto;
     margin-bottom: 20px;
   }
@@ -828,6 +832,10 @@ input:focus-visible {
   #plexFrame {
     overflow-y: scroll;
   }
+
+  #mobileKeyboard {
+    display: none;
+  }
 }
 
 @media all and (max-width: 767px) { /* Probably a phone */
@@ -855,5 +863,17 @@ input:focus-visible {
 
   .dynamicText {
     font-size: smaller;
+  }
+
+  .seasonResult.dynamicText {
+    padding: 6px 10px 6px 20px;
+  }
+
+  .topLevelResult.dynamicText {
+    padding: 6px 10px 6px 10px;
+  }
+
+  .markerInfoIcon svg {
+    vertical-align: text-top;
   }
 }
