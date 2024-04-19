@@ -221,6 +221,8 @@ export default class Tooltip {
             // Adjusting x & y, move tooltip completely above cursor
             tooltip.style.top = (rawHeight - heightAdjust + extraMargin - (e.focusY ?? 0)) + 'px';
         }
+
+        Tooltip.#tooltipTimer = null;
     }
 
     /** Dismisses the tooltip. */
@@ -230,7 +232,10 @@ export default class Tooltip {
         }
 
         $('#tooltip').style.display = 'none';
-        clearTimeout(Tooltip.#tooltipTimer);
+        if (Tooltip.#tooltipTimer !== null) {
+            clearTimeout(Tooltip.#tooltipTimer);
+        }
+
         Tooltip.#tooltipTimer = null;
         Tooltip.#showingTooltip = false;
     }

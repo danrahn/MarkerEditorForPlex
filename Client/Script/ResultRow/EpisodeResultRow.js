@@ -11,6 +11,7 @@ import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import ('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
+/** @typedef {!import('./SeasonResultRow').SeasonResultRow} SeasonResultRow */
 
 /**
  * A result row for a single episode of a show.
@@ -56,7 +57,8 @@ export class EpisodeResultRow extends BaseItemResultRow {
                         keydown : [
                             this.onBaseItemResultRowKeydown.bind(this),
                             this.#onEpisodeRowKeydown.bind(this)
-                        ]
+                        ],
+                        ...this.showHideMarkerTableTouchEvents(),
                     }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
                     this.getExpandArrow(),

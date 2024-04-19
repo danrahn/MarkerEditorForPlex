@@ -19,9 +19,9 @@ import { ServerCommands } from './Commands.js';
 /** @typedef {!import('./BulkActionCommon').BulkActionCommon} BulkMarkerResult */
 /** @typedef {!import('./ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
-/** @typedef {!import('./ResultRow/MovieResultRow').default} MovieResultRow */
-/** @typedef {!import('./ResultRow/SeasonResultRow').default} SeasonResultRow */
-/** @typedef {!import('./ResultRow/ShowResultRow').default} ShowResultRow */
+/** @typedef {!import('./ResultRow/MovieResultRow').MovieResultRow} MovieResultRow */
+/** @typedef {!import('./ResultRow/SeasonResultRow').SeasonResultRow} SeasonResultRow */
+/** @typedef {!import('./ResultRow/ShowResultRow').ShowResultRow} ShowResultRow */
 
 const Log = new ContextualLog('PlexClientState');
 
@@ -78,12 +78,12 @@ class PlexClientStateManager {
                 Instance.#activeSeason.notifyWindowResize();
             }
 
-            if (Instance.#activeSectionType === SectionType.Movie) {
-                /** @type {MovieResultRow} */
-                let searchRow;
-                for (searchRow of Instance.#activeSearchFiltered) {
-                    searchRow.updateMarkerBreakdown();
-                }
+            if (Instance.#activeShow) {
+                Instance.#activeShow.notifyWindowResize();
+            }
+
+            for (const searchRow of Instance.#activeSearchFiltered) {
+                searchRow.updateMarkerBreakdown();
             }
         });
     }

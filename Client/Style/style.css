@@ -385,13 +385,19 @@ input:focus-visible {
   text-align: right;
 }
 
+.resultTitle,
+.selected.showResult>.resultTitle,
+.seasonResult>.selectedSeasonTitle {
+  flex: 1 3 fit-content;
+}
+
+.selected.showResult>.resultTitle {
+  margin-right: 10px;
+}
+
 /* Allow show names to take up 50% of the space, allocating 25% for season counts and marker info. */
 .showResult:not(.selected)>.resultTitle {
-  flex: 0 1 50%;
-}
-.showResult:not(.selected)>.showResultEpisodes,
-.showResult:not(.selected)>.showResultSeasons {
-  flex: 0 1 25%;
+  flex: 1 1 50%;
 }
 
 .seasonResult {
@@ -404,11 +410,21 @@ input:focus-visible {
 }
 
 /* Make back buttons/marker info a fixed width to allow show/season titles to grow. */
-.showResult.selected>.showResultEpisodes,
+.showResult.selected>.showResultEpisodes {
+  flex: 0 2 fit-content;
+}
+
+.showResult.selected>.showResultSeasons {
+  flex: 1 2 fit-content;
+}
+
+.seasonResult.selected>.showResultEpisodes {
+  flex: 0 2 fit-content;
+}
+
 .showResult.selected>.goBack,
-.seasonResult.selected>.showResultEpisodes,
 .seasonResult.selected>.goBack {
-  flex: 0 1 20%;
+  flex: 0 3 calc(max(20%, 140px));
 }
 
 /* Standard marker table */
@@ -638,7 +654,6 @@ input:focus-visible {
 }
 
 .purgedIcon {
-  width: 18px;
   padding-left: 2px;
   vertical-align: text-top;
 }
@@ -788,6 +803,16 @@ input:focus-visible {
   margin-right: 5px;
 }
 
+.episodeDisplayText {
+  margin-left: 15px;
+  flex: 0 0 fit-content; /* Always keep it on one line */
+  text-align: right;
+}
+
+.episodeDisplayHolder {
+  vertical-align: middle;
+}
+
 /* #616161C1 == rgba(97, 97, 97, 0.76)
 /* firefox */
 :root {
@@ -836,6 +861,20 @@ input:focus-visible {
   #mobileKeyboard {
     display: none;
   }
+
+  /* Includes percentage with extended stats, so takes up more space than the mobile display */
+  .showResult:not(.selected)>.showResultEpisodes,
+  .showResult:not(.selected)>.showResultSeasons {
+    flex: 0 1 25%;
+  }
+
+  .episodeName {
+    flex: 1 1 fit-content;
+  }
+
+  .purgedIcon {
+    width: 18px;
+  }
 }
 
 @media all and (max-width: 767px) { /* Probably a phone */
@@ -873,7 +912,16 @@ input:focus-visible {
     padding: 6px 10px 6px 10px;
   }
 
-  .markerInfoIcon svg {
-    vertical-align: text-top;
+  .markerInfoIcon {
+    vertical-align: middle;
+  }
+
+  .showResult:not(.selected)>.showResultEpisodes,
+  .showResult:not(.selected)>.showResultSeasons {
+    flex: 0 1 calc(max(15%, 95px));
+  }
+
+  .purgedIcon {
+    width: 16px;
   }
 }

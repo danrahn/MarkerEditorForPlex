@@ -69,7 +69,8 @@ export class MovieResultRow extends BaseItemResultRow {
                     0,
                     {
                         click : this.#showHideMarkerTableEvent.bind(this),
-                        keydown : this.onBaseItemResultRowKeydown.bind(this)
+                        keydown : this.onBaseItemResultRowKeydown.bind(this),
+                        ...this.showHideMarkerTableTouchEvents(),
                     }),
                 appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
                     titleNode

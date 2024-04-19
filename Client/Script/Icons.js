@@ -22,6 +22,8 @@ const Icons = {
     Help : 'help',
     /** @readonly A rectangular picture icon. */
     Img : 'imgIcon',
+    /** @readonly A circle with an 'i' in the middle. */
+    Info : 'info',
     /** @readonly A spinning circle. */
     Loading : 'loading',
     /** @readonly A circle with a pause button in the middle. */

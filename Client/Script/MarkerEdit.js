@@ -345,6 +345,11 @@ class MarkerEdit {
         try {
             const rawMarkerData = await ServerCommands.add(markerType, metadataId, startTime, endTime, +final);
             const newMarker = new MarkerData().setFromJson(rawMarkerData);
+
+            // We're going to delete this row, and in mobile layout there's a good chance
+            // we're showing (or are going to show) the 'Confirm Add' tooltip after this
+            // row is already gone, resulting in a ghost tooltip.
+            Tooltip.dismiss();
             mediaItem.markerTable().addMarker(newMarker, this.markerRow.row());
         } catch (err) {
             errorResponseOverlay('Sorry, something went wrong trying to add the marker. Please try again later.', err);
@@ -353,6 +358,8 @@ class MarkerEdit {
 
     /** Handle cancellation of adding a marker - remove the temporary row and reset the 'Add Marker' button. */
     #onMarkerAddCancel() {
+        Tooltip.dismiss();
+
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.parent().mediaItem();
         mediaItem.markerTable().removeTemporaryMarkerRow(this.markerRow.row());

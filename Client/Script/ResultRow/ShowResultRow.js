@@ -279,4 +279,17 @@ export class ShowResultRow extends ShowResultRowBase {
             seasons.appendChild(buildNode('span', {}, baseText));
         }
     }
+
+    /**
+     * Update marker breakdown displays when we go between large and small screen modes. */
+    notifyWindowResize() {
+        this.updateMarkerBreakdown();
+        if (!this.#seasons) {
+            return;
+        }
+
+        for (const season of Object.values(this.#seasons)) {
+            season.updateMarkerBreakdown();
+        }
+    }
 }

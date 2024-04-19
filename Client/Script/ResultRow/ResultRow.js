@@ -135,7 +135,7 @@ export class ResultRow {
      * Determine whether we should load child seasons/episodes/marker tables when
      * clicking on the row. Returns false if the group has purged markers and the
      * user clicked on the marker info.
-     * @param {MouseEvent} e */
+     * @param {Event} e */
     ignoreRowClick(e) {
         if (this.hasPurgedMarkers() && (
             e.target.classList.contains('episodeDisplayText')
@@ -415,31 +415,29 @@ export class ResultRow {
             tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 
-        // TODO: Is it worth making toFixed dynamic? I don't think so.
         const smallScreen = isSmallScreen();
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(smallScreen ? 0 : 2);
         let displayText = `${atLeastOne}/${mediaItem.episodeCount} `;
         if (smallScreen) {
-            displayText = appendChildren(buildNode('span'),
+            displayText = appendChildren(buildNode('span', { class : 'episodeDisplayHolder' }),
                 document.createTextNode(displayText),
                 buildNode('i',
                     { class : 'markerInfoIcon' },
-                    getSvgIcon(Icons.Help, ThemeColors.Primary, { height : 14 }),
+                    getSvgIcon(Icons.Info, ThemeColors.Primary, { height : 12 }),
                     { click : () => { if (Tooltip.active()) { Tooltip.dismiss(); } } }));
         } else {
             displayText += `(${percent}%)`;
+            displayText = buildNode('span', {}, displayText);
         }
 
-        const innerText = buildNode('span', {}, displayText);
-
         if (this.hasPurgedMarkers()) {
-            innerText.appendChild(purgeIcon());
+            displayText.appendChild(purgeIcon());
             const purgeCount = this.getPurgeCount();
             const markerText = purgeCount === 1 ? 'marker' : 'markers';
             tooltipText += `<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
         }
 
-        const mainText = buildNode('span', { class : 'episodeDisplayText' }, innerText);
+        const mainText = buildNode('span', { class : 'episodeDisplayText' }, displayText);
         Tooltip.setTooltip(mainText, tooltipText);
         if (this.hasPurgedMarkers()) {
             mainText.addEventListener('click', this.getPurgeEventListener());

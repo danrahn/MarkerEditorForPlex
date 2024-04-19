@@ -6,6 +6,7 @@ import { Attributes, TableNavDelete } from './DataAttributes.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import ButtonCreator from './ButtonCreator.js';
 import { errorToast } from './ErrorHandling.js';
+import { isSmallScreen } from './WindowResizeEventHandler.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import TableElements from './TableElements.js';
 
@@ -676,7 +677,7 @@ class MarkerTable {
                     TableElements.centeredColumn('Type'),
                     TableElements.timeColumn('Start Time'),
                     TableElements.timeColumn('End Time'),
-                    TableElements.dateColumn('Date Added'),
+                    TableElements.dateColumn(isSmallScreen() ? 'Added' : 'Date Added'),
                     TableElements.optionsColumn('Options')
                 )
             )

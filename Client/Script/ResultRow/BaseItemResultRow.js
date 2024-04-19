@@ -18,6 +18,25 @@ import Tooltip from '../Tooltip.js';
 const Log = new ContextualLog('BaseItemRow');
 
 /**
+ * Data to keep track of touch events. */
+const TouchData = {
+    /** The screen x/y during the first touch */
+    startCoords : { x : 0, y : 0 },
+    /** The current touch coordinates, updated after every touchmove. */
+    currentCoords : { x : 0, y : 0 },
+    /** Timer set after a touchstart */
+    timer : 0,
+    /** Clear out any existing touch data. */
+    clear : () => {
+        TouchData.startCoords = { x : 0, y : 0 };
+        TouchData.currentCoords = { x : 0, y : 0 };
+        if (TouchData.timer) {
+            clearTimeout(TouchData.timer);
+        }
+    },
+};
+
+/**
  * Class with functionality shared between "base" media types, i.e. movies and episodes.
  */
 export class BaseItemResultRow extends ResultRow {
@@ -307,6 +326,60 @@ export class BaseItemResultRow extends ResultRow {
     }
 
     /**
+     * Get all relevant touch event listeners needed to handle
+     * "long press to expand/collapse all" behavior. */
+    showHideMarkerTableTouchEvents() {
+        return {
+            touchstart : this.#handleTouch.bind(this),
+            touchmove : this.#handleTouch.bind(this),
+            touchend : this.#handleTouch.bind(this),
+        };
+    }
+
+    /**
+     * @param {TouchEvent} e */
+    #handleTouch(e) {
+        switch (e.type) {
+            case 'touchstart':
+                if (e.touches.length !== 1 || this.ignoreRowClick(e)) {
+                    TouchData.clear();
+                    return;
+                }
+
+                TouchData.startCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
+                TouchData.currentCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
+                TouchData.timer = setTimeout(this.#showHideMarkerTablesAfterLongPress.bind(this), 1000);
+                break;
+            case 'touchmove':
+                if (!TouchData.timer || e.touches.length !== 1) {
+                    TouchData.clear();
+                    return;
+                }
+
+                TouchData.currentCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
+                break;
+            case 'touchend':
+                TouchData.clear();
+                break;
+        }
+    }
+
+    /**
+     * Triggered after a touch event lasts for at least one second. If our end
+     * coordinates haven't strayed too far from our start coordinates, show/hide
+     * all marker tables. */
+    #showHideMarkerTablesAfterLongPress() {
+        const diffX = Math.abs(TouchData.currentCoords.x - TouchData.startCoords.x);
+        const diffY = Math.abs(TouchData.currentCoords.y - TouchData.startCoords.y);
+        TouchData.clear();
+
+        // Allow a bit more horizontal leeway than vertical.
+        if (diffX < 20 && diffY < 10) {
+            this.showHideMarkerTables(this.baseItem().markerTable().isVisible());
+        }
+    }
+
+    /**
      * Expands or contracts the marker table for this row.
      * @param {boolean} hide
      * @param {boolean} bulk Whether we're in a bulk show/hide operation
@@ -328,7 +401,6 @@ export class BaseItemResultRow extends ResultRow {
      * @param {boolean} hide
      * @param {BaseItemResultRow[]} items */
     static ShowHideMarkerTables(hide, items) {
-        let count = 0;
         const bodyRect = document.body.getBoundingClientRect();
         const isVisible = (/** @type {BaseItemResultRow} */ episode) => {
             const rect = episode.html().getBoundingClientRect();
@@ -338,19 +410,49 @@ export class BaseItemResultRow extends ResultRow {
         /** @type {Promise<void>[]} */
         const animations = [];
 
+        const sortedItems = hide ? items.map((item, i, arr) => arr[arr.length - 1 - i]) : items;
+
         // Improve perf a bit by doing the following:
         // * If the row isn't visible at the time of execution, don't animate the expansion/contraction.
         // * For visible rows, stagger the expansion/contraction so we don't try animating 30 rows at once.
         //   With the current duration of 150ms, a 25ms timer will ensure we only have at most 6 rows
         //   animating at once. As an added benefit, I think the staggered approach looks cleaner.
-        for (const item of items) {
-            const delay = count++;
-            if (isVisible(item)) {
-                animations.push(new Promise(r => {
-                    setTimeout(() => { item.showHideMarkerTable(hide, true /*bulk*/); r(); }, delay * 25);
-                }));
-            } else {
+        let foundVisible = false;
+        let count = 0;
+        let hiddenAgain = false;
+        for (const item of sortedItems) {
+            if (!foundVisible && !isVisible(item)) {
                 animations.push(item.showHideMarkerTable(hide, true /*bulk*/, false /*animate*/));
+                count = 1;
+                continue;
+            }
+
+            if (!foundVisible) {
+                foundVisible = true;
+            }
+
+            let delay = count;
+            const shouldAnimate = !hiddenAgain && isVisible(item);
+            if (shouldAnimate) {
+                ++count;
+            } else {
+                if (hide) {
+                    delay = 0;
+                }
+
+                // No more rows after this should be visible, saving us some isVisible calculations
+                hiddenAgain = true;
+            }
+
+            if (delay === 0) {
+                animations.push(item.showHideMarkerTable(hide, true /*bulk*/, shouldAnimate));
+            } else {
+                animations.push(new Promise(r => {
+                    setTimeout(async () => {
+                        await item.showHideMarkerTable(hide, true /*bulk*/, shouldAnimate);
+                        r();
+                    }, delay * 25);
+                }));
             }
         }
 
