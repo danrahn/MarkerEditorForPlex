@@ -164,18 +164,17 @@ export class ResultRow {
      * Determine if the given element is an image/svg, or belongs to an svg.
      * @param {Element} target */
     isClickTargetInImage(target) {
-        switch (target.tagName.toLowerCase()) {
-            case 'i':
+        switch (target.tagName) {
+            case 'I':
                 return !!$$('svg', target);
-            case 'img':
-            case 'svg':
+            case 'IMG':
+            case 'SVG':
                 return true;
             default: {
                 // Check whether we're in an SVG element. Use a tabbable row as a bailout condition.
                 let parent = target;
                 while (parent) {
-                    const tag = parent.tagName.toLowerCase();
-                    if (tag === 'svg') {
+                    if (parent.tagName === 'SVG') {
                         return true;
                     } else if (parent.hasAttribute('tabIndex')) {
                         return false;

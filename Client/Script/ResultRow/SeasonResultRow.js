@@ -349,7 +349,7 @@ export class SeasonResultRow extends SeasonResultRowBase {
             return;
         }
 
-        if ((seasonName.childNodes[0].tagName.toLowerCase() === 'i') === !!this.#episodesFiltered) {
+        if ((seasonName.childNodes[0].tagName === 'I') === !!this.#episodesFiltered) {
             return;
         }
 

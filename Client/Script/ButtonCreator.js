@@ -227,7 +227,7 @@ class ButtonCreator {
         // Extract the "real" button based on those assumptions.
         /** @type {HTMLElement} */
         let button = e.target;
-        if (button.tagName.toLowerCase() !== 'div') {
+        if (button.tagName !== 'DIV') {
             button = button.parentNode;
         }
 

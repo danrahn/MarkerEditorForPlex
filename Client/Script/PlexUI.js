@@ -113,8 +113,8 @@ class PlexUIManager {
      * be ignored by any global handlers.
      * @param {KeyboardEvent} e */
     #inInput(e) {
-        const tag = e.target.tagName.toLowerCase();
-        return tag === 'textarea' || tag === 'input' && e.target.type === 'text';
+        const tag = e.target.tagName;
+        return tag === 'TEXTAREA' || tag === 'INPUT' && e.target.type === 'text';
     }
 
     /**

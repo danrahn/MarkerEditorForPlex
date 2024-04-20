@@ -468,20 +468,20 @@ class Nav {
      * @param {boolean} upDown Are we navigating up/down, or left/right?
      * @param {boolean} left If navigating sideways, are we navigating left? */
     static ShouldSwitchInput(e, input, upDown, left) {
-        const tagName = input.tagName.toLowerCase();
+        const tagName = input.tagName;
         if (upDown) {
             // For up/down navigation, we just care whether we're
             // in a select element, in which case we don't want to navigate.
-            return tagName !== 'select';
+            return tagName !== 'SELECT';
         }
 
-        if (tagName === 'select') {
+        if (tagName === 'SELECT') {
             // No matter what, disable left/right to toggle select options, only allow up/down.
             e.preventDefault();
             return true;
         }
 
-        if (tagName !== 'input' || input.type !== 'text') {
+        if (tagName !== 'INPUT' || input.type !== 'text') {
             return true;
         }
 
