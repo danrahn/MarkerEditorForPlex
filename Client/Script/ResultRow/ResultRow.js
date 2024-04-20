@@ -135,16 +135,20 @@ export class ResultRow {
      * Determine whether we should load child seasons/episodes/marker tables when
      * clicking on the row. Returns false if the group has purged markers and the
      * user clicked on the marker info.
-     * @param {Event} e */
-    ignoreRowClick(e) {
+     * @param {EventTarget} target */
+    ignoreRowClick(target) {
+        if (!(target instanceof Element)) {
+            return false;
+        }
+
         if (this.hasPurgedMarkers() && (
-            e.target.classList.contains('episodeDisplayText')
-            || (e.target.parentElement && e.target.parentElement.classList.contains('episodeDisplayText'))
-            || this.isClickTargetInImage(e.target))) {
+            target.classList.contains('episodeDisplayText')
+            || (target.parentElement && target.parentElement.classList.contains('episodeDisplayText'))
+            || this.isClickTargetInImage(target))) {
             return true; // Don't show/hide if we're repurposing the marker display.
         }
 
-        let parent = e.target;
+        let parent = target;
         while (parent && !(parent instanceof HTMLSpanElement)) {
             if (parent.classList.contains('markerInfoIcon')) {
                 return true;
@@ -215,7 +219,7 @@ export class ResultRow {
      * are also thrown into the mix.
      * @param {KeyboardEvent} e */
     onRowKeydown(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 
@@ -461,5 +465,25 @@ export class ResultRow {
     removeInlineLoadingIcon() {
         const icon = $$('.inlineLoadingIcon', this.html());
         icon?.parentElement.removeChild(icon);
+    }
+
+    /**
+     * Return whether the given target is part of the marker info icon.
+     * @param {Element} target */
+    isInfoIcon(target) {
+        let ele = target;
+        while (ele) {
+            if (ele.tagName === 'I') {
+                return ele.classList.contains('markerInfoIcon');
+            }
+
+            if (ele.classList.contains('resultRow')) {
+                return false;
+            }
+
+            ele = ele.parentElement;
+        }
+
+        return false;
     }
 }

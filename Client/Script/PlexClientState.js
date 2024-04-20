@@ -83,7 +83,7 @@ class PlexClientStateManager {
             }
 
             for (const searchRow of Instance.#activeSearchFiltered) {
-                searchRow.updateMarkerBreakdown();
+                searchRow.notifyWindowResize();
             }
         });
     }

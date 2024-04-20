@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode } from './Common.js';
+import { $, $$, addEventsToElement, appendChildren, buildNode } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
@@ -128,9 +128,10 @@ class ButtonCreator {
      * @param {HTMLElement} button
      * @param {string} newText */
     static setText(button, newText) {
+        // No-op if this isn't a text button
         const span = $$('.buttonText', button);
         if (!span) {
-            Log.warn('Called setText on non-text button!');
+            return;
         }
 
         span.innerText = newText;
@@ -192,7 +193,10 @@ class ButtonCreator {
                 }
             } else if (attribute === 'tooltip') {
                 Tooltip.setTooltip(button, value);
-            } else if (attribute === 'auxclick') {
+            } else if (attribute === 'events') {
+                // Extra events outside of the standard click event
+                addEventsToElement(button, value);
+            } else if (attribute === 'auxclick' && value) {
                 button.addEventListener('auxclick', (e) => {
                     // Disabled buttons don't do anything.
                     if (!button.classList.contains('disabled')) {

@@ -106,7 +106,16 @@ export function animateOpacity(ele, start, end, options, callback) {
  * @param {HTMLElement} ele
  * @param {string} prop */
 function checkProp(ele, prop) {
-    const sav = ele.style[prop];
+    let sav = ele.style[prop];
+    if ((ele instanceof HTMLImageElement) && prop in ['width', 'height']) {
+        // For images, use the width/height property directly if
+        // the style isn't set, but make sure it ends with 'px'.
+        sav ||= ele[prop];
+        if (sav === 'number') {
+            sav += 'px';
+        }
+    }
+
     prop = Attributes.PropReset(prop);
     const isAnimating = ele.getAttribute(prop);
     if (isAnimating !== null) {
@@ -152,10 +161,11 @@ export function slideUp(ele, options, callback) {
         [{ opacity : 1, height : startingHeight }, { opacity : 0, height : '0px' }],
         options,
         async () => {
-            if (options.noReset) {
-                ele.style.height = '0px';
+            if (ele instanceof HTMLImageElement) {
+                ele.height = options.noReset ? 0 : heightSav;
+                ele.style.removeProperty('height');
             } else {
-                ele.style.height = heightSav;
+                ele.style.height = options.noReset ? '0px' : heightSav;
             }
 
             removeProp(ele, 'height');
@@ -182,7 +192,14 @@ export function slideDown(ele, finalHeight, options, callback) {
             if (!hasHeight && !options.noReset) {
                 ele.style.removeProperty('height');
             } else if (options.noReset) {
-                ele.style.height = finalHeight;
+                // For images, remove the style height and
+                // set the height attribute directly.
+                if (ele instanceof HTMLImageElement) {
+                    ele.height = parseInt(finalHeight);
+                    ele.style.removeProperty('height');
+                } else {
+                    ele.style.height = finalHeight;
+                }
             }
 
             removeProp(ele, 'height');

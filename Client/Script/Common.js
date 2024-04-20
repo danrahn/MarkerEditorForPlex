@@ -1,3 +1,6 @@
+import { addLongPressListener } from './LongPressHandler.js';
+
+/** @typedef {(target: EventTarget) => void} CustomEventCallback */
 
 /**
  * Removes all children from the given element.
@@ -71,21 +74,7 @@ function _buildNode(ele, attrs, content, events, options) {
     }
 
     if (events) {
-        for (const [event, func] of Object.entries(events)) {
-            /** @type {EventListener[]} */
-            let handlers = func;
-            if (!(func instanceof Array)) {
-                handlers = [func];
-            }
-
-            for (const handler of handlers) {
-                if (options.thisArg) {
-                    ele.addEventListener(event, handler.bind(options.thisArg, ele));
-                } else {
-                    ele.addEventListener(event, handler);
-                }
-            }
-        }
+        addEventsToElement(ele, events, options.thisArg);
     }
 
     if (content) {
@@ -97,6 +86,44 @@ function _buildNode(ele, attrs, content, events, options) {
     }
 
     return ele;
+}
+
+/**
+ * Map of existing custom events that have additional setup via the specified method.
+ * @type {{ [event: string]: (ele: HTMLElement, (target: HTMLElement) => void) => void }} */
+const CustomEvents = {
+    longpress : addLongPressListener,
+};
+
+/**
+ * Attach all specified events to the given element, with some custom handling around non-standard events.
+ * @param {Element} element The element to add events to
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
+ * @param {Element?} thisArg */
+function addEventsToElement(element, events, thisArg=null) {
+    for (const [event, func] of Object.entries(events)) {
+        /** @type {EventListener[]} */
+        let handlers = func;
+        if (!(func instanceof Array)) {
+            handlers = [func];
+        }
+
+        const customEvent = CustomEvents[event];
+
+        for (const handler of handlers) {
+            if (customEvent) {
+                if (thisArg) {
+                    customEvent(element, handler.bind(thisArg, element));
+                } else {
+                    customEvent(element, handler);
+                }
+            } else if (thisArg) {
+                element.addEventListener(event, handler.bind(thisArg, element));
+            } else {
+                element.addEventListener(event, handler);
+            }
+        }
+    }
 }
 
 /**
@@ -401,6 +428,7 @@ function scrollAndFocus(e, scrollTarget, focusTarget) {
 export {
     $,
     $$,
+    addEventsToElement,
     appendChildren,
     buildNode,
     buildNodeNS,

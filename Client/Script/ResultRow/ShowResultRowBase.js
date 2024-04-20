@@ -58,8 +58,13 @@ export class ShowResultRowBase extends ResultRow {
     }
 
     /**
-     * Launches the purge overlay for this show. */
-    #onShowPurgeClick() {
+     * Launches the purge overlay for this show.
+     * @param {MouseEvent} e */
+    #onShowPurgeClick(e) {
+        if (this.isInfoIcon(e.target)) {
+            return;
+        }
+
         // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
         const focusBack = this.titleRow() ? $$('.tabbableRow', this.html().parentElement) : this.html();
         PurgedMarkers.showSingleShow(this.show().metadataId, focusBack);

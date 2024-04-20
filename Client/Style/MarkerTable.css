@@ -75,7 +75,7 @@ table .buttonIconAndText {
 
 .topAlignedPlainText {
   vertical-align: top;
-  padding-top: 7px;
+  padding-top: 5px;
 }
 
 .timeInput {
@@ -163,8 +163,12 @@ table .buttonIconAndText {
     width: 250px !important;
   }
 
-  .optionsColumn {
+  .optionsColumn:not(.iconOptions) {
     min-width: 150px; /* "It works on my machine" */
+  }
+
+  .optionsColumn.iconOptions {
+    min-width: 100px;
   }
 }
 
@@ -195,6 +199,6 @@ table .buttonIconAndText {
   }
 
   .optionsColumn {
-    min-width: 60px; /* "It works on my machine" */
+    min-width: 90px; /* "It works on my machine" */
   }
 }

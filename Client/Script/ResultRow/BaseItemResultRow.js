@@ -18,25 +18,6 @@ import Tooltip from '../Tooltip.js';
 const Log = new ContextualLog('BaseItemRow');
 
 /**
- * Data to keep track of touch events. */
-const TouchData = {
-    /** The screen x/y during the first touch */
-    startCoords : { x : 0, y : 0 },
-    /** The current touch coordinates, updated after every touchmove. */
-    currentCoords : { x : 0, y : 0 },
-    /** Timer set after a touchstart */
-    timer : 0,
-    /** Clear out any existing touch data. */
-    clear : () => {
-        TouchData.startCoords = { x : 0, y : 0 };
-        TouchData.currentCoords = { x : 0, y : 0 };
-        if (TouchData.timer) {
-            clearTimeout(TouchData.timer);
-        }
-    },
-};
-
-/**
  * Class with functionality shared between "base" media types, i.e. movies and episodes.
  */
 export class BaseItemResultRow extends ResultRow {
@@ -73,7 +54,7 @@ export class BaseItemResultRow extends ResultRow {
      * Handles common keyboard input on rows with marker tables.
      * @param {KeyboardEvent} e */
     onBaseItemResultRowKeydown(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 
@@ -325,56 +306,8 @@ export class BaseItemResultRow extends ResultRow {
         scrollAndFocus(e, this.html(), focusOn);
     }
 
-    /**
-     * Get all relevant touch event listeners needed to handle
-     * "long press to expand/collapse all" behavior. */
-    showHideMarkerTableTouchEvents() {
-        return {
-            touchstart : this.#handleTouch.bind(this),
-            touchmove : this.#handleTouch.bind(this),
-            touchend : this.#handleTouch.bind(this),
-        };
-    }
-
-    /**
-     * @param {TouchEvent} e */
-    #handleTouch(e) {
-        switch (e.type) {
-            case 'touchstart':
-                if (e.touches.length !== 1 || this.ignoreRowClick(e)) {
-                    TouchData.clear();
-                    return;
-                }
-
-                TouchData.startCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
-                TouchData.currentCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
-                TouchData.timer = setTimeout(this.#showHideMarkerTablesAfterLongPress.bind(this), 1000);
-                break;
-            case 'touchmove':
-                if (!TouchData.timer || e.touches.length !== 1) {
-                    TouchData.clear();
-                    return;
-                }
-
-                TouchData.currentCoords = { x : e.touches[0].clientX, y : e.touches[0].clientY };
-                break;
-            case 'touchend':
-                TouchData.clear();
-                break;
-        }
-    }
-
-    /**
-     * Triggered after a touch event lasts for at least one second. If our end
-     * coordinates haven't strayed too far from our start coordinates, show/hide
-     * all marker tables. */
-    #showHideMarkerTablesAfterLongPress() {
-        const diffX = Math.abs(TouchData.currentCoords.x - TouchData.startCoords.x);
-        const diffY = Math.abs(TouchData.currentCoords.y - TouchData.startCoords.y);
-        TouchData.clear();
-
-        // Allow a bit more horizontal leeway than vertical.
-        if (diffX < 20 && diffY < 10) {
+    showHideMarkerTablesAfterLongPress(target) {
+        if (!this.ignoreRowClick(target)) {
             this.showHideMarkerTables(this.baseItem().markerTable().isVisible());
         }
     }
@@ -457,6 +390,14 @@ export class BaseItemResultRow extends ResultRow {
         }
 
         return Promise.all(animations);
+    }
+
+    /**
+     * When switching between small and large window modes, update the marker display and let
+     * the marker table know the window changed size. */
+    notifyWindowResize() {
+        this.updateMarkerBreakdown();
+        this.baseItem().markerTable().onWindowResize();
     }
 
     /**

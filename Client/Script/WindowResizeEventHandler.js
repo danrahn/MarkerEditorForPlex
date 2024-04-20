@@ -10,6 +10,7 @@ let smallScreenCached = false;
 /**
  * Initializes the global window resize event listener, which acts as a wrapper around individually registered listeners. */
 export function SetupWindowResizeEventHandler() {
+    smallScreenCached = isSmallScreen();
     window.addEventListener('resize', (e) => {
         if (smallScreenCached === isSmallScreen()) {
             return;

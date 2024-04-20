@@ -106,7 +106,7 @@ export class ShowResultRow extends ShowResultRowBase {
     /** Click handler for clicking a show row. Initiates a request for season details.
      * @param {MouseEvent} e */
     async #showClick(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 

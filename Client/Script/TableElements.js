@@ -6,6 +6,7 @@ import Tooltip from './Tooltip.js';
 
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('./TimestampThumbnails').TimestampThumbnails} TimestampThumbnails */
 
 /** A custom object for {@linkcode TableElements.rawTableRow} to parse that will attach the given properties to the column. */
 class CustomClassColumn {
@@ -74,7 +75,8 @@ class TableElements {
      * Return a column with a fixed width and centered contents.
      * @param {string} value The text of the column. */
     static optionsColumn(value) {
-        return TableElements.customClassColumn(value, 'optionsColumn centeredColumn');
+        return TableElements.customClassColumn(
+            value, 'optionsColumn centeredColumn' + (ClientSettings.useThumbnails() ? ' iconOptions' : ''));
     }
 
     /** Returns a spanning table row indicating an episode has no existing markers. */
@@ -84,9 +86,17 @@ class TableElements {
 
     /**
      * Returns a span of [hh:]mm:ss.000 data, with hover text of the equivalent milliseconds.
-     * @param {number} offset The offset, in milliseconds. */
-    static timeData(time) {
-        return buildNode('span', { title : time }, msToHms(time));
+     * @param {number} offset The offset, in milliseconds.
+     * @param {TimestampThumbnails?} thumbnails */
+    static timeData(time, addThumbPlaceholder, isEnd=false) {
+        const timeSpan = buildNode('span', { title : time }, msToHms(time));
+        if (!addThumbPlaceholder) {
+            return timeSpan;
+        }
+
+        return appendChildren(buildNode('div'),
+            timeSpan,
+            buildNode('img', { class : `staticThumb placeholder staticThumb${isEnd ? 'End' : 'Start'}` }));
     }
 
     /**

@@ -404,9 +404,9 @@ input:focus-visible {
   padding: 10px 10px 10px 20px;
 }
 
-/* Allow marker info to shrink to make room for long season titles */
+/* Always keep marker info on a single row, wrapping long season titles to a new row. */
 .seasonResult:not(.selected)>.showResultEpisodes {
-  flex: 0 1 auto;
+  flex: 0 0 fit-content;
 }
 
 /* Make back buttons/marker info a fixed width to allow show/season titles to grow. */
@@ -873,7 +873,7 @@ input:focus-visible {
   }
 
   .purgedIcon {
-    width: 18px;
+    height: 16px;
   }
 }
 
@@ -922,6 +922,6 @@ input:focus-visible {
   }
 
   .purgedIcon {
-    width: 16px;
+    height: 14px;
   }
 }

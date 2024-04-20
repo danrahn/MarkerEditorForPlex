@@ -148,7 +148,7 @@ export class SeasonResultRow extends SeasonResultRowBase {
      * Click handler for clicking a show row. Initiates a request for all episodes in the given season.
      * @param {MouseEvent} e */
     #seasonClick(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 
@@ -388,8 +388,7 @@ export class SeasonResultRow extends SeasonResultRowBase {
         }
 
         for (const episode of Object.values(this.#episodes)) {
-            episode.updateMarkerBreakdown();
-            episode.updateTitleOnWindowResize();
+            episode.notifyWindowResize();
         }
     }
 }

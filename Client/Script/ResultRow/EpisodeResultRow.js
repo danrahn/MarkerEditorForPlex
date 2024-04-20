@@ -58,7 +58,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
                             this.onBaseItemResultRowKeydown.bind(this),
                             this.#onEpisodeRowKeydown.bind(this)
                         ],
-                        ...this.showHideMarkerTableTouchEvents(),
+                        longpress : this.showHideMarkerTablesAfterLongPress.bind(this),
                     }),
                 appendChildren(buildNode('div', { class : 'episodeName' }),
                     this.getExpandArrow(),
@@ -76,8 +76,9 @@ export class EpisodeResultRow extends BaseItemResultRow {
     }
 
     /**
-     * Adjust episode title text depending on the new screen size. */
-    updateTitleOnWindowResize() {
+     * Adjust marker details and episode title text depending on the new screen size. */
+    notifyWindowResize() {
+        super.notifyWindowResize();
         $$('.episodeRowTitle', this.html()).innerText = this.#displayTitle();
     }
 
@@ -144,8 +145,13 @@ export class EpisodeResultRow extends BaseItemResultRow {
         return main;
     }
 
-    /** Launches the purge table overlay. */
-    #onEpisodePurgeClick() {
+    /** Launches the purge table overlay.
+     * @param {MouseEvent} e */
+    #onEpisodePurgeClick(e) {
+        if (this.isInfoIcon(e.target)) {
+            return;
+        }
+
         PurgedMarkers.showSingleEpisode(this.episode().metadataId, $$('.tabbableRow', this.html()));
     }
 
@@ -154,7 +160,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
     #showHideMarkerTableEvent(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 

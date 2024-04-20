@@ -725,7 +725,7 @@ class MarkerTable {
     setParent(parentRow) {
         this.#parentRow = parentRow;
         for (const row of this.#rows) {
-            row.setParent(parentRow);
+            row.setBaseItem(parentRow);
         }
     }
 
@@ -1164,6 +1164,30 @@ class MarkerTable {
             case 'ArrowRight':
                 return modifierCount < 2;
         }
+    }
+
+    /**
+     * When switching between large and small window modes, tell each row
+     * to update its elements accordingly. */
+    onWindowResize() {
+        for (const row of this.#rows) {
+            row.onWindowResize();
+        }
+    }
+
+    /**
+     * Show/hide all static preview thumbnails in this table.
+     * @param {boolean} show Whether to show or hide the preview thumbnails */
+    showHidePreviewThumbnails(show) {
+        /** @type {Promise<void>[]} */
+        const promises = [];
+        for (const row of this.#rows) {
+            if (!row.editor().editing) { // TODO?
+                promises.push(...row.toggleStaticPreviews(show));
+            }
+        }
+
+        return promises;
     }
 }
 

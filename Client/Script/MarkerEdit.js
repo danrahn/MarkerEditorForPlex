@@ -11,7 +11,7 @@ import {
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
-import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
+import { animateOpacity } from './AnimationHelpers.js';
 import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
 import { ClientSettings } from './ClientSettings.js';
@@ -23,6 +23,7 @@ import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
+import { TimestampThumbnails } from './TimestampThumbnails.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
@@ -96,7 +97,7 @@ class MarkerEdit {
         const events = {
             keydown : [
                 /** @this {MarkerEdit} */
-                function (_input, e) { timeInputShortcutHandler(e, this.markerRow.parent().mediaItem().duration); },
+                function (_input, e) { timeInputShortcutHandler(e, this.markerRow.baseItemRow().mediaItem().duration); },
                 this.#timeInputEditShortcutHandler
             ],
             keyup : [
@@ -118,7 +119,7 @@ class MarkerEdit {
             {
                 type : 'text',
                 maxlength : 12,
-                class : 'timeInput',
+                class : `timeInput timeInput${isEnd ? 'End' : 'Start'}`,
                 placeholder : 'ms or mm:ss[.000]',
                 value : initialValue,
                 autocomplete : 'off',
@@ -340,7 +341,7 @@ class MarkerEdit {
         }
 
         /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
+        const mediaItem = this.markerRow.baseItemRow().mediaItem();
         const metadataId = mediaItem.metadataId;
         try {
             const rawMarkerData = await ServerCommands.add(markerType, metadataId, startTime, endTime, +final);
@@ -361,7 +362,7 @@ class MarkerEdit {
         Tooltip.dismiss();
 
         /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
+        const mediaItem = this.markerRow.baseItemRow().mediaItem();
         mediaItem.markerTable().removeTemporaryMarkerRow(this.markerRow.row());
     }
 
@@ -376,7 +377,7 @@ class MarkerEdit {
         try {
             const rawMarkerData = await ServerCommands.edit(markerType, markerId, startTime, endTime, +final);
             const editedMarker = new MarkerData().setFromJson(rawMarkerData);
-            this.markerRow.parent().baseItem().markerTable().editMarker(editedMarker);
+            this.markerRow.baseItemRow().baseItem().markerTable().editMarker(editedMarker);
             this.resetAfterEdit();
         } catch (err) {
             this.#onMarkerEditCancel();
@@ -392,7 +393,7 @@ class MarkerEdit {
         /** @type {HTMLInputElement[]} */
         const inputs = $('input[type="text"]', this.markerRow.row());
         /** @type {MediaItemWithMarkerTable} */
-        const mediaItem = this.markerRow.parent().mediaItem();
+        const mediaItem = this.markerRow.baseItemRow().mediaItem();
         const startTime = realMs(timeToMs(inputs[0].value, true /*allowNegative*/), mediaItem.duration);
         const endTime = realMs(timeToMs(inputs[1].value, true /*allowNegative*/), mediaItem.duration);
         const markerId = this.markerRow.markerId();
@@ -552,7 +553,7 @@ class MarkerEdit {
      * @param {Object} response The server response, a serialized version of {@linkcode MarkerData}. */
     onMarkerEditSuccess(response) {
         const partialMarker = new MarkerData().setFromJson(response);
-        this.markerRow.parent().baseItem().markerTable().editMarker(partialMarker);
+        this.markerRow.baseItemRow().baseItem().markerTable().editMarker(partialMarker);
         this.resetAfterEdit();
     }
 
@@ -610,11 +611,15 @@ class MarkerEdit {
         }
 
         e.preventDefault();
-        input.value = msToHms(this.markerRow.parent().baseItem().duration);
+        input.value = msToHms(this.markerRow.baseItemRow().baseItem().duration);
 
         // Assume credits if they enter the end of the episode.
         $$('.inlineMarkerType', this.markerRow.row()).value = 'credits';
     }
+
+    /**
+     * Triggered when the window switches between small and large screen modes. */
+    onWindowResize() { }
 }
 
 /**
@@ -631,13 +636,17 @@ class ThumbnailMarkerEdit extends MarkerEdit {
                 thumb.width = width;
             });
         });
+
+        // This listener lives outside of the addWindowResizedListener, since we want it to trigger
+        // on every resize, not just when we reach the large/small threshold.
+        // This isn't really the right spot for this, since we currently explicitly skip
+        // thumbnails that are for an edit session, but it may be added in the future, and
+        // it avoids yet another static Setup() method.
+        window.addEventListener('resize', TimestampThumbnails.OnWindowResized);
     }
-    /**
-     * Whether we ran into an error when loading a start/end thumbnail.
-     * @type {boolean[]} */
-    #thumbnailError = [false, false];
-    #thumbnailsCollapsed = ClientSettings.collapseThumbnails();
-    #cachedHeight = 135; // Until we get a real thumbnail to test, use 240x135 (16:9) as the default size.
+
+    /** @type {TimestampThumbnails} */
+    #thumbnails;
 
     /**
      * @param {MarkerRow} markerRow The marker row to edit.
@@ -654,83 +663,70 @@ class ThumbnailMarkerEdit extends MarkerEdit {
 
     /**
      * Builds on top of {@linkcode MarkerEdit.getTimeInput}, adding a thumbnail below the time input field.
-     * @param {boolean} isEnd Whether we're getting time input for the end of the marker.
-     */
+     * @param {boolean} isEnd Whether we're getting time input for the end of the marker. */
     getTimeInput(isEnd) {
         const input = super.getTimeInput(isEnd);
         input.addEventListener('keydown', this.#thumbnailTimeInputShortcutHandler.bind(this));
-        const timestamp = (isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
-        const src = `t/${this.markerRow.parent().mediaItem().metadataId}/${timestamp}`;
-        // Not dynamic, but good enough for government work.
-        const width = document.body.clientWidth < 768 ? '180px' : '240px';
-        const thumbnail = buildNode(
-            'img',
-            {
-                src : src,
-                class : `inputThumb loading thumb${isEnd ? 'End' : 'Start' }`,
-                alt : 'Timestamp thumbnail',
-                width : width,
-                style : 'height: 0'
-            },
-            0,
-            {
-                error : this.#onThumbnailPreviewLoadFailed.bind(this),
-                load : this.#onThumbnailPreviewLoad.bind(this)
-            },
-            { thisArg : this }
-        );
 
-        if (!ClientSettings.autoLoadThumbnails()) {
-            Tooltip.setTooltip(thumbnail, 'Press Enter after entering a timestamp to update the thumbnail.');
-        }
-
+        const thumbnail = this.#thumbnails.buildThumbnail(isEnd);
         return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, thumbnail);
     }
 
+    /**
+     * Retrieve the new timestamp for the given start/end thumbnail.
+     * @param {boolean} isEnd */
+    #getNewTimestamp(isEnd) {
+        const mediaItem = this.markerRow.baseItemRow().mediaItem();
+        const query = `.timeInput${isEnd ? 'End' : 'Start'}`;
+        return realMs(timeToMs($$(query, this.markerRow.html).value, true /*allowNegative*/), mediaItem.duration);
+    }
+
+    /**
+     * Start an edit session that has thumbnails enabled.
+     * @param {boolean} startInChapterMode */
     onEdit(startInChapterMode) {
+        // It's easier to just reset TimestampThumbnails between edit sessions than
+        // handle proper state changes.
+        this.#thumbnails = new TimestampThumbnails(this.markerRow, true /*forEdit*/, this.#getNewTimestamp.bind(this));
+
         if (!super.onEdit(startInChapterMode)) {
             return;
         }
 
-        this.#thumbnailsCollapsed = ClientSettings.collapseThumbnails();
-        const startText = this.#thumbnailsCollapsed ? 'Show' : 'Hide';
-        const btn = ButtonCreator.dynamicButton(
-            startText,
-            Icons.Img,
-            ThemeColors.Primary,
-            this.#expandContractThumbnails.bind(this),
-            { tooltip : startText + ' thumbnails', [Attributes.TableNav] : 'thumb-collapse' });
-
-        btn.classList.add('thumbnailShowHide');
+        const btn = this.#thumbnails.getToggleIcon(true /*dynamic*/);
         const options = this.markerRow.row().children[4];
 
         // We want this as the first option. insertBefore properly handles the case where firstChild is null
         options.insertBefore(btn, options.firstChild);
-        this.markerRow.row().children[0].classList.toggle('topAlignedPlainText');
+        this.#toggleRowTextAlignment();
+    }
+
+    /**
+     * Toggle vertical alignment of marker row elements for this edit session. */
+    #toggleRowTextAlignment() {
+        for (let i = 0; i < 3; ++i) {
+            this.markerRow.row().children[i].classList.toggle('topAlignedPlainText');
+        }
     }
 
     /**
      * In addition to the parent's fade-out, contract our thumbnails if they're showing as part of the reset. */
     onBeforeReset() {
-        if (!this.#thumbnailsCollapsed) {
-            this.#expandContractThumbnails(null, $$('.thumbnailShowHide', this.markerRow.row()), 150);
+        if (this.#thumbnails.visible()) {
+            this.#thumbnails.toggleThumbnails(null, null, 150 /*duration*/);
         }
 
         return super.onBeforeReset();
     }
 
+    /**
+     * Restore the original marker row state after completing an edit session. */
     resetAfterEdit() {
         // We ensure the marker type stays at the top of the cell when thumbnails are present,
         // but that can mess with normal text alignment once we're done editing.
-        this.markerRow.row().children[0].classList.toggle('topAlignedPlainText');
-        const showHide = $$('.thumbnailShowHide', this.markerRow.row());
-        if (!showHide) {
-            return;
-        }
-
-        const parent = showHide.parentNode;
-        parent.removeChild(showHide);
+        this.#toggleRowTextAlignment();
+        // this.#thumbnails.resetAfterEdit();
         return super.resetAfterEdit();
     }
 
@@ -746,7 +742,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         switch (e.key) {
             case 't':
                 e.preventDefault();
-                this.#expandContractThumbnails(null, this.markerRow.row().children[4].querySelector('div.button'));
+                this.#thumbnails.toggleThumbnails();
                 break;
             default:
                 break;
@@ -760,7 +756,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
      * @param {KeyboardEvent} e */
     #onTimeInputKeyup(input, e) {
         // We only care about input if thumbnails are visible
-        if (this.#thumbnailsCollapsed) {
+        if (!this.#thumbnails.visible()) {
             return;
         }
 
@@ -769,7 +765,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
             return;
         }
 
-        this.#refreshImage(input.parentNode);
+        this.#thumbnails.refreshImage(input.classList.contains('timeInputEnd'));
     }
 
     /**
@@ -784,116 +780,15 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         clearTimeout(this.#autoloadTimeout);
         if (e.key !== 'Enter') {
             this.#autoloadTimeout = setTimeout(/**@this {ThumbnailMarkerEdit}*/function() {
-                this.#refreshImage(input.parentNode);
+                this.#thumbnails.refreshImage(input.classList.contains('timeInputEnd'));
             }.bind(this), 250);
         }
     }
 
     /**
-     * Sets the src of a thumbnail image based on the current input.
-     * @param {Element} editGroup The DOM element containing a start or end marker's time input and thumbnail. */
-    #refreshImage(editGroup) {
-        const mediaItem = this.markerRow.parent().mediaItem();
-        const timestamp = realMs(timeToMs($$('.timeInput', editGroup).value, true /*allowNegative*/), mediaItem.duration);
-        if (isNaN(timestamp)) {
-            return; // Don't ask for a thumbnail if the input isn't valid.
-        }
-
-        const thumb = $$('.inputThumb', editGroup);
-        if (!thumb) {
-            // We shouldn't get here
-            Log.warn('Unable to retrieve marker thumbnail image, no img element found!');
-            return;
-        }
-
-        const url = `t/${mediaItem.metadataId}/${timestamp}`;
-        thumb.classList.remove('hidden');
-        if (!thumb.src.endsWith(url)) {
-            thumb.classList.remove('loaded');
-            thumb.classList.add('loading');
-            thumb.src = url;
-        }
-    }
-
-    /** Callback when we failed to load a preview thumbnail, marking it as in an error state.
-     * @param {HTMLImageElement} thumb */
-    #onThumbnailPreviewLoadFailed(thumb) {
-        if (this.#cachedHeight && !thumb.src.endsWith('svg')) {
-            thumb.src = `t/-1/${this.#cachedHeight}.svg`;
-            const idx = thumb.classList.contains('thumbnailStart') ? 0 : 1;
-            const wasError = this.#thumbnailError[idx];
-            if (!wasError) {
-                Tooltip.removeTooltip(thumb);
-                Tooltip.setTooltip(thumb, `Failed to load thumbnail. This is usually due to the file reporting ` +
-                    `a duration that's longer than the actual length of the video stream.`);
-            }
-        } else {
-            this.#thumbnailError[thumb.classList.contains('thumbStart') ? 0 : 1] = true;
-            thumb.alt = 'Failed to load thumbnail';
-            thumb.classList.remove('loading');
-        }
-    }
-
-    /** Callback when we successfully loaded a preview thumbnail, setting its initial expanded/collapsed state.
-     * @param {HTMLImageElement} thumb */
-    #onThumbnailPreviewLoad(thumb) {
-        const idx = thumb.classList.contains('thumbnailStart') ? 0 : 1;
-        const wasError = this.#thumbnailError[idx];
-        this.#thumbnailError[idx] = false;
-        if (wasError) {
-            Tooltip.removeTooltip(thumb);
-            if (!ClientSettings.autoLoadThumbnails()) {
-                Tooltip.setTooltip(thumb, 'Press Enter after entering a timestamp to update the thumbnail.');
-            }
-        }
-
-        thumb.classList.remove('loading');
-        thumb.classList.add('loaded');
-
-
-        // If the original is e.g. 300 x 200, the error thumb should be scaled down to 240 x 160
-        // NOTE: Keep in sync with badThumb.svg width, as this calculation is based on
-        // its hardcoded width of 240px.
-        this.#cachedHeight = thumb.naturalHeight * (240 / thumb.naturalWidth);
-
-        const displayHeight = thumb.naturalHeight * (thumb.width / thumb.naturalWidth);
-        thumb.setAttribute(Attributes.DisplayHeight, displayHeight);
-        if (!this.#thumbnailsCollapsed && parseInt(thumb.style.height) === 0) {
-            slideDown(thumb, `${displayHeight}px`, { duration : 250, noReset : true }, () => thumb.style.removeProperty('height'));
-        }
-    }
-
-    /**
-     * Callback when the 'Show/Hide Thumbs' button is clicked. Adjusts the button text
-     * and begin the height transitions for the thumbnails themselves.
-     * @param {MouseEvent} _ The (unused) MouseEvent
-     * @param {HTMLElement} button */
-    #expandContractThumbnails(_, button, duration=250) {
-        this.#thumbnailsCollapsed = !this.#thumbnailsCollapsed;
-        const hidden = this.#thumbnailsCollapsed;
-        /** @type {Promise<void>[]} */
-        const promises = [];
-        $('.inputThumb', this.markerRow.row()).forEach(thumb => {
-            promises.push(new Promise(r => {
-                if (this.#thumbnailsCollapsed) {
-                    slideUp(thumb, { duration : duration, noReset : true }, r);
-                } else {
-                    slideDown(thumb, thumb.getAttribute(Attributes.DisplayHeight) + 'px', { duration : duration, noReset : true }, r);
-                }
-            }));
-
-            if (button) {
-                const text = hidden ? 'Show' : 'Hide';
-                $$('span', button).innerText = text;
-                Tooltip.setText(button, text + ' thumbnails');
-            }
-
-            if (!this.#thumbnailsCollapsed) {
-                this.#refreshImage(thumb.parentNode);
-            }
-        });
-
-        return Promise.all(promises);
+     * When switching between small and large screen modes, adjust the thumbnail width. */
+    onWindowResize() {
+        this.#thumbnails.onWindowResize();
     }
 }
 

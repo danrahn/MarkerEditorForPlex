@@ -14,13 +14,14 @@ import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerType } from '/Shared/MarkerType.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
+import { TimestampThumbnails } from './TimestampThumbnails.js';
 import Tooltip from './Tooltip.js';
 
 
 const Log = new ContextualLog('MarkerTableRow');
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
-/** @typedef {!import('./ResultRow/BaseItemResultRow').default} BaseItemResultRow */
+/** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
 
 class MarkerRow {
     /**
@@ -59,14 +60,14 @@ class MarkerRow {
     /** Return the raw HTML of this row. */
     row() { return this.html; }
 
-    /** Return the metadata id of the episode this marker belongs to. */
-    parent() { return this.#parentRow; }
+    /** Return the base media item this marker belongs to. */
+    baseItemRow() { return this.#parentRow; }
 
     /**
      * The marker table this row belongs to can be cached across searches, but the
      * result row will be different, so we have to update the parent.
      * @param {BaseItemResultRow} parentRow */
-    setParent(parentRow) { this.#parentRow = parentRow; }
+    setBaseItem(parentRow) { this.#parentRow = parentRow; }
 
     /** Returns the editor for this marker. */
     editor() { return this.#editor; }
@@ -92,12 +93,21 @@ class MarkerRow {
 
     /** Resets this marker row after an edit is completed (on success or failure). */
     reset() {}
+
+    /** Triggered when the client windows switches between a large and small width. */
+    onWindowResize() {}
+
+    /** Show/hide static preview thumbnails. No-op for non-thumbnail marker rows. */
+    toggleStaticPreviews(_show) { return [Promise.resolve()]; }
 }
 
 /** Represents an existing marker in the database. */
 class ExistingMarkerRow extends MarkerRow {
     /** @type {MarkerData} */
     #markerData;
+
+    /** @type {TimestampThumbnails?} */
+    #thumbnails;
 
     /**
      * @param {MarkerData} marker The marker to base this row off of.
@@ -106,6 +116,10 @@ class ExistingMarkerRow extends MarkerRow {
     constructor(marker, parent, chapters) {
         super(parent, chapters);
         this.#markerData = marker;
+        if (ClientSettings.useThumbnails()) {
+            this.#thumbnails = new TimestampThumbnails(this, false /*forEdit*/);
+        }
+
         this.buildRow();
     }
 
@@ -124,6 +138,8 @@ class ExistingMarkerRow extends MarkerRow {
                 this.html.children[i].appendChild(children[i]);
             }
         }
+
+        this.#thumbnails?.reset();
     }
 
     /**
@@ -134,10 +150,11 @@ class ExistingMarkerRow extends MarkerRow {
         const td = (data, properties={}) => buildNode('td', properties, data);
 
         const tableData = this.#tableData(true);
+        const timeAttrib = ClientSettings.useThumbnails() ? { class : 'topAlignedPlainText' } : {};
         appendChildren(tr,
             td(tableData[0]),
-            td(tableData[1]),
-            td(tableData[2]),
+            td(tableData[1], timeAttrib),
+            td(tableData[2], timeAttrib),
             td(tableData[3], { class : 'centeredColumn timeColumn topAlignedPlainText' }),
             td(tableData[4], { class : 'centeredColumn topAligned' }));
 
@@ -156,8 +173,8 @@ class ExistingMarkerRow extends MarkerRow {
 
         const data = [
             Object.keys(MarkerType).find(k => MarkerType[k] === this.#markerData.markerType),
-            TableElements.timeData(this.#markerData.start),
-            TableElements.timeData(this.#markerData.end),
+            TableElements.timeData(this.#markerData.start, this.#thumbnails, false /*isEnd*/),
+            TableElements.timeData(this.#markerData.end, this.#thumbnails, true /*isEnd*/),
             TableElements.friendlyDate(this.#markerData)
         ];
 
@@ -169,15 +186,38 @@ class ExistingMarkerRow extends MarkerRow {
     }
 
     /**
-     * Create and return the edit/delete marker option buttons.
+     * Create and return the [thumb]/edit/delete marker option buttons.
      * @returns {HTMLElement} */
     #buildOptionButtons() {
+        const editArgs = [ThemeColors.Primary, this.#onEditClick.bind(this), { [Attributes.TableNav] : 'edit' }];
+        const delArgs = [ThemeColors.Red, this.#confirmMarkerDelete.bind(this),
+            { class : 'deleteMarkerBtn', [Attributes.TableNav] : TableNavDelete }];
+
+        // Force icon buttons when we have 3+ options, otherwise make them dynamic.
+        if (this.#thumbnails) {
+            // Hacky, shouldn't rely on this behavior.
+            return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
+                this.#thumbnails.getToggleIcon(false /*dynamic*/),
+                ButtonCreator.iconButton(Icons.Edit, 'Edit Marker', ...editArgs),
+                ButtonCreator.iconButton(Icons.Delete, 'Delete Marker', ...delArgs),
+            );
+        }
+
         return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
-            ButtonCreator.dynamicButton('Edit', Icons.Edit, ThemeColors.Primary,
-                e => this.editor().onEdit(e.shiftKey), { [Attributes.TableNav] : 'edit' }),
-            ButtonCreator.dynamicButton('Delete', Icons.Delete, ThemeColors.Red,
-                this.#confirmMarkerDelete.bind(this), { class : 'deleteMarkerBtn', [Attributes.TableNav] : TableNavDelete })
+            ButtonCreator.dynamicButton('Edit', Icons.Edit, ...editArgs),
+            ButtonCreator.dynamicButton('Delete', Icons.Delete, ...delArgs),
         );
+    }
+
+    /**
+     * Start an edit session, but first, ensure static thumbnails are hidden.
+     * @param {MouseEvent} e */
+    async #onEditClick(e) {
+        if (this.#thumbnails?.visible()) {
+            await this.#thumbnails.toggleThumbnails(null, null, 100);
+        }
+
+        this.editor().onEdit(e.shiftKey);
     }
 
     /** Prompts the user before deleting a marker. */
@@ -232,7 +272,7 @@ class ExistingMarkerRow extends MarkerRow {
             ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Green);
             const deletedMarker = new MarkerData().setFromJson(rawMarkerData);
             /** @type {MediaItemWithMarkerTable} */
-            const mediaItem = this.parent().mediaItem();
+            const mediaItem = this.baseItemRow().mediaItem();
             await flashBackground(confirmBtn, Theme.getHex(ThemeColors.Green, '6'), 200);
             mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
@@ -266,6 +306,33 @@ class ExistingMarkerRow extends MarkerRow {
             animateOpacity(dateAdded.children[0], 0, 1, { duration : 100, noReset : true }),
             animateOpacity(options.children[0], 0, 1, { duration : 100, noReset : true })
         ]);
+    }
+
+    /**
+     * When switching between between small and large screen modes, forward the event to
+     * the edit session if it's active, otherwise adjust the 'added at' date text. */
+    onWindowResize() {
+        if (this.editor().editing) {
+            this.editor().onWindowResize();
+        } else {
+            this.html?.children[3]?.replaceWith(
+                buildNode('td',
+                    { class : 'centeredColumn timeColumn topAlignedPlainText' },
+                    TableElements.friendlyDate(this.#markerData)));
+        }
+    }
+
+    /**
+     * Toggle the static thumbnails in this row.
+     * @param {boolean} show */
+    toggleStaticPreviews(show) {
+        /** @type {Promise<void>[]} */
+        const promises = [];
+        if (this.#thumbnails && this.#thumbnails.visible() !== show) {
+            promises.push(this.#thumbnails.toggleThumbnails());
+        }
+
+        return promises;
     }
 }
 

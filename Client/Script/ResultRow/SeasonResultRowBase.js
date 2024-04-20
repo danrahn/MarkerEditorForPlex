@@ -52,8 +52,13 @@ export class SeasonResultRowBase extends ResultRow {
     }
 
     /**
-     * Show the purge overlay for this season. */
-    #onSeasonPurgeClick() {
+     * Show the purge overlay for this season.
+     * @param {MouseEvent} e */
+    #onSeasonPurgeClick(e) {
+        if (this.isInfoIcon(e.target)) {
+            return;
+        }
+
         // For dummy rows, set focus back to the first tabbable row, as the purged icon might not exist anymore
         const focusBack = this.titleRow() ? $$('.tabbableRow', this.html().parentElement) : this.html();
         PurgedMarkers.showSingleSeason(this.season().metadataId, focusBack);

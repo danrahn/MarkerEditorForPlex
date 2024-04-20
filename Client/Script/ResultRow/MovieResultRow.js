@@ -70,7 +70,7 @@ export class MovieResultRow extends BaseItemResultRow {
                     {
                         click : this.#showHideMarkerTableEvent.bind(this),
                         keydown : this.onBaseItemResultRowKeydown.bind(this),
-                        ...this.showHideMarkerTableTouchEvents(),
+                        longpress : this.showHideMarkerTablesAfterLongPress.bind(this),
                     }),
                 appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
                     titleNode
@@ -152,8 +152,14 @@ export class MovieResultRow extends BaseItemResultRow {
         return main;
     }
 
-    /** Launches the purge table overlay. */
-    #onMoviePurgeClick() {
+    /**
+     * Launches the purge table overlay.
+     * @param {MouseEvent} e */
+    #onMoviePurgeClick(e) {
+        if (this.isInfoIcon(e.target)) {
+            return;
+        }
+
         PurgedMarkers.showSingleMovie(this.movie().metadataId, $$('.tabbableRow', this.html()));
     }
 
@@ -181,7 +187,7 @@ export class MovieResultRow extends BaseItemResultRow {
      * If the user ctrl+clicks the episode, expand/contract for all episodes.
      * @param {MouseEvent} e */
     async #showHideMarkerTableEvent(e) {
-        if (this.ignoreRowClick(e)) {
+        if (this.ignoreRowClick(e.target)) {
             return;
         }
 
