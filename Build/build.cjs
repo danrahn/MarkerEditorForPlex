@@ -129,14 +129,29 @@ async function toExe() {
     // relies on internal nexe behavior, but since it's dev-only, nothing user-facing should break if
     // nexe changes, this section will just have to be updated.
     const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
-    const oldOut = join(temp, nodeVersion, 'out');
 
     if (args.includes('version')) {
         const idx = args.indexOf('version');
         if (idx < args.length - 1) {
             nodeVersion = args[idx + 1];
         }
-    } else if (args.includes('clean')) {
+    } else {
+        // Find the latest LTS version
+        try {
+            /** @type {NodeVersionInfo[]} */
+            const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
+            versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
+
+            nodeVersion = versions[0].version.substring(1);
+            console.log(`Found latest LTS: ${nodeVersion}`);
+        } catch (ex) {
+            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
+        }
+    }
+
+    const oldOut = join(temp, nodeVersion, 'out');
+
+    if (args.includes('clean')) {
         const tryRm = out => {
             try {
                 fs.rmSync(out, { recursive : true, force : true });
@@ -156,18 +171,6 @@ async function toExe() {
                 console.log(`\tClearing out ${cachedOut} cache`);
                 tryRm(oldOut + cachedOut);
             }
-        }
-    } else {
-        // Find the latest LTS version
-        try {
-            /** @type {NodeVersionInfo[]} */
-            const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
-            versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
-
-            nodeVersion = versions[0].version.substring(1);
-            console.log(`Found latest LTS: ${nodeVersion}`);
-        } catch (ex) {
-            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
         }
     }
 
