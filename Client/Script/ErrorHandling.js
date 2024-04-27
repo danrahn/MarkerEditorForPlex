@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode } from './Common.js';
+import { $, appendChildren, buildNode, buildText } from './Common.js';
 import { animate } from './AnimationHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import FetchError from './FetchError.js';
@@ -16,12 +16,12 @@ export function errorResponseOverlay(message, err, onDismiss = Overlay.dismiss) 
     Overlay.show(
         appendChildren(
             buildNode('div'),
-            document.createTextNode(message),
+            buildText(message),
             buildNode('br'),
             buildNode('br'),
-            document.createTextNode(errType + ':'),
+            buildText(errType + ':'),
             buildNode('br'),
-            document.createTextNode(errorMessage(err))),
+            buildText(errorMessage(err))),
         'OK',
         onDismiss);
 }

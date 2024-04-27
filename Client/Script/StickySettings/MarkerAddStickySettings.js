@@ -1,4 +1,4 @@
-import StickySettingsBase from './StickySettingsBase.js';
+import { StickySettingsBase } from './StickySettingsBase.js';
 
 import { MarkerType } from '/Shared/MarkerType.js';
 

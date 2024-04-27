@@ -270,7 +270,7 @@ function highlightPieSlice() {
  * @param {HTMLElement} element The element to add the tooltip to.
  * @param {string} label The hover text. */
 function addTooltip(element, label) {
-    Tooltip.setTooltip(element, label, 50);
+    Tooltip.setTooltip(element, label, { delay : 50 });
 }
 
 /**

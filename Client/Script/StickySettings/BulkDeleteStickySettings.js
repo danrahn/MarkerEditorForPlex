@@ -1,4 +1,4 @@
-import StickySettingsBase from './StickySettingsBase.js';
+import { StickySettingsBase } from './StickySettingsBase.js';
 
 import { MarkerEnum } from '/Shared/MarkerType.js';
 

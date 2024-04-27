@@ -4,6 +4,7 @@
         "paths": {
             "ResultRow": [ "Client/Script/ResultRow/index.js" ],
             "StickySettings": [ "Client/Script/StickySettings/index.js" ],
+            "ServerSettingsDialog": [ "Client/Script/ServerSettingsDialog/index.js" ],
             "/Shared/*": [ "Shared/*" ]
         }
     }

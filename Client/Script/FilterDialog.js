@@ -211,7 +211,7 @@ class FilterDialog {
     constructor(activeSectionType) {
         this.#libType = activeSectionType;
         const containerName = 'settingsContainer'; // 'sortFilterDialog'
-        const container = buildNode('div', { id : containerName, class : 'filterDialogContainer' });
+        const container = buildNode('div', { class : `${containerName} filterDialogContainer` });
 
         const buildSelect = (text, selected) => {
             const sel = buildNode('select', { id : `${text}MarkerFilterType`, class : 'filterSelect' });

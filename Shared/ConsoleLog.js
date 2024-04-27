@@ -20,13 +20,24 @@ class ConsoleLog {
     static Level = {
         Invalid  : -1,
         Extreme  : 0,
-        Tmi      : 1,
+        TMI      : 1,
         Verbose  : 2,
         Info     : 3,
         Warn     : 4,
         Error    : 5,
-        Critical : 6
+        Critical : 6,
     };
+
+    /**
+     * Get the string representation of the given log level.
+     * @param {number} level */
+    static LevelString(level) {
+        if (level < ConsoleLog.Level.Extreme || level > ConsoleLog.Level.Critical) {
+            return '[UNKNOWN]';
+        }
+
+        return Object.entries(ConsoleLog.Level).sort((a, b) => a[1] - b[1])[level + 1][0];
+    }
 
     /** Display strings for each log {@linkcode Level} */
     static #logStrings = ['EXTREME', 'TMI', 'VERBOSE', 'INFO', 'WARN', 'ERROR', 'CRITICAL'];
@@ -187,19 +198,31 @@ class ConsoleLog {
      * @param {string} logString
      * @param {number} levelDefault The default level if we are unable to parse the logString. */
     setFromString(logString, levelDefault=ConsoleLog.Level.Info) {
-        const match = /(?<t>trace)?(?<d>dark)?(?<l>extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
-        this.setTrace(match.groups.t ? 1 : 0);
-        this.setDarkConsole(match.groups.d ? 1 : 0);
-        let level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
-        if (level === ConsoleLog.Level.Invalid) {
+        const values = this.getFromString(logString);
+        this.setTrace(values.trace ? 1 : 0);
+        this.setDarkConsole(values.dark ? 1 : 0);
+        if (values.level === ConsoleLog.Level.Invalid) {
             console.warn(
                 `[${ConsoleLog.#getTimestring()}][WARN   ] ` +
-                `ConsoleLog.setFromString: Got invalid level "${match[3]}". ` +
+                `ConsoleLog.setFromString: Got invalid level "${logString}". ` +
                 `Defaulting to "${ConsoleLog.#logStrings[levelDefault]}".`);
-            level = levelDefault;
+            this.setLevel(levelDefault);
+        } else {
+            this.setLevel(values.level);
         }
+    }
 
-        this.setLevel(level);
+    /**
+     * Parse log level/dark mode/trace mode from the given log level string.
+     * @param {string} logString */
+    getFromString(logString) {
+        const match = /(?<t>trace)?(?<d>dark)?(?<l>extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
+        const level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
+        return {
+            level : level,
+            trace : !!match.groups.t,
+            dark : !!match.groups.d,
+        };
     }
 
     /**
@@ -208,7 +231,7 @@ class ConsoleLog {
      * @param {string} [description] If provided, will be prefixed to the output before `obj`.
      * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
     tmi(obj, description, freeze) {
-        this.log(obj, description, freeze, ConsoleLog.Level.Tmi);
+        this.log(obj, description, freeze, ConsoleLog.Level.TMI);
     }
 
     /**
@@ -372,7 +395,7 @@ class ConsoleLog {
         return ConsoleLog.#traceLogging ? console.trace :
             level > ConsoleLog.Level.Warn ? console.error :
                 level > ConsoleLog.Level.Info ? console.warn :
-                    level > ConsoleLog.Level.Tmi ? console.info :
+                    level > ConsoleLog.Level.TMI ? console.info :
                         console.debug;
     }
 
@@ -436,7 +459,7 @@ class ContextualLog extends ConsoleLog {
      * @param {string} [description] If provided, will be prefixed to the output before `obj`.
      * @param {boolean} [freeze] True to freeze the state of `obj` before sending it to the console. */
     tmi(obj, description, freeze) {
-        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.Tmi);
+        this.#addPrefixAndCall(obj, description, freeze, ConsoleLog.Level.TMI);
     }
 
     /**

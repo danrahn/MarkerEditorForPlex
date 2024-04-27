@@ -9,6 +9,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 // Server dependencies/typedefs
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
+import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { Config } from './MarkerEditorConfig.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
@@ -312,6 +313,11 @@ const SchemaUpgrades = [
  * @readonly */ // Externally readonly
 let Instance;
 
+ServerEventHandler.on(ServerEvents.RebuildPurgedCache, async (resolve) => {
+    await Instance?.reinitialize();
+    resolve();
+});
+
 /**
  * The MarkerRecorder class handles interactions with a database that keeps track of all the user's marker actions.
  *
@@ -440,12 +446,6 @@ class MarkerBackupManager {
         // Something's gone terribly wrong if there are multiple active calls to Close
         // eslint-disable-next-line require-atomic-updates
         Instance = null;
-    }
-
-    /**
-     * Clear out and rebuild purged marker information. */
-    static async Reinitialize() {
-        await Instance?.reinitialize();
     }
 
     /**

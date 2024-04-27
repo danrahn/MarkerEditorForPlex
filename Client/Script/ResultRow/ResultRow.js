@@ -1,6 +1,7 @@
-import { $, $$, appendChildren, buildNode, clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
+import { $, $$, appendChildren, buildNode, buildText, clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
+import Tooltip, { TooltipTextSize } from '../Tooltip.js';
 import { Attributes } from '../DataAttributes.js';
 import ButtonCreator from '../ButtonCreator.js';
 import { ClientSettings } from '../ClientSettings.js';
@@ -11,9 +12,9 @@ import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ThemeColors } from '../ThemeColors.js';
-import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
+/** @typedef {!import('../Tooltip.js').TooltipOptions} TooltipOptions */
 
 
 /** @typedef {{ scrollTo?: HTMLElement, focusTo?: HTMLElement}} FocusNext */
@@ -164,7 +165,7 @@ export class ResultRow {
      * Determine if the given element is an image/svg, or belongs to an svg.
      * @param {Element} target */
     isClickTargetInImage(target) {
-        switch (target.tagName) {
+        switch (target.tagName.toUpperCase()) {
             case 'I':
                 return !!$$('svg', target);
             case 'IMG':
@@ -174,7 +175,7 @@ export class ResultRow {
                 // Check whether we're in an SVG element. Use a tabbable row as a bailout condition.
                 let parent = target;
                 while (parent) {
-                    if (parent.tagName === 'SVG') {
+                    if (parent.tagName.toUpperCase() === 'SVG') {
                         return true;
                     } else if (parent.hasAttribute('tabIndex')) {
                         return false;
@@ -392,9 +393,16 @@ export class ResultRow {
         }
 
         let atLeastOne = 0;
+
+        /** @type {TooltipOptions} */
+        const ttOptions = {
+            textSize : TooltipTextSize.Larger,
+            noBreak : true,
+        };
+
         // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
         // for slightly larger text than the default.
-        let tooltipText = `<span class="largerTooltip noBreak">${baseText}<hr>`;
+        let tooltipText = `<span>${baseText}<hr>`;
         const breakdown = mediaItem.markerBreakdown();
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
@@ -410,6 +418,7 @@ export class ResultRow {
 
         if (atLeastOne === 0) {
             tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
+            ttOptions.noBreak = false;
         } else {
             const totalIntros = breakdown.totalIntros();
             const totalCredits = breakdown.totalCredits();
@@ -423,7 +432,7 @@ export class ResultRow {
         let displayText = `${atLeastOne}/${mediaItem.episodeCount} `;
         if (smallScreen) {
             displayText = appendChildren(buildNode('span', { class : 'episodeDisplayHolder' }),
-                document.createTextNode(displayText),
+                buildText(displayText),
                 buildNode('i',
                     { class : 'markerInfoIcon' },
                     getSvgIcon(Icons.Info, ThemeColors.Primary, { height : 12 }),
@@ -441,7 +450,7 @@ export class ResultRow {
         }
 
         const mainText = buildNode('span', { class : 'episodeDisplayText' }, displayText);
-        Tooltip.setTooltip(mainText, tooltipText);
+        Tooltip.setTooltip(mainText, tooltipText, ttOptions);
         if (this.hasPurgedMarkers()) {
             mainText.addEventListener('click', this.getPurgeEventListener());
         }

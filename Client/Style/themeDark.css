@@ -1,6 +1,7 @@
 :root {
   /* Core colors */
   --theme-primary: #c1c1c1;
+  --theme-secondary: #919191;
   --theme-background: #212121;
   --theme-border: #616161;
   --theme-border-hover: #818181;
@@ -8,11 +9,13 @@
   --theme-red: #c44;
   --theme-orange: #c94;
   --theme-input-background: #414141;
+  --theme-input-background-subtle: #8882;
   --theme-hr-color: #999;
   --theme-focus-color: #ff7f00;
 
   /* Errors */
   --error-background: #9337;
+  --error-background-subtle: #9334;
   --error-border: #C44;
 
   /* Main sections */

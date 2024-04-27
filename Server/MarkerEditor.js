@@ -14,14 +14,17 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { Config, MarkerEditorConfig, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
+import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import DatabaseImportExport from './ImportExport.js';
+import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
+import { DatabaseImportExport } from './ImportExport.js';
 import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
 import { PlexQueryManager } from './PlexQueryManager.js';
-import ServerCommands from './ServerCommands.js';
+import { PostCommands } from '../Shared/PostCommands.js';
+import { ServerConfigState } from '../Shared/ServerConfig.js';
 import ServerError from './ServerError.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
 
@@ -45,7 +48,7 @@ let IsTest = false;
 
 /** Initializes and starts the server */
 async function run() {
-    setupTerminateHandlers();
+    bootstrap();
     const argInfo = checkArgs();
     if (shouldExitEarly(argInfo)) {
         process.exit(0);
@@ -57,34 +60,52 @@ async function run() {
         await FirstRunConfig(dataRoot);
     }
 
-    const config = MarkerEditorConfig.Create(argInfo, dataRoot);
+    // If we don't have a config file, still launch the server using some default values.
+    const config = await MarkerEditorConfig.Create(argInfo, dataRoot);
+    const configValid = config.getValid() === ServerConfigState.Valid;
+    if (configValid) {
 
-    // Set up the database, and make sure it's the right one.
-    const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
-    await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
+        // Set up the database, and make sure it's the right one.
+        const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
+        await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
 
-    await ThumbnailManager.Create(queryManager.database(), config.metadataPath());
-    if (config.extendedMarkerStats()) {
-        const markerCache = MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
-        try {
-            await markerCache.buildCache();
-            await BackupManager.buildAllPurges();
-        } catch (err) {
-            Log.error(err.message, 'Failed to build marker cache:');
-            Log.error('Continuing to server creating, but extended marker statistics will not be available.');
-            config.disableExtendedMarkerStats();
-            MarkerCacheManager.Close();
+        ThumbnailManager.Create(queryManager.database(), config.metadataPath());
+        if (config.extendedMarkerStats()) {
+            try {
+                await MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
+                await BackupManager.buildAllPurges();
+            } catch (err) {
+                Log.error(err.message, 'Failed to build marker cache:');
+                Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+                config.disableExtendedMarkerStats();
+                MarkerCacheManager.Close();
+            }
         }
     }
 
     Log.info('Creating server...');
-    return launchServer();
+    await launchServer();
+    if (!configValid) {
+        SetServerState(ServerState.RunningWithoutConfig);
+    }
+}
+
+/**
+ * Set up core processes of Marker Editor. */
+function bootstrap() {
+    // Only need to do this on first boot, not if we're restarting/resuming
+    if (GetServerState() !== ServerState.FirstBoot) {
+        return;
+    }
+
+    setupTerminateHandlers();
+    registerPostCommands();
 }
 
 /** Set up process listeners that will shut down the process
  * when it encounters an unhandled exception or SIGINT. */
 function setupTerminateHandlers() {
-    // Only need to do this on first boot, not if we're restarting/resuming
+    Log.assert(GetServerState() === ServerState.FirstBoot, `We should only be calling setupTerminateHandlers on first boot!`);
     if (GetServerState() !== ServerState.FirstBoot) {
         return;
     }
@@ -231,9 +252,9 @@ async function userShutdown(res) {
 
 /** Restarts the server after a user-initiated restart request.
  * @param {ServerResponse} res */
-async function userRestart(res) {
+async function userRestart(res, data=undefined) {
     await waitForStable();
-    sendJsonSuccess(res);
+    sendJsonSuccess(res, data);
     await handleClose('User Restart', true /*restart*/);
 }
 
@@ -283,7 +304,7 @@ function userResume(res) {
 /**
  * Restart without restarting the HTTP server. Essentially a suspend+resume.
  * @param {ServerResponse} res */
-async function userReload(res) {
+async function userReload(res, data) {
     Log.verbose('Attempting to reload marker data');
     if (GetServerState() !== ServerState.Running) {
         return sendJsonError(res, new ServerError('Server must be running in order to reload.', 400));
@@ -297,6 +318,7 @@ async function userReload(res) {
     }
 
     ResumeResponse = res;
+    ResumeData = data;
     run();
 }
 
@@ -395,22 +417,34 @@ async function serverMain(req, res) {
  * Split from EndpointMap as some of these require direct access to the ServerResponse.
  * @type {{[endpoint: string]: (res : ServerResponse) => any}} */
 const ServerActionMap = {
-    shutdown : (res) => userShutdown(res),
-    restart  : (res) => userRestart(res),
-    suspend  : (res) => userSuspend(res),
-    resume   : (res) => userResume(res),
-    reload   : (res) => userReload(res),
+    [PostCommands.ServerShutdown] : (res) => userShutdown(res),
+    [PostCommands.ServerRestart]  : (res) => userRestart(res),
+    [PostCommands.ServerSuspend]  : (res) => userSuspend(res),
+    [PostCommands.ServerResume]   : (res) => userResume(res),
+    [PostCommands.ServerReload]   : (res) => userReload(res),
 };
+
+ServerEventHandler.on(ServerEvents.HardRestart, async (response, data, resolve) => {
+    await userRestart(response, data);
+    resolve();
+});
+
+ServerEventHandler.on(ServerEvents.SoftRestart, async (response, data, resolve) => {
+    await userReload(response, data);
+    resolve();
+});
 
 /**
  * Handle POST requests, used to return JSON data queried by the client.
  * @param {IncomingMessage} req
  * @param {ServerResponse} res */
-async function handlePost(req, res) {
+function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex === -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    if (GetServerState() === ServerState.Suspended && (endpoint !== 'resume' && endpoint !== 'shutdown')) {
+    if (GetServerState() === ServerState.Suspended
+        && (endpoint !== PostCommands.ServerResume
+        && endpoint !== PostCommands.ServerShutdown)) {
         return sendJsonError(res, new ServerError('Server is suspended', 503));
     }
 
@@ -419,14 +453,7 @@ async function handlePost(req, res) {
         return ServerActionMap[endpoint](res);
     }
 
-    try {
-        const response = await ServerCommands.runCommand(endpoint, req);
-        sendJsonSuccess(res, response);
-    } catch (err) {
-        // Default handler swallows exceptions and adds the endpoint to the json error message.
-        err.message = `${req.url} failed: ${err.message}`;
-        sendJsonError(res, err, err.code || 500);
-    }
+    return runPostCommand(endpoint, req, res);
 }
 
 /**

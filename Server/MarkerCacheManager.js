@@ -1,6 +1,8 @@
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { MarkerEnum, supportedMarkerType } from '../Shared/MarkerType.js';
+import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
+import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
 
 /** @typedef {!import('./SqliteDatabase').default} SqliteDatabase */
@@ -165,6 +167,16 @@ class MarkerEpisodeNode extends BaseItemNode {
  * @readonly */ // Externally readonly
 let Instance;
 
+ServerEventHandler.on(ServerEvents.ReloadMarkerStats, async (enabled, db, tagId, resolve) => {
+    MarkerCacheManager.Close();
+    LegacyMarkerBreakdown.Clear();
+    if (enabled) {
+        await MarkerCacheManager.Create(db, tagId);
+    }
+
+    resolve();
+});
+
 /**
   * The MarkerCacheManager class compiles information about all markers present in the database.
   */
@@ -173,18 +185,14 @@ class MarkerCacheManager {
      * Instantiate the singleton MarkerCacheManager.
      * @param {SqliteDatabase} database The connection to the Plex database.
      * @param {number} tagId The tag_id in the Plex database that corresponds to markers. */
-    static Create(database, tagId) {
+    static async Create(database, tagId) {
         if (Instance) {
             Log.warn(`Marker cache already initialized, we shouldn't do it again!`);
         }
 
         Instance = new MarkerCacheManager(database, tagId);
+        await Instance.#init();
         return Instance;
-    }
-
-    /** Clear out any cached data and rebuild it from scratch. */
-    static Reinitialize() {
-        return Instance?.reinitialize();
     }
 
     static Close() { Instance = null; }
@@ -224,12 +232,12 @@ class MarkerCacheManager {
         this.#allMarkers = {};
         this.#markerHierarchy = {};
         this.#allBaseItems = new Set();
-        await this.buildCache();
+        await this.#init();
     }
 
     /**
      * Build the marker cache for the entire Plex server. */
-    async buildCache() {
+    async #init() {
         Log.info('Gathering markers...');
         const start = Date.now();
         // Note: Creating separate queries for relevant markers and all media items, then combining them

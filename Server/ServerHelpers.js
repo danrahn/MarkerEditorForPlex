@@ -1,6 +1,8 @@
 import { contentType } from 'mime-types';
+import { createServer } from 'http';
 import { execFileSync } from 'child_process';
 import { gzip } from 'zlib';
+/** @typedef {!import('http').Server} Server */
 /** @typedef {!import('http').ServerResponse} ServerResponse */
 
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
@@ -43,7 +45,7 @@ function sendJsonError(res, error, code) {
  * @param {Object} [data] Data to return to the client. If empty, returns a simple success message. */
 function sendJsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
-    if (Log.getLevel() <= ConsoleLog.Level.Tmi) {
+    if (Log.getLevel() <= ConsoleLog.Level.TMI) {
         Log.tmi(data ? JSON.parse(JSON.stringify(data)) : 'true', 'Success');
     } else {
         Log.verbose(true, 'Success');
@@ -96,4 +98,21 @@ function testFfmpeg() {
     }
 }
 
-export { sendJsonSuccess, sendJsonError, sendCompressedData, testFfmpeg };
+/**
+ * Determine if the given host/port is in use.
+ * @param {string} host
+ * @param {number} port
+ * @returns {Promise<{ valid: boolean, errorCode?: string }>}*/
+function testHostPort(host, port) {
+    return new Promise(resolve => {
+        /** @type {Server} */
+        const serverPing = createServer();
+        serverPing.listen(port, host, () => {
+            serverPing.close(_ => resolve({ valid : true }));
+        }).on('error', (err) => {
+            serverPing.close(_ => resolve({ valid : false, errorCode : err.code }));
+        });
+    });
+}
+
+export { sendJsonSuccess, sendJsonError, sendCompressedData, testFfmpeg, testHostPort };

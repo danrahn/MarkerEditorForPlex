@@ -5,8 +5,8 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
+import { testFfmpeg, testHostPort } from './ServerHelpers.js';
 import { MarkerEditorConfig } from './MarkerEditorConfig.js';
-import { testFfmpeg } from './ServerHelpers.js';
 
 /** @typedef {!import('./MarkerEditorConfig.js').PathMapping} PathMapping */
 /** @typedef {!import('./MarkerEditorConfig.js').RawConfigFeatures} RawConfigFeatures */
@@ -25,6 +25,18 @@ async function FirstRunConfig(dataRoot) {
         Log.verbose('config.json exists, skipping first run config.');
         return;
     }
+
+    // The following has mostly been replaced with the new client-side configuration,
+    // but the once time we'll still use this is if our default host:port is already in use,
+    // so use the CLI to get values instead of trying to find an open port.
+    const serverTest = await testHostPort('localhost', 3232);
+    if (serverTest.valid) {
+        return;
+    }
+
+    console.log();
+    console.log(`[WARN]: Default host and port already in use, falling back to command line setup.`);
+    console.log();
 
     const rl = createReadlineInterface({
         input : process.stdin,

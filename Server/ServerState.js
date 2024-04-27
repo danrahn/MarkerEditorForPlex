@@ -1,21 +1,25 @@
 /**
  * Set of possible server states. */
 const ServerState = {
-    /** Server is booting up. */
+    /** @readonly Server is booting up. */
     FirstBoot : 0,
-    /** Server is booting up after a restart. */
+    /** @readonly Server is booting up after a restart. */
     ReInit : 1,
-    /** Server is booting up, but the HTTP server is already running. */
+    /** @readonly Server is booting up, but the HTTP server is already running. */
     SoftBoot : 2,
-    /** Server is running normally. */
+    /** @readonly Server is running normally. */
     Running : 3,
-    /** Server is in a suspended state. */
-    Suspended : 4,
-    /** The server is in the process of shutting down. Either permanently or during a restart. */
-    ShuttingDown : 5,
+    /** @readonly Server is running, but settings have not been configured (or are misconfigured). */
+    RunningWithoutConfig : 4,
+    /** @readonly Server is in a suspended state. */
+    Suspended : 5,
+    /** @readonly The server is in the process of shutting down. Either permanently or during a restart. */
+    ShuttingDown : 6,
     /** Returns whether the server is currently in a static state (i.e. not booting up or shutting down) */
-    Stable : () => CurrentState === ServerState.Running || CurrentState === ServerState.Suspended
+    Stable : () => StableStates.includes(CurrentState),
 };
+
+const StableStates = [ ServerState.RunningWithoutConfig, ServerState.Running, ServerState.Suspended ];
 
 /**
  * Indicates whether we're in the middle of shutting down the server, and

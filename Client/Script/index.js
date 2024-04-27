@@ -12,10 +12,12 @@ import { ResultSections } from './ResultSections.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import { SetupWindowResizeEventHandler } from './WindowResizeEventHandler.js';
-import StickySettingsBase from './StickySettings/StickySettingsBase.js';
+import { StickySettingsBase } from 'StickySettings';
 import { ThumbnailMarkerEdit } from './MarkerEdit.js';
 import Tooltip from './Tooltip.js';
 import VersionManager from './VersionManager.js';
+
+/** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 
 window.Log = BaseLog; // Let the user interact with the class to tweak verbosity/other settings.
 
@@ -47,6 +49,7 @@ function init() {
  * * Get local settings
  * * Retrieve libraries */
 async function mainSetup() {
+    /** @type {SerializedConfig} */
     let config = {};
     try {
         config = await ServerCommands.getConfig();
@@ -54,9 +57,13 @@ async function mainSetup() {
         BaseLog.warn(errorMessage(err), 'ClientCore: Unable to get app config, assuming everything is disabled. Server responded with');
     }
 
-    ClientSettings.parseServerConfig(config);
+    if (!ClientSettings.parseServerConfig(config)) {
+        // Don't continue if we were given an invalid config (or we need to run first-time setup)
+        return;
+    }
+
     PurgedMarkerManager.CreateInstance(ClientSettings.showExtendedMarkerInfo());
-    VersionManager.CheckForUpdates(config.version);
+    VersionManager.CheckForUpdates(config.version.value);
 
     try {
         PlexUI.init(await ServerCommands.getSections());

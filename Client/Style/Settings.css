@@ -8,11 +8,7 @@
 }
 
 /* TODO: This is used by multiple overlay modals, so give it a more generalized name. */
-#settingsContainer {
-  margin: auto;
-  width: 80%;
-  min-width: 200px;
-  max-width: 400px;
+.settingsContainer {
   padding: 20px;
   position: relative;
   background-color: var(--overlay-modal-background);
@@ -22,16 +18,25 @@
     text-align: center;
   }
 
-  & label {
-    float: left;
+  &.clientSettings, &.filterDialogContainer {
+    margin: auto;
+    width: 80%;
+    min-width: 200px;
+    max-width: 400px;
+    & label {
+      float: left;
+    }
+
+    & input, select {
+      float: right;
+    }
   }
 
   & input, select {
-    float: right;
     border-radius: 5px;
     outline: 0;
     border: 1px solid #53575a;
-    background-color: transparent;
+    background-color: var(--theme-input-background-subtle);
   }
 
   & input[type=checkbox]:hover, select:hover {
@@ -67,6 +72,147 @@
   & .labelHelpIcon svg {
     vertical-align: top;
   }
+
+  & .launchServerSettingsButton {
+    width: calc(100% - 14px); /* 5px padding, 1px border, and 1px margin on each side = (5+1+1)*2 = 14. */
+    text-align: center;
+    padding: 5px;
+  }
+}
+
+#serverSettingsContainer {
+  text-align: center;
+  width: calc(min(90%, 800px));
+  margin: auto;
+
+  & .serverSettingsSettings {
+    text-align: left;
+  }
+
+  & .serverSettingTitle {
+    font-size: larger;
+  }
+
+  & .serverSettingDefaultInfo {
+    font-size: smaller;
+    color: var(--theme-secondary);
+    display: block;
+    text-align: left;
+    margin: auto auto 15px 0;
+  }
+
+  & .stringSetting {
+    & input {
+      display: block;
+      margin: auto auto 5px 0;
+      width: calc(100% - 10px);
+      padding: 5px;
+      border-radius: 5px;
+    }
+  }
+
+  & input {
+    margin-bottom: 5px;
+  }
+
+  & .serverSettingTitle {
+  margin: 5px auto 5px auto;
+  display: inline-block;
+
+  & label {
+      margin-right: 5px;
+    }
+  }
+
+  & .selectHolder {
+    margin: auto 5px 5px 0;
+    display: inline-block;
+
+    & select {
+      padding: 3px;
+      border-radius: 5px;
+    }
+  }
+
+  & #serverSettingsSubmit {
+    & .button {
+      padding: 5px;
+      border: 1px solid var(--theme-input-background);
+      border-radius: 5px;
+      margin: auto 5px auto 5px;
+    }
+  }
+
+  & .invalid {
+    background-color: var(--error-background);
+  }
+
+  & .invalidSubtle {
+    background-color: var(--error-background-subtle);
+  }
+
+  /** Path Mappings table */
+  & table {
+    width: 100%;
+  }
+
+  & table.invalid td input {
+    background-color: var(--error-background);
+    opacity: 0.8;
+  }
+
+  & thead {
+    border-bottom: 1px solid var(--theme-border);
+    font-weight: bold;
+    & td {
+      padding: 5px;
+    }
+  }
+
+  & thead td:last-child {
+    margin: 0;
+    padding: 0;
+  }
+
+  & tr td:last-child {
+    text-align: center;
+  }
+
+  & tbody td {
+    border: 1px solid var(--theme-border);
+    margin: 0;
+    padding: 0;
+
+    & input[type="text"] {
+      margin: 0;
+      width: calc(100% - 4px);
+      border: 1px solid transparent;
+      border-radius: 0;
+    }
+
+    & input[type="text"]:focus {
+      border: 1px solid var(--theme-focus-color);
+    }
+  }
+
+  & tr.noPathMappings {
+    text-align: center;
+
+    & td {
+      padding: 5px;
+      border: none;
+    }
+  }
+
+  & tr.newMapping {
+    text-align: center;
+    margin: auto;
+
+    & td {
+      border: none;
+    }
+  }
+  /** End Path Mappings table */
 }
 
 .serverStateButton {
@@ -126,4 +272,19 @@
 
 .filterSelect option {
   height: 20px;
+}
+
+.serverSettingTooltip {
+  padding: 5px;
+
+  & hr {
+    margin: 5px auto 5px auto !important;
+  }
+
+  & code {
+    background: var(--theme-input-background);
+    border-radius: 5px;
+    padding-left: 3px;
+    padding-right: 3px;
+  };
 }

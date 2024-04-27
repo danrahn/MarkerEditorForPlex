@@ -9,6 +9,8 @@ import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./SVGHelper.js').SVGAttributes} SVGAttributes */
+/** @typedef {!import('./Icons').IconKeys} IconKeys */
+/** @typedef {!import('./ThemeColors').ThemeColorKeys} ThemeColorKeys */
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
 
@@ -47,7 +49,7 @@ class ButtonCreator {
     /**
      * Creates a tabbable button with an associated icon and text.
      * @param {string} text The text of the button.
-     * @param {keyof Icons} icon The icon to use.
+     * @param {keyof IconKeys} icon The icon to use.
      * @param {keyof ThemeColors} color The theme color of the icon.
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
@@ -61,8 +63,8 @@ class ButtonCreator {
     /**
      * Creates a tabbable button with the associated icon and text. On small-width devices, hides the text.
      * @param {string} text The text of the button.
-     * @param {keyof Icons} icon The icon to use.
-     * @param {keyof ThemeColors} color The theme color of the icon.
+     * @param {keyof IconKeys} icon The icon to use.
+     * @param {keyof ThemeColorKeys} color The theme color of the icon.
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static dynamicButton(text, icon, color, clickHandler, attributes={}) {
@@ -89,9 +91,9 @@ class ButtonCreator {
 
     /**
      * Creates a button with only an icon, no associated label text.
-     * @param {keyof Icons} icon The name of the icon to add to the button.
+     * @param {keyof IconKeys} icon The name of the icon to add to the button.
      * @param {string} altText The alt text for the icon image.
-     * @param {keyof ThemeColors} color The color of the icon, as a hex string (without the leading '#')
+     * @param {keyof ThemeColorKeys} color The color of the icon, as a hex string (without the leading '#')
      * @param {EventListener} clickHandler The button callback when its clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static iconButton(icon, altText, color, clickHandler, attributes={}) {
@@ -118,7 +120,7 @@ class ButtonCreator {
      * this in our button logic, returning a "raw" image.
      * @param {number} size
      * @param {SVGAttributes} attributes
-     * @param {keyof ThemeColors} color */
+     * @param {keyof ThemeColorKeys} color */
     static loadingIcon(size=20, attributes, color=ThemeColors.Primary) {
         return getSvgIcon(Icons.Loading, color, { width : size, height : size, ...attributes });
     }
@@ -140,8 +142,8 @@ class ButtonCreator {
     /**
      * Sets the icon of the given button.
      * @param {HTMLElement} button
-     * @param {keyof Icons} newIcon
-     * @param {keyof ThemeColors} theme */
+     * @param {keyof IconKeys} newIcon
+     * @param {keyof ThemeColorKeys} theme */
     static setIcon(button, newIcon, theme) {
         const svg = $$('svg', button);
         if (!svg) {

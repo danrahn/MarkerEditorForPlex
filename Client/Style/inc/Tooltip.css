@@ -18,15 +18,23 @@
     opacity: 0.8;
   }
 
-  & .largerTooltip {
+  &.largerText {
     font-size: 12pt;
   }
 
-  & .smallerTooltip {
+  &.smallerText {
     font-size: 10pt;
   }
 
-  & .noBreak {
+  &.noBreak {
     white-space: nowrap;
+  }
+
+  &.larger {
+    max-width: calc(min(90%, 650px));
+  }
+
+  &.centered {
+    text-align: center;
   }
 }

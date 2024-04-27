@@ -17,6 +17,14 @@ export const Attributes = {
     TooltipText : 'data-tt',
     /** @readonly Time in ms to delay showing a tooltip after it gets focus/hovered. */
     TooltipDelay : 'data-tt-delay',
+    /** @readonly The custom max-width of a tooltip */
+    TooltipWidth : 'data-tt-width',
+    /** @readonly The size of the text: -1, 0, or 1 */
+    TooltipTextSize : 'data-tt-text-size',
+    /** @readonly Indicates the tooltip text should be centered. */
+    TooltipCentered : 'data-tt-centered',
+    /** @readonly Indicates the tooltip should avoid wrapping text whenever possible. */
+    TooltipNoBreak : 'data-tt-no-break',
     /** @readonly Indicates whether the overlay can be dismissed by the user. */
     OverlayDismissible : 'data-dismissible',
     /** @readonly Library type of a library in the selection dropdown. */

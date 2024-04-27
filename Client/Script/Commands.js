@@ -3,6 +3,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from './CustomEvents.js';
 import FetchError from './FetchError.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
+import { PostCommands } from '/Shared/PostCommands.js';
 
 /** @typedef {!import('/Shared/PlexTypes').BulkDeleteResult} BulkDeleteResult */
 /** @typedef {!import('/Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
@@ -18,6 +19,8 @@ import { MarkerEnum } from '/Shared/MarkerType.js';
 /** @typedef {!import('/Shared/PlexTypes').SerializedShowData} SerializedShowData */
 /** @typedef {!import('/Shared/PlexTypes').ShiftResult} ShiftResult */
 /** @typedef {!import('/Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
+/** @template T @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T> */
 
 const Log = new ContextualLog('ServerCommands');
 
@@ -94,7 +97,7 @@ export const ServerCommands = {
      * @param {number} end
      * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    add : (type, metadataId, start, end, final = 0) => jsonRequest('add', { metadataId, start, end, type, final }),
+    add : (type, metadataId, start, end, final = 0) => jsonRequest(PostCommands.AddMarker, { metadataId, start, end, type, final }),
 
     /**
      * Edit an existing marker with the given id.
@@ -104,20 +107,20 @@ export const ServerCommands = {
      * @param {number} end
      * @param {number} [final=0]
      * @returns {Promise<SerializedMarkerData>} */
-    edit : (type, id, start, end, final = 0) => jsonRequest('edit', { id, start, end, type, final }),
+    edit : (type, id, start, end, final = 0) => jsonRequest(PostCommands.EditMarker, { id, start, end, type, final }),
 
     /**
      * Delete the marker with the given id.
      * @param {number} id
      * @returns {Promise<SerializedMarkerData>} */
-    delete : (id) => jsonRequest('delete', { id }),
+    delete : (id) => jsonRequest(PostCommands.DeleteMarker, { id }),
 
     /**
      * Retrieve all markers under the given metadata id that may be affected by a shift operation.
      * @param {number} id
      * @param {number} applyTo
      * @returns {Promise<ShiftResult>} */
-    checkShift : (id, applyTo) => jsonRequest('check_shift', { id, applyTo }),
+    checkShift : (id, applyTo) => jsonRequest(PostCommands.CheckShift, { id, applyTo }),
 
     /**
      * Shift all markers under the given metadata by the given shift, unless they're in the ignored list
@@ -128,13 +131,13 @@ export const ServerCommands = {
      * @param {boolean} force False to abort if there are episodes with multiple markers, true to shift all markers regardless.
      * @param {number[]?} [ignored=[]] Array of marker ids to ignore when shifting.
      * @returns {Promise<ShiftResult>} */
-    shift : (id, startShift, endShift, applyTo, force, ignored = []) => jsonRequest('shift', { id : id, startShift : startShift, endShift : endShift, applyTo : applyTo, force : force ? 1 : 0, ignored : ignored.join(',') }),
+    shift : (id, startShift, endShift, applyTo, force, ignored = []) => jsonRequest(PostCommands.ShiftMarkers, { id : id, startShift : startShift, endShift : endShift, applyTo : applyTo, force : force ? 1 : 0, ignored : ignored.join(',') }),
 
     /**
      * Query for all markers that would be deleted for the given metadata id.
      * @param {number} id
      * @returns {Promise<BulkDeleteResult>} */
-    checkBulkDelete : (id) => jsonRequest('bulk_delete', { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
+    checkBulkDelete : (id) => jsonRequest(PostCommands.BulkDelete, { id : id, dryRun : 1, applyTo : MarkerEnum.All, ignored : [] }),
 
     /**
      * Delete all markers associated with the given media item, except those specified in `ignored`.
@@ -142,13 +145,13 @@ export const ServerCommands = {
      * @param {number} applyTo The marker type(s) to apply the delete to.
      * @param {number[]} [ignored =[]] List of marker ids to not delete.
      * @returns {Promise<BulkDeleteResult>} */
-    bulkDelete : (id, applyTo, ignored = []) => jsonRequest('bulk_delete', { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
+    bulkDelete : (id, applyTo, ignored = []) => jsonRequest(PostCommands.BulkDelete, { id : id, dryRun : 0, applyTo : applyTo, ignored : ignored.join(',') }),
 
     /**
      * Retrieve episode and marker information relevant to a bulk_add operation.
      * @param {number} id Show/Season metadata id.
      * @returns {Promise<SerializedBulkAddResult>} */
-    checkBulkAdd : (id) => jsonRequest('bulk_add', { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro' }),
+    checkBulkAdd : (id) => jsonRequest(PostCommands.BulkAdd, { id : id, start : 0, end : 0, resolveType : BulkMarkerResolveType.DryRun, ignored : '', type : 'intro' }),
 
     /**
      * Bulk adds a marker to the given metadata id.
@@ -159,7 +162,7 @@ export const ServerCommands = {
      * @param {number} resolveType The BulkMarkerResolveType.
      * @param {number[]?} ignored The list of episode ids to ignore adding markers to.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAdd : (markerType, id, start, end, resolveType, ignored = []) => jsonRequest('bulk_add', { id : id, start : start, end : end, type : markerType, resolveType : resolveType, ignored : ignored.join(',') }),
+    bulkAdd : (markerType, id, start, end, resolveType, ignored = []) => jsonRequest(PostCommands.BulkAdd, { id : id, start : start, end : end, type : markerType, resolveType : resolveType, ignored : ignored.join(',') }),
 
     /**
      * Bulk adds multiple markers with custom timestamps.
@@ -168,82 +171,93 @@ export const ServerCommands = {
      * @param {number} resolveType The BulkMarkerResolveType.
      * @param {CustomBulkAddMap} newMarkerData The new markers to add.
      * @returns {Promise<SerializedBulkAddResult>} */
-    bulkAddCustom : (markerType, id, resolveType, newMarkerData) => jsonBodyRequest('add_custom', { type : markerType, id : id, resolveType : resolveType, markers : JSON.stringify(newMarkerData) }),
+    bulkAddCustom : (markerType, id, resolveType, newMarkerData) => jsonBodyRequest(PostCommands.BulkAddCustom, { type : markerType, id : id, resolveType : resolveType, markers : JSON.stringify(newMarkerData) }),
 
     /**
      * Retrieve markers for all episodes ids in `keys`.
      * @param {number[]} keys The list of episode ids to grab the markers of.
      * @returns {Promise<{[metadataId: number]: SerializedMarkerData[]}>} */
-    query : (keys) => jsonRequest('query', { keys : keys.join(',') }),
+    query : (keys) => jsonRequest(PostCommands.Query, { keys : keys.join(',') }),
 
     /**
      * Retrieve all Movie/TV library sections in the database.
      * @returns {Promise<{id: number, type : number, name: string}[]} */
-    getSections : () => jsonRequest('get_sections'),
+    getSections : () => jsonRequest(PostCommands.GetLibraries),
 
     /**
      * Retrieve all shows in the given section.
      * @param {number} id
      * @returns {Promise<SerializedShowData[]|SerializedMovieData[]>} */
-    getSection : (id) => jsonRequest('get_section', { id }),
+    getSection : (id) => jsonRequest(PostCommands.GetLibrary, { id }),
 
     /**
      * Retrieve all seasons in the given show.
      * @param {number} id
      * @returns {Promise<SerializedSeasonData[]>} */
-    getSeasons : (id) => jsonRequest('get_seasons', { id }),
+    getSeasons : (id) => jsonRequest(PostCommands.GetSeasons, { id }),
 
     /**
      * Retrieve all episodes in the given season.
      * @param {number} id
      * @returns {Promise<SerializedEpisodeData>} */
-    getEpisodes : (id) => jsonRequest('get_episodes', { id }),
+    getEpisodes : (id) => jsonRequest(PostCommands.GetEpisodes, { id }),
 
     /**
      * Return whether the given metadata item has thumbnails associated with it.
      * Only valid for episode/movie metadata ids.
      * @param {number} id
      * @returns {Promise<{hasThumbnails: boolean}>} */
-    checkForThumbnails : (id) => jsonRequest('check_thumbs', { id }),
+    checkForThumbnails : (id) => jsonRequest(PostCommands.CheckThumbs, { id }),
 
     /**
      * Retrieve marker breakdown stats for the given section.
      * @param {number} id
      * @returns {Promise<{[episodesWithNMarkers: number]: number}>} */
-    getMarkerStats : (id) => jsonRequest('get_stats', { id }),
+    getMarkerStats : (id) => jsonRequest(PostCommands.GetStats, { id }),
 
     /**
      * Retrieve the marker breakdown stats for a single show or movie.
      * @param {number} id
      * @param {boolean} includeSeasons True to include season data, false to leave it out (or if it's for a movie).
      * @returns {Promise<{mainData: MarkerBreakdownMap, seasonData?: { [seasonId: number]: MarkerBreakdownMap }}>} */
-    getBreakdown : (id, includeSeasons) => jsonRequest('get_breakdown', { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
+    getBreakdown : (id, includeSeasons) => jsonRequest(PostCommands.GetBreakdown, { id : id, includeSeasons : includeSeasons ? 1 : 0 }),
 
 
     /**
      * Retrieve the configuration settings relevant to the client application.
-     * @returns {Promise<{userThumbnails: boolean, extendedMarkerStats: boolean, version: string }>} */
-    getConfig : () => jsonRequest('get_config'),
+     * @returns {Promise<SerializedConfig>} */
+    getConfig : () => jsonRequest(PostCommands.GetConfig),
 
     /**
-     * Set server-side log settings.
-     * @param {number} level The log level.
-     * @param {number} dark 1 to color messages for a dark console (if supported), 0 for light mode.
-     * @param {number} trace 1 to log stack traces, 0 otherwise */
-    logSettings : (level, dark, trace) => jsonRequest('log_settings', { level, dark, trace }),
+     * Validates all the values in the config file.
+     * @param {SerializedConfig} config
+     * @returns {Promise<SerializedConfig>} */
+    validateConfig : (config) => jsonBodyRequest(PostCommands.ValidateConfig, { config : JSON.stringify(config) }),
+
+    /**
+     * Validate the single setting value.
+     * @param {string} setting
+     * @param {TypedSetting<T>} value
+     * @returns {Promise<TypedSetting<T>>} */
+    validateConfigValue : (setting, value) => jsonRequest(PostCommands.ValidateConfigValue, { setting, value }),
+
+    /**
+     * @param {SerializedConfig} config
+     * @returns {Promise<{ success: boolean, message?: string, config?: SerializedConfig }>} */
+    setServerConfig : (config) => jsonBodyRequest(PostCommands.SetConfig, { config : JSON.stringify(config) }),
 
 
     /**
      * Check for markers that should exist for the given metadata id, but aren't in the Plex database.
      * @param {number} id The show/season/episode id.
      * @returns {Promise<SerializedMarkerData[]>} */
-    purgeCheck : (id) => jsonRequest('purge_check', { id }),
+    purgeCheck : (id) => jsonRequest(PostCommands.PurgeCheck, { id }),
 
     /**
      * Find all purges in the given library section.
      * @param {number} sectionId
      * @returns {Promise<PurgeSection>} */
-    allPurges : (sectionId) => jsonRequest('all_purges', { sectionId }),
+    allPurges : (sectionId) => jsonRequest(PostCommands.AllPurges, { sectionId }),
 
     /**
      * Restore the given purged markers associated with the given section.
@@ -251,42 +265,42 @@ export const ServerCommands = {
      * @param {number} sectionId
      * @param {number} resolveType
      * @returns {Promise<BulkRestoreResponse>} */
-    restorePurge : (markerIds, sectionId, resolveType) => jsonRequest('restore_purge', { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
+    restorePurge : (markerIds, sectionId, resolveType) => jsonRequest(PostCommands.RestorePurges, { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
 
     /**
      * Ignore the given purged markers associated with the given section.
      * @param {number[]} markerIds
      * @param {number} sectionId
      * @returns {Promise<void>} */
-    ignorePurge : (markerIds, sectionId) => jsonRequest('ignore_purge', { markerIds, sectionId }),
+    ignorePurge : (markerIds, sectionId) => jsonRequest(PostCommands.IgnorePurges, { markerIds, sectionId }),
 
     /**
      * Irreversibly delete all markers of the given type from the given section.
      * @param {number} sectionId
      * @param {number} deleteType
      * @returns {Promise<{ deleted : number, backupDeleted : number, cacheDeleted : number }>} */
-    sectionDelete : (sectionId, deleteType) => jsonRequest('nuke_section', { sectionId, deleteType }),
+    sectionDelete : (sectionId, deleteType) => jsonRequest(PostCommands.Nuke, { sectionId, deleteType }),
 
     /**
      * Shutdown Marker Editor.
      * @returns {Promise<void>} */
-    shutdown : () => jsonRequest('shutdown'),
+    shutdown : () => jsonRequest(PostCommands.ServerShutdown),
     /**
      * Restart Marker Editor.
      * @returns {Promise<void>} */
-    restart : () => jsonRequest('restart'),
+    restart : () => jsonRequest(PostCommands.ServerRestart),
     /**
      * Reload all markers from the database. Like restart, but doesn't also restart the HTTP server.
      * @returns {Promise<void>} */
-    reload : () => jsonRequest('reload'),
+    reload : () => jsonRequest(PostCommands.ServerReload),
     /**
      * Suspend Marker Editor.
      * @returns {Promise<void>} */
-    suspend : () => jsonRequest('suspend'),
+    suspend : () => jsonRequest(PostCommands.ServerReload),
     /**
      * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
-    resume : () => jsonRequest('resume'),
+    resume : () => jsonRequest(PostCommands.ServerResume),
 
     /**
      * Upload a database file and import the markers present into the given section.

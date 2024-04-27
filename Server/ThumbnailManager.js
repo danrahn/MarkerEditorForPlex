@@ -6,6 +6,7 @@ import { default as util } from 'util';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
+import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import ServerError from './ServerError.js';
 
 const execFile = util.promisify(execFileCb);
@@ -35,6 +36,12 @@ class ThumbnailNotGeneratedError extends ServerError {
  * @type {ThumbnailManager}
  * @readonly */
 let Instance;
+
+ServerEventHandler.on(ServerEvents.ReloadThumbnailManager, async (db, resolve) => {
+    await ThumbnailManager.Close(true /*fullShutdown*/);
+    ThumbnailManager.Create(db, Config.metadataPath());
+    resolve();
+});
 
 /**
  * The ThumbnailManager class provides the base interface for retrieving a thumbnail
@@ -146,6 +153,10 @@ class BifThumbnailManager extends ThumbnailManager {
      * @param {number} metadataId The metadata id of the episode to check.
      * @returns {Promise<boolean>} */
     async hasThumbnails(metadataId) {
+        if (!Config.useThumbnails()) {
+            return false;
+        }
+
         const cached = this.#cache.getItem(metadataId);
         if (cached) {
             return cached.hasThumbs;
@@ -270,10 +281,10 @@ class BifThumbnailManager extends ThumbnailManager {
         // number of indexes minus 1.
         const maxIndex = data.readInt32LE(thumbnailCountOffset) - 1;
         if (index > maxIndex) {
-            Log.warn('Received thumbnail request beyond max timestamp. Retrieving last thumbnail instead.');
+            Log.warn(`Received thumbnail request beyond max timestamp (${index}>${maxIndex}). Retrieving last thumbnail instead.`);
             index = maxIndex;
         } else if (index < 0) {
-            Log.warn('Received negative thumbnail request. Retrieving first thumbnail instead.');
+            Log.warn(`Received negative thumbnail request (${index}). Retrieving first thumbnail instead.`);
             index = 0;
         }
 
@@ -319,6 +330,10 @@ class FfmpegThumbnailManager extends ThumbnailManager {
      * which indicates we can run ffmpeg on it to generate thumbnails.
      * @param {number} metadataId The episode metadata id. */
     async hasThumbnails(metadataId) {
+        if (!Config.useThumbnails()) {
+            return false;
+        }
+
         // Check whether the file exists/we have access to it.
         const cached = this.#cache.getItem(metadataId);
         if (cached) {

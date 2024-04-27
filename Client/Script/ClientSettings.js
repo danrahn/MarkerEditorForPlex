@@ -8,6 +8,7 @@ import {
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
+import { LaunchFirstRunSetup, LaunchServerSettingsDialog } from 'ServerSettingsDialog';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { customCheckbox } from './CommonUI.js';
@@ -17,9 +18,11 @@ import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
+import { Setting } from '/Shared/ServerConfig.js';
 import { StickySettingsType } from 'StickySettings';
 import Tooltip from './Tooltip.js';
 
+/** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
 
 const Log = new ContextualLog('ClientSettings');
@@ -499,7 +502,7 @@ class ClientSettingsUI {
         };
 
         options.push(buildNode('hr'));
-        const container = appendChildren(buildNode('div', { id : 'settingsContainer' }),
+        const container = appendChildren(buildNode('div', { class : 'settingsContainer clientSettings' }),
             icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this), 'blue'),
             icon(Icons.Restart, 'Restart', this.#restartServer.bind(this), 'yellow'),
             icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this), 'red'),
@@ -508,6 +511,14 @@ class ClientSettingsUI {
         );
 
         options.forEach(option => container.appendChild(option));
+
+        appendChildren(container,
+            ButtonCreator.textButton(
+                `Server Settings`,
+                () => { LaunchServerSettingsDialog(); },
+                { class : 'launchServerSettingsButton' }),
+            buildNode('hr'),
+        );
 
         appendChildren(container.appendChild(buildNode('div', { class : 'formInput flexKeepRight' })),
             appendChildren(buildNode('div', { class : 'settingsButtons' }),
@@ -767,7 +778,7 @@ class ClientSettingsUI {
     }
 
     /** Apply and save settings after the user chooses to commit their changes. */
-    async #applySettings() {
+    #applySettings() {
         let shouldResetView = false;
         if ($('#darkModeSetting').checked !== this.#settingsManager.isDarkTheme()) {
             $('#darkModeCheckbox').click();
@@ -790,17 +801,6 @@ class ClientSettingsUI {
         this.#updateSetting('autoloadThumbnailSetting', 'autoLoadThumbnails', 'setAutoLoadThumbnails');
         const logLevel = parseInt($('#logLevelSetting').value);
         Log.setLevel(logLevel);
-
-        // Always adjust the server-side log settings, and assume if the browser is in dark mode,
-        // the server-side output is as well. In the future we could allow them to be separate,
-        // but for now assume that only one person is interacting with the application, and keep
-        // the client and server side logging levels in sync.
-        try {
-            await ServerCommands.logSettings(logLevel, Log.getDarkConsole(), Log.getTrace());
-        } catch (err) {
-            // For logging
-            errorMessage(err);
-        }
 
         this.#settingsManager.save();
         Overlay.dismiss();
@@ -1042,20 +1042,27 @@ class SettingsManager {
     /**
      * Called after the client retrieves the server config. Enables the settings
      * icon and determines whether the server is blocking various UI options.
-     * @param {object} serverConfig
-     */
+     * @param {SerializedConfig} serverConfig */
     parseServerConfig(serverConfig) {
+        if (LaunchFirstRunSetup(serverConfig)) {
+            return false;
+        }
+
         // Now that we have the server config, we can show the settings icon.
         $('#settings').classList.remove('hidden');
-        if (!serverConfig.useThumbnails) {
+        const previewThumbs = new Setting().setFromSerialized(serverConfig.features.previewThumbnails);
+        const extendedStats = new Setting().setFromSerialized(serverConfig.features.extendedMarkerStats);
+        if (!previewThumbs.value()) {
             // If thumbnails aren't available server-side, don't make them an option client-side.
             this.#settings.previewThumbnails.block();
         }
 
-        if (!serverConfig.extendedMarkerStats) {
+        if (!extendedStats.value()) {
             // Similarly, don't allow extended marker information if the server isn't set to collect it.
             this.#settings.extendedMarkerStats.block();
         }
+
+        return true;
     }
 
     /** Display the settings dialog. */

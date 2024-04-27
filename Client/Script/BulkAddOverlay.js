@@ -13,6 +13,7 @@ import {
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
+import Tooltip, { TooltipTextSize } from './Tooltip.js';
 import { Attributes } from './DataAttributes.js';
 import { BulkAddStickySettings } from 'StickySettings';
 import ButtonCreator from './ButtonCreator.js';
@@ -26,7 +27,6 @@ import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('/Shared/PlexTypes').ChapterMap} ChapterMap */
@@ -86,8 +86,7 @@ class BulkAddOverlay {
     static #indexMatchingTooltip;
 
     static #getIndexMatchingTooltip() {
-        BulkAddOverlay.#indexMatchingTooltip ??= buildNode('span',
-            { class : 'smallerTooltip' },
+        BulkAddOverlay.#indexMatchingTooltip ??= buildNode('span', {},
             "When an exact chapter name match isn't available, " +
                 "use the chapter's index to find matching chapters, not the closest timestamp");
         return BulkAddOverlay.#indexMatchingTooltip;
@@ -194,7 +193,10 @@ class BulkAddOverlay {
         );
 
         this.#inputMode = $('#switchInputMethod', container);
-        Tooltip.setTooltip($('#chapterIndexModeHelp', container), BulkAddOverlay.#getIndexMatchingTooltip());
+        Tooltip.setTooltip(
+            $('#chapterIndexModeHelp', container),
+            BulkAddOverlay.#getIndexMatchingTooltip(),
+            { textSize : TooltipTextSize.Smaller });
         $('#markerTypeSelect', container).value = this.#stickySettings.markerType();
         $('#applyTypeSelect', container).value = this.#stickySettings.applyType();
 

@@ -38,6 +38,27 @@ const Icons = {
     Warn : 'warn',
 };
 
-/** @typedef {Icons} IconKeys */ // For intellisense without imports
+/**
+ * @typedef {{
+*   arrow : 'Arrow',
+*   back : 'Back',
+*   cancel : 'Cancel',
+*   chapter : 'Chapter',
+*   confirm : 'Confirm',
+*   cursor : 'Cursor',
+*   delete : 'Delete',
+*   edit : 'Edit',
+*   filter : 'Filter',
+*   help : 'Help',
+*   imgIcon : 'Img',
+*   info : 'Info',
+*   loading : 'Loading',
+*   pause : 'Pause',
+*   restart : 'Restart',
+*   settings : 'Settings',
+*   table : 'Table',
+*   warn : 'Warn',
+ * }} IconKeys
+ * */
 
 export default Icons;

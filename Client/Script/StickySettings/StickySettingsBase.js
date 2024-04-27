@@ -14,7 +14,7 @@ const Log = new ContextualLog('StickySettings');
  * Base class for managing "sticky" settings, i.e. client settings that might persist for the session, or
  * across all sessions, depending on the client's "stickiness" setting.
  */
-export default class StickySettingsBase {
+export class StickySettingsBase {
     /** Prefix used for local storage keys when the user wants to persist settings across sessions. */
     static #storagePrefix = 'markerEditor_sticky_';
 

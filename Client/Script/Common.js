@@ -48,6 +48,13 @@ function buildNode(type, attrs, content, events, options={}) {
 }
 
 /**
+ * Creates a text node with the given text.
+ * @param {string} text */
+function buildText(text) {
+    return document.createTextNode(text);
+}
+
+/**
  * Helper method to create DOM elements with the given namespace (e.g. SVGs).
  * @param {string} ns The namespace to create the element under.
  * @param {string} type The type of element to create.
@@ -432,6 +439,7 @@ export {
     appendChildren,
     buildNode,
     buildNodeNS,
+    buildText,
     clearEle,
     clickOnEnterCallback,
     msToHms,

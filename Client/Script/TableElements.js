@@ -1,8 +1,8 @@
 import { appendChildren, buildNode, msToHms } from './Common.js';
 
 import * as DateUtil from './DateUtil.js';
+import Tooltip, { TooltipTextSize } from './Tooltip.js';
 import { ClientSettings } from './ClientSettings.js';
-import Tooltip from './Tooltip.js';
 
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
@@ -106,7 +106,7 @@ class TableElements {
         const createDate = DateUtil.getDisplayDate(marker.createDate * 1000); // Seconds to ms
         const userModified = marker.modifiedDate !== null || marker.createdByUser;
         const node = buildNode('span', { class : userModified ? 'userModifiedMarker' : '' }, createDate);
-        Tooltip.setTooltip(node, TableElements.#dateTooltip(marker));
+        Tooltip.setTooltip(node, TableElements.#dateTooltip(marker), { textSize : TooltipTextSize.Smaller });
         return node;
     }
 
@@ -131,7 +131,7 @@ class TableElements {
      * @param {MarkerData} marker */
     static #dateTooltip(marker) {
         const fullCreateDate = DateUtil.getFullDate(marker.createDate * 1000); // s to ms
-        const tooltip = appendChildren(buildNode('span', { class : 'smallerTooltip' }),
+        const tooltip = appendChildren(buildNode('span'),
             buildNode('span', {}, `${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`));
         if (marker.modifiedDate !== null) {
             appendChildren(tooltip,

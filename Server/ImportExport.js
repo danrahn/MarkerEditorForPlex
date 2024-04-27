@@ -3,13 +3,14 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
-import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
-import { MarkerCacheManager } from './MarkerCacheManager.js';
+import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
+import { BackupManager } from './MarkerBackupManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
+import { PostCommands } from '../Shared/PostCommands.js';
 import { ProjectRoot } from './MarkerEditorConfig.js';
+import { registerCommand } from './Commands/PostCommand.js';
 import ServerError from './ServerError.js';
 import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
@@ -102,7 +103,7 @@ const Log = new ContextualLog('ImportExport');
 /**
  * Static class that handles the import/export of markers
  */
-class DatabaseImportExport {
+export class DatabaseImportExport {
 
     /**
      * Exports a database of markers for the given section (or -1 for the entire library)
@@ -253,9 +254,9 @@ WHERE t.tag_id=$tagId`;
 
         // Success. Instead of trying to properly adjust everything, rebuild necessary caches from
         // scratch, since this shouldn't be a common action, so efficiency isn't super important.
-        LegacyMarkerBreakdown.Clear();
-        await Promise.all([MarkerCacheManager.Reinitialize(), MarkerBackupManager.Reinitialize()]);
-
+        await Promise.all([
+            waitForServerEvent(ServerEvents.ReloadMarkerStats),
+            waitForServerEvent(ServerEvents.RebuildPurgedCache)]);
         return stats;
     }
 
@@ -452,4 +453,9 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
     }
 }
 
-export default DatabaseImportExport;
+/**
+ * Register POST handlers related to custom marker database import/export. */
+export function registerImportExportCommands() {
+    registerCommand(PostCommands.ImportDb,
+        q => DatabaseImportExport.importDatabase(q.fs('database'), q.fi('sectionId'), q.fi('resolveType')));
+}

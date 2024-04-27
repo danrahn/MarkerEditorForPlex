@@ -300,6 +300,29 @@ FROM taggings
         }
     }
 
+    /**
+     * Determines if the given file path is likely a Plex database.
+     * @param {string} databasePath */
+    static async SmellsLikePlexDB(databasePath) {
+        const stats = statSync(databasePath, { throwIfNoEntry : false });
+        if (!stats || !stats.isFile()) {
+            return false;
+        }
+
+        try {
+            const db = await SqliteDatabase.OpenDatabase(databasePath, false /*fAllowCreate*/);
+            const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
+            db.close();
+            if (!row) {
+                return false;
+            }
+        } catch (err) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** Close the query connection. */
     static async Close() {
         await Instance?.close();

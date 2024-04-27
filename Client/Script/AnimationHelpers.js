@@ -18,7 +18,7 @@ const Log = new ContextualLog('Animate');
  * @param {object} params */
 const logAnimate = (method, element, params={}) => {
     // Avoid unnecessary parsing if we're not going to show it
-    if (Log.getLevel() > ConsoleLog.Level.Tmi) { return; }
+    if (Log.getLevel() > ConsoleLog.Level.TMI) { return; }
 
     let msg = `method=${method}`;
     for (const [key, value] of Object.entries(params)) {

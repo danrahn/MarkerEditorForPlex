@@ -108,6 +108,9 @@ export default class Overlay {
         Overlay.#dismissCallbacks = [];
 
         window.removeEventListener('keydown', Overlay.overlayKeyListener);
+        /** @type {HTMLHtmlElement} */
+        const html = $$('html');
+        html.style.removeProperty('overscroll-behavior');
         return ret;
     }
 
@@ -186,13 +189,15 @@ export default class Overlay {
             document.body.appendChild(overlayNode);
         }
 
-        if ($('#tooltip')) {
-            Tooltip.dismiss();
-        }
+        Tooltip.dismiss();
 
         if (options.forceFullscreen || container.clientHeight / window.innerHeight > 0.7) {
-            Overlay.#addFullscreenOverlayElements(container);
+            Overlay.#addFullscreenOverlayElements(container, options.dismissible);
         } else if (options.closeButton) {
+            Overlay.#addCloseButton();
+        }
+
+        if (!options.dismissible && options.closeButton) {
             Overlay.#addCloseButton();
         }
 
@@ -241,7 +246,7 @@ export default class Overlay {
             },
             0,
             {
-                click(e) {
+                click : e => {
                     /** @type {HTMLElement} */
                     const overlayElement = $('#mainOverlay');
                     if (overlayElement
@@ -250,7 +255,8 @@ export default class Overlay {
                         && getComputedStyle(overlayElement).opacity === '1') {
                         Overlay.dismiss();
                     }
-                }
+                },
+                scroll : Tooltip.onScroll,
             }
         );
     }
@@ -288,11 +294,14 @@ export default class Overlay {
      * Sets different classes and adds a close button for overlays
      * that are set to 'fullscreen'.
      * @param {HTMLElement} container The main overlay container. */
-    static #addFullscreenOverlayElements = function(container) {
+    static #addFullscreenOverlayElements = function(container, dismissible) {
         container.classList.remove('defaultOverlay');
         container.classList.remove('centeredOverlay');
         container.classList.add('fullOverlay');
-        Overlay.#addCloseButton();
+        $$('html').style.overscrollBehavior = 'none';
+        if (dismissible) {
+            Overlay.#addCloseButton();
+        }
     };
 
     static #addCloseButton() {

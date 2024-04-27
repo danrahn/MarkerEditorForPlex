@@ -58,6 +58,11 @@ class FormDataParse {
         /** @type {ParsedFormData} */
         const data = {};
 
+        if (!raw) {
+            // No form parameters. Don't try to parse it.
+            return data;
+        }
+
         const sentinelBase = raw.substring(0, raw.indexOf('\r\n'));
         if (!sentinelBase) {
             throw new ServerError('Malformed response, did not find form data sentinel', 500);

@@ -9,7 +9,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
-import DatabaseImportExport from './ImportExport.js';
+import { DatabaseImportExport } from './ImportExport.js';
 import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 
@@ -35,6 +35,11 @@ class GETHandler {
         // GET requests should always have a URL
         if (!url) {
             res.writeHead(400).end(`Invalid request - no URL found`);
+            return;
+        }
+
+        if (!GETHandler.#requestAllowed(req)) {
+            res.writeHead(503).end(`Disallowed request during First Run experience: "${req.url}"`);
             return;
         }
 
@@ -74,6 +79,16 @@ class GETHandler {
             Log.warn(`Unable to serve ${url}: ${err.message}`);
             res.writeHead(404).end(`Not Found: ${err.message}`);
         }
+    }
+
+    /**
+     * Determines whether the given request is allowed when the user hasn't gone
+     * through the first-time setup yet.
+     * @param {IncomingMessage} req */
+    static #requestAllowed(req) {
+        // Most GET requests are allowed in first run, except for thumbnails and export
+        return GetServerState() !== ServerState.RunningWithoutConfig
+            || (req.url.substring(0, 3) !== '/t/' && !req.url.startsWith('/export/'));
     }
 }
 

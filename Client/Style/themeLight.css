@@ -1,6 +1,7 @@
 :root {
   /* Core colors */
   --theme-primary: #212121;
+  --theme-secondary: #414141;
   --theme-background: #ffefcc;
   --theme-border: #616161;
   --theme-border-hover: #212121;
@@ -8,11 +9,13 @@
   --theme-red: #A22;
   --theme-orange: #A22; /* Just red, looks better than orange/brown */
   --theme-input-background: #f8e8c4;
+  --theme-input-background-subtle: #fff2;
   --theme-hr-color: #444;
   --theme-focus-color: #aa4f00;
 
   /* Errors */
   --error-background: #F777;
+  --error-background-subtle: #F774;
   --error-border: #C44;
 
   /* Main sections */
