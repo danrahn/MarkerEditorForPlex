@@ -73,7 +73,7 @@ export function buttonsFromConfigState(state) {
     const shutdown = ButtonCreator.fullButton('Shut Down', Icons.Cancel, ThemeColors.Red, onShutdown);
     switch (state) {
         case ServerConfigState.Valid:
-            return [ButtonCreator.dynamicButton('Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss)];
+            return [ButtonCreator.fullButton('Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss)];
         case ServerConfigState.DoesNotExist:
             return [shutdown];
         case ServerConfigState.Invalid:
