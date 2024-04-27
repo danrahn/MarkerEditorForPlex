@@ -202,8 +202,8 @@ async function toExe() {
         loglevel : verbose ? 'verbose' : 'info',
         ico : iconPath,
         rc : {
-            PRODUCTVERSION : version,
-            FILEVERSION : version,
+            PRODUCTVERSION : rcVersion,
+            FILEVERSION : rcVersion,
             ...rc
         },
         resources : [
