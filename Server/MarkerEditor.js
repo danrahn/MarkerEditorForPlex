@@ -460,6 +460,7 @@ function handlePost(req, res) {
  * Parse command line arguments.
  * @returns {CLIArguments} */
 function checkArgs() {
+    Log.info(`MarkerEditor - Command Line Arguments: ${process.argv.join(', ')}`);
     const argInfo = {
         isTest : false,
         configOverride : null,

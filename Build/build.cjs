@@ -226,11 +226,24 @@ async function toExe() {
                     `"\\n\\nUse '--' to pass arguments directly to Marker Editor (e.g. ${bin} -- -v)\\n"`
                 );
 
+                // nexe short-circuits StartExecution, skipping the print_help check, but we want that.
+                await compiler.replaceInFileAsync(
+                    'src/node.cc',
+                    'return StartExecution(env, "internal/main/run_main_module"); }',
+                    `  if (per_process::cli_options->print_help) {
+      return StartExecution(env, "internal/main/print_help");
+    }
+
+    return StartExecution(env, "internal/main/run_main_module");
+  }`
+                );
+
                 await compiler.replaceInFileAsync(
                     'lib/internal/main/print_help.js',
-                    /^ {4}'Usage: node/,
-                    `    'NOTE: Printing Node help use \\'--\\' to pass arguments directly to Marker Editor\\n` +
-                    `           e.g. ${bin} -- --help\\n\\n' +\n    'Usage: node`
+                    `    'Usage: node`,
+                    `    'NOTE: Printing Node help. Use \\'--\\' to pass arguments directly to Marker Editor\\n' +\n` +
+                    `    '      e.g. ${bin} -- --help\\n\\n' +\n` +
+                    `    'Usage: node`
                 );
 
                 return next();
