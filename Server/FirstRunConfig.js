@@ -17,42 +17,60 @@ const Log = new ContextualLog('FirstRun');
 /**
  * Checks whether config.json exists. If it doesn't, asks the user
  * to go through first-run config setup.
- * @param {string} dataRoot */
-async function FirstRunConfig(dataRoot) {
+ * @param {string} dataRoot
+ * @param {boolean} forceCli */
+async function FirstRunConfig(dataRoot, forceCli) {
     const configPath = join(dataRoot, 'config.json');
 
-    if (existsSync(configPath)) {
-        Log.verbose('config.json exists, skipping first run config.');
-        return;
-    }
-
-    // The following has mostly been replaced with the new client-side configuration,
-    // but the once time we'll still use this is if our default host:port is already in use,
-    // so use the CLI to get values instead of trying to find an open port.
-    const serverTest = await testHostPort('localhost', 3232);
-    if (serverTest.valid) {
-        return;
-    }
-
-    console.log();
-    console.log(`[WARN]: Default host and port already in use, falling back to command line setup.`);
-    console.log();
+    const configExists = existsSync(configPath);
 
     const rl = createReadlineInterface({
         input : process.stdin,
         output : process.stdout });
-    console.log();
-    if (!await askUserYesNo('Welcome to Marker Editor for Plex! It looks like this is your first run, as config.json\n' +
-                            'could not be found. Would you like to go through the first-time setup', true, rl)) {
-        if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
-            writeFileSync(configPath, '{}\n');
-            console.log('Wrote default configuration file to avoid subsequent checks.');
+
+    if (configExists) {
+        if (forceCli) {
+            console.log('Welcome to Marker Editor for Plex!');
+            console.log('The editor was launched with --cli-setup, but a config file was already found.');
+            if (await askUserYesNo(`Do you want to exit configuration and start the app (Y), or continue with the \n` +
+                `configuration (N), overwriting your current config`, true, rl)) {
+                return;
+            }
         } else {
-            Log.warn('Not going through first-time setup, attempting to use defaults for everything.');
+            Log.verbose('config.json exists, skipping first run config.');
+            return;
+        }
+    }
+
+    if (!forceCli) {
+        // The following has mostly been replaced with the new client-side configuration,
+        // but the once time we'll still use this is if our default host:port is already in use,
+        // so use the CLI to get values instead of trying to find an open port.
+        const serverTest = await testHostPort('localhost', 3232);
+        if (serverTest.valid) {
+            return;
         }
 
-        rl.close();
-        return;
+        console.log();
+        console.log(`[WARN]: Default host and port already in use, falling back to command line setup.`);
+        console.log();
+    }
+
+    console.log();
+
+    if (!configExists) {
+        if (!await askUserYesNo('Welcome to Marker Editor for Plex! It looks like this is your first run, as config.json\n' +
+                                'could not be found. Would you like to go through the first-time setup', true, rl)) {
+            if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
+                writeFileSync(configPath, '{}\n');
+                console.log('Wrote default configuration file to avoid subsequent checks.');
+            } else {
+                Log.warn('Not going through first-time setup, attempting to use defaults for everything.');
+            }
+
+            rl.close();
+            return;
+        }
     }
 
     console.log();

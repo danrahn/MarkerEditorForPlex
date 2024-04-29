@@ -34,6 +34,7 @@ import { ThumbnailManager } from './ThumbnailManager.js';
  * @property {string?} configOverride The path to a config file to override the existing one
  * @property {boolean} version The user passed `-v`/`--version` to the command line
  * @property {boolean} help The user passed `-h`/`--help`/`--?` to the command line
+ * @property {boolean} cliSetup The user wants to set up Marker Editor using the command line, not a browser.
  */
 
 const Log = new ContextualLog('ServerCore');
@@ -57,7 +58,7 @@ async function run() {
     // In docker, the location of the config and backup data files are not the project root.
     const dataRoot = process.env.IS_DOCKER ? '/Data' : ProjectRoot();
     if (!argInfo.isTest) {
-        await FirstRunConfig(dataRoot);
+        await FirstRunConfig(dataRoot, argInfo.cliSetup);
     }
 
     // If we don't have a config file, still launch the server using some default values.
@@ -460,21 +461,30 @@ function handlePost(req, res) {
  * Parse command line arguments.
  * @returns {CLIArguments} */
 function checkArgs() {
-    Log.info(`MarkerEditor - Command Line Arguments: ${process.argv.join(', ')}`);
+    /** @type {CLIArguments} */
     const argInfo = {
         isTest : false,
         configOverride : null,
         version : false,
         help : false,
+        cliSetup : false,
     };
 
-    const argsLower = process.argv.map(x => x.toLowerCase());
+    const argsLower = process.argv.map(x => x.replace(/_/g, '-').toLowerCase());
     if (argsLower.includes('-v') || argsLower.includes('--version')) {
         argInfo.version = true;
     }
 
-    if (argsLower.includes('-h') || argsLower.includes('--help') || argsLower.includes('-?') || argsLower.includes('/?')) {
+    if (argsLower.includes('-h')
+        || argsLower.includes('/h')
+        || argsLower.includes('--help')
+        || argsLower.includes('-?')
+        || argsLower.includes('/?')) {
         argInfo.help = true;
+    }
+
+    if (argsLower.includes('--cli-setup')) {
+        argInfo.cliSetup = true;
     }
 
     if (argsLower.includes('--test')) {
@@ -485,7 +495,7 @@ function checkArgs() {
         argInfo.configOverride = 'testConfig.json';
     }
 
-    const coi = argsLower.indexOf('--config_override');
+    const coi = argsLower.indexOf('--config-override');
     if (coi !== -1) {
         if (process.argv.length <= coi - 1) {
             Log.critical('Invalid config override file detected, aborting...');
@@ -532,7 +542,8 @@ function shouldExitEarly(args) {
         console.log(`  OPTIONS`);
         console.log(`    -v | --version              Print out the current version of MarkerEditor.`);
         console.log(`    -h | --help                 Print out this help text.`);
-        console.log(`    --config_override [config]  Use the given config file instead of the standard config.json`);
+        console.log(`    --cli-setup                 Set up Marker Editor using the command line instead of a browser.`);
+        console.log(`    --config-override [config]  Use the given config file instead of the standard config.json`);
         console.log(`    --test                      Indicates we're launching MarkerEditor for tests. Do not set manually.`);
         console.log('\n    For setup and usage instructions, visit https://github.com/danrahn/MarkerEditorForPlex/wiki.');
         return true;

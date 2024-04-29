@@ -8,6 +8,7 @@ const { rollup } = require('rollup');
 const { exec } = require('child_process');
 const semver = require('semver');
 
+/** @typedef {!import('nexe/lib/options').NexePatch} NexePatchFunction */
 const ReadMeGenerator = require('./ReadMeGenerator.cjs');
 
 /**
@@ -49,6 +50,22 @@ const fallbackNodeVersion = '20.11.1'; // LTS as of 2024/03/07
 
 const args = process.argv.map(a => a.toLowerCase());
 const verbose = args.includes('verbose');
+const isWin = process.platform === 'win32';
+
+/**
+NOTE: This won't work on its own with the current version on nexe, which appears to always
+force a release build. To make this work, the nodeSrcBinPath path calculation in compiler.js
+was replaced with the following:
+
+```
+const isDebug = util_1.isWindows ? this.options.vcBuild.includes('debug') : this.options.configure.includes('--debug');
+const outFolder = isDebug ? 'Debug' : 'Release';
+this.nodeSrcBinPath = util_1.isWindows
+    ? (0, path_1.join)(this.src, outFolder, 'node.exe')
+    : (0, path_1.join)(this.src, 'out', outFolder, 'node');
+```
+*/
+const debug = args.includes('debug');
 
 /**
  * Uses rollup to transpile app.js to common-js, as nexe can't consume es6 modules. */
@@ -99,28 +116,177 @@ function getArch() {
 }
 
 /**
- * Takes rollup's cjs output and writes the exe. */
-async function toExe() {
-    let platform;
-    let output = `../dist/${binaryName}`;
+ * Get the current platform as a more user-friendly value. */
+function getPlatform() {
     switch (process.platform) {
         case 'win32':
-            platform = 'windows';
-            output += '.exe';
-            break;
+            return 'windows';
         case 'linux':
-            platform = 'linux';
-            break;
+            return 'linux';
         case 'darwin':
-            platform = 'mac';
-            break;
+            return 'mac';
         default:
             throw new Error(`Unsupported build platform "${process.platform}", exiting...`);
     }
+}
 
+/**
+ * Get the version of Node we should use when building Marker Editor. */
+async function getNodeVersion() {
+    if (args.includes('version')) {
+        const idx = args.indexOf('version');
+        if (idx < args.length - 1) {
+            return args[idx + 1];
+        }
+    } else {
+        // Find the latest LTS version
+        try {
+            /** @type {NodeVersionInfo[]} */
+            const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
+            versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
+
+            const nodeVersion = versions[0].version.substring(1);
+            console.log(`Found latest LTS: ${nodeVersion}`);
+            return nodeVersion;
+        } catch (ex) {
+            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
+        }
+    }
+
+    // Something went wrong.
+    return fallbackNodeVersion;
+}
+
+/**
+ * Clears out all old output directories to allow for a full rebuild.
+ * @param {string} oldOut */
+function cleanBuild(oldOut) {
+    const tryRm = out => {
+        try {
+            fs.rmSync(out, { recursive : true, force : true });
+        } catch (ex) {
+            console.warn(`\tUnable to clear output ${out}`);
+        }
+    };
+
+    console.log('\nCleaning existing cached output');
+    if (fs.existsSync(oldOut)) {
+        console.log('\tClearing old output directory');
+        tryRm(oldOut);
+    }
+
+    for (const cachedOut of ['arm64', 'ia32', 'x64', 'arm64d', 'ia32d', 'x64d']) {
+        if (fs.existsSync(oldOut + cachedOut)) {
+            console.log(`\tClearing out ${cachedOut} cache`);
+            tryRm(oldOut + cachedOut);
+        }
+    }
+}
+
+/**
+ * Delete the existing build node binary if 'rebuild' was passed to this script.
+ * @type {NexePatchFunction} */
+function deleteNodeBinaryIfRebuilding(compiler, next) {
+    if (!args.includes('rebuild')) {
+        return next();
+    }
+
+    // If we don't delete the node binary, nexe won't rebuild anything even if
+    // the source has changed (e.g. due to new patches).
+    if (verbose) console.log(`Attempting to delete node binary due to 'rebuild' parameter`);
+    const binaryPath = compiler.getNodeExecutableLocation();
+    if (fs.existsSync(binaryPath)) {
+        fs.unlinkSync(binaryPath);
+        console.log(`\nDeleted "${binaryPath}" due to rebuild parameter.`);
+    }
+
+    return next();
+}
+
+/**
+ * Inject custom CLI parsing logic to node source.
+ * @type {NexePatchFunction} */
+async function injectCliOptions(compiler, next) {
+    // Add marker editor version to NODE_VERSION
+    await compiler.replaceInFileAsync(
+        'src/node.cc',
+        /\bNODE_VERSION\b/,
+        `"Marker Editor: v${version}\\n` +
+            `Node:          " NODE_VERSION`
+    );
+
+    // Custom command line arguments. Otherwise Node will exit early
+    // if these arguments are provided as node options.
+    await compiler.replaceInFileAsync(
+        'src/node_options.h',
+        '  bool print_version = false;',
+        '  bool print_version = false;\n' +
+        '  bool cli_setup = false;'
+    );
+    await compiler.replaceInFileAsync(
+        'src/node_options.cc',
+        '  AddAlias("-v", "--version");',
+        '  AddAlias("-v", "--version");\n' +
+        '  AddOption("--cli-setup",\n' +
+        '            "Use CLI setup for Marker Editor",\n' +
+        '            &PerProcessOptions::cli_setup);'
+    );
+
+    // Since we're really just running a slightly modified version of node, we have to
+    // use `--` to pass arguments to the actual program. Since we only ever want to run
+    // MarkerEditor though, forward node args to the script.
+    const hackyArgv = `    auto& argv = const_cast<std::vector<std::string>&>(env->argv());\n`;
+    const forwardArg = (variable, arg) =>
+        `    if (per_process::cli_options->${variable}) {\n` +
+        `      argv.push_back("${arg}");\n` +
+        `    }\n\n`;
+
+    await compiler.replaceInFileAsync(
+        'src/node.cc',
+        'return StartExecution(env, "internal/main/run_main_module"); }',
+        hackyArgv +
+        forwardArg('print_help', '--help') +
+        forwardArg('cli_setup', '--cli-setup') +
+        forwardArg('print_version', '--version') +
+        `    return StartExecution(env, "internal/main/run_main_module");\n  }`);
+
+    return next();
+}
+
+/**
+ * On Windows, use RCEdit to add the version and icon to the binary.
+ * @type {NexePatchFunction} */
+async function editWinResources(compiler, next) {
+    if (!isWin) {
+        return next();
+    }
+
+    const binaryPath = compiler.getNodeExecutableLocation();
+    try {
+        // RC overrides are only applied if we're doing a clean build,
+        // hack around it by using rcedit on the binary to ensure they're added.
+        if (fs.statSync(binaryPath).size > 0) {
+            await rcedit(binaryPath, {
+                'version-string' : rc,
+                'file-version' : rcVersion,
+                'product-version' : rcVersion,
+                icon : iconPath,
+            });
+        }
+    } catch {
+        console.log('\nUnable to modify exe resources with rcedit. This is expected if we\'re doing a clean build');
+    }
+
+    return next();
+}
+
+/**
+ * Takes rollup's cjs output and writes the exe. */
+async function toExe() {
+    const platform = getPlatform();
+    const output = `../dist/${binaryName}` + (isWin ? '.exe' : '');
     const arch = getArch();
-
-    let nodeVersion = fallbackNodeVersion;
+    const nodeVersion = await getNodeVersion();
 
     // nexe doesn't appear to take into account that the currently cached build output is a different
     // target architecture. To get around that, ignore the standard 'out' folder and check for
@@ -130,53 +296,15 @@ async function toExe() {
     // nexe changes, this section will just have to be updated.
     const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
 
-    if (args.includes('version')) {
-        const idx = args.indexOf('version');
-        if (idx < args.length - 1) {
-            nodeVersion = args[idx + 1];
-        }
-    } else {
-        // Find the latest LTS version
-        try {
-            /** @type {NodeVersionInfo[]} */
-            const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
-            versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
-
-            nodeVersion = versions[0].version.substring(1);
-            console.log(`Found latest LTS: ${nodeVersion}`);
-        } catch (ex) {
-            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
-        }
-    }
-
     const oldOut = join(temp, nodeVersion, 'out');
 
     if (args.includes('clean')) {
-        const tryRm = out => {
-            try {
-                fs.rmSync(out, { recursive : true, force : true });
-            } catch (ex) {
-                console.warn(`\tUnable to clear output ${out}`);
-            }
-        };
-
-        console.log('\nCleaning existing cached output');
-        if (fs.existsSync(oldOut)) {
-            console.log('\tClearing old output directory');
-            tryRm(oldOut);
-        }
-
-        for (const cachedOut of ['arm64', 'ia32', 'x64']) {
-            if (fs.existsSync(oldOut + cachedOut)) {
-                console.log(`\tClearing out ${cachedOut} cache`);
-                tryRm(oldOut + cachedOut);
-            }
-        }
+        cleanBuild();
     }
 
     console.log(`Attempting to build ${platform}-${arch}-${nodeVersion}`);
 
-    const archOut = oldOut + arch;
+    const archOut = oldOut + arch + (debug ? 'd' : '');
     const hadCache = fs.existsSync(archOut);
     if (hadCache) {
         console.log(`Found cached output for ${arch}-${nodeVersion}, using that.`);
@@ -198,6 +326,9 @@ async function toExe() {
         input : resolve(__dirname, '../dist/built.cjs'),
         output : resolve(__dirname, output),
         build : true,
+        configure : (isWin || !debug) ? [] : ['--debug'], // non-Win
+        vcBuild : isWin ? ['nosign', debug ? 'debug' : 'release'] : [], // Win-only
+        make : ['-j4'], // 4 concurrent jobs
         targets : [ `${platform}-${arch}-${nodeVersion}` ],
         loglevel : verbose ? 'verbose' : 'info',
         ico : iconPath,
@@ -215,62 +346,9 @@ async function toExe() {
             resolve(__dirname, '../dist/built.cjs'),
         ],
         patches : [
-            async (compiler, next) => {
-                const isWin = process.platform === 'win32';
-                const bin = isWin ? '.\\\\MarkerEditor.exe' : './MarkerEditor';
-                await compiler.replaceInFileAsync(
-                    'src/node.cc',
-                    /\bNODE_VERSION\b/,
-                    `"Marker Editor: v${version}\\n` +
-                     `Node.js:       " NODE_VERSION ` +
-                    `"\\n\\nUse '--' to pass arguments directly to Marker Editor (e.g. ${bin} -- -v)\\n"`
-                );
-
-                // nexe short-circuits StartExecution, skipping the print_help check, but we want that.
-                await compiler.replaceInFileAsync(
-                    'src/node.cc',
-                    'return StartExecution(env, "internal/main/run_main_module"); }',
-                    `  if (per_process::cli_options->print_help) {
-      return StartExecution(env, "internal/main/print_help");
-    }
-
-    return StartExecution(env, "internal/main/run_main_module");
-  }`
-                );
-
-                await compiler.replaceInFileAsync(
-                    'lib/internal/main/print_help.js',
-                    `    'Usage: node`,
-                    `    'NOTE: Printing Node help. Use \\'--\\' to pass arguments directly to Marker Editor\\n' +\n` +
-                    `    '      e.g. ${bin} -- --help\\n\\n' +\n` +
-                    `    'Usage: node`
-                );
-
-                return next();
-            },
-            async (compiler, next) => {
-                if (process.platform !== 'win32') {
-                    return next();
-                }
-
-                const binaryPath = compiler.getNodeExecutableLocation();
-                try {
-                    // RC overrides are only applied if we're doing a clean build,
-                    // hack around it by using rcedit on the binary to ensure they're added.
-                    if (fs.statSync(binaryPath).size > 0) {
-                        await rcedit(binaryPath, {
-                            'version-string' : rc,
-                            'file-version' : rcVersion,
-                            'product-version' : rcVersion,
-                            icon : iconPath,
-                        });
-                    }
-                } catch {
-                    console.log('\nUnable to modify exe resources with rcedit. This is expected if we\'re doing a clean build');
-                }
-
-                return next();
-            }
+            deleteNodeBinaryIfRebuilding,
+            injectCliOptions,
+            editWinResources,
         ]
     }); // Don't catch, interrupt on failure.
 
@@ -411,7 +489,7 @@ async function build() {
     msg('Writing README');
     writeReadme();
 
-    if (process.platform !== 'win32' && process.platform !== 'darwin') {
+    if (!isWin && process.platform !== 'darwin') {
         msg(`Writing Linux Start script`);
         writeStartSh();
     }
@@ -424,7 +502,7 @@ async function build() {
         const zipName = `${binaryName}.v${version}-${process.platform}-${arch}`;
         let cmd;
         /* eslint-disable max-len */
-        if (process.platform === 'win32') {
+        if (isWin) {
             cmd = `powershell Compress-Archive "${dist}/node_modules", "${dist}/README.txt", "${dist}/${binaryName}.exe" "${dist}/${zipName}.zip" -Force`;
         } else if (process.platform === 'darwin') {
             cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules README.txt '${binaryName}'`;
