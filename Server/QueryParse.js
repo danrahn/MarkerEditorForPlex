@@ -123,7 +123,7 @@ export class QueryParser {
      * Retrieve a value from the request's form-data.
      * @param {string} key */
     fi(key) {
-        const value = parseInt((this.fs(key)).data);
+        const value = parseInt((this.fs(key)));
         if (isNaN(value)) {
             throw new QueryParameterException(`Expected an integer for '${key}', found something else.`);
         }
@@ -137,13 +137,20 @@ export class QueryParser {
      * @param {(v: string) => any} transform The function that transforms the raw string to a custom object. */
     fc(key, transform) {
         // transform should take care of any exceptions.
-        return transform(this.fs(key).data);
+        return transform(this.fs(key));
     }
 
     /**
      * Retrieve the raw string associated with the given key from the request's form data.
      * @param {string} key The form field to retrieve */
     fs(key) {
+        return this.fr(key).data;
+    }
+
+    /**
+     * Return the raw form object for the given key.
+     * @param {string} key The form field to retrieve */
+    fr(key) {
         if (!this.#formData) {
             throw new ServerError(`Attempting to access form data without calling init().`, 500);
         }

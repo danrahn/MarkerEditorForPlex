@@ -274,6 +274,7 @@ class ExistingMarkerRow extends MarkerRow {
             /** @type {MediaItemWithMarkerTable} */
             const mediaItem = this.baseItemRow().mediaItem();
             await flashBackground(confirmBtn, Theme.getHex(ThemeColors.Green, '6'), 200);
+            Tooltip.dismiss();
             mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
             ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Red);
@@ -301,6 +302,7 @@ class ExistingMarkerRow extends MarkerRow {
         options.removeChild(confButtons);
         options.children[0].classList.remove('hidden');
         $$('.deleteMarkerBtn', options)?.focus();
+        Tooltip.dismiss();
 
         return Promise.all([
             animateOpacity(dateAdded.children[0], 0, 1, { duration : 100, noReset : true }),

@@ -457,5 +457,5 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
  * Register POST handlers related to custom marker database import/export. */
 export function registerImportExportCommands() {
     registerCommand(PostCommands.ImportDb,
-        q => DatabaseImportExport.importDatabase(q.fs('database'), q.fi('sectionId'), q.fi('resolveType')));
+        q => DatabaseImportExport.importDatabase(q.fr('database'), q.fi('sectionId'), q.fi('resolveType')));
 }
