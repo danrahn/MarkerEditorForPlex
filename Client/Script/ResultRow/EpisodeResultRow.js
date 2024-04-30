@@ -1,7 +1,7 @@
 import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { purgeIcon } from './ResultRow.js';
 
-import { $$, appendChildren, buildNode, pad0, plural } from '../Common.js';
+import { $$, appendChildren, buildNode, ctrlOrMeta, pad0, plural } from '../Common.js';
 import { Attributes } from '../DataAttributes.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
@@ -100,7 +100,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
      * @param {MouseEvent} e */
     #onEpisodeRowKeydown(e) {
         // Only difference between the base event is that Ctrl+Enter shows/hides all tables
-        if (!e.ctrlKey || e.key !== 'Enter') {
+        if (!ctrlOrMeta(e) || e.key !== 'Enter') {
             return;
         }
 
@@ -165,7 +165,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
         }
 
         const expanded = this.episode().markerTable().isVisible();
-        if (e.ctrlKey) {
+        if (ctrlOrMeta(e)) {
             this.#seasonRow.showHideMarkerTables(expanded);
         } else {
             this.showHideMarkerTable(expanded);

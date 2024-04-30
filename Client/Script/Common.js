@@ -432,6 +432,15 @@ function scrollAndFocus(e, scrollTarget, focusTarget) {
     }
 }
 
+/**
+ * Return whether the control or meta key is pressed.
+ * Used by mouse events, as macOS treats Ctrl+Click as a right click, so
+ * any Ctrl action can also be used on macOS with cmd+click.
+ * @param {MouseEvent} e */
+function ctrlOrMeta(e) {
+    return e?.ctrlKey || e?.metaKey;
+}
+
 export {
     $,
     $$,
@@ -442,6 +451,7 @@ export {
     buildText,
     clearEle,
     clickOnEnterCallback,
+    ctrlOrMeta,
     msToHms,
     pad0,
     plural,

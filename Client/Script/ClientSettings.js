@@ -4,7 +4,8 @@ import {
     appendChildren,
     buildNode,
     clearEle,
-    clickOnEnterCallback } from './Common.js';
+    clickOnEnterCallback,
+    ctrlOrMeta } from './Common.js';
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
@@ -595,8 +596,9 @@ class ClientSettingsUI {
      * Transitions to a new UI that will restart the page automatically in 30 seconds,
      * with the option to restart immediately. */
     async #onRestartConfirm(e) {
-        Log.info(`Attempting to ${e.ctrlKey ? '(quickly) ' : ''}restart server.`);
-        if (e.ctrlKey) {
+        const ctrlish = ctrlOrMeta(e);
+        Log.info(`Attempting to ${ctrlish ? '(quickly) ' : ''}restart server.`);
+        if (ctrlish) {
             await this.#quickReload();
         } else {
             await this.#fullRestart();

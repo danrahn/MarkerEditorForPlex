@@ -1,4 +1,4 @@
-import { $, $$, buildNode, msToHms } from './Common.js';
+import { $, $$, buildNode, ctrlOrMeta, msToHms } from './Common.js';
 import { slideDown, slideUp } from './AnimationHelpers.js';
 import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -285,7 +285,7 @@ export class TimestampThumbnails {
      * @param {HTMLElement} _button The (unused) toggle button
      * @param {number} duration */
     async toggleThumbnails(event, _button, duration=250) {
-        if (event?.ctrlKey && !this.#forEdit) { // For now, ignore edit-based clicks
+        if (ctrlOrMeta(event) && !this.#forEdit) { // For now, ignore edit-based clicks
             return this.#toggleAll(event);
         }
 

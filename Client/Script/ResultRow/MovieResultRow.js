@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, plural } from '../Common.js';
+import { $$, appendChildren, buildNode, ctrlOrMeta, plural } from '../Common.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
 import { Attributes } from '../DataAttributes.js';
 import { BaseItemResultRow } from './BaseItemResultRow.js';
@@ -193,7 +193,7 @@ export class MovieResultRow extends BaseItemResultRow {
 
         await this.#verifyMarkerTableInitialized();
         const expanded = this.movie().markerTable().isVisible();
-        if (e.ctrlKey) {
+        if (ctrlOrMeta(e)) {
             this.showHideMarkerTables(expanded);
         } else {
             this.showHideMarkerTable(expanded);

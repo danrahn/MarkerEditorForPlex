@@ -221,6 +221,18 @@ class Version {
     static #versionRegex = /^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<type>alpha|beta|rc)(?:\.(?<rcVersion>\d+))?)?/;
 
     /**
+     * @typedef {Object} VersionRegexGroups
+     * @property {string} major Major version number
+     * @property {string} minor Minor version number
+     * @property {string} patch Patch version number
+     * @property {string?} type Release type (Alpha, Beta, RC, or released (empty))
+     * @property {string?} rcVersion Prerelease version (e.g. beta.2 or rc.4)
+     *
+     * @typedef {{ groups: VersionRegexGroups }} VersionRegexInfo
+     * @typedef {RegExpExecArray & VersionRegexInfo} VersionRegex
+     */
+
+    /**
      * Compare two `Version`s, ordering from smallest to largest
      * @param {Version} versionA
      * @param {Version} versionB
@@ -267,6 +279,8 @@ class Version {
      * @param {string} versionString */
     constructor(versionString) {
         this.#str = versionString;
+
+        /** @type {VersionRegex} */
         const parts = Version.#versionRegex.exec(versionString);
         if (!parts) {
             return;
