@@ -296,7 +296,7 @@ export const ServerCommands = {
     /**
      * Suspend Marker Editor.
      * @returns {Promise<void>} */
-    suspend : () => jsonRequest(PostCommands.ServerReload),
+    suspend : () => jsonRequest(PostCommands.ServerSuspend),
     /**
      * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
