@@ -83,6 +83,11 @@ export default class Tooltip {
 
     static #initialized = false;
 
+    /**
+     * The tooltip itself.
+     * @type {HTMLElement} */
+    static #tooltip;
+
     /** Contains the setTimeout id of a scroll event, which will hide the tooltip when expired
      * @type {number|null} */
     static #hideTooltipTimer = null;
@@ -94,7 +99,7 @@ export default class Tooltip {
     static #showingTooltip = false;
 
     /** @type {HTMLElement} The element whose tooltip is currently visible. */
-    static #ttElement = null;
+    static #ttTarget = null;
 
     static Setup() {
         if (Tooltip.#initialized) {
@@ -103,7 +108,8 @@ export default class Tooltip {
 
         Tooltip.#initialized = true;
         const frame = $('#plexFrame');
-        frame.appendChild(buildNode('div', { id : 'tooltip' }));
+        Tooltip.#tooltip = buildNode('div', { id : 'tooltip' }, 0, { click : Tooltip.dismiss });
+        frame.appendChild(Tooltip.#tooltip);
         frame.addEventListener('scroll', Tooltip.onScroll);
         frame.addEventListener('keydown', Tooltip.dismiss); // Any keyboard input dismisses tooltips.
     }
@@ -159,7 +165,7 @@ export default class Tooltip {
      * @param {FocusEvent} e */
     static #onFocus(e) {
         // Don't do anything if we're already showing the tooltip for this item
-        if (Tooltip.#showingTooltip && Tooltip.#ttElement === this) {
+        if (Tooltip.#showingTooltip && Tooltip.#ttTarget === this) {
             return;
         }
 
@@ -188,8 +194,8 @@ export default class Tooltip {
     static setText(element, tooltip) {
         const asString = (typeof tooltip === 'string' ? tooltip : tooltip.outerHTML);
         element.setAttribute(Attributes.TooltipText, asString);
-        if (Tooltip.#showingTooltip && Tooltip.#ttElement === element) {
-            $('#tooltip').innerHTML = tooltip;
+        if (Tooltip.#showingTooltip && Tooltip.#ttTarget === element) {
+            Tooltip.#tooltip.innerHTML = tooltip;
         }
     }
 
@@ -206,7 +212,7 @@ export default class Tooltip {
         element.removeEventListener('mouseleave', Tooltip.dismiss);
         element.removeEventListener('focusin', Tooltip.#onFocus);
         element.removeEventListener('focusout', Tooltip.dismiss);
-        if (Tooltip.#ttElement === element) {
+        if (Tooltip.#ttTarget === element) {
             Tooltip.dismiss();
         }
     }
@@ -274,15 +280,15 @@ export default class Tooltip {
             Log.tmi(text, `Launching tooltip`);
         }
 
-        Tooltip.#ttElement = e.target;
-        while (Tooltip.#ttElement && !Tooltip.#ttElement.hasAttribute(Attributes.TooltipText)) {
-            Tooltip.#ttElement = Tooltip.#ttElement.parentElement;
+        Tooltip.#ttTarget = e.target;
+        while (Tooltip.#ttTarget && !Tooltip.#ttTarget.hasAttribute(Attributes.TooltipText)) {
+            Tooltip.#ttTarget = Tooltip.#ttTarget.parentElement;
         }
 
         Tooltip.#showingTooltip = true;
-        const tooltip = $('#tooltip');
+        const tooltip = Tooltip.#tooltip;
 
-        const ttUpdated = Tooltip.#ttElement && Tooltip.#ttElement.getAttribute(Attributes.TooltipText);
+        const ttUpdated = Tooltip.#ttTarget && Tooltip.#ttTarget.getAttribute(Attributes.TooltipText);
         if (ttUpdated) {
             tooltip.innerHTML = ttUpdated;
         } else {
@@ -304,7 +310,7 @@ export default class Tooltip {
         const borderAdjust = Tooltip.#borderWidth(tooltip);
         const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
         const maxWidth = document.body.clientWidth + window.scrollX - widthAdjust;
-        const centered = Tooltip.#ttElement.hasAttribute(Attributes.TooltipCentered);
+        const centered = Tooltip.#ttTarget.hasAttribute(Attributes.TooltipCentered);
         if (centered) {
             const centerAdjust = parseInt(tooltip.clientWidth / 2);
             tooltip.style.left = Math.min(e.clientX + window.scrollX, e.clientX + window.scrollX - centerAdjust) + 'px';
@@ -323,7 +329,7 @@ export default class Tooltip {
     /**
      * @param {HTMLElement} tooltip */
     static #setAttributes(tooltip) {
-        const ttTarget = Tooltip.#ttElement;
+        const ttTarget = Tooltip.#ttTarget;
         const ar = a => ttTarget.hasAttribute(a) ? 'add' : 'remove';
         if (ttTarget.hasAttribute(Attributes.TooltipWidth)) {
             tooltip.style.maxWidth = `calc(min(90%, ${ttTarget.getAttribute(Attributes.TooltipWidth) + 'px'}))`;
@@ -342,17 +348,17 @@ export default class Tooltip {
     /** Dismisses the tooltip. */
     static dismiss() {
         if (Tooltip.#showingTooltip) {
-            Log.tmi(`Dismissing tooltip: ${$('#tooltip').innerHTML}`);
+            Log.tmi(`Dismissing tooltip: ${Tooltip.#tooltip.innerHTML}`);
         }
 
-        $('#tooltip').style.display = 'none';
+        Tooltip.#tooltip.style.display = 'none';
         if (Tooltip.#tooltipTimer !== null) {
             clearTimeout(Tooltip.#tooltipTimer);
         }
 
         Tooltip.#tooltipTimer = null;
         Tooltip.#showingTooltip = false;
-        Tooltip.#ttElement = null;
+        Tooltip.#ttTarget = null;
     }
 
     /**
