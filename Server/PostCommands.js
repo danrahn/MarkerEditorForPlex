@@ -16,7 +16,7 @@ import ServerError from './ServerError.js';
 const Log = new ContextualLog('POSTCommands');
 
 /** Subset of server commands that we accept when the config files doesn't exist or is in a bad state. */
-const badStateWhitelist = new Set(['get_config', 'valid_config', 'valid_cfg_v', 'set_config']);
+const badStateWhitelist = new Set(['get_config', 'validate_config', 'valid_cfg_v', 'set_config']);
 
 /**
  * Verify that the given endpoint is allowed given the current server state.

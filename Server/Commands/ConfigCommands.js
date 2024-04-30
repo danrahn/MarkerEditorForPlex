@@ -1,6 +1,7 @@
 import { ServerConfigState } from '../../Shared/ServerConfig.js';
 
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
+import { ServerState, SetServerState } from '../ServerState.js';
 import { Config } from '../MarkerEditorConfig.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
 import { registerCommand } from './PostCommand.js';
@@ -47,6 +48,7 @@ async function validateConfigValue(setting, value) {
  * @param {SerializedConfig} config
  * @param {ServerResponse} response */
 async function setConfig(config, response) {
+    const oldConfigState = Config.getValid();
     const newConfig = await Config.trySetConfig(config);
     switch (newConfig.config.state) {
         case ServerConfigState.FullReloadNeeded:
@@ -56,7 +58,15 @@ async function setConfig(config, response) {
             await waitForServerEvent(ServerEvents.SoftRestart, response, newConfig);
             break;
         default:
-            sendJsonSuccess(response, newConfig);
+            // If we were previously in a valid state, we can just mark the server as
+            // running and return. Otherwise, we need to do a reload, since an invalid
+            // state implies we haven't set up any of our core classes.
+            if (oldConfigState === ServerConfigState.Valid) {
+                SetServerState(ServerState.Running);
+                sendJsonSuccess(response, newConfig);
+            } else {
+                await waitForServerEvent(ServerEvents.SoftRestart, response, newConfig);
+            }
             break;
     }
 }

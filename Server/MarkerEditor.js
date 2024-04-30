@@ -307,7 +307,7 @@ function userResume(res) {
  * @param {ServerResponse} res */
 async function userReload(res, data) {
     Log.verbose('Attempting to reload marker data');
-    if (GetServerState() !== ServerState.Running) {
+    if (![ServerState.Running, ServerState.RunningWithoutConfig].includes(GetServerState())) {
         return sendJsonError(res, new ServerError('Server must be running in order to reload.', 400));
     }
 

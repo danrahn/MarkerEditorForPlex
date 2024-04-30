@@ -196,7 +196,7 @@ export class PathMappingsTable {
         }
 
         return {
-            value : newMappings,
+            value : newMappings.length === 0 ? null : newMappings,
             defaultValue : [],
             isInvalid : false,
         };
