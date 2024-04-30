@@ -215,10 +215,10 @@ class Version {
      * * A leading 'v' (which is ignored)
      * * 0.0.0, where 0 is any number with 1 or more digits
      * * An optional postfix, starting with a dash (-), followed by:
-     *     * `alpha`
-     *     * `beta`
-     *     * `rc.0`, where 0 is any number with 1 or more digits */
-    static #versionRegex = /^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<type>alpha|beta|rc\.(?<rcVersion>\d+)))?/;
+     *     * `alpha.0`, where `.0` is optional and 0 is any number with 1 or more digits
+     *     * `beta`, where `.0` is optional and 0 is any number with 1 or more digits
+     *     * `rc.0`, where `0` is any number with 1 or more digits */
+    static #versionRegex = /^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<type>alpha|beta|rc)(?:\.(?<rcVersion>\d+))?)?/;
 
     /**
      * Compare two `Version`s, ordering from smallest to largest
@@ -226,19 +226,17 @@ class Version {
      * @param {Version} versionB
      * @returns {number} Negative number if A is less than B, 0 if equal, positive of A is greater than B. */
     static Compare(versionA, versionB) {
-        /* eslint-disable padding-line-between-statements */
         let diff = versionA.major - versionB.major;
-        if (diff !== 0) { return diff; }
+        if (diff !== 0) return diff;
         diff = versionA.minor - versionB.minor;
-        if (diff !== 0) { return diff; }
+        if (diff !== 0) return diff;
         diff = versionA.patch - versionB.patch;
-        if (diff !== 0) { return diff; }
+        if (diff !== 0) return diff;
         diff = versionA.releaseTypeInfo.type - versionB.releaseTypeInfo.type;
-        if (diff !== 0) { return diff; }
-        if (versionA.releaseTypeInfo.type === PrereleaseType.ReleaseCandidate) {
-            return versionA.releaseTypeInfo.rcVersion - versionB.releaseTypeInfo.rcVersion;
+        if (diff !== 0) return diff;
+        if (versionA.releaseTypeInfo.type < PrereleaseType.Released) {
+            return versionA.releaseTypeInfo.prereleaseVersion - versionB.releaseTypeInfo.prereleaseVersion;
         }
-        /* eslint-enable */
 
         return 0;
     }
@@ -261,7 +259,7 @@ class Version {
     /** Prerelease version info, if any */
     releaseTypeInfo = {
         type : PrereleaseType.Released,
-        rcVersion : -1,
+        prereleaseVersion : -1,
     };
 
     /**
@@ -278,8 +276,8 @@ class Version {
         this.minor = parseInt(parts.groups.minor);
         this.patch = parseInt(parts.groups.patch);
         if (parts.groups.type) {
-            const partLower = parts.groups.type.toLowerCase();
-            switch (partLower) {
+            const typeLower = parts.groups.type.toLowerCase();
+            switch (typeLower) {
                 case 'alpha':
                     this.releaseTypeInfo.type = PrereleaseType.Alpha;
                     break;
@@ -288,12 +286,19 @@ class Version {
                     break;
                 default:
                     Log.assert(
-                        partLower.startsWith('rc') && parts.groups.rcVersion,
-                        `Version: Expected rc with a valid rc number if not alpha or beta, found ${partLower}.`);
+                        typeLower.startsWith('rc') && parts.groups.rcVersion,
+                        `Version: Expected rc with a valid rc number if not alpha or beta, found ${typeLower}.`);
 
                     this.releaseTypeInfo.type = PrereleaseType.ReleaseCandidate;
-                    this.releaseTypeInfo.rcVersion = parseInt(parts.groups.rcVersion);
+                    this.releaseTypeInfo.prereleaseVersion = parseInt(parts.groups.rcVersion);
                     break;
+            }
+
+            if (parts.groups.rcVersion) {
+                this.releaseTypeInfo.prereleaseVersion = parseInt(parts.groups.rcVersion);
+            } else {
+                Log.assert(typeLower !== 'rc', 'Release candidates should always have a candidate version.');
+                this.releaseTypeInfo.prereleaseVersion = 0;
             }
         }
     }
