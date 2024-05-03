@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clickOnEnterCallback, scrollAndFocus } from './Common.js';
+import { $, $$, appendChildren, buildNode, clickOnEnterCallback, ctrlOrMeta, scrollAndFocus } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { customCheckbox } from './CommonUI.js';
@@ -419,7 +419,8 @@ class BulkActionTable {
     onRowClicked(e, toggledRow, fromKeyboard) {
         this.#inKeyboardSelection = fromKeyboard;
         // The following should match the behavior of Windows Explorer bulk-selection
-        if (!e.ctrlKey && !e.shiftKey) {
+        const ctrlIsh = ctrlOrMeta(e);
+        if (!ctrlIsh && !e.shiftKey) {
             // If this is the only row that's currently selected, deselect with a plain click.
             const onlyThisWasSelected = this.#selected.size === 1 && toggledRow.selected;
 
@@ -431,7 +432,7 @@ class BulkActionTable {
 
             this.#selected.clear();
             this.#setSelectState(toggledRow, !onlyThisWasSelected);
-        } else if (e.ctrlKey && e.shiftKey) {
+        } else if (ctrlIsh && e.shiftKey) {
             if (this.#lastSelected) {
                 // Iterate from the last selected row to this row. If the last
                 // selected row was a deselect, deselect everything, otherwise select everything.
@@ -474,7 +475,7 @@ class BulkActionTable {
             // Plain shift doesn't set last selected
             this.#lastSelectedWasDeselect = false;
         } else {
-            Log.assert(e.ctrlKey, `BulkActionTable.onRowToggled - How did we get here if alt isn't pressed?`);
+            Log.assert(ctrlIsh, `BulkActionTable.onRowToggled - How did we get here if alt isn't pressed?`);
 
             // Select or deselect based on the row's current selection state.
             this.#setSelectState(toggledRow, !this.#selected.has(toggledRow));
