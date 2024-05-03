@@ -3,13 +3,13 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
+import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import { MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
 import { BackupManager } from './MarkerBackupManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import { PostCommands } from '../Shared/PostCommands.js';
-import { ProjectRoot } from './MarkerEditorConfig.js';
 import { registerCommand } from './Commands/PostCommand.js';
 import ServerError from './ServerError.js';
 import SqliteDatabase from './SqliteDatabase.js';
@@ -255,7 +255,8 @@ WHERE t.tag_id=$tagId`;
         // Success. Instead of trying to properly adjust everything, rebuild necessary caches from
         // scratch, since this shouldn't be a common action, so efficiency isn't super important.
         await Promise.all([
-            waitForServerEvent(ServerEvents.ReloadMarkerStats),
+            waitForServerEvent(
+                ServerEvents.ReloadMarkerStats, Config.extendedMarkerStats(), PlexQueries.database(), PlexQueries.markerTagId()),
             waitForServerEvent(ServerEvents.RebuildPurgedCache)]);
         return stats;
     }
