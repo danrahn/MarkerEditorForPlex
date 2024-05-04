@@ -177,11 +177,26 @@ WHERE t.tag_id=$tagId`;
         //       This is okay, since our import method should handle it gracefully.
 
         const txn = new TransactionBuilder(db);
+        const nullOrUndefined = (...ms) => {
+            for (const m of ms) {
+                if (m === null || m === undefined) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
         for (const marker of markers) {
             // TODO: Update the schema to add user_created instead of this current disconnect.
             let modifiedAt = MarkerEditCache.getModifiedAt(marker.id);
             if (modifiedAt === null && MarkerEditCache.getUserCreated(marker.id)) {
                 modifiedAt = -marker.created_at;
+            }
+
+            if (!marker || !marker.marker_type || nullOrUndefined(marker.start, marker.end, marker.created_at, marker.extra, marker.guid)) {
+                Log.warn(marker, `Found invalid marker, cannot export`);
+                continue;
             }
 
             txn.addStatement(
@@ -199,7 +214,7 @@ WHERE t.tag_id=$tagId`;
                 });
         }
 
-        Log.info(`Adding ${markers.length} markers to database export.`);
+        Log.info(`Adding ${txn.statementCount()} markers to database export.`);
         await txn.exec();
 
         // All items have been added, close the db for writing and pipe it to the user.

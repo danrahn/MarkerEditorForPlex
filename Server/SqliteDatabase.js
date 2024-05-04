@@ -105,9 +105,9 @@ class SqliteDatabase {
      * @param {DbQueryParameters|null} parameters
      * @returns {Promise<any>} */
     #action(fn, query, parameters=null) {
-        return new Promise((resolve, reject) => {
+        return new Promise(resolve => {
             const callback = (err, result) => {
-                if (err) { reject(err.message); }
+                if (err) { throw new ServerError.FromDbError(err); }
 
                 resolve(result);
             };
