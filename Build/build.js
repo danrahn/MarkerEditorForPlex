@@ -1,15 +1,27 @@
-const fs = require('fs');
-const { copySync } = require('fs-extra');
-const { compile : exeCompile } = require('nexe');
-const { homedir } = require('os');
-const { resolve, join } = require('path');
-const rcedit = require('rcedit');
-const { rollup } = require('rollup');
-const { exec } = require('child_process');
-const semver = require('semver');
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    statSync,
+    symlinkSync,
+    unlinkSync,
+    writeFileSync } from 'fs';
+import { join, resolve } from 'path';
+import { compile } from 'nexe';
+import { exec } from 'child_process';
+import { homedir } from 'os';
+import rcedit from 'rcedit';
+import { rollup } from 'rollup';
+import semver from 'semver';
+import webpack from 'webpack';
 
 /** @typedef {!import('nexe/lib/options').NexePatch} NexePatchFunction */
-const ReadMeGenerator = require('./ReadMeGenerator.cjs');
+
+import ReadMeGenerator from './ReadMeGenerator.cjs';
 
 /**
  * @typedef {{
@@ -27,8 +39,11 @@ const ReadMeGenerator = require('./ReadMeGenerator.cjs');
  * }} NodeVersionInfo
  * */
 
-const { version, dependencies } = require('../package.json');
-const iconPath = resolve(__dirname, 'app.ico');
+const buildDir = import.meta.dirname;
+
+const packageJson = JSON.parse(readFileSync(resolve(buildDir, '../package.json')).toString('utf-8'));
+const { version, dependencies } = packageJson;
+const iconPath = resolve(buildDir, 'app.ico');
 
 const appName = 'Marker Editor for Plex';
 const binaryName = 'MarkerEditor';
@@ -71,7 +86,7 @@ const debug = args.includes('debug');
  * Uses rollup to transpile app.js to common-js, as nexe can't consume es6 modules. */
 async function transpile() {
     await rollup({
-        input : resolve(__dirname, '../app.js'),
+        input : resolve(buildDir, '../app.js'),
         onwarn : (warn, def) => {
             // We don't care about unresolved imports, nexe takes care of that.
             if (warn.code === 'UNRESOLVED_IMPORT') {
@@ -82,10 +97,47 @@ async function transpile() {
         }
     }).then((bundle) => {
         bundle.write({
-            file : resolve(__dirname, '../dist/built.cjs'),
+            file : resolve(buildDir, '../dist/built.cjs'),
             format : 'cjs',
         });
     });
+}
+
+import clientConfig from '../webpack.config.js';
+/**
+ * Minify client code and inject minified source into html. */
+async function minifyClient() {
+    const compiler = webpack(clientConfig);
+    await new Promise(r => {
+        compiler.run((err, stats) => {
+            if (err) {
+                console.error(err.stack || err);
+                if (err.details) {
+                    console.error(err.details);
+                }
+
+                throw new Error(`Webpack error. Cannot continue.`);
+            }
+
+            const info = stats.toJson();
+
+            if (stats.hasErrors()) {
+                console.error(info.errors);
+                throw new Error(`Webpack error. Cannot continue.`);
+            }
+
+            if (stats.hasWarnings()) {
+                console.warn(info.warnings);
+            }
+
+            r();
+        });
+    });
+
+    // Now remove the "dev" index.js import
+    const indexHtmlPath = resolve(buildDir, '../dist/index.html');
+    const indexHtml = readFileSync(indexHtmlPath).toString('utf-8').replace(/<script.*\/index\.js".*?<\/script>/, '');
+    writeFileSync(indexHtmlPath, indexHtml, { encoding : 'utf-8' });
 }
 
 /**
@@ -163,20 +215,20 @@ async function getNodeVersion() {
 function cleanBuild(oldOut) {
     const tryRm = out => {
         try {
-            fs.rmSync(out, { recursive : true, force : true });
+            rmSync(out, { recursive : true, force : true });
         } catch (ex) {
             console.warn(`\tUnable to clear output ${out}`);
         }
     };
 
     console.log('\nCleaning existing cached output');
-    if (fs.existsSync(oldOut)) {
+    if (existsSync(oldOut)) {
         console.log('\tClearing old output directory');
         tryRm(oldOut);
     }
 
     for (const cachedOut of ['arm64', 'ia32', 'x64', 'arm64d', 'ia32d', 'x64d']) {
-        if (fs.existsSync(oldOut + cachedOut)) {
+        if (existsSync(oldOut + cachedOut)) {
             console.log(`\tClearing out ${cachedOut} cache`);
             tryRm(oldOut + cachedOut);
         }
@@ -195,8 +247,8 @@ function deleteNodeBinaryIfRebuilding(compiler, next) {
     // the source has changed (e.g. due to new patches).
     if (verbose) console.log(`Attempting to delete node binary due to 'rebuild' parameter`);
     const binaryPath = compiler.getNodeExecutableLocation();
-    if (fs.existsSync(binaryPath)) {
-        fs.unlinkSync(binaryPath);
+    if (existsSync(binaryPath)) {
+        unlinkSync(binaryPath);
         console.log(`\nDeleted "${binaryPath}" due to rebuild parameter.`);
     }
 
@@ -265,7 +317,7 @@ async function editWinResources(compiler, next) {
     try {
         // RC overrides are only applied if we're doing a clean build,
         // hack around it by using rcedit on the binary to ensure they're added.
-        if (fs.statSync(binaryPath).size > 0) {
+        if (statSync(binaryPath).size > 0) {
             await rcedit(binaryPath, {
                 'version-string' : rc,
                 'file-version' : rcVersion,
@@ -305,26 +357,26 @@ async function toExe() {
     console.log(`Attempting to build ${platform}-${arch}-${nodeVersion}`);
 
     const archOut = oldOut + arch + (debug ? 'd' : '');
-    const hadCache = fs.existsSync(archOut);
+    const hadCache = existsSync(archOut);
     if (hadCache) {
         console.log(`Found cached output for ${arch}-${nodeVersion}, using that.`);
 
         // Wipe out any existing out link and replace with cached out{arch} link
-        if (fs.existsSync(oldOut)) {
+        if (existsSync(oldOut)) {
             console.log(`Removing old link to 'out'`);
-            fs.rmSync(oldOut, { recursive : true, force : true });
+            rmSync(oldOut, { recursive : true, force : true });
         }
 
-        fs.symlinkSync(archOut, oldOut, 'junction');
+        symlinkSync(archOut, oldOut, 'junction');
     } else {
         // Always clear out the build directory if we don't have the
         // target architecture cached.
-        fs.rmSync(oldOut, { recursive : true, force : true });
+        rmSync(oldOut, { recursive : true, force : true });
     }
 
-    await exeCompile({
-        input : resolve(__dirname, '../dist/built.cjs'),
-        output : resolve(__dirname, output),
+    await compile({
+        input : resolve(buildDir, '../dist/built.cjs'),
+        output : resolve(buildDir, output),
         build : true,
         configure : (isWin || !debug) ? [] : ['--debug'], // non-Win
         vcBuild : isWin ? ['nosign', debug ? 'debug' : 'release'] : [], // Win-only
@@ -338,12 +390,12 @@ async function toExe() {
             ...rc
         },
         resources : [
-            resolve(__dirname, '../package.json'),
-            resolve(__dirname, '../index.html'),
-            resolve(__dirname, '../SVG/*svg'),
-            resolve(__dirname, '../Shared/**'),
-            resolve(__dirname, '../Client/**'),
-            resolve(__dirname, '../dist/built.cjs'),
+            resolve(buildDir, '../package.json'),
+            resolve(buildDir, '../dist/index.html'),
+            resolve(buildDir, '../SVG/*svg'),
+            resolve(buildDir, '../dist/index*.js'),
+            resolve(buildDir, '../Client/Style/**'),
+            resolve(buildDir, '../dist/built.cjs'),
         ],
         patches : [
             deleteNodeBinaryIfRebuilding,
@@ -354,8 +406,8 @@ async function toExe() {
 
     // After everything is compiled, cache the output directory if needed.
     if (!hadCache) {
-        fs.renameSync(oldOut, archOut);
-        fs.symlinkSync(archOut, oldOut, 'junction');
+        renameSync(oldOut, archOut);
+        symlinkSync(archOut, oldOut, 'junction');
     }
 }
 
@@ -392,7 +444,7 @@ function writeReadme() {
             break;
     }
 
-    fs.writeFileSync(resolve(__dirname, '../dist/README.txt'), new ReadMeGenerator(80).parse(recipeHeader + recipe + recipeFooter));
+    writeFileSync(resolve(buildDir, '../dist/README.txt'), new ReadMeGenerator(80).parse(recipeHeader + recipe + recipeFooter));
 }
 
 /**
@@ -405,7 +457,7 @@ cd "\`dirname "$0"\`"
 ./MarkerEditor
 `;
 
-    fs.writeFileSync(resolve(__dirname, '../dist/start.sh'), startSh, { mode : 0o755 });
+    writeFileSync(resolve(buildDir, '../dist/start.sh'), startSh, { mode : 0o755 });
 }
 
 /**
@@ -413,29 +465,37 @@ cd "\`dirname "$0"\`"
 async function build() {
     const msg = (m) => console.log(`\n${m}...`);
     msg('Removing Previous build output');
-    const dist = resolve(__dirname, '../dist');
-    if (!fs.existsSync(dist)) {
-        fs.mkdirSync(dist);
+    const dist = resolve(buildDir, '../dist');
+    if (!existsSync(dist)) {
+        mkdirSync(dist);
     }
 
-    for (const file of fs.readdirSync(dist)) {
+    for (const file of readdirSync(dist)) {
         // Don't remove zip files
         if (file.endsWith('.zip')) {
             continue;
         }
 
+        // Don't remove webpack TODO
+        if (file.startsWith('index')) {
+            continue;
+        }
+
         const fullPath = join(dist, file);
-        if (fs.statSync(fullPath).isDirectory()) {
+        if (statSync(fullPath).isDirectory()) {
             if (file !== 'archCache') {
-                fs.rmSync(fullPath, { recursive : true, force : true });
+                rmSync(fullPath, { recursive : true, force : true });
             }
         } else {
-            fs.unlinkSync(fullPath);
+            unlinkSync(fullPath);
         }
     }
 
     msg('Transpiling to cjs');
     await transpile();
+
+    msg('Minifying client code with webpack');
+    await minifyClient();
 
     msg('Building exe');
     await toExe();
@@ -448,20 +508,20 @@ async function build() {
         sqlite3Version = sqlite3Version.substring(1);
     }
 
-    const cacheDir = resolve(__dirname, '../dist/archCache');
-    if (!fs.existsSync(cacheDir)) {
-        fs.mkdirSync(cacheDir);
+    const cacheDir = resolve(buildDir, '../dist/archCache');
+    if (!existsSync(cacheDir)) {
+        mkdirSync(cacheDir);
     }
 
     const arch = getArch();
 
+    mkdirSync(resolve(buildDir, '../dist/node_modules/sqlite3/build/Release'), { recursive : true });
     if (process.arch === arch) {
         // destination arch is the same as the system arch. Just copy the existing node_modules dir
 
-        copySync(
-            resolve(__dirname, '../node_modules/sqlite3/build/Release/node_sqlite3.node'),
-            resolve(__dirname, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'),
-            { overwrite : true, recursive : true });
+        copyFileSync(
+            resolve(buildDir, '../node_modules/sqlite3/build/Release/node_sqlite3.node'),
+            resolve(buildDir, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'));
     } else {
         const cacheVersion = join(cacheDir, `sqlite3-${sqlite3Version}-${arch}`);
 
@@ -469,21 +529,19 @@ async function build() {
         // Instead of creating the infra to support downloading and un-taring sqlite3
         // binaries, it's required to manually build the dist/archCache structure using self/pre-built
         // binaries, using the naming outlined above in cacheVersion.
-        if (!fs.existsSync(cacheVersion) || !fs.statSync(cacheVersion).isDirectory()) {
+        if (!existsSync(cacheVersion) || !statSync(cacheVersion).isDirectory()) {
             throw new Error(`Unable to copy native sqlite3 module, archCache folder "${cacheVersion}" does not exist.`);
         }
 
-        copySync(
+        copyFileSync(
             join(cacheVersion, 'node_sqlite3.node'),
-            resolve(__dirname, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'),
-            { overwrite : true, recursive : true }
+            resolve(buildDir, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node')
         );
     }
 
-    copySync(
-        resolve(__dirname, '../node_modules/sqlite3/package.json'),
-        resolve(__dirname, '../dist/node_modules/sqlite3/package.json'),
-        { overwrite : true }
+    copyFileSync(
+        resolve(buildDir, '../node_modules/sqlite3/package.json'),
+        resolve(buildDir, '../dist/node_modules/sqlite3/package.json')
     );
 
     msg('Writing README');
@@ -495,7 +553,7 @@ async function build() {
     }
 
     msg('Removing transpiled output');
-    fs.unlinkSync(resolve(__dirname, '../dist/built.cjs'));
+    unlinkSync(resolve(buildDir, '../dist/built.cjs'));
 
     if (args.includes('zip') || args.includes('pack')) {
         msg('Zipping everything up');

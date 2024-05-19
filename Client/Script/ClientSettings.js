@@ -882,13 +882,27 @@ class SettingsManager {
             this.#settings.theme.dark = this.#themeQuery !== 'not all' && this.#themeQuery.matches;
         }
 
-        const styleNode = (link) => {
+        const styleNode = (link, addListener=false) => {
             const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
-            return buildNode('link', { rel : 'stylesheet', type : 'text/css', href : href });
+            return buildNode(
+                'link',
+                { rel : 'stylesheet', type : 'text/css', href : href },
+                0,
+                addListener ? {
+                    load : _ => {
+                        const tempThemes = [$$('#themeTempLight'), $$('#themeTempDark')];
+                        for (const tempTheme of tempThemes) {
+                            if (tempTheme) {
+                                tempTheme.parentNode.removeChild(tempTheme);
+                            }
+                        }
+                    }
+                } : {}
+            );
         };
 
         this.#themeStyles = [
-            styleNode('theme'),
+            styleNode('theme', true),
             styleNode('Overlay'),
             styleNode('BulkActionOverlay'),
         ];

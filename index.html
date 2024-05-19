@@ -4,14 +4,239 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Add, edit, and delete markers from your Plex database">
-    <link href="Client/Style/inc/Tooltip.css" rel="stylesheet" type="text/css" />
-    <link href="Client/Style/inc/Overlay.css" rel="stylesheet" type="text/css" />
-    <link href="Client/Style/style.css" rel="stylesheet" type="text/css" />
-    <link href="Client/Style/Settings.css" rel="stylesheet" type="text/css" />
-    <link href="Client/Style/MarkerTable.css" rel="stylesheet" type="text/css" />
-    <link href="Client/Style/BulkActionOverlay.css" rel="stylesheet" type="text/css" />
+    <link rel="preload" href="Client/Style/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/inc/Tooltip.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/inc/Overlay.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/Settings.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/MarkerTable.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/BulkActionOverlay.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="icon" type="image/svg+xml; charset=UTF-8" href="SVG/favicon.svg">
     <title>Marker Editor</title>
+    <!--
+        Before our full styles and scripts have loaded, set up the core set of styles.
+        This results in a smoother loading experience.
+    -->
+    <style id="themeTempLight">
+        :root {
+            --theme-primary: #212121;
+            --theme-border: #616161;
+            --background-grad: linear-gradient(#FFEFCCDD, #CCA066DD);
+        }
+    </style>
+    <style id="themeTempDark">
+        :root {
+            --theme-primary: #c1c1c1;
+            --theme-border: #616161;
+            --background-grad: linear-gradient(#212121CC, #402200CC);
+        }
+    </style>
+    <script type="text/javascript">
+        // Quickly check localStorage for a theme preference, falling back to
+        // the system theme. When the theme is determined, remove the temporary
+        // opposite theme's temporary node above.
+        let themeSet = false;
+        let isDark = false;
+        try {
+            // Keep synced with ClientSettings's #settingsKey
+            const theme = JSON.parse(localStorage.getItem('plexIntro_settings')).theme;
+            if (theme.userSet) {
+                themeSet = true;
+                isDark = theme.dark;
+            }
+        } catch {}
+
+        if (!themeSet) {
+            const match = window.matchMedia('(prefers-color-scheme: dark)');
+            isDark = match !== 'not all' && match.matches;
+        }
+
+        document.head.removeChild(document.getElementById(`themeTemp${isDark ? 'Light' : 'Dark'}`));
+    </script>
+
+    <!--
+        The below styles are the core styles necessary for the layout of the landing page
+
+        * Title text
+        * Dark mode toggle/hep button
+        * Library selector
+
+        This allows the elements to mostly stay where they are before the rest of our styles have loaded in.
+    -->
+    <style>
+        :root {
+          --noise-svg: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="300" height="300"><filter id="n" x="0" y="0"><feTurbulence type="fractalNoise" baseFrequency="0.75" stitchTiles="stitch"/></filter><rect width="300" height="300" fill="black"/><rect width="300" height="300" filter="url(%23n)" opacity="0.80"/></svg>');
+          scrollbar-width: thin !important;
+        }
+
+        body {
+          font-family: sans-serif;
+          background: fixed var(--background-grad), var(--noise-svg);
+          margin: 0;
+          border: 0;
+          overflow: auto;
+          display: block;
+          height: 100vh;
+          color: var(--theme-primary);
+        }
+
+        #plexFrame {
+          height: 100vh;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: var(--background-grad), var(--noise-svg);
+        }
+
+        .hidden {
+          display: none !important;
+        }
+
+        #libraryList {
+          width: 100%;
+          margin: auto;
+          text-align: center;
+        }
+
+        #topRightControls {
+          position: relative;
+          top: 30px;
+        }
+
+        #helpContainer {
+          position: absolute;
+          top: 0;
+          right: 0;
+        }
+
+        .fancySelect,
+        #search {
+          padding: 5px;
+          border-radius: 5px;
+          background: transparent;
+          text-align: center;
+          font-size: 14pt;
+        }
+
+        .fancySelect {
+          min-width: 350px;
+        }
+
+        #intro {
+          max-width: 1000px;
+          text-align: center;
+          margin: auto;
+        }
+
+        #toggleContainer {
+          position: absolute;
+          right: 30px;
+        }
+
+        #darkModeToggle {
+          position: relative;
+          display: inline-block;
+          width: 50px;
+          height: 20px;
+        }
+
+        #darkModeCheckbox {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+
+        .toggle {
+          position: absolute;
+          top: 0;
+          right: 0;
+          left: 0;
+          bottom: 0;
+          background-color: #a1a1a1;
+          -webkit-transition: 0.3s;
+          transition: 0.3s;
+          cursor: pointer;
+          border-radius: 16px;
+        }
+
+        .toggle::before {
+          position: absolute;
+          height: 16px;
+          width: 16px;
+          left: 2px;
+          bottom: 2px;
+          background-color: black;
+          border-radius: 50%;
+          -webkit-transition: 0.3s;
+          transition: 0.3s;
+          content: "";
+        }
+
+        #darkModeCheckbox:checked+.toggle {
+          background-color: #616191;
+        }
+
+        #darkModeCheckbox:focus+.toggle {
+          box-shadow: 0 0 1px #616191;
+        }
+
+        #darkModeCheckbox:checked+.toggle:before {
+          -webkit-transform: translateX(30px);
+          -ms-transform: translateX(30px);
+          transform: translateX(30px);
+        }
+
+        /* Handle */
+        ::-webkit-scrollbar-thumb {
+          width: 5px;
+          border-radius: 5px;
+          background: rgba(97, 97, 97, 0.76);
+          opacity: 0.5;
+        }
+
+        /* corner */
+        ::-webkit-scrollbar-corner {
+          background: rgba(97, 97, 97, 0.76);
+          border: none;
+        }
+
+        /* Handle on hover */
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(129, 129, 129, 0.76); /* #818181C1 */
+        }
+
+        @media (min-width: 767px) { /* Probably not a phone */
+          /* width*/
+          ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+          }
+
+          #topRightControls {
+            right: 30px;
+          }
+
+          /* Force the vertical scrollbar to always be visible to avoid horizontal shifts when the scrollbar appears/
+          * disappears. There are some behavioral tradeoffs here (content is slightly off-center when no scrollbar
+          * is visible, but the lack of shifting wins for me. Also, apply this to #plexFrame instead of body, because
+          * overriding the body itself will prevent scrolling overlays from having a visible scrollbar. Only apply it
+          * to "probably not a phone", since this causes issues with mobile browsers' auto-hiding address bar */
+          #plexFrame {
+            overflow-y: scroll;
+          }
+        }
+
+        @media all and (max-width: 767px) { /* Probably a phone */
+          /* width*/
+          ::-webkit-scrollbar {
+            width: 3px;
+            height: 3px;
+          }
+
+          #darkModeToggle {
+            display: none;
+          }
+        }
+    </style>
 </head>
 <body>
 

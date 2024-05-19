@@ -6,7 +6,7 @@
   "main": "app.js",
   "scripts": {
     "test": "node Test/Test.js --test",
-    "build": "node Build/build.cjs",
+    "build": "node Build/build.js",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix"
   },
@@ -24,9 +24,11 @@
     "eslint": "^8.34.0",
     "form-data": "^4.0.0",
     "fs-extra": "^10.1.0",
+    "html-webpack-plugin": "^5.6.0",
     "nexe": "^4.0.0-rc.4",
     "rcedit": "^3.0.1",
     "rollup": "^2.78.0",
-    "semver": "^7.6.0"
+    "semver": "^7.6.0",
+    "webpack": "^5.91.0"
   }
 }
