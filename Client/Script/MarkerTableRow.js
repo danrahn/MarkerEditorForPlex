@@ -116,7 +116,7 @@ class ExistingMarkerRow extends MarkerRow {
     constructor(marker, parent, chapters) {
         super(parent, chapters);
         this.#markerData = marker;
-        if (ClientSettings.useThumbnails()) {
+        if (ClientSettings.useThumbnails() && parent.baseItem().hasThumbnails) {
             this.#thumbnails = new TimestampThumbnails(this, false /*forEdit*/);
         }
 
