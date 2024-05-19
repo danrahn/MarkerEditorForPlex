@@ -1,4 +1,5 @@
-import { BaseLog } from '/Shared/ConsoleLog.js';
+import { BaseLog } from '../../Shared/ConsoleLog.js';
+import DocumentProxy from '../../Shared/DocumentProxy.js';
 
 /**
  * Set of all registered event listeners.
@@ -27,7 +28,7 @@ export function SetupWindowResizeEventHandler() {
 
 
 /**  @returns Whether the current window size is considered small */
-export function isSmallScreen() { return document.body.clientWidth < 768; }
+export function isSmallScreen() { return DocumentProxy.body.clientWidth < 768; }
 
 /**
  * Adds an listener to the window resize event.

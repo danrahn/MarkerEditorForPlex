@@ -157,7 +157,7 @@ export class QueryParser {
 
         const value = this.#formData[key];
         if (value === undefined) {
-            throw new QueryParameterException(`Form data field '${key} not found.`);
+            throw new QueryParameterException(`Form data field '${key}' not found.`);
         }
 
         return value;

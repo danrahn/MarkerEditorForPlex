@@ -216,12 +216,12 @@ class ConsoleLog {
      * Parse log level/dark mode/trace mode from the given log level string.
      * @param {string} logString */
     getFromString(logString) {
-        const match = /(?<t>trace)?(?<d>dark)?(?<l>extreme|tmi|verbose|info|warn|error|critical)?/i.exec(logString);
-        const level = match.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
+        const match = /^(?<t>trace)?(?<d>dark)?(?<l>extreme|tmi|verbose|info|warn|error|critical)?$/i.exec(logString);
+        const level = match?.groups.l ? ConsoleLog.#logStrings.indexOf(match.groups.l.toUpperCase()) : ConsoleLog.Level.Invalid;
         return {
             level : level,
-            trace : !!match.groups.t,
-            dark : !!match.groups.d,
+            trace : !!match?.groups.t,
+            dark : !!match?.groups.d,
         };
     }
 

@@ -107,7 +107,7 @@ class SqliteDatabase {
     #action(fn, query, parameters=null) {
         return new Promise(resolve => {
             const callback = (err, result) => {
-                if (err) { throw new ServerError.FromDbError(err); }
+                if (err) { throw ServerError.FromDbError(err); }
 
                 resolve(result);
             };

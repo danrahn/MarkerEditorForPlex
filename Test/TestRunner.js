@@ -12,6 +12,7 @@ import BulkAddTest from './TestClasses/BulkAddTest.js';
 import BulkDeleteTest from './TestClasses/BulkDeleteTest.js';
 import ChapterTest from './TestClasses/ChapterTest.js';
 import ClientTests from './TestClasses/ClientTests.js';
+import ConfigTest from './TestClasses/ConfigTest.js';
 import DateUtilTest from './TestClasses/DateUtilTest.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import ImportExportTest from './TestClasses/ImportExportTest.js';
@@ -79,6 +80,7 @@ class TestRunner {
         ImportExportTest,
         ChapterTest,
         DateUtilTest,
+        ConfigTest,
     };
 
     constructor() {
@@ -104,16 +106,17 @@ class TestRunner {
     /**
      * Run a specific test class or, if provided, a specific method of a specific class.
      * @param {string} className
-     * @param {string?} testMethod */
-    async runSpecific(className, testMethod) {
-        TestLog.info(`Running ${className}${testMethod ? '::' + testMethod : ''}`);
+     * @param {string?} testMethods */
+    async runSpecific(className, testMethods) {
+        TestLog.info(`Running ${className}${testMethods ? '::' + testMethods : ''}`);
         // Could do some manipulation to ignore casing, but require exact casing for now
         if (!TestRunner.TestClasses[className]) {
             throw new Error(`Test class ${className} not found. Make sure casing is correct.`);
         }
 
+        /** @type {TestBase} */
         const testClass = new TestRunner.TestClasses[className]();
-        const result = await testClass.runTests(testMethod);
+        const result = await testClass.runTests(testMethods?.split(';'));
         this.printResults(result);
         return this.#shutdown();
     }

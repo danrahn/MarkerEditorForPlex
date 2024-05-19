@@ -85,22 +85,9 @@ class TestBase {
     /**
      * Initiate the run for this test class, setting up the database and config file before
      * running through the test methods.
-     * @param {string?} methodName The specific test method to run, if any. */
-    async runTests(methodName) {
+     * @param {string[]?} methods The specific test method(s) to run, if any. */
+    async runTests(methods) {
         TestBase.Cleanup();
-        /** @type {() => Promise<any> | null} */
-        let methodFn = null;
-        if (methodName) {
-            /** @type {{ [methodName: string]: () => Promise<any> }} */
-            const availableMethods = {};
-            this.testMethods.map(fn => availableMethods[fn.name] = fn);
-            if (!availableMethods[methodName]) {
-                throw new Error(`Test method ${methodName} not found. Make sure the test exists, and casing is correct.`);
-            }
-
-            methodFn = availableMethods[methodName];
-        }
-
         if (this.requiresServer) {
             try {
                 this.testDb = await SqliteDatabase.OpenDatabase(TestBase.testDbPath, true /*allowCreate*/);
@@ -118,8 +105,8 @@ class TestBase {
             await this.connectToBackupDatabase();
         }
 
-        if (methodFn) {
-            return this.runSingle(methodFn);
+        if (methods) {
+            return this.runSpecific(methods);
         }
 
         return this.runAll();
@@ -170,7 +157,7 @@ class TestBase {
         let successCount = 0;
         let failureCount = 0;
         for (const method of this.testMethods) {
-            const success = await this.#runSingleInternal(method);
+            const success = await this.#runSingle(method);
             success ? ++successCount : ++failureCount;
         }
 
@@ -189,18 +176,30 @@ class TestBase {
     }
 
     /**
-     * @param {() => Promise<any>} testFn */
-    async runSingle(testFn) {
-        TestLog.info(`Running ${this.className()}::${testFn.name}`);
-        const success = await this.#runSingleInternal(testFn);
+     * @param {string[]} methods The method(s) to run */
+    async runSpecific(methods) {
+        /** @type {{ [methodName: string]: () => Promise<any> }} */
+        const availableMethods = {};
+        this.testMethods.map(fn => availableMethods[fn.name] = fn);
+
+        const totals = { success : 0, fail : 0 };
+        for (const method of methods) {
+            if (!availableMethods[method]) {
+                throw new Error(`Test method ${method} not found. Make sure the test exists, and casing is correct.`);
+            }
+
+            const result = await this.#runSingle(availableMethods[method]);
+            ++totals[result ? 'success' : 'fail'];
+        }
+
         await this.testDb?.close();
         await this.backupDb?.close();
-        return { success : success ? 1 : 0, fail : success ? 0 : 1 };
+        return totals;
     }
 
     /**
      * @param {() => Promise<any>} testMethod */
-    async #runSingleInternal(testMethod) {
+    async #runSingle(testMethod) {
         await this.resetState();
         await this.resume();
         this.testMethodSetup();
@@ -261,7 +260,26 @@ class TestBase {
      * @param {*} params Dictionary of query parameters to pass into the test server.
      * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON data. */
     send(endpoint, params={}, raw=false) {
-        return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' }, raw);
+        return this.#sendCore(endpoint, params, raw, false /*body*/);
+    }
+
+    /**
+     * Send a request to the test server, setting parameters via the request's body instead of URL parameters.
+     * @param {string} endpoint The command to run
+     * @param {object} params Dictionary of parameters
+     * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON response. */
+    sendBody(endpoint, params={}, raw=false) {
+        return this.#sendCore(endpoint, params, raw, true /*body*/);
+    }
+
+    /**
+     * Core send routine that sends a parameter- or body-based request.
+     * @param {string} endpoint The command to run
+     * @param {object} params Dictionary of parameters
+     * @param {boolean} raw Whether to return the immediate fetch result, not the parsed JSON response.
+     * @param {boolean} body Whether to send a body-based request instead of a URL parameter-based request. */
+    #sendCore(endpoint, params={}, raw=false, body=false) {
+        return this.#fetchInternal(endpoint, params, 'POST', { accept : 'application/json' }, raw, body);
     }
 
     /**
@@ -280,23 +298,33 @@ class TestBase {
      * @param {string} method POST or GET
      * @param {*} headers Any additional headers to add to the request
      * @param {boolean} raw */
-    #fetchInternal(endpoint, params, method, headers, raw) {
+    async #fetchInternal(endpoint, params, method, headers, raw, body) {
         if (GetServerState() === ServerState.FirstBoot || GetServerState() === ServerState.ShuttingDown) {
             TestLog.warn('TestHarness: Attempting to send a request to the test server when it isn\'t running!');
             return;
         }
 
         const url = new URL(`http://localhost:3233/${endpoint}`);
-        for (const [key, value] of Object.entries(params)) {
-            url.searchParams.append(key, value);
+        const init = { method, headers };
+        if (body) {
+            const data = new FormData();
+            for (const [key, value] of Object.entries(params)) {
+                data.append(key, value);
+            }
+
+            init.body = data;
+        } else {
+            for (const [key, value] of Object.entries(params)) {
+                url.searchParams.append(key, value);
+            }
         }
 
         if (raw) {
-            return fetch(url, { method, headers });
+            return fetch(url, init);
         }
 
         TestHelpers.verify(method === 'POST', `We shouldn't be making non-raw GET requests`);
-        return fetch(url, { method, headers }).then(r => r.json());
+        return await (await fetch(url, init)).json();
     }
 
     /* eslint-disable indent */
