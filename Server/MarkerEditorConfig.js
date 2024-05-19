@@ -333,10 +333,11 @@ class MarkerEditorConfig extends ConfigBase {
         if (process.env.IS_DOCKER) {
             // Config _should_ have the right values in Docker, but "help" the user out
             // by forcing it in case they were altered afterwards.
-            this.#dataPath = '/PlexDataDirectory';
-            this.#dbPath = join(this.#dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
-            this.#host = '0.0.0.0';
-            this.#port = 3232;
+            this.#dataPath = new Setting('/PlexDataDirectory', '/PlexDataDirectory');
+            const dbPath = join(this.#dataPath.value(), 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
+            this.#dbPath = new Setting(dbPath, dbPath);
+            this.#host = new Setting('0.0.0.0', '0.0.0.0');
+            this.#port = new Setting(3232, 3232);
         } else {
             this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault(
