@@ -2,6 +2,8 @@ import { $, appendChildren, buildNode, plural } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
+import { ClientSettings } from './ClientSettings.js';
+import { CustomEvents } from './CustomEvents.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
@@ -41,24 +43,39 @@ const DataLabels = {
     [BreakdownType.Credits]  : 'Credits Marker',
 };
 
-class MarkerBreakdownManager {
+class MarkerBreakdownChart {
 
     /** @type {MarkerBreakdown} */
-    #currentBreakdown = null;
+    static #currentBreakdown = null;
+    /** @type {HTMLElement} */
+    static #focusBack = null;
 
-    /** Create a new marker breakdown manager for this session. */
-    constructor() {
+    static Setup() {
+        window.addEventListener(CustomEvents.ClientSettingsApplied, MarkerBreakdownChart.#ToggleLegacyVisibility);
+        MarkerBreakdownChart.LegacySetup();
+    }
+
+    /**
+     * Set up the marker breakdown button when extended marker statistics are not enabled. */
+    static LegacySetup() {
         const stats = $('#markerBreakdown');
-        stats.addEventListener('click', this.#getBreakdown.bind(this));
-        Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers');
+        stats.addEventListener('click', () => MarkerBreakdownChart.GetBreakdown(stats));
+        MarkerBreakdownChart.#ToggleLegacyVisibility();
+        Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers.');
+    }
+
+    static #ToggleLegacyVisibility() {
+        $('#markerBreakdown').classList[ClientSettings.showExtendedMarkerInfo() ? 'add' : 'remove']('hidden');
     }
 
     /**
      * Retrieves marker breakdown data from the server, then displays it in an overlay chart.
      * The initial request may take some time for large libraries, so first show an overlay
-     * letting the user know something's actually happening. */
-    async #getBreakdown() {
-        this.#currentBreakdown = null;
+     * letting the user know something's actually happening.
+     * @param {HTMLElement} focusBack The element to focus after dismissing the breakdown chart. */
+    static async GetBreakdown(focusBack) {
+        MarkerBreakdownChart.#currentBreakdown = null;
+        MarkerBreakdownChart.#focusBack = focusBack;
         Overlay.show(
             appendChildren(buildNode('div'),
                 buildNode('h2', {}, 'Marker Breakdown'),
@@ -68,12 +85,12 @@ class MarkerBreakdownManager {
                 getSvgIcon(Icons.Loading, ThemeColors.Primary, { width : 30, height : 30 })),
             'Cancel');
 
-        Overlay.setFocusBackElement($('#markerBreakdown'));
+        Overlay.setFocusBackElement(focusBack);
 
         try {
             const rawBreakdown = await ServerCommands.getMarkerStats(PlexClientState.activeSection());
-            this.#currentBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
-            this.#showMarkerBreakdown(BreakdownType.Combined);
+            MarkerBreakdownChart.#currentBreakdown = new MarkerBreakdown().initFromRawBreakdown(rawBreakdown);
+            MarkerBreakdownChart.#showMarkerBreakdown(BreakdownType.Combined);
         } catch (err) {
             errorResponseOverlay('Failed to show breakdown', err);
         }
@@ -82,9 +99,9 @@ class MarkerBreakdownManager {
     /**
      * Displays a pie chart of the data from the server.
      * @param {MarkerBreakdown} breakdown The marker breakdown data */
-    #showMarkerBreakdown(breakdownType) {
+    static #showMarkerBreakdown(breakdownType) {
         const overlay = Overlay.get();
-        if (!overlay || !this.#currentBreakdown) {
+        if (!overlay || !MarkerBreakdownChart.#currentBreakdown) {
             Log.verbose('Overlay is gone, not showing stats');
             return; // User closed out of window
         }
@@ -94,13 +111,13 @@ class MarkerBreakdownManager {
         let chartData;
         switch (breakdownType) {
             case BreakdownType.Combined:
-                chartData = this.#currentBreakdown.collapsedBuckets();
+                chartData = MarkerBreakdownChart.#currentBreakdown.collapsedBuckets();
                 break;
             case BreakdownType.Intros:
-                chartData = this.#currentBreakdown.introBuckets();
+                chartData = MarkerBreakdownChart.#currentBreakdown.introBuckets();
                 break;
             case BreakdownType.Credits:
-                chartData = this.#currentBreakdown.creditsBuckets();
+                chartData = MarkerBreakdownChart.#currentBreakdown.creditsBuckets();
                 break;
             default:
                 throw new Error(`Invalid breakdown type ${breakdownType}`);
@@ -112,7 +129,7 @@ class MarkerBreakdownManager {
 
         const radius = Math.min(Math.min(400, window.innerWidth / 2 - 40), window.innerHeight / 2 - 200);
         const options = new PieChartOptions(dataPoints, radius);
-        const chartSelect = this.#buildOptions(breakdownType);
+        const chartSelect = MarkerBreakdownChart.#buildOptions(breakdownType);
         options.colorMap = { // Set colors for 0 and 1, use defaults for everything else
             [`0 ${DataLabels[breakdownType]}s`] : '#a33e3e',
             [`1 ${DataLabels[breakdownType]}`]  : '#2e832e'
@@ -133,7 +150,7 @@ class MarkerBreakdownManager {
                 delay : delay,
                 noborder : true,
                 closeButton : true,
-                focusBack : $('#markerBreakdown')
+                focusBack : MarkerBreakdownChart.#focusBack
             },
             appendChildren(buildNode('div', { style : 'text-align: center' }),
                 appendChildren(buildNode('div', { style : 'padding-bottom: 20px' }), chartSelect),
@@ -144,11 +161,11 @@ class MarkerBreakdownManager {
     /**
      * Build the dropdown that controls what specific chart is displayed.
      * @param {number} breakdownType */
-    #buildOptions(breakdownType) {
+    static #buildOptions(breakdownType) {
         const sel = buildNode('select',
             { id : 'chartBreakdownType', class : 'fancySelect' },
             0,
-            { change : this.#onChartTypeChange.bind(this) });
+            { change : MarkerBreakdownChart.#onChartTypeChange });
 
         for (const option of Object.values(BreakdownType)) {
             const optNode = buildNode('option', { value : option }, BreakdownTitles[option]);
@@ -164,9 +181,9 @@ class MarkerBreakdownManager {
 
     /**
      * Draw a new chart based on the option selected in the dropdown. */
-    #onChartTypeChange() {
-        this.#showMarkerBreakdown(parseInt($('#chartBreakdownType').value));
+    static #onChartTypeChange() {
+        MarkerBreakdownChart.#showMarkerBreakdown(parseInt($('#chartBreakdownType').value));
     }
 }
 
-export default MarkerBreakdownManager;
+export default MarkerBreakdownChart;

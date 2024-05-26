@@ -45,6 +45,11 @@ export default class Overlay {
      * @type {HTMLElement?} */
     static #focusBack = null;
 
+    /** @type {Promise<void>?} */
+    static #containerLock = null;
+    /** @type {(value: void | PromiseLike<void>) => void} */
+    static #containerUnlock = null;
+
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
      * @param {string|HTMLElement} message The message to display.
@@ -167,11 +172,32 @@ export default class Overlay {
     }
 
     /**
+     * Lock the overlay to help avoid race conditions when attempting to show overlays
+     * while a different overlay is already in the process of being displayed. While some
+     * overlap is expected/supported, there are some critical sections that shouldn't be
+     * fighting each other */
+    static #lock() {
+        Overlay.#containerLock = new Promise(r => { Overlay.#containerUnlock = r; });
+    }
+
+    /**
+     * Unlock overlay adjustments after a leaving core setup. */
+    static #unlock() {
+        Overlay.#containerUnlock?.();
+        Overlay.#containerLock = null;
+        Overlay.#containerUnlock = null;
+    }
+
+    /**
      * Generic overlay builder.
      * @param {OverlayOptions} options Options that define how the overlay is shown.
      * @param {...HTMLElement} children A list of elements to append to the overlay. */
     static async build(options, ...children) {
         // If we have an existing overlay, fade it out, remove it, then fade in the new content.
+        // If we're already waiting for it to fade out from a previous request, wait for that to finish first.
+        if (Overlay.#containerLock) await Overlay.#containerLock;
+        Overlay.#lock();
+
         const replaceInline = Overlay.showing();
         const delay = options.delay === 0 ? 0 : (options.delay || 250);
         const { overlayNode, container, inTransition } = await Overlay.#getOverlayContainers(options);
@@ -217,6 +243,7 @@ export default class Overlay {
             Overlay.#dismissCallbacks.push(options.onDismiss);
         }
 
+        Overlay.#unlock();
         if (replaceInline) {
             if (!inTransition) {
                 await animateOpacity(container, 0, 1, delay);

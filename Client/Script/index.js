@@ -5,7 +5,7 @@ import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
 import ButtonCreator from './ButtonCreator.js';
 import HelpOverlay from './HelpOverlay.js';
-import MarkerBreakdownManager from './MarkerBreakdownChart.js';
+import MarkerBreakdownChart from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import { ResultSections } from './ResultSections.js';
@@ -35,11 +35,9 @@ function init() {
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();
     ServerPausedOverlay.Setup();
+    MarkerBreakdownChart.Setup();
     SetupWindowResizeEventHandler();
 
-    // MarkerBreakdownManager is self-contained - we don't need anything from it,
-    // and it doesn't need anything from us, so no need to keep a reference to it.
-    new MarkerBreakdownManager();
     mainSetup();
 }
 
@@ -62,7 +60,9 @@ async function mainSetup() {
         return;
     }
 
-    PurgedMarkerManager.CreateInstance(ClientSettings.showExtendedMarkerInfo());
+    // Even if extended marker stats are blocked in the UI, we can still enable "find all purges"
+    // as long as we have the extended marker data available server-side (i.e. they're not blocked).
+    PurgedMarkerManager.CreateInstance(!ClientSettings.extendedMarkerStatsBlocked());
     VersionManager.CheckForUpdates(config.version.value);
 
     try {

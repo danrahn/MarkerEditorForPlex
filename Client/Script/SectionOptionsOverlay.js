@@ -6,6 +6,7 @@ import ButtonCreator from './ButtonCreator.js';
 import { customCheckbox } from './CommonUI.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { flashBackground } from './AnimationHelpers.js';
+import MarkerBreakdownChart from './MarkerBreakdownChart.js';
 import { MarkerConflictResolution } from '/Shared/PlexTypes.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
@@ -42,10 +43,11 @@ class SectionOptionsOverlay {
         appendChildren(container,
             buildNode('h1', {}, 'Section Options'),
             buildNode('hr'),
-            ButtonCreator.textButton('Export markers', this.#onExport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
-            ButtonCreator.textButton('Import markers', this.#onImport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton('Marker Breakdown Chart', this.#onBreakdown.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton('Export Markers', this.#onExport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton('Import Markers', this.#onImport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
             ButtonCreator.textButton(
-                'Delete all markers',
+                'Delete All Markers',
                 this.#onDeleteAll.bind(this),
                 { class : 'sectionOptionsOverlayBtn redOnHover' }),
             ButtonCreator.textButton(
@@ -56,6 +58,12 @@ class SectionOptionsOverlay {
 
         const options = { dismissible : true, focusBack : this.#focusBack, noborder : true, closeButton : true };
         Overlay.build(options, container);
+    }
+
+    /**
+     * Show the marker breakdown chart. */
+    #onBreakdown() {
+        MarkerBreakdownChart.GetBreakdown($$('.moreSectionOptionsBtn'));
     }
 
     /**
