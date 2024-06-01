@@ -335,8 +335,10 @@ export class BaseItemResultRow extends ResultRow {
      * @param {BaseItemResultRow[]} items */
     static ShowHideMarkerTables(hide, items) {
         const bodyRect = document.body.getBoundingClientRect();
-        const isVisible = (/** @type {BaseItemResultRow} */ episode) => {
-            const rect = episode.html().getBoundingClientRect();
+        const disconnected = (/** @type {BaseItemResultRow} */ item) => !item.html().isConnected;
+        const isVisible = (/** @type {BaseItemResultRow} */ item) => {
+            if (disconnected(item)) return false;
+            const rect = item.html().getBoundingClientRect();
             return rect.top < bodyRect.height && rect.y + rect.height > 0;
         };
 
@@ -360,9 +362,12 @@ export class BaseItemResultRow extends ResultRow {
                 continue;
             }
 
-            if (!foundVisible) {
-                foundVisible = true;
+            if (disconnected(item)) {
+                animations.push(item.showHideMarkerTable(hide, true /*bulk*/, false /*animate*/));
+                continue;
             }
+
+            foundVisible = true;
 
             let delay = count;
             const shouldAnimate = !hiddenAgain && isVisible(item);

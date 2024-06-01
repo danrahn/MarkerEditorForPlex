@@ -74,9 +74,13 @@ class TableElements {
     /**
      * Return a column with a fixed width and centered contents.
      * @param {string} value The text of the column. */
-    static optionsColumn(value) {
-        return TableElements.customClassColumn(
-            value, 'optionsColumn centeredColumn' + (ClientSettings.useThumbnails() ? ' iconOptions' : ''));
+    static optionsColumn(value, options) {
+        let className = 'optionsColumn centeredColumn';
+        if (ClientSettings.useThumbnails()) {
+            className += ` iconOptions iconOptions${options}`;
+        }
+
+        return TableElements.customClassColumn(value, className);
     }
 
     /** Returns a spanning table row indicating an episode has no existing markers. */

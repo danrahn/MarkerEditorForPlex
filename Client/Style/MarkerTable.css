@@ -36,7 +36,7 @@ td>.timeInput {
 }
 
 table .buttonIconAndText {
-  margin: 3px 1px 3px 1px;
+  margin: 0px 1px 0px 1px;
 }
 
 #episodelist table {
@@ -167,8 +167,12 @@ table .buttonIconAndText {
     min-width: 150px; /* "It works on my machine" */
   }
 
-  .optionsColumn.iconOptions {
-    min-width: 100px;
+  .optionsColumn.iconOptions3 {
+    min-width: 110px;
+  }
+
+  .optionsColumn.iconOptions2 {
+    min-width: 67px;
   }
 }
 
@@ -198,7 +202,11 @@ table .buttonIconAndText {
     width: 190px !important;
   }
 
-  .optionsColumn {
-    min-width: 90px; /* "It works on my machine" */
+  .optionsColumn.iconOptions2 {
+    min-width: 60px; /* "It works on my machine" */
+  }
+
+  .optionsColumn.iconOptions3 {
+    min-width: 90px;
   }
 }

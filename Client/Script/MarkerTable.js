@@ -5,6 +5,7 @@ import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
 import { Attributes, TableNavDelete } from './DataAttributes.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
 import ButtonCreator from './ButtonCreator.js';
+import { ClientSettings } from './ClientSettings.js';
 import { errorToast } from './ErrorHandling.js';
 import { isSmallScreen } from './WindowResizeEventHandler.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
@@ -678,7 +679,7 @@ class MarkerTable {
                     TableElements.timeColumn('Start Time'),
                     TableElements.timeColumn('End Time'),
                     TableElements.dateColumn(isSmallScreen() ? 'Added' : 'Date Added'),
-                    TableElements.optionsColumn('Options')
+                    TableElements.optionsColumn('Options', ClientSettings.useThumbnails() ? 3 : 2)
                 )
             )
         );

@@ -259,11 +259,6 @@ class PurgeOptions {
  * The PurgeRow represents a single row in the PurgeTable.
  */
 class PurgeRow {
-    /**
-     * The number of columns to backup and clear out when showing an inline row message.
-     * Note: this is one less than the number of columns, since we treat the options row differently.
-     * @type {number} */
-    static #backupLength = 4;
 
     /** @type {MarkerAction} */
     #markerAction;
@@ -425,12 +420,12 @@ class PurgeRow {
 
     #showRowMessage(message) {
         this.#backupTableData();
-        for (let i = 0; i < PurgeRow.#backupLength; ++i) {
+        for (let i = 0; i < this.#backupLength(); ++i) {
             this.#html.removeChild(this.#html.firstChild);
         }
 
         this.#html.insertBefore(
-            buildNode('td', { colspan : PurgeRow.#backupLength, class : 'spanningTableRow' }, message),
+            buildNode('td', { colspan : this.#backupLength(), class : 'spanningTableRow' }, message),
             this.#html.firstChild);
     }
 
@@ -440,7 +435,7 @@ class PurgeRow {
             return;
         }
 
-        for (let i = 0; i < PurgeRow.#backupLength; ++i) {
+        for (let i = 0; i < this.#backupLength(); ++i) {
             this.#tableData.push(this.#html.children[i]);
         }
     }
@@ -448,7 +443,7 @@ class PurgeRow {
     /** Restores the main content of this row with the backed up data. */
     #restoreTableData() {
         this.#html.removeChild(this.#html.firstChild);
-        for (let i = PurgeRow.#backupLength - 1; i >= 0; --i) {
+        for (let i = this.#backupLength() - 1; i >= 0; --i) {
             this.#html.insertBefore(this.#tableData[i], this.#html.firstChild);
         }
     }
@@ -474,6 +469,15 @@ class PurgeRow {
 
         return new MarkerData(rawMarkerData);
     }
+
+    /**
+     * The number of columns in this row. TV shows have 6, movies have 5. */
+    tableColumns() { return 5; }
+
+    /**
+     * The number of columns to backup and clear out when showing an inline row message.
+     * Note: this is one less than the number of columns, since we treat the options row differently. */
+    #backupLength() { return this.tableColumns() - 1; }
 }
 
 /**
@@ -511,6 +515,8 @@ class TVPurgeRow extends PurgeRow {
         dummyEpisode.addNewMarker(markerAction);
         PurgeManagerSingleton.onPurgedMarkerAction(dummyLibrary, newMarkers, deletedMarkers, modifiedMarkers);
     }
+
+    tableColumns() { return 6; }
 }
 
 /**
@@ -802,7 +808,7 @@ class TVPurgeTable extends PurgeTable {
             TableElements.shortTimeColumn('Start Time'),
             TableElements.shortTimeColumn('End Time'),
             TableElements.dateColumn('Date Added'),
-            TableElements.optionsColumn('Options'));
+            TableElements.optionsColumn('Options', 2));
     }
 
     /**
@@ -835,7 +841,7 @@ class MoviePurgeTable extends PurgeTable {
             TableElements.shortTimeColumn('Start Time'),
             TableElements.shortTimeColumn('End Time'),
             TableElements.dateColumn('Date Added'),
-            TableElements.optionsColumn('Options'));
+            TableElements.optionsColumn('Options', 2));
     }
 
     /**
