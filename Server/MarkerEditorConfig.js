@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 
 import { allServerSettings, isFeatureSetting, ServerConfigState, ServerSettings, Setting } from '../Shared/ServerConfig.js';
 import { BaseLog, ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
+import { GetServerState, ServerState } from './ServerState.js';
 import { PlexQueries, PlexQueryManager } from './PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
 import { testFfmpeg, testHostPort } from './ServerHelpers.js';
@@ -614,8 +615,10 @@ class MarkerEditorConfig extends ConfigBase {
             return ServerConfigState.FullReloadNeeded;
         }
 
-        // It's easier to do a soft restart with most settings
-        if (changedKeys.has(ServerSettings.DataPath)
+        // It's easier to do a soft restart with most settings,
+        // or if we had an unset/invalid config previously.
+        if (GetServerState() === ServerState.RunningWithoutConfig
+            || changedKeys.has(ServerSettings.DataPath)
             || changedKeys.has(ServerSettings.Database)
             || changedKeys.has(ServerSettings.ExtendedStats)) {
             return ServerConfigState.ReloadNeeded;
