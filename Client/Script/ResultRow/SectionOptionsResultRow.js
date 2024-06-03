@@ -1,6 +1,6 @@
 import { ResultRow } from './ResultRow.js';
 
-import { appendChildren, buildNode } from '../Common.js';
+import { appendChildren, buildNode, toggleVisibility } from '../Common.js';
 import { FilterDialog, FilterSettings } from '../FilterDialog.js';
 import { Attributes } from '../DataAttributes.js';
 import ButtonCreator from '../ButtonCreator.js';
@@ -8,6 +8,7 @@ import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import Icons from '../Icons.js';
 import { PlexClientState } from '../PlexClientState.js';
+import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import SectionOptionsOverlay from '../SectionOptionsOverlay.js';
 import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
@@ -19,6 +20,8 @@ const Log = new ContextualLog('SectionOptionsRow');
  * Currently only contains the Filter entrypoint.
  */
 export class SectionOptionsResultRow extends ResultRow {
+    /** @type {HTMLElement} */
+    #purgeButton;
     /** @type {HTMLElement} */
     #filterButton;
     /** @type {HTMLElement} */
@@ -35,13 +38,14 @@ export class SectionOptionsResultRow extends ResultRow {
             return this.html();
         }
 
-        if (!ClientSettings.showExtendedMarkerInfo()) {
-            Log.error(`SectionOptionsResultRow requires extended marker info`);
-            return buildNode('div');
-        }
-
         const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
         const row = buildNode('div', { class : 'sectionOptionsResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
+
+        this.#purgeButton = ButtonCreator.dynamicButton(
+            'Purged Markers Found', Icons.Warn, ThemeColors.Orange, () => PurgedMarkers.showCurrentSection(this.#purgeButton),
+            { class : 'hidden', style : 'margin-right: 10px', [Attributes.TableNav] : 'section-purges' });
+        this.#checkForPurges();
+
         this.#filterButton = ButtonCreator.fullButton('Sort/Filter',
             Icons.Filter,
             ThemeColors.Primary,
@@ -49,6 +53,9 @@ export class SectionOptionsResultRow extends ResultRow {
             { class : 'filterBtn', style : 'margin-right: 10px', [Attributes.TableNav] : 'sort-filter' });
         Tooltip.setTooltip(this.#filterButton, 'No Active Filter'); // Need to seed the setTooltip, then use setText for everything else.
         this.updateFilterTooltip();
+        if (!ClientSettings.showExtendedMarkerInfo()) {
+            this.#filterButton.classList.add('hidden');
+        }
 
         this.#moreOptionsButton = ButtonCreator.fullButton(
             'More...',
@@ -59,11 +66,34 @@ export class SectionOptionsResultRow extends ResultRow {
 
         appendChildren(row,
             titleNode,
-            appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
+            appendChildren(
+                row.appendChild(buildNode('div', { class : 'goBack' })),
+                this.#purgeButton,
                 this.#filterButton,
                 this.#moreOptionsButton));
         this.setHtml(row);
         return row;
+    }
+
+    /**
+     * If extended marker statistics are enabled server-side, check if there are any
+     * purged markers for this section, then update the visibility of the purge button
+     * based on the result. */
+    async #checkForPurges() {
+        // We only grab section-wide purges when extended marker stats are enabled,
+        // but we might still have section purges based on the show-level purges
+        // that we gather during normal app usage.
+        if (!ClientSettings.extendedMarkerStatsBlocked()) {
+            await PurgedMarkers.findPurgedMarkers(true /*dryRun*/);
+        }
+
+        this.updatePurgeDisplay();
+    }
+
+    /**
+     * Show/hide the 'purged markers found' button based on the number of purges found in this section. */
+    updatePurgeDisplay() {
+        toggleVisibility(this.#purgeButton, PurgedMarkers.getSectionPurgeCount() > 0);
     }
 
     /**

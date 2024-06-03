@@ -11,4 +11,6 @@ export const CustomEvents = {
     MarkerFilterApplied : 'markerFilterApplied',
     /** @readonly The active UI section changed or was cleared. */
     UISectionChanged : 'uiSectionChanged',
+    /** @readonly New purged markers were found. */
+    PurgedMarkersChanged : 'purgedMarkersChanged',
 };

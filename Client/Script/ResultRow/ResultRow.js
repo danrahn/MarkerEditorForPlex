@@ -133,6 +133,13 @@ export class ResultRow {
     }
 
     /**
+     * Updates the episode display text, even if extended marker info is disabled, as
+     * we might want to show/hide the purged marker icon. */
+    updatePurgeDisplay() {
+        $$('.showResultEpisodes span', this.#html).replaceWith(this.episodeDisplay());
+    }
+
+    /**
      * Determine whether we should load child seasons/episodes/marker tables when
      * clicking on the row. Returns false if the group has purged markers and the
      * user clicked on the marker info.
@@ -386,19 +393,37 @@ export class ResultRow {
     episodeDisplay() {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        if (!ClientSettings.showExtendedMarkerInfo() || !mediaItem.markerBreakdown()) {
-            // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
-            // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
-            return baseText;
-        }
-
-        let atLeastOne = 0;
+        const purgeTooltip = withStats => {
+            const purgeCount = this.getPurgeCount();
+            const markerText = purgeCount === 1 ? 'marker' : 'markers';
+            return `${withStats ? '' : '<span>'}<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
+        };
 
         /** @type {TooltipOptions} */
         const ttOptions = {
             textSize : TooltipTextSize.Larger,
             noBreak : true,
         };
+
+        if (!ClientSettings.showExtendedMarkerInfo() || !mediaItem.markerBreakdown()) {
+            // The feature isn't enabled or we don't have a marker breakdown. The breakdown can be null if the
+            // user kept this application open while also adding episodes in PMS (which _really_ shouldn't be done).
+
+            if (!this.hasPurgedMarkers()) {
+                // For episodeDisplay updating, be consistent and wrap base text in a div.
+                return buildNode('span', {}, baseText);
+            }
+
+            // Still want purge icon if necessary
+            const purgeText = buildNode('span', {}, baseText);
+            purgeText.appendChild(purgeIcon());
+
+            const mainText = buildNode('span', { class : 'episodeDisplayText' }, purgeText, { click : this.getPurgeEventListener() });
+            Tooltip.setTooltip(mainText, purgeTooltip(false /*withStats*/), ttOptions);
+            return mainText;
+        }
+
+        let atLeastOne = 0;
 
         // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
         // for slightly larger text than the default.
@@ -444,9 +469,7 @@ export class ResultRow {
 
         if (this.hasPurgedMarkers()) {
             displayText.appendChild(purgeIcon());
-            const purgeCount = this.getPurgeCount();
-            const markerText = purgeCount === 1 ? 'marker' : 'markers';
-            tooltipText += `<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
+            tooltipText += purgeTooltip(true /*withStats*/);
         }
 
         const mainText = buildNode('span', { class : 'episodeDisplayText' }, displayText);

@@ -23,7 +23,6 @@ import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
-import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Server/PlexQueryManager').RawMarkerData} RawMarkerData */
@@ -1046,18 +1045,10 @@ class PurgedMarkerManager {
     }
 
     /**
-     * Create a new manager for the given client state.
-     * @param {boolean} findAllEnabled Whether the user can search for all purged markers for a given section. */
-    constructor(findAllEnabled) {
+     * Create a new purged marker manager. */
+    constructor() {
         if (PurgeManagerSingleton) {
             throw new Error(`Don't create a new PurgedMarkerManager when the singleton already exists!`);
-        }
-
-        if (findAllEnabled) {
-            $$('#findAllPurgedHolder').classList.remove('hidden');
-            const button = $$('#purgedMarkers');
-            $$('#purgedMarkers').addEventListener('click', this.findPurgedMarkers.bind(this, false));
-            Tooltip.setTooltip(button, 'Search for user modified markers<br>that Plex purged from its database.');
         }
     }
 
@@ -1142,10 +1133,24 @@ class PurgedMarkerManager {
         return topLevelItem;
     }
 
-    /**Return the number of purged markers associated with the given show/season/episode */
+    /** Return the number of purged markers associated with the given show/season/episode */
     getPurgeCount(metadataId) {
         const item = this.#purgeCache.get(metadataId);
         return item ? item.count : 0;
+    }
+
+    /**
+     * Return the number of purged markers found for the given section id (or the current section if an id isn't provided).
+     * Note that this only returns the number of cached purges, which might not be an exhaustive list if extended marker
+     * statistics are disabled server-side. */
+    getSectionPurgeCount(sectionId) {
+        const id = sectionId === undefined ? PlexClientState.activeSection() : sectionId;
+        const section = this.#serverPurgeInfo.get(id);
+        if (!section) {
+            return 0;
+        }
+
+        return section.count;
     }
 
     /**
@@ -1212,6 +1217,16 @@ class PurgedMarkerManager {
 
         // After everything's updated, reapply the current filter in case the new/removed items affected anything
         window.dispatchEvent(new Event(CustomEvents.MarkerFilterApplied));
+        window.dispatchEvent(new Event(CustomEvents.PurgedMarkersChanged));
+    }
+
+    /**
+     * Show the purge overlay for the current section.
+     * Note that this purely relies on cached data, so in the case where extended marker stats are disabled,
+     * this may not show all purged markers, just markers for shows that have been navigated to.
+     * @param {HTMLElement} caller The source of this request. Focus will be set back to this element when the overlay is dismissed. */
+    showCurrentSection(caller) {
+        new PurgeOverlay(this.#serverPurgeInfo.get(PlexClientState.activeSection()), PlexClientState.activeSection()).show(caller);
     }
 
     /**

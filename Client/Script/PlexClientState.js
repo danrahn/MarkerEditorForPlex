@@ -298,8 +298,13 @@ class PlexClientStateManager {
      * @param {ShowResultRow} show The show to update.
      * @param {SeasonResultRow[]} seasons The list of seasons of the show that need to be updated. */
     async updateNonActiveBreakdown(show, seasons) {
-        // Nothing to do at the season/show level if extended marker stats aren't enabled.
+        // Just update purge icons if extended marker stats aren't enabled.
         if (!ClientSettings.showExtendedMarkerInfo()) {
+            for (const seasonRow of seasons) {
+                seasonRow.updatePurgeDisplay();
+            }
+
+            show.updatePurgeDisplay();
             return;
         }
 

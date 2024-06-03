@@ -4,6 +4,7 @@ import { Attributes } from '../DataAttributes.js';
 import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { CustomEvents } from '../CustomEvents.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
@@ -222,6 +223,10 @@ export class MovieResultRow extends BaseItemResultRow {
             // Gather purge data before continuing
             try {
                 await PurgedMarkers.getPurgedMovieMarkers(metadataId);
+                if (ClientSettings.extendedMarkerStatsBlocked()) {
+                    window.dispatchEvent(new CustomEvent(CustomEvents.PurgedMarkersChanged));
+                }
+
             } catch (err) {
                 Log.warn(errorMessage(err), `Unable to get purged marker info for movie ${mov.title}`);
             }

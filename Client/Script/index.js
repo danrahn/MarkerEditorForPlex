@@ -5,7 +5,6 @@ import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
 import ButtonCreator from './ButtonCreator.js';
 import HelpOverlay from './HelpOverlay.js';
-import MarkerBreakdownChart from './MarkerBreakdownChart.js';
 import { PlexClientStateManager } from './PlexClientState.js';
 import { PurgedMarkerManager } from './PurgedMarkerManager.js';
 import { ResultSections } from './ResultSections.js';
@@ -35,7 +34,6 @@ function init() {
     ButtonCreator.Setup();
     ThumbnailMarkerEdit.Setup();
     ServerPausedOverlay.Setup();
-    MarkerBreakdownChart.Setup();
     SetupWindowResizeEventHandler();
 
     mainSetup();

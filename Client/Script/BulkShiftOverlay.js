@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs } from './Common.js';
+import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { Attributes } from './DataAttributes.js';
@@ -184,17 +184,16 @@ class BulkShiftOverlay {
      * @param {HTMLInputElement} checkbox */
     #onSeparateShiftChange(checkbox) {
         this.#stickySettings.setSeparateShift(checkbox.checked);
-        if (this.#stickySettings.separateShift()) {
+        const separateShift = this.#stickySettings.separateShift();
+        toggleVisibility($('#shiftEndTimeLabel'), separateShift);
+        toggleVisibility(this.#endTimeInput, separateShift);
+        if (separateShift) {
             $('#shiftStartTimeLabel').innerText = 'Start shift: ';
-            $('#shiftEndTimeLabel').classList.remove('hidden');
-            this.#endTimeInput.classList.remove('hidden');
             if (!this.#endTimeInput.value) { this.#endTimeInput.value = this.#startTimeInput.value; }
 
             this.#checkShiftValue();
         } else {
             $('#shiftStartTimeLabel').innerText = 'Time shift: ';
-            $('#shiftEndTimeLabel').classList.add('hidden');
-            this.#endTimeInput.classList.add('hidden');
         }
 
         this.#adjustNewTimes();

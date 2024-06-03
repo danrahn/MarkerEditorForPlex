@@ -441,6 +441,18 @@ function ctrlOrMeta(e) {
     return e?.ctrlKey || e?.metaKey;
 }
 
+/**
+ * Show or hide the given element.
+ * @param {HTMLElement} ele
+ * @param {boolean} visible */
+function toggleVisibility(ele, visible) {
+    if (visible) {
+        ele.classList.remove('hidden');
+    } else {
+        ele.classList.add('hidden');
+    }
+}
+
 export {
     $,
     $$,
@@ -460,5 +472,6 @@ export {
     scrollAndFocus,
     timeInputShortcutHandler,
     timeToMs,
+    toggleVisibility,
     waitFor,
 };

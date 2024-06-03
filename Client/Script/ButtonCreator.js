@@ -1,4 +1,4 @@
-import { $, $$, addEventsToElement, appendChildren, buildNode } from './Common.js';
+import { $, $$, addEventsToElement, appendChildren, buildNode, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
@@ -29,7 +29,7 @@ class ButtonCreator {
             const small = isSmallScreen();
             $('.button.resizable').forEach((button) => {
                 const buttonText = $$('.buttonText', button);
-                buttonText.classList[small ? 'add' : 'remove']('hidden');
+                toggleVisibility(buttonText, !small);
 
                 // Don't override the tooltip if it was user-set.
                 if (!button.hasAttribute(Attributes.UseDefaultTooltip)) {

@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, pad0 } from './Common.js';
+import { $, appendChildren, buildNode, pad0, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkDeleteStickySettings } from 'StickySettings';
@@ -88,11 +88,7 @@ class BulkDeleteOverlay {
                 return;
             }
 
-            if (MarkerEnum.typeMatch(row.markerType(), applyTo)) {
-                row.row.classList.remove('hidden');
-            } else {
-                row.row.classList.add('hidden');
-            }
+            toggleVisibility(row.row, MarkerEnum.typeMatch(row.markerType(), applyTo));
 
             // Bit of a hack based on how getIgnored works, but we want to ensure
             // that anything ignored by marker type filters is seen as selected

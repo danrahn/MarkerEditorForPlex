@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clickOnEnterCallback, ctrlOrMeta, scrollAndFocus } from './Common.js';
+import { $, $$, appendChildren, buildNode, clickOnEnterCallback, ctrlOrMeta, scrollAndFocus, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { customCheckbox } from './CommonUI.js';
@@ -377,12 +377,12 @@ class BulkActionTable {
         }
 
         // Hide if no items or only a single item is selected.
-        if (this.#selected.size < 2) {
-            this.#multiSelectContainer.classList.add('hidden');
+        const multiSelectVisible = this.#selected.size >= 2;
+        toggleVisibility(this.#multiSelectContainer, multiSelectVisible);
+        if (!multiSelectVisible) {
             return;
         }
 
-        this.#multiSelectContainer.classList.remove('hidden');
         for (const row of this.#rows) {
             if (row.selected) {
                 const label = $$('span', this.#multiSelectContainer);

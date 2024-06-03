@@ -2,8 +2,6 @@ import { $, appendChildren, buildNode, plural } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
-import { ClientSettings } from './ClientSettings.js';
-import { CustomEvents } from './CustomEvents.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { getSvgIcon } from './SVGHelper.js';
 import Icons from './Icons.js';
@@ -12,7 +10,6 @@ import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('./Chart').ChartDataPoint} ChartDataPoint */
 
@@ -49,24 +46,6 @@ class MarkerBreakdownChart {
     static #currentBreakdown = null;
     /** @type {HTMLElement} */
     static #focusBack = null;
-
-    static Setup() {
-        window.addEventListener(CustomEvents.ClientSettingsApplied, MarkerBreakdownChart.#ToggleLegacyVisibility);
-        MarkerBreakdownChart.LegacySetup();
-    }
-
-    /**
-     * Set up the marker breakdown button when extended marker statistics are not enabled. */
-    static LegacySetup() {
-        const stats = $('#markerBreakdown');
-        stats.addEventListener('click', () => MarkerBreakdownChart.GetBreakdown(stats));
-        MarkerBreakdownChart.#ToggleLegacyVisibility();
-        Tooltip.setTooltip(stats, 'Generate a graph displaying the number<br>of episodes with and without markers.');
-    }
-
-    static #ToggleLegacyVisibility() {
-        $('#markerBreakdown').classList[ClientSettings.showExtendedMarkerInfo() ? 'add' : 'remove']('hidden');
-    }
 
     /**
      * Retrieves marker breakdown data from the server, then displays it in an overlay chart.

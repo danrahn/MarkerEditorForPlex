@@ -71,6 +71,11 @@ class PlexUIManager {
         order : SortOrder.Ascending
     };
 
+    /**
+     * The top-level sectionOptions row above a list of shows or movies.
+     * @type {SectionOptionsResultRow} */
+    #sectionOptions;
+
     /** Creates the singleton PlexUI for this session. */
     static CreateInstance() {
         if (Instance) {
@@ -81,6 +86,7 @@ class PlexUIManager {
         Instance = new PlexUIManager();
         window.addEventListener(CustomEvents.ClientSettingsApplied, PlexUIManager.OnSettingsApplied);
         window.addEventListener(CustomEvents.MarkerFilterApplied, PlexUIManager.OnFilterApplied);
+        window.addEventListener(CustomEvents.PurgedMarkersChanged, PlexUIManager.OnPurgedMarkersFound);
     }
 
     /**
@@ -95,6 +101,12 @@ class PlexUIManager {
      * Callback invoked when a new filter is applied. */
     static OnFilterApplied() {
         Instance?.onFilterApplied();
+    }
+
+    /**
+     * Callback invoked when new purged markers are found, or purged markers are restored/ignored. */
+    static OnPurgedMarkersFound() {
+        Instance?.onPurgedMarkersFound();
     }
 
     /** Constructs a new PlexUI and begins listening for change events. */
@@ -195,6 +207,12 @@ class PlexUIManager {
         if (!this.#searchBox.classList.contains('hidden')) {
             this.#searchBox.value = '';
             this.#searchBox.focus();
+
+            if (shouldResetView) {
+                // Add back the initial section options/"click here to search" rows.
+                this.#lastSearch = null;
+                this.#noSearch();
+            }
         }
     }
 
@@ -321,20 +339,16 @@ class PlexUIManager {
      * Add a "landing page" for a library, including the main section options row,
      * and a description row explaining how to narrow things down. */
     #noSearch() {
-        if (!ClientSettings.showExtendedMarkerInfo()) {
-            return;
-        }
-
         const itemList = UISections.getSection(UISection.MoviesOrShows);
-        itemList.appendChild(new SectionOptionsResultRow().buildRow());
+        this.#sectionOptions = new SectionOptionsResultRow();
+        itemList.appendChild(this.#sectionOptions.buildRow());
         itemList.appendChild(this.noResultsBecauseNoSearchRow());
     }
 
     #searchMovies() {
         const movieList = UISections.getSection(UISection.MoviesOrShows);
-        if (ClientSettings.showExtendedMarkerInfo()) {
-            movieList.appendChild(new SectionOptionsResultRow().buildRow());
-        }
+        this.#sectionOptions = new SectionOptionsResultRow();
+        movieList.appendChild(this.#sectionOptions.buildRow());
 
         /** @type {ClientMovieData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
@@ -404,9 +418,8 @@ class PlexUIManager {
         }
 
         const showList = UISections.getSection(UISection.MoviesOrShows);
-        if (ClientSettings.showExtendedMarkerInfo()) {
-            showList.appendChild(new SectionOptionsResultRow().buildRow());
-        }
+        this.#sectionOptions = new SectionOptionsResultRow();
+        showList.appendChild(this.#sectionOptions.buildRow());
 
         /** @type {ShowData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
@@ -468,6 +481,12 @@ class PlexUIManager {
         // or I need to set stricter boundaries on what goes there versus here, since
         // they both are UI-related.
         PlexClientState.onFilterApplied();
+    }
+
+    /**
+     * Callback invoked when new purged markers are found. */
+    onPurgedMarkersFound() {
+        this.#sectionOptions?.updatePurgeDisplay();
     }
 }
 

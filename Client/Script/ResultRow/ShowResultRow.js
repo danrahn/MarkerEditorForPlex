@@ -11,6 +11,7 @@ import { FilterSettings, SortConditions, SortOrder } from '../FilterDialog.js';
 import { UISection, UISections } from '../ResultSections.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { CustomEvents } from '../CustomEvents.js';
 import Overlay from '../Overlay.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
@@ -79,6 +80,7 @@ export class ShowResultRow extends ShowResultRowBase {
         }
 
         /*async*/ PlexClientState.updateNonActiveBreakdown(this, needsUpdate);
+        this.updatePurgeDisplay();
     }
 
     /**
@@ -98,9 +100,15 @@ export class ShowResultRow extends ShowResultRowBase {
 
     /** Update the UI after a marker is added/deleted, including our placeholder show row. */
     updateMarkerBreakdown() {
-        if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
-
+        this.#showTitle?.updateMarkerBreakdown();
         super.updateMarkerBreakdown();
+    }
+
+    /** Update the UI after purged markers are restored/ignored, including our placeholder show row. */
+    updatePurgeDisplay() {
+        this.#sectionTitle?.updatePurgeDisplay();
+        this.#showTitle?.updatePurgeDisplay();
+        super.updatePurgeDisplay();
     }
 
     /** Click handler for clicking a show row. Initiates a request for season details.
@@ -117,7 +125,15 @@ export class ShowResultRow extends ShowResultRowBase {
 
         // Gather purge data before continuing
         try {
+            const purgesBefore = PurgedMarkers.getPurgeCount(this.show().metadataId);
             await PurgedMarkers.getPurgedShowMarkers(this.show().metadataId);
+            const purgesAfter = PurgedMarkers.getPurgeCount(this.show().metadataId);
+            if (!ClientSettings.showExtendedMarkerInfo() && purgesBefore !== purgesAfter) {
+                // If we have purges and extended marker stats aren't enabled, ensure the show's
+                // episode display is updated accordingly.
+                this.updatePurgeDisplay();
+                window.dispatchEvent(new CustomEvent(CustomEvents.PurgedMarkersChanged));
+            }
         } catch (err) {
             Log.warn(errorMessage(err), `Unable to get purged marker info for show ${this.show().title}`);
         }
@@ -143,10 +159,8 @@ export class ShowResultRow extends ShowResultRowBase {
         UISections.clearAndShowSections(UISection.Seasons);
 
         const addRow = row => UISections.addRow(UISection.Seasons, row);
-        if (ClientSettings.showExtendedMarkerInfo()) {
-            this.#sectionTitle = new SectionOptionsResultRow();
-            addRow(this.#sectionTitle.buildRow());
-        }
+        this.#sectionTitle = new SectionOptionsResultRow();
+        addRow(this.#sectionTitle.buildRow());
 
         this.#showTitle = new ShowTitleResultRow(this.show());
         addRow(this.#showTitle.buildRow());

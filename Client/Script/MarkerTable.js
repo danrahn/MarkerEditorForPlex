@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clearEle, msToHms, scrollAndFocus } from './Common.js';
+import { $, $$, appendChildren, buildNode, clearEle, msToHms, scrollAndFocus, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
@@ -777,8 +777,8 @@ class MarkerTable {
         const tableHolder = $$('.markerTableVisibility', this.#html);
         const spacer = $$('.markerTableSpacer', this.#html);
         const noAnimate = () => {
-            tableHolder.classList[visible ? 'remove' : 'add']('hidden');
-            spacer.classList[visible ? 'remove' : 'add']('hidden');
+            toggleVisibility(tableHolder, visible);
+            toggleVisibility(spacer, visible);
             if (!bulk) {
                 this.#parentRow.scrollTableIntoView();
             }

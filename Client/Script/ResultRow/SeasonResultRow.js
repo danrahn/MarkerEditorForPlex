@@ -12,7 +12,6 @@ import { FilterSettings, SortConditions, SortOrder } from '../FilterDialog.js';
 import { UISection, UISections } from '../ResultSections.js';
 import { BulkActionType } from '../BulkActionCommon.js';
 import { ClientEpisodeData } from '../ClientDataExtensions.js';
-import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { errorResponseOverlay } from '../ErrorHandling.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
@@ -108,7 +107,8 @@ export class SeasonResultRow extends SeasonResultRowBase {
             }
         }.bind(this));
 
-        // TODO: Need to do anything for show/seasonTitle?
+        // Not needed? Show-level update should have taken care of this.
+        this.updatePurgeDisplay();
     }
 
     /**
@@ -209,10 +209,8 @@ export class SeasonResultRow extends SeasonResultRowBase {
         await UISections.hideSections(UISection.Seasons);
         UISections.clearAndShowSections(UISection.Episodes);
         const addRow = row => UISections.addRow(UISection.Episodes, row);
-        if (ClientSettings.showExtendedMarkerInfo()) {
-            this.#sectionTitle = new SectionOptionsResultRow();
-            addRow(this.#sectionTitle.buildRow());
-        }
+        this.#sectionTitle = new SectionOptionsResultRow();
+        addRow(this.#sectionTitle.buildRow());
 
         this.#showTitle = new ShowTitleResultRow(PlexClientState.getActiveShow());
         addRow(this.#showTitle.buildRow());
@@ -373,11 +371,17 @@ export class SeasonResultRow extends SeasonResultRowBase {
     updateMarkerBreakdown() {
         // If this is the "real" active row, it's currently hiding behind
         // the dummy entries, which also need to be updated.
-        if (this.#seasonTitle) { this.#seasonTitle.updateMarkerBreakdown(); }
-
-        if (this.#showTitle) { this.#showTitle.updateMarkerBreakdown(); }
-
+        this.#seasonTitle?.updateMarkerBreakdown();
+        this.#showTitle?.updateMarkerBreakdown();
         super.updateMarkerBreakdown();
+    }
+
+    /** Update the UI after purged markers are restored/ignored, including our placeholder show/season row. */
+    updatePurgeDisplay() {
+        this.#sectionTitle?.updatePurgeDisplay();
+        this.#seasonTitle?.updatePurgeDisplay();
+        this.#showTitle?.updatePurgeDisplay();
+        super.updatePurgeDisplay();
     }
 
     /** Ensure all episode results marker counts are expanded/minified when the
