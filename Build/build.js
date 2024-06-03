@@ -104,6 +104,9 @@ async function transpile() {
 }
 
 import clientConfig from '../webpack.config.js';
+
+let packedJs = '';
+
 /**
  * Minify client code and inject minified source into html. */
 async function minifyClient() {
@@ -128,6 +131,17 @@ async function minifyClient() {
 
             if (stats.hasWarnings()) {
                 console.warn(info.warnings);
+            }
+
+            for (const asset of info.assets) {
+                if (/^index\.[a-f0-9]+\.js$/i.test(asset.name)) {
+                    packedJs = asset.name;
+                    break;
+                }
+            }
+
+            if (!packedJs) {
+                throw new Error(`Unable to find packed js name. Cannot continue.`);
             }
 
             r();
@@ -374,35 +388,49 @@ async function toExe() {
         rmSync(oldOut, { recursive : true, force : true });
     }
 
-    await compile({
-        input : resolve(buildDir, '../dist/built.cjs'),
-        output : resolve(buildDir, output),
-        build : true,
-        configure : (isWin || !debug) ? [] : ['--debug'], // non-Win
-        vcBuild : isWin ? ['nosign', debug ? 'debug' : 'release'] : [], // Win-only
-        make : ['-j4'], // 4 concurrent jobs
-        targets : [ `${platform}-${arch}-${nodeVersion}` ],
-        loglevel : verbose ? 'verbose' : 'info',
-        ico : iconPath,
-        rc : {
-            PRODUCTVERSION : rcVersion,
-            FILEVERSION : rcVersion,
-            ...rc
-        },
-        resources : [
-            resolve(buildDir, '../package.json'),
-            resolve(buildDir, '../dist/index.html'),
-            resolve(buildDir, '../SVG/*svg'),
-            resolve(buildDir, '../dist/index*.js'),
-            resolve(buildDir, '../Client/Style/**'),
-            resolve(buildDir, '../dist/built.cjs'),
-        ],
-        patches : [
-            deleteNodeBinaryIfRebuilding,
-            injectCliOptions,
-            editWinResources,
-        ]
-    }); // Don't catch, interrupt on failure.
+    // Hacky. We want our binary to have the modified index.html in the root directory to make the
+    // logic in GETHandler simpler. but the real index.html already lives there. Temporarily rename
+    // it, move the modified version in its place, then clean things up after the binary is built.
+    const indexHtml = resolve(buildDir, '../index.html');
+    renameSync(indexHtml, resolve(buildDir, '../index.html_T'));
+    renameSync(resolve(buildDir, '../dist/index.html'), indexHtml);
+    renameSync(resolve(buildDir, `../dist/${packedJs}`), resolve(buildDir, `../${packedJs}`));
+
+    try {
+        await compile({
+            input : resolve(buildDir, '../dist/built.cjs'),
+            output : resolve(buildDir, output),
+            build : true,
+            configure : (isWin || !debug) ? [] : ['--debug'], // non-Win
+            vcBuild : isWin ? ['nosign', debug ? 'debug' : 'release'] : [], // Win-only
+            make : ['-j4'], // 4 concurrent jobs
+            targets : [ `${platform}-${arch}-${nodeVersion}` ],
+            loglevel : verbose ? 'verbose' : 'info',
+            ico : iconPath,
+            rc : {
+                PRODUCTVERSION : rcVersion,
+                FILEVERSION : rcVersion,
+                ...rc
+            },
+            resources : [
+                resolve(buildDir, '../package.json'),
+                resolve(buildDir, '../index.html'),
+                resolve(buildDir, '../SVG/*svg'),
+                resolve(buildDir, '../index.*.js'),
+                resolve(buildDir, '../Client/Style/**'),
+                resolve(buildDir, '../dist/built.cjs'),
+            ],
+            patches : [
+                deleteNodeBinaryIfRebuilding,
+                injectCliOptions,
+                editWinResources,
+            ]
+        }); // Don't catch, interrupt on failure.
+    } finally {
+        rmSync(indexHtml);
+        renameSync(resolve(buildDir, '../index.html_T'), indexHtml);
+        rmSync(resolve(buildDir, `../${packedJs}`));
+    }
 
     // After everything is compiled, cache the output directory if needed.
     if (!hadCache) {
