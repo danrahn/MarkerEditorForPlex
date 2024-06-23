@@ -981,7 +981,7 @@ ORDER BY id DESC;`;
         const noGuid = new Set();
         for (const action of actions) {
             if (action.op === MarkerOp.Delete) {
-                continue; // Last action was a user delete, ignore it.
+                continue; // Deletes are handled separately.
             }
 
             // TODO: UI similar to bulk add - show what conflicts with existing markers.
@@ -1013,6 +1013,8 @@ ORDER BY id DESC;`;
             }
         }
 
+        const readded = this.#readdCheck(actions);
+
         if (noGuid.size > 0) {
             Log.verbose(`No episode found for ${noGuid.size} marker ids` +
                 (noGuid.size < 10 ? ` (${Array.from(noGuid).join(', ')})` : '') +
@@ -1029,7 +1031,7 @@ ORDER BY id DESC;`;
 
         const purgeCount = this.purgeCount();
         if (purgeCount > 0) {
-            Log.warn(`Found ${purgeCount} purged markers to be addressed.`);
+            Log.warn(`Found ${purgeCount} purged markers to be addressed (${readded.size} readded).`);
         } else {
             Log.info(`Looked for purged markers and didn't find any`);
         }
@@ -1044,6 +1046,53 @@ ORDER BY id DESC;`;
     async #updateMarkerMetadataIds(action, episodeId, seasonId, showId) {
         const query = `UPDATE actions SET parent_id=?, season_id=?, show_id=? WHERE marker_id=?`;
         await this.#actions.run(query, [episodeId, seasonId, showId, action.marker_id]);
+    }
+
+    /**
+     * Find and return Plex-generated markers that were deleted and have since been added back.
+     * @param {MarkerAction[]} markerActions All marker actions */
+    #readdCheck(markerActions) {
+        /** @typedef {{ [start: number]: { [end: number]: MarkerAction } }} MarkerTimingMap */
+        // showId/SeasonId == -1 for movies, and it helps keep the structure simpler versus separate mapping logic.
+        /** @typedef {{ [showId: number]: { [seasonId: number]: { [baseId: number]: MarkerTimingMap  } } }} ServerMarkerTimingMap */
+        /**
+         * Map of Plex-generated markers that have been deleted. Used to find markers that Plex has since re-added.
+         * @type {ServerMarkerTimingMap} */
+        const deleteMap = {};
+        /** @type {Set<MarkerAction>} */
+        const deletedPlexMarkers = new Set();
+        for (const action of markerActions) {
+            if (action.op !== MarkerOp.Delete) {
+                continue;
+            }
+
+            if (!action.user_created && MarkerCache.baseItemExists(action.parent_id)) {
+                // We can hit cycles of user delete > readd > use delete > readd > ... - Only add the most recently deleted item.
+                const bucket =
+                    ((((deleteMap[action.show_id] ??= {})[action.season_id] ??= {})[action.parent_id] ??= {})[action.start] ??= {});
+                const a = bucket[action.end];
+                if (!a || a.modified_at < action.modified_at) {
+                    deletedPlexMarkers.delete(a);
+                    deletedPlexMarkers.add(action);
+                    bucket[action.end] = action;
+                }
+            }
+        }
+
+        /** @type {Set<MarkerAction>} */
+        const readded = new Set();
+        const existingMarkers = MarkerCache.existingMarkerMapFromDeletes(Array.from(deletedPlexMarkers));
+        for (const deleted of deletedPlexMarkers) {
+            const existingId = existingMarkers[deleted.show_id]?.[deleted.season_id]?.[deleted.parent_id]?.[deleted.start]?.[deleted.end];
+            if (existingId) {
+                deleted.readded = true;
+                deleted.readded_id = existingId;
+                this.#addToPurgeMap(deleted);
+                readded.add(deleted);
+            }
+        }
+
+        return readded;
     }
 
     /**
@@ -1294,6 +1343,11 @@ ORDER BY id DESC;`;
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }
 
+        if (oldMarkerIds.length === 0) {
+            // Nothing to do.
+            return { restoredMarkers : [], deletedMarkers : [], modifiedMarkers : [], ignoredMarkers : 0 };
+        }
+
         Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
         const rows = await this.#getActionsForIds(oldMarkerIds, sectionId);
         if (rows.length === 0) {
@@ -1405,41 +1459,102 @@ ORDER BY id DESC;`;
 
     /**
      * Ignores purged markers to exclude them from purge queries.
-     * @param {number[]} oldMarkerIds The ids of the old markers we're trying to ignore.
+     * @param {number[]} purgedIds The ids of the old markers we're trying to ignore.
+     * @param {number[]} readdedIds The ids of previously deleted markers that have been readded, but we want to ignore.
      * @param {number} sectionId The id of the section the old markers belonged to. */
-    async ignorePurgedMarkers(oldMarkerIds, sectionId) {
+    async ignorePurgedMarkers(purgedIds, readdedIds, sectionId) {
         if (!(sectionId in this.#uuids)) {
-            throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
+            throw new ServerError(`Unable to ignore marker - unexpected section id: ${sectionId}`, 400);
         }
 
         /** @type {Set<number>} */
         const idSet = new Set();
-        Log.verbose(`Attempting to ignore ${oldMarkerIds} marker(s).`);
+        Log.verbose(`Attempting to ignore ${purgedIds.length} purged marker(s).`);
 
         // Set the restored_id to -1, which will exclude it from the 'look for purged' query,
-        // while also letting us know that there isn't a real marker that
+        // while also letting us know that there isn't a real marker that restored it.
         const transaction = new TransactionBuilder(this.#actions);
         const sectionUuid = this.#uuids[sectionId];
-        for (const oldMarkerId of oldMarkerIds) {
-            if (isNaN(oldMarkerId)) {
-                throw new ServerError(`Trying to restore an invalid marker id ${oldMarkerId}`, 400);
-            }
 
-            idSet.add(oldMarkerId);
-            transaction.addStatement('UPDATE actions SET restored_id=-1 WHERE marker_id=? AND section_uuid=?', [oldMarkerId, sectionUuid]);
+        const ignoreMarkers = (ids, restoredId) => {
+            for (const oldMarkerId of ids) {
+                if (isNaN(oldMarkerId)) {
+                    throw new ServerError(`Trying to restore an invalid marker id ${oldMarkerId}`, 400);
+                }
+
+                idSet.add(oldMarkerId);
+                transaction.addStatement(
+                    `UPDATE actions SET restored_id=${restoredId} WHERE marker_id=? AND section_uuid=?`, [oldMarkerId, sectionUuid]);
+            }
+        };
+
+        ignoreMarkers(purgedIds, -1);
+        await transaction.exec();
+
+        transaction.reset();
+        Log.verbose(`Attempting to ignore ${readdedIds.length} readded marker(s).`);
+
+        // Only difference from "regular" purged markers is the restored_id.
+        ignoreMarkers(readdedIds, -2);
+        await transaction.exec();
+
+        if (this.#purgeCache) {
+            this.#removeFromPurgeCache(idSet, sectionId);
+        }
+    }
+
+    /**
+     * Delete markers that were previously deleted but have since been re-added.
+     * @param {{ oldId: number, newId: number }[]} markerInfo Array of marker ID mappings
+     * @param {number} sectionId */
+    async redeleteMarkers(markerInfo, sectionId) {
+        if (markerInfo.length < 1) {
+            return [];
+        }
+
+        if (!(sectionId in this.#uuids)) {
+            throw new ServerError(`Unable to re-delete marker - unexpected section id: ${sectionId}`, 400);
+        }
+
+        const sectionUuid = this.#uuids[sectionId];
+        const transaction = new TransactionBuilder(this.#actions);
+
+        const deleteIds = new Set();
+        const toRemoveFromPurgeCache = new Set();
+        for (const readded of markerInfo) {
+            // Use -2 as a sentinel to indicate that even though this marker doesn't have a "restoring" marker,
+            // it should be ignored when looking for purged/readded markers.
+            transaction.addStatement(
+                `UPDATE actions SET restored_id=-2 WHERE marker_id=? and section_uuid=?`, [readded.oldId, sectionUuid]);
+            deleteIds.add(readded.newId);
+            toRemoveFromPurgeCache.add(readded.oldId);
         }
 
         await transaction.exec();
 
-        if (!this.#purgeCache) {
-            return;
+        // Now delete the new markers.
+        const toDelete = await PlexQueries.getMarkersFromIds(Array.from(deleteIds));
+        await PlexQueries.bulkDelete(toDelete);
+        const toRecord = toDelete.map(m => new MarkerData(m));
+        await this.recordDeletes(toRecord);
+
+        if (this.#purgeCache) {
+            this.#removeFromPurgeCache(toRemoveFromPurgeCache, sectionId);
         }
 
+        return toRecord;
+    }
+
+    /**
+     * Remove all given marker ids from the purge cache.
+     * @param {Set<number>} markerIds
+     * @param {number} sectionId */
+    #removeFromPurgeCache(markerIds, sectionId) {
         // Inefficient, but I'm lazy
         if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
             for (const movie of Object.values(this.#purgeCache[sectionId])) {
                 for (const markerAction of Object.values(movie)) {
-                    if (idSet.has(markerAction.marker_id)) {
+                    if (markerIds.has(markerAction.marker_id)) {
                         this.#removeFromPurgeMap(markerAction);
                     }
                 }
@@ -1449,7 +1564,7 @@ ORDER BY id DESC;`;
                 for (const season of Object.values(show)) {
                     for (const episode of Object.values(season)) {
                         for (const markerAction of Object.values(episode)) {
-                            if (idSet.has(markerAction.marker_id)) {
+                            if (markerIds.has(markerAction.marker_id)) {
                                 this.#removeFromPurgeMap(markerAction);
                             }
                         }

@@ -76,8 +76,8 @@ async function run() {
                 await MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
                 await BackupManager.buildAllPurges();
             } catch (err) {
-                Log.error(err.message, 'Failed to build marker cache:');
-                Log.error('Continuing to server creating, but extended marker statistics will not be available.');
+                Log.error(err.message, 'Failed to build marker cache');
+                Log.error('Continuing to server creation, but extended marker statistics will not be available.');
                 config.disableExtendedMarkerStats();
                 MarkerCacheManager.Close();
             }

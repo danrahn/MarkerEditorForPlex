@@ -514,7 +514,7 @@ ORDER BY e.\`index\` ASC;`;
                 const episodes = [];
                 const ids = Array.from(episodeMetadataIds);
                 while (index <= ids.length) {
-                    episodes.concat(await this.getEpisodesFromList(new Set(ids.slice(index, Math.min(index + 500, ids.length)))));
+                    episodes.push(...(await this.getEpisodesFromList(new Set(ids.slice(index, Math.min(index + 500, ids.length))))));
                     index += 500;
                 }
 
@@ -626,11 +626,8 @@ ORDER BY e.\`index\` ASC;`;
      * @param {string} guid
      * @returns {Promise<{ id: number, season_id: -1, show_id: -1 }>} */
     async getMovieFromGuid(guid) {
-        return {
-            id : (await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid])).id,
-            season_id : -1,
-            show_id : -1
-        };
+        const movie = await this.#database.get(`SELECT movie.id AS id FROM metadata_items movie WHERE movie.guid=?;`, [guid]);
+        return movie ? { id : movie.id, season_id : -1, show_id : -1 } : movie;
     }
 
     /**
@@ -860,7 +857,7 @@ ORDER BY e.\`index\` ASC;`;
         /** @type {MetadataItemTypeInfo[]} */
         const items = await this.#database.all(query);
         if (items.length !== metadataIds.length) {
-            Log.warn(`validateSameMetadataTypes: ${metadataIds.length - items.length} metadata ids to not exist in the database.`);
+            Log.warn(`validateSameMetadataTypes: ${metadataIds.length - items.length} metadata ids do not exist in the database.`);
             return MetadataType.Invalid;
         }
 
@@ -919,6 +916,37 @@ ORDER BY e.\`index\` ASC;`;
             [markerId, this.#markerTagId]));
         Log.assert(marker.length === 1, `getSingleMarker should return a single marker, found ${marker.length}`);
         return marker[0];
+    }
+
+    /**
+     * Given a list of marker IDs, return a list of their full marker data.
+     * @param {number[]} markerIds */
+    async getMarkersFromIds(markerIds) {
+        if (markerIds.length < 1) {
+            return [];
+        }
+
+        const markerFields = this.#extendedFieldsFromMediaType((await this.#mediaTypeFromMarkerId(markerIds[0])).metadata_type);
+        const queryChunk = async ids => {
+            const params = [];
+            let query = `SELECT ${markerFields} WHERE`;
+            for (const id of ids) {
+                query += ` taggings.id=? AND`;
+                params.push(id);
+            }
+
+            query += ` taggings.tag_id=?`;
+            params.push(this.#markerTagId);
+            return this.#postProcessExtendedMarkerFields(await this.#database.all(query, params));
+        };
+
+        /** @type {RawMarkerData[]} */
+        const markers = [];
+        for (let index = 0; index < markerIds.length; index += 500) {
+            markers.push(...(await queryChunk(new Set(markerIds.slice(index, Math.min(index + 500, markerIds.length))))));
+        }
+
+        return markers;
     }
 
     /**

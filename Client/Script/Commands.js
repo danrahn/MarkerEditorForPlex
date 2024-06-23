@@ -261,18 +261,19 @@ export const ServerCommands = {
 
     /**
      * Restore the given purged markers associated with the given section.
-     * @param {number[]} markerIds Array of purged marker ids to restore.
+     * @param {{ restoreIds : number[], redeleteIds : { oldId : number, newId : number }[]}} restoreInfo Information on markers to restore.
      * @param {number} sectionId
      * @param {number} resolveType
      * @returns {Promise<BulkRestoreResponse>} */
-    restorePurge : (markerIds, sectionId, resolveType) => jsonRequest(PostCommands.RestorePurges, { markerIds : markerIds.join(','), sectionId : sectionId, resolveType : resolveType }),
+    restorePurge : (restoreInfo, sectionId, resolveType) => jsonBodyRequest(PostCommands.RestorePurges, { restoreInfo : JSON.stringify(restoreInfo), sectionId : sectionId, resolveType : resolveType }),
 
     /**
      * Ignore the given purged markers associated with the given section.
-     * @param {number[]} markerIds
+     * @param {number[]} purgedIds
+     * @param {number[]} readdedIds
      * @param {number} sectionId
      * @returns {Promise<void>} */
-    ignorePurge : (markerIds, sectionId) => jsonRequest(PostCommands.IgnorePurges, { markerIds, sectionId }),
+    ignorePurge : (purgedIds, readdedIds, sectionId) => jsonRequest(PostCommands.IgnorePurges, { purgedIds, readdedIds, sectionId }),
 
     /**
      * Irreversibly delete all markers of the given type from the given section.

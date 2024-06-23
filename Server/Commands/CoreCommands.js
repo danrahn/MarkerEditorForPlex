@@ -96,6 +96,8 @@ async function bulkAddPostProcess(addResult, previousMarkers) {
         MarkerCache?.addMarkerToCache({
             // Gross, but need to convert from MarkerData to RawMarkerData
             id : add.id,
+            start : add.start,
+            end : add.end,
             section_id : add.sectionId,
             show_id : add.showId,
             season_id : add.seasonId,

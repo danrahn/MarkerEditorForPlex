@@ -100,7 +100,7 @@ import { MarkerType } from './MarkerType.js';
  *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
  *            old_end: number?, modified_at: number|null, created_at: number, recorded_at: number, extra_data: string,
  *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
- *            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
+ *            readded: boolean?, readded_id: number?, episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
  */
 
 /**

@@ -43,6 +43,8 @@ class PurgeActionInfo {
 
     /** @type {string} */
     text;
+    /** @type {string} */
+    icon;
     /** @type {(newMarkers: MarkerDataMap, deletedMarkers: MarkerDataMap, modifiedMarkers: MarkerDataMap) => void} */
     successFn;
     /** @type {() => void} */
@@ -50,10 +52,12 @@ class PurgeActionInfo {
 
     /**
      * @param {string} text Button text.
-     * @param {*} successFn Function invoked when the server request succeeds.
-     * @param {*} failureFn Function invoked when the serve request fails. */
-    constructor(text, successFn, failureFn) {
+     * @param {string} icon The icon to use for the button.
+     * @param {(...any) => any} successFn Function invoked when the server request succeeds.
+     * @param {(...any) => any} failureFn Function invoked when the serve request fails. */
+    constructor(text, icon, successFn, failureFn) {
         this.text = text;
+        this.icon = icon;
         this.successFn = successFn || PurgeActionInfo.#nop;
         this.failureFn = failureFn || PurgeActionInfo.#nop;
     }
@@ -66,14 +70,18 @@ class PurgeActionInfo {
 class PurgeNonActionInfo {
     /** @type {string} */
     text;
+    /** @type {string} */
+    icon;
     /** @type {() => void} */
     callback;
 
     /**
      * @param {string} text The button text.
+     * @param {string} icon The button icon.
      * @param {() => void} callback The callback to invoke when the button is clicked, if any. */
-    constructor(text, callback) {
+    constructor(text, icon, callback) {
         this.text = text;
+        this.icon = icon;
         this.callback = callback || (() => {});
     }
 }
@@ -95,7 +103,7 @@ class PurgeOptions {
     #ignoreConfirmInfo;
     /** @type {PurgeNonActionInfo} */
     #ignoreCancelInfo;
-    /** @type {() => number[]} */
+    /** @type {() => MarkerAction[]} */
     #getMarkersFn;
 
     /** @param {HTMLElement} parent The element that will hold this class's HTML. */
@@ -109,7 +117,7 @@ class PurgeOptions {
      * @param {PurgeNonActionInfo} ignoreInfo Properties for the 'Ignore' button.
      * @param {PurgeActionInfo} ignoreConfirmInfo Properties for the 'Confirm ignore' button.
      * @param {PurgeNonActionInfo} ignoreCancelInfo Properties for the 'Cancel ignore' button.
-     * @param {() => number[]} getMarkersFn Function that returns the list of marker ids this class applies to. */
+     * @param {() => MarkerAction[]} getMarkersFn Function that returns the list of marker this class applies to. */
     addButtons(restoreInfo, ignoreInfo, ignoreConfirmInfo, ignoreCancelInfo, getMarkersFn, dynamicButtons=false) {
         this.#restoreInfo = restoreInfo;
         this.#ignoreInfo = ignoreInfo;
@@ -120,13 +128,13 @@ class PurgeOptions {
         appendChildren(this.#parent,
             buttonFn(
                 restoreInfo.text,
-                Icons.Confirm,
+                restoreInfo.icon,
                 ThemeColors.Green,
                 this.#onRestore.bind(this),
                 { class : 'restoreButton' }),
             buttonFn(
                 ignoreInfo.text,
-                Icons.Delete,
+                ignoreInfo.icon,
                 ThemeColors.Red,
                 this.#onIgnoreClick.bind(this),
                 { class : 'ignoreButton' }),
@@ -180,11 +188,15 @@ class PurgeOptions {
         if (!this.#enterOperation()) { return; }
 
         const markers = this.#getMarkersFn();
+        const purged = markers.filter(m => !m.readded).map(m => m.marker_id);
+        const readded = markers.filter(m => m.readded).map(m => ({ oldId : m.marker_id, newId : m.readded_id }));
+
         Log.verbose(`Attempting to restore ${markers.length} marker(s).`);
         ButtonCreator.setIcon($$('.restoreButton', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
-            const restoreData = await ServerCommands.restorePurge(markers,
+            const restoreData = await ServerCommands.restorePurge(
+                { restoreIds : purged, redeleteIds : readded },
                 PlexClientState.activeSection(),
                 PurgeConflictControl.CurrentResolutionType());
             const newMarkers = {};
@@ -230,11 +242,13 @@ class PurgeOptions {
         if (!this.#enterOperation()) { return; }
 
         const markers = this.#getMarkersFn();
+        const purged = markers.filter(m => !m.readded).map(m => m.marker_id);
+        const readded = markers.filter(m => m.readded).map(m => m.marker_id);
         Log.verbose(`Attempting to ignore ${markers.length} marker(s).`);
         ButtonCreator.setIcon($$('.ignoreConfirm', this.#parent), Icons.Loading, ThemeColors.Green);
 
         try {
-            await ServerCommands.ignorePurge(markers, PlexClientState.activeSection());
+            await ServerCommands.ignorePurge(purged, readded, PlexClientState.activeSection());
             this.#resetConfirmImg('ignoreConfirm');
             this.#ignoreConfirmInfo.successFn();
         } catch (err) {
@@ -304,6 +318,9 @@ class PurgeRow {
     /** @returns {MarkerAction} */
     markerAction() { return this.#markerAction; }
 
+    /** Return whether this marker is a purged marker. False indicates this is an re-added marker. */
+    isPurged() { return !this.#markerAction.readded; }
+
     /** @returns {HTMLElement[]} */
     customTableColumns() { Log.error(`customTableColumns cannot be called directly on PurgeRow.`); return []; }
 
@@ -321,14 +338,27 @@ class PurgeRow {
     #addPurgeOptions() {
         const holder = buildNode('div', { class : 'purgeOptionsHolder' });
         this.#purgeOptions = new PurgeOptions(holder);
-        this.#purgeOptions.addButtons(
-            new PurgeActionInfo('Restore', this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
-            new PurgeNonActionInfo('Ignore', this.#onIgnore.bind(this)),
-            new PurgeActionInfo('Yes', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
-            new PurgeNonActionInfo('No', this.#onIgnoreCancel.bind(this)),
-            /**@this {PurgeRow}*/function() { return [this.#markerAction.marker_id]; }.bind(this),
-            true /*dynamicButtons*/
-        );
+        const ignoreConfirm = new PurgeActionInfo('Yes', Icons.Confirm, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this));
+        const ignoreCancel = new PurgeNonActionInfo('No', Icons.Cancel, this.#onIgnoreCancel.bind(this));
+        if (this.#markerAction.readded) {
+            this.#purgeOptions.addButtons(
+                new PurgeActionInfo('Re-delete', Icons.Delete, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
+                new PurgeNonActionInfo('Ignore', Icons.Confirm, this.#onIgnore.bind(this)),
+                ignoreConfirm,
+                ignoreCancel,
+                /**@this {PurgeRow}*/function() { return [this.#markerAction]; }.bind(this),
+                true /*dynamicButtons*/
+            );
+        } else {
+            this.#purgeOptions.addButtons(
+                new PurgeActionInfo('Restore', Icons.Confirm, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
+                new PurgeNonActionInfo('Ignore', Icons.Delete, this.#onIgnore.bind(this)),
+                ignoreConfirm,
+                ignoreCancel,
+                /**@this {PurgeRow}*/function() { return [this.#markerAction]; }.bind(this),
+                true /*dynamicButtons*/
+            );
+        }
 
         return holder;
     }
@@ -397,7 +427,11 @@ class PurgeRow {
 
     /** Callback when the user clicks 'Ignore'. Replaces the row with an 'Are you sure' prompt. */
     #onIgnore() {
-        this.#showRowMessage('Are you sure you want to permanently ignore this marker?');
+        if (this.#markerAction.readded) {
+            this.#showRowMessage('Are you sure you want keep this previously deleted marker?');
+        } else {
+            this.#showRowMessage('Are you sure you want to permanently ignore this marker?');
+        }
     }
 
     /** Callback when the user decides to cancel the ignore operation, resetting the row to its original state. */
@@ -574,10 +608,10 @@ class BulkPurgeAction {
         this.#html = buildNode('div', { class : 'buttonContainer', id : id });
         this.#options = new PurgeOptions(this.#html);
         this.#options.addButtons(
-            new PurgeActionInfo(restoreText, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
-            new PurgeNonActionInfo(ignoreText),
-            new PurgeActionInfo('Confirm', this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
-            new PurgeNonActionInfo('Cancel'),
+            new PurgeActionInfo(restoreText, Icons.Confirm, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
+            new PurgeNonActionInfo(ignoreText, Icons.Delete),
+            new PurgeActionInfo('Confirm', Icons.Confirm, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this)),
+            new PurgeNonActionInfo('Cancel', Icons.Cancel),
             this.#getMarkersFn);
     }
 
@@ -613,7 +647,7 @@ class BulkPurgeAction {
     /** Common actions done when markers were successfully restored or ignored. */
     #onActionSuccess(newMarkers, deletedMarkers, modifiedMarkers, _ignoredMarkers) {
         // Don't exit bulk update, since changes have been committed and the table should be invalid now.
-        flashBackground(this.#html, Theme.getHex(ThemeColors.Green, 6), 750, function() {
+        flashBackground(this.#html, Theme.getHex(ThemeColors.Green, 6), 750, /**@this {BulkPurgeAction}*/function() {
             // TODO: find a different way to show stats, since getting here doesn't necessarily mean
             //       all markers in the overlay are taken care of, and we don't want to interrupt with an overlay.
             // const arrLen = (x) => x ? Object.values(x).reduce((sum, arr) => sum + arr.length, 0) : 0;
@@ -696,15 +730,18 @@ class PurgeTable {
             container.appendChild(PurgeConflictControl.GetControl());
         }
 
-        if (this.markerIds().length > 1) {
+        const markers = this.markers();
+        if (markers.length > 1) {
+            const anyPurged = !!markers.find(m => !m.readded);
+            const anyReadded = !!markers.find(m => m.readded);
             // Only show bulk operation actions if we're not showing a single marker
             container.appendChild(
                 new BulkPurgeAction(
                     `${typePrefix}_bulk_${countPostfix}`,
-                    'Restore All',
+                    (anyPurged ? anyReadded ? 'Restore/Re-Delete' : 'Restore' : 'Re-Delete') + ' All',
                     'Ignore All',
                     this.#onBulkActionSuccess.bind(this),
-                    this.markerIds.bind(this)).html());
+                    this.markers.bind(this)).html());
         }
 
         const table = buildNode('table', { class : 'markerTable' });
@@ -769,7 +806,7 @@ class PurgeTable {
 
     /**
      * Helper that applies the given function to all markers in the table.
-     * @param {(MarkerAction, ...any) => void} fn The function to apply to each marker.
+     * @param {(marker: MarkerAction, ...any) => void} fn The function to apply to each marker.
      * @param  {...any} args Additional arguments to pass into fn.
      */
     #forMarker(fn, ...args) {
@@ -779,10 +816,11 @@ class PurgeTable {
     }
 
     /** @returns The list of markers in this table. */
-    markerIds() {
+    markers() {
+        /** @type {MarkerAction[]} */
         const ids = [];
-        this.#forMarker(function(marker, markerIds) {
-            markerIds.push(marker.marker_id);
+        this.#forMarker(function(marker, markers) {
+            markers.push(marker);
         }, ids);
         return ids;
     }
@@ -938,14 +976,16 @@ class PurgeOverlay {
     show(focusBack) {
         // Main header + restore/ignore all buttons
         const container = buildNode('div', { id : 'purgeContainer' });
+        const purgeInfo = { purged : false, readd : false };
+        this.#purgedSection.forEach(m => purgeInfo[m.readded ? 'readd' : 'purged'] = true);
         appendChildren(container,
             buildNode('h1', {}, 'Purged Markers'),
             PurgeConflictControl.GetControl(),
             new BulkPurgeAction('purge_all',
-                'Restore All Markers',
+                (purgeInfo.purged ? purgeInfo.readd ? 'Restore/Re-Delete' : 'Restore' : 'Re-Delete') + ' All Markers',
                 'Ignore All Markers',
                 this.#onBulkActionSuccess.bind(this),
-                this.#getAllMarkerIds.bind(this)).html()
+                this.#getAllMarkers.bind(this)).html()
         );
 
         // Table for every top-level item that has purged markers. I.e. for each movie or for each show.
@@ -1000,12 +1040,12 @@ class PurgeOverlay {
         Overlay.build({ dismissible : true, closeButton : true, focusBack : null }, container);
     }
 
-    /** @returns {number[]} The list of marker ids this overlay applies to. */
-    #getAllMarkerIds() {
+    /** @returns {MarkerAction[]} The list of marker ids this overlay applies to. */
+    #getAllMarkers() {
         const allMarkers = [];
         for (const table of this.#tables) {
             if (!table.removed()) {
-                allMarkers.push(...table.markerIds());
+                allMarkers.push(...table.markers());
             }
         }
 

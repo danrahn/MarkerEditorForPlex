@@ -8,6 +8,7 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
 /** @typedef {!import('./SqliteDatabase').default} SqliteDatabase */
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 /** @typedef {!import('../Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
+/** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 
 /**
  * @typedef {{[markerId: number] : MarkerQueryResult}} MarkerMap
@@ -20,6 +21,8 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
  * @typedef {{
  *     id : number,
  *     marker_type : string,
+ *     start : number,
+ *     end : number,
  *     parent_id : number,
  *     season_id : number,
  *     show_id : number,
@@ -247,7 +250,7 @@ class MarkerCacheManager {
         /** @type {MediaItemQueryResult[]} */
         const media = await this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
         const end = Date.now();
-        Log.verbose(`Queried all markers (${markers.length} in ${((end- start) / 1000).toFixed(2)} seconds), analyzing...`);
+        Log.verbose(`Queried all markers (${markers.length} in ${((end - start) / 1000).toFixed(2)} seconds), analyzing...`);
         /** @type {{ [mediaId: number]: MediaItemQueryResult }} */
         const mediaMap = {};
         for (const mediaItem of media) {
@@ -393,6 +396,47 @@ class MarkerCacheManager {
     }
 
     /**
+     * Create a map of existing markers relevant to the given deleted marker actions.
+     * @param {MarkerAction[]} deletedMarkers */
+    existingMarkerMapFromDeletes(deletedMarkers) {
+        /** @typedef {{ [start: number]: { [end: number]: number } }} TimingMap */
+        /**
+         * Map show to season to episode to start timestamp to end timestamp to existing marker.
+         * For movies, show/season are -1, and the movie is the episode.
+         * @type {{ [showId: number]: { [seasonId: number]: { [baseId: number]: TimingMap  } } }} */
+        const existingMarkerMap = {};
+        const processedBaseIds = new Set();
+        for (const marker of deletedMarkers) {
+            if (processedBaseIds.has(marker.parent_id) || !this.baseItemExists(marker.parent_id)) {
+                continue;
+            }
+
+            /** @type {number[]} */
+            let markerIds = [];
+            if (marker.show_id === -1) {
+                // Movie
+                markerIds = this.#markerHierarchy[marker.section_id]?.items[marker.parent_id]?.markers || [];
+
+            } else {
+                // Show
+                /** @type {MarkerShowNode} */
+                const showMap = this.#markerHierarchy[marker.section_id]?.items[marker.show_id];
+                markerIds = showMap.seasons[marker.season_id]?.episodes[marker.parent_id]?.markers || [];
+            }
+
+            const baseMap = ((existingMarkerMap[marker.show_id] ??= {})[marker.season_id] ??= {})[marker.parent_id] ??= {};
+            for (const markerId of markerIds) {
+                const existingMarker = this.#allMarkers[markerId];
+                (baseMap[existingMarker.start] ??= {})[existingMarker.end] = existingMarker.id;
+            }
+
+            processedBaseIds.add(marker.parent_id);
+        }
+
+        return existingMarkerMap;
+    }
+
+    /**
      * Deletes all markers of the given type from the given section.
      * @param {number} sectionId
      * @param {number} deleteType */
@@ -534,6 +578,8 @@ class MarkerCacheManager {
 SELECT
     marker.id AS id,
     marker.text AS marker_type,
+    marker.time_offset AS start,
+    marker.end_time_offset AS end,
     base.id AS parent_id,
     season.id AS season_id,
     season.parent_id AS show_id,
@@ -546,7 +592,15 @@ WHERE base.metadata_type=4
     `;
 
     /** Query to grab all intro/credits markers on the server. */
-    static #markerOnlyQuery = `SELECT id, text AS marker_type, metadata_item_id AS parent_id FROM taggings WHERE tag_id=?;`;
+    static #markerOnlyQuery = `
+SELECT
+    id,
+    text AS marker_type,
+    time_offset AS start,
+    end_time_offset AS end,
+    metadata_item_id AS parent_id
+FROM taggings
+WHERE tag_id=?;`;
 
     /** Query to grab all episodes and movies from the database. For episodes, also include season/show id (replaced with -1 for movies) */
     static #mediaOnlyQuery = `
