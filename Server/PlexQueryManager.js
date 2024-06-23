@@ -927,15 +927,20 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         const markerFields = this.#extendedFieldsFromMediaType((await this.#mediaTypeFromMarkerId(markerIds[0])).metadata_type);
-        const queryChunk = async ids => {
+        const queryChunk = async (/**@type {Set<number>}*/ids) => {
+            if (ids.size === 0) {
+                return [];
+            }
+
             const params = [];
-            let query = `SELECT ${markerFields} WHERE`;
+            let query = `SELECT ${markerFields} WHERE (`;
             for (const id of ids) {
-                query += ` taggings.id=? AND`;
+                query += ` taggings.id=? OR`;
                 params.push(id);
             }
 
-            query += ` taggings.tag_id=?`;
+            query = query.substring(0, query.length - 3);
+            query += `) AND taggings.tag_id=?`;
             params.push(this.#markerTagId);
             return this.#postProcessExtendedMarkerFields(await this.#database.all(query, params));
         };
