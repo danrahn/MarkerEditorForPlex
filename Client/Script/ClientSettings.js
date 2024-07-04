@@ -21,6 +21,7 @@ import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import { Setting } from '/Shared/ServerConfig.js';
 import { StickySettingsType } from 'StickySettings';
+import StyleSheets from './StyleSheets.js';
 import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
@@ -883,7 +884,8 @@ class SettingsManager {
         }
 
         const styleNode = (link, addListener=false) => {
-            const href = `Client/Style/${link}${this.isDarkTheme() ? 'Dark' : 'Light'}.css`;
+            const styleLink = StyleSheets[link + (this.isDarkTheme() ? 'Dark' : 'Light')];
+            const href = `Client/Style/${styleLink}.css`;
             return buildNode(
                 'link',
                 { rel : 'stylesheet', type : 'text/css', href : href },
@@ -902,9 +904,9 @@ class SettingsManager {
         };
 
         this.#themeStyles = [
-            styleNode('theme', true),
+            styleNode('Theme', true),
             styleNode('Overlay'),
-            styleNode('BulkActionOverlay'),
+            styleNode('BulkAction'),
         ];
 
         for (const style of this.#themeStyles) {

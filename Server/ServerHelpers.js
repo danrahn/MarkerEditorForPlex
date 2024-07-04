@@ -11,12 +11,13 @@ import ServerError from './ServerError.js';
 
 
 const Log = new ContextualLog('ServerHelpers');
+
 /**
  * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
  * @param {ServerResponse} res
  * @param {Error|string} error The error to log
  * @param {number?} code Error code to return. Not necessary if error is a ServerError. */
-function sendJsonError(res, error, code) {
+export function sendJsonError(res, error, code) {
     let message = error;
     let stack = '[Stack trace not available]';
     if (error instanceof Error) {
@@ -43,7 +44,7 @@ function sendJsonError(res, error, code) {
  * Helper method that returns a success HTTP status code alongside any data we want to return to the client.
  * @param {ServerResponse} res
  * @param {Object} [data] Data to return to the client. If empty, returns a simple success message. */
-function sendJsonSuccess(res, data) {
+export function sendJsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
     if (Log.getLevel() <= ConsoleLog.Level.TMI) {
         Log.tmi(data ? JSON.parse(JSON.stringify(data)) : 'true', 'Success');
@@ -59,8 +60,10 @@ function sendJsonSuccess(res, data) {
  * @param {ServerResponse} res
  * @param {number} status HTTP status code.
  * @param {*} data The data to compress and return.
- * @param {string|false} typeString The MIME type of `data`. */
-function sendCompressedData(res, status, data, typeString) {
+ * @param {string|false} typeString The MIME type of `data`.
+ * @param {number} cacheAge The max-age for this resource. 0 if the request is not cacheable. Should only be true when running as a
+ *                          binary, and the request URL is cache-bustable */
+export function sendCompressedData(res, status, data, typeString, cacheAge=0) {
     // It's technically possible for contentType to be false if we attempt to read an unknown file type.
     // Allow sniffing in that case;
     /** @type {{ [header: string]: string }} */
@@ -68,6 +71,10 @@ function sendCompressedData(res, status, data, typeString) {
     if (typeString !== false) {
         headers['Content-Type'] = typeString;
         headers['x-content-type-options'] = 'nosniff';
+    }
+
+    if (cacheAge !== 0) {
+        headers['Cache-Control'] = `max-age=${cacheAge}, immutable`;
     }
 
     gzip(data, (err, buffer) => {
@@ -89,7 +96,7 @@ function sendCompressedData(res, status, data, typeString) {
 
 /**
  * Verifies that we can find ffmpeg in our path */
-function testFfmpeg() {
+export function testFfmpeg() {
     try {
         execFileSync('ffmpeg', ['-version']);
         return true;
@@ -103,7 +110,7 @@ function testFfmpeg() {
  * @param {string} host
  * @param {number} port
  * @returns {Promise<{ valid: boolean, errorCode?: string }>}*/
-function testHostPort(host, port) {
+export function testHostPort(host, port) {
     return new Promise(resolve => {
         /** @type {Server} */
         const serverPing = createServer();
@@ -115,4 +122,9 @@ function testHostPort(host, port) {
     });
 }
 
-export { sendJsonSuccess, sendJsonError, sendCompressedData, testFfmpeg, testHostPort };
+/**
+ * Returns whether this application is running as a binary. Returns false if running from source. */
+export function isBinary() {
+    // Binaries invoke built.cjs (keep in sync with Build.js's transpile()). Assume anything else is from source.
+    return process.argv[1]?.includes('built.cjs');
+}

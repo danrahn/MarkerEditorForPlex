@@ -8,13 +8,21 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { Config, ProjectRoot } from './MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
+import { isBinary, sendCompressedData } from './ServerHelpers.js';
 import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
 import { DatabaseImportExport } from './ImportExport.js';
-import { sendCompressedData } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
 
 
 const Log = new ContextualLog('GETHandler');
+
+/** The cache duration for cache-bustable files (30 days) */
+const StaticCacheAge = 86400 * 30;
+
+/**
+ * The cache duration for preview thumbnails.
+ * Only 5 minutes on the off-chance that the underlying file/BIF file changes. */
+const ThumbCacheAge = 300;
 
 class GETHandler {
 
@@ -43,13 +51,22 @@ class GETHandler {
             return;
         }
 
+        // Only production files use cache-busing techniques, so don't
+        // set a cache-age if we're using raw dev files.
+        let cacheable = isBinary();
+
         if (url === '/') {
             url = '/index.html';
         }
 
+        // Never cache main index.html
+        if (url === '/index.html') {
+            cacheable = false;
+        }
+
         switch (url.substring(0, 3)) {
             case '/i/':
-                return ImageHandler.GetSvgIcon(url, res);
+                return ImageHandler.GetSvgIcon(url, res, cacheable);
             case '/t/':
                 return ImageHandler.GetThumbnail(url, res);
             default:
@@ -74,7 +91,7 @@ class GETHandler {
 
         try {
             const contents = readFileSync(join(ProjectRoot(), url));
-            sendCompressedData(res, 200, contents, mimetype);
+            sendCompressedData(res, 200, contents, mimetype, cacheable ? StaticCacheAge : 0);
         } catch (err) {
             Log.warn(`Unable to serve ${url}: ${err.message}`);
             res.writeHead(404).end(`Not Found: ${err.message}`);
@@ -100,8 +117,10 @@ class ImageHandler {
     /**
      * Retrieve an SVG icon requests with the given color.
      * @param {string} url The svg url of the form /i/[hex color]/[icon].svg
-     * @param {ServerResponse} res */
-    static GetSvgIcon(url, res) {
+     * @param {ServerResponse} res
+     * @param {boolean} cacheable Whether this request should be cached (i.e. whether we're
+     *                            retrieving a cache-bustable SVG from a production binary) */
+    static GetSvgIcon(url, res, cacheable=false) {
         const badRequest = (msg, code=400) => {
             Log.error(msg, `[${url}] Unable to retrieve icon`);
             res.writeHead(code).end(msg);
@@ -112,13 +131,19 @@ class ImageHandler {
             return badRequest('Invalid icon request format');
         }
 
+        const headers = {
+            'Content-Type' : contentType('image/svg+xml'),
+            'x-content-type-options' : 'nosniff'
+        };
+
+        if (cacheable) {
+            headers['Cache-Control'] = `max-age=${StaticCacheAge}, immutable`;
+        }
+
         try {
             const icon = parts[2];
             const contents = readFileSync(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' });
-            res.writeHead(200, {
-                'Content-Type' : contentType('image/svg+xml'),
-                'x-content-type-options' : 'nosniff'
-            }).end(Buffer.from(contents, 'utf-8'));
+            res.writeHead(200, headers).end(Buffer.from(contents, 'utf-8'));
         } catch (err) {
             return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
         }
@@ -165,7 +190,8 @@ class ImageHandler {
                 contents = contents.replace(/IMAGE_HEIGHT/g, `${timestamp}`);
                 res.writeHead(200, {
                     'Content-Type' : contentType('image/svg+xml'),
-                    'x-content-type-options' : 'nosniff'
+                    'x-content-type-options' : 'nosniff',
+                    'Cache-Control' : `max-age=${ThumbCacheAge}`
                 }).end(Buffer.from(contents, 'utf-8'));
                 return;
             } catch (err) {

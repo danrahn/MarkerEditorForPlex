@@ -12,6 +12,7 @@ import {
     writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { compile } from 'nexe';
+import { createHash } from 'crypto';
 import { exec } from 'child_process';
 import { homedir } from 'os';
 import rcedit from 'rcedit';
@@ -106,51 +107,112 @@ async function transpile() {
 import clientConfig from '../webpack.config.js';
 
 let packedJs = '';
+import StyleSheets from '../Client/Script/StyleSheets.js';
+const hashedStyles = [];
+
+import Icons from '../Client/Script/Icons.js';
+const hashedSVGs = [];
 
 /**
  * Minify client code and inject minified source into html. */
 async function minifyClient() {
+    // Before minifying, replace SVG icons with cache-bustable versions. This is ~similar to the process
+    // used to modify index.html to point to the cache-bustable index.[contenthash].js. I'm sure there's
+    // a vetted library for this, but it's not too bad to do this ourselves.
+    const newIcons = {};
+    for (const [key, icon] of Object.entries(Icons)) {
+        const svgOriginal = resolve(buildDir, `../SVG/${icon}.svg`);
+        const svg = readFileSync(svgOriginal).toString('utf-8');
+        const hash = createHash('md5').update(svg).digest('hex');
+        const newSvgIcon = `${icon}.${hash}`;
+        const newSvg = join(buildDir, `../SVG/${newSvgIcon}.svg`);
+        copyFileSync(svgOriginal, newSvg);
+        hashedSVGs.push(resolve(newSvg));
+        newIcons[key] = newSvgIcon;
+    }
+
+    const iconsFile = resolve(buildDir, '../Client/Script/Icons.js');
+    const iconsFileT = join(buildDir, '../Client/Script/Icons.jsT');
+    renameSync(iconsFile, iconsFileT);
+    const newIconText = `const Icons = ${JSON.stringify(newIcons)};export default Icons;`;
+    writeFileSync(iconsFile, newIconText, { encoding : 'utf-8' });
+
+    // Like icons, we also want cache-bustable CSS.
+    const newCSS = {};
+    const styleSheetMap = {};
+    for (const [key, style] of Object.entries(StyleSheets)) {
+        const styleOriginal = resolve(buildDir, `../Client/Style/${style}.css`);
+        const styleContent = readFileSync(styleOriginal).toString('utf-8');
+        const hash = createHash('md5').update(styleContent).digest('hex');
+        const newStyle = `${style}.${hash}`;
+        const newStyleFile = join(buildDir, `../Client/Style/${newStyle}.css`);
+        copyFileSync(styleOriginal, newStyleFile);
+        hashedStyles.push(resolve(newStyleFile));
+        newCSS[key] = newStyle;
+        styleSheetMap[`${style}.css`] = `${newStyle}.css`;
+    }
+
+    const styleFile = resolve(buildDir, '../Client/Script/StyleSheets.js');
+    const styleFileT = resolve(buildDir, '../Client/Script/StyleSheets.jsT');
+    renameSync(styleFile, styleFileT);
+    const newStyleText = `const StyleSheets = ${JSON.stringify(newCSS)};export default StyleSheets;`;
+    writeFileSync(styleFile, newStyleText, { encoding : 'utf-8' });
+
     const compiler = webpack(clientConfig);
-    await new Promise(r => {
-        compiler.run((err, stats) => {
-            if (err) {
-                console.error(err.stack || err);
-                if (err.details) {
-                    console.error(err.details);
+    try {
+        await new Promise(r => {
+            compiler.run((err, stats) => {
+                if (err) {
+                    console.error(err.stack || err);
+                    if (err.details) {
+                        console.error(err.details);
+                    }
+
+                    throw new Error(`Webpack error. Cannot continue.`);
                 }
 
-                throw new Error(`Webpack error. Cannot continue.`);
-            }
+                const info = stats.toJson();
 
-            const info = stats.toJson();
-
-            if (stats.hasErrors()) {
-                console.error(info.errors);
-                throw new Error(`Webpack error. Cannot continue.`);
-            }
-
-            if (stats.hasWarnings()) {
-                console.warn(info.warnings);
-            }
-
-            for (const asset of info.assets) {
-                if (/^index\.[a-f0-9]+\.js$/i.test(asset.name)) {
-                    packedJs = asset.name;
-                    break;
+                if (stats.hasErrors()) {
+                    console.error(info.errors);
+                    throw new Error(`Webpack error. Cannot continue.`);
                 }
-            }
 
-            if (!packedJs) {
-                throw new Error(`Unable to find packed js name. Cannot continue.`);
-            }
+                if (stats.hasWarnings()) {
+                    console.warn(info.warnings);
+                }
 
-            r();
+                for (const asset of info.assets) {
+                    if (/^index\.[a-f0-9]+\.js$/i.test(asset.name)) {
+                        packedJs = asset.name;
+                        break;
+                    }
+                }
+
+                if (!packedJs) {
+                    throw new Error(`Unable to find packed js name. Cannot continue.`);
+                }
+
+                r();
+            });
         });
-    });
+    } finally {
+        rmSync(iconsFile);
+        renameSync(iconsFileT, iconsFile);
 
-    // Now remove the "dev" index.js import
+        rmSync(styleFile);
+        renameSync(styleFileT, styleFile);
+
+        // Can't delete hashed files until they'be been bundled with nexe.
+    }
+
+    // Now remove the "dev" index.js import, and replace "dev" CSS with production cache-busting CSS
     const indexHtmlPath = resolve(buildDir, '../dist/index.html');
-    const indexHtml = readFileSync(indexHtmlPath).toString('utf-8').replace(/<script.*\/index\.js".*?<\/script>/, '');
+    let indexHtml = readFileSync(indexHtmlPath).toString('utf-8').replace(/<script.*\/index\.js".*?<\/script>/, '');
+    for (const [baseStyle, newStyle] of Object.entries(styleSheetMap)) {
+        indexHtml = indexHtml.replace(new RegExp(`/${baseStyle}`), `/${newStyle}`);
+    }
+
     writeFileSync(indexHtmlPath, indexHtml, { encoding : 'utf-8' });
 }
 
@@ -415,10 +477,11 @@ async function toExe() {
             resources : [
                 resolve(buildDir, '../package.json'),
                 resolve(buildDir, '../index.html'),
-                resolve(buildDir, '../SVG/*svg'),
+                resolve(buildDir, '../SVG/favicon.svg'),
                 resolve(buildDir, '../index.*.js'),
-                resolve(buildDir, '../Client/Style/**'),
                 resolve(buildDir, '../dist/built.cjs'),
+                ...hashedSVGs,
+                ...hashedStyles,
             ],
             patches : [
                 deleteNodeBinaryIfRebuilding,
@@ -430,6 +493,15 @@ async function toExe() {
         rmSync(indexHtml);
         renameSync(resolve(buildDir, '../index.html_T'), indexHtml);
         rmSync(resolve(buildDir, `../${packedJs}`));
+
+        // Only delete hashed files once we've bundled them, not after webpack.
+        for (const icon of hashedSVGs) {
+            rmSync(icon);
+        }
+
+        for (const style of hashedStyles) {
+            rmSync(style);
+        }
     }
 
     // After everything is compiled, cache the output directory if needed.
