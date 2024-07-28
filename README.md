@@ -2,8 +2,8 @@
 
 Plex does not let users modify or manually add markers, relying solely on their own detection processes. This project aims to make it easier to view/edit/add/delete individual markers, as well as apply bulk add/edit/delete operations to a season or an entire show. It can also be used to add multiple markers, for example a "previously on XYZ" section (as seen in the image below).
 
-![Application Overview](https://user-images.githubusercontent.com/7410989/221294954-1a303cd1-48de-4b5e-9230-4aa735678d68.png)
-
+![Application Overview](
+https://github.com/user-attachments/assets/88e6b47e-5ab7-4c11-874b-6e089d163f2f)
 
 
 **NOTE**: While this project has been proven to work for my own individual use cases, it interacts with your Plex database in an unsupported way, and offers no guarantees against breaking your database, neither now or in the future. **_Use at your own risk_**.
