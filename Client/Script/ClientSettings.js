@@ -1047,8 +1047,10 @@ class SettingsManager {
             return false;
         }
 
-        const cssFind = isDark ? 'Light.css' : 'Dark.css';
-        const cssRep = isDark ? 'Dark.css' : 'Light.css';
+        const darkStyle = StyleSheets.ThemeDark + '.css';
+        const lightStyle = StyleSheets.ThemeLight + '.css';
+        const cssFind = isDark ? lightStyle : darkStyle;
+        const cssRep = isDark ? darkStyle: lightStyle;
         for (const style of this.#themeStyles) {
             style.href = style.href.replace(cssFind, cssRep);
         }
