@@ -123,7 +123,7 @@ export function testHostPort(host, port) {
 }
 
 // Binaries invoke built.cjs (keep in sync with Build.js's transpile()). Assume anything else is from source.
-const looksLikeBinary = process.argv[1]?.includes('build.cjs');
+const looksLikeBinary = process.argv[1]?.includes('built.cjs');
 
 /**
  * Returns whether this application is running as a binary. Returns false if running from source. */
