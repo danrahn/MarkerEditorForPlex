@@ -64,15 +64,19 @@ const ExtraData = {
     Credits         : '{"pv:version":"4","url":"pv%3Aversion=4"}',
     /** @readonly Final credit marker (goes to the end of the media item) */
     CreditsFinal    : '{"pv:final":"1","pv:version":"4","url":"pv%3Afinal=1&pv%3Aversion=4"}',
+    /** @readonly Ads/commercials have no extra_data */
+    Ad      : null,
 
     /** @readonly extra_data for PMS <1.40 */
     Legacy : {
         /** @readonly Pre PMS 1.40 Intro marker */
-        Intro : 'pv%3Aversion=5',
+        Intro        : 'pv%3Aversion=5',
         /** @readonly Pre PMS 1.40 non-final credits marker */
-        Credits : 'pv%3Aversion=4',
+        Credits      : 'pv%3Aversion=4',
         /** @readonly Pre PMS 1.40 final credits marker (goes to the end of the media item) */
         CreditsFinal : 'pv%3Afinal=1&pv%3Aversion=4',
+        /** @readonly Commercials have no extra_data */
+        Ad           : null,
     },
 
     /**
@@ -81,7 +85,14 @@ const ExtraData = {
      * @param {number} final */
     get : (markerType, final) => {
         const data = ExtraData.isLegacy ? ExtraData.Legacy : ExtraData;
-        return markerType === MarkerType.Intro ? data.Intro : final ? data.CreditsFinal : data.Credits;
+        switch (markerType) {
+            case MarkerType.Intro:
+                return data.Intro;
+            case MarkerType.Ad:
+                return data.Ad;
+            default:
+                return final ? data.CreditsFinal : data.Credits;
+        }
     },
 
     /** Determines whether the user is running an older version of PMS, before extra_data's JSON conversion. Set on boot. */

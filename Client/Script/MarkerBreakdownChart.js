@@ -22,6 +22,7 @@ const BreakdownType = {
     /**@readonly*/ Combined : 0,
     /**@readonly*/ Intros   : 1,
     /**@readonly*/ Credits  : 2,
+    /**@readonly*/ Ads      : 3,
 };
 
 /**
@@ -30,6 +31,7 @@ const BreakdownTitles = {
     [BreakdownType.Combined] : 'Marker Breakdown',
     [BreakdownType.Intros]   : 'Intro Breakdown',
     [BreakdownType.Credits]  : 'Credits Breakdown',
+    [BreakdownType.Ads]      : 'Commercial Breakdown',
 };
 
 /**
@@ -38,6 +40,7 @@ const DataLabels = {
     [BreakdownType.Combined] : 'Marker',
     [BreakdownType.Intros]   : 'Intro Marker',
     [BreakdownType.Credits]  : 'Credits Marker',
+    [BreakdownType.Ads]      : 'Commercial Marker',
 };
 
 class MarkerBreakdownChart {
@@ -97,6 +100,9 @@ class MarkerBreakdownChart {
                 break;
             case BreakdownType.Credits:
                 chartData = MarkerBreakdownChart.#currentBreakdown.creditsBuckets();
+                break;
+            case BreakdownType.Ads:
+                chartData = MarkerBreakdownChart.#currentBreakdown.adBuckets();
                 break;
             default:
                 throw new Error(`Invalid breakdown type ${breakdownType}`);

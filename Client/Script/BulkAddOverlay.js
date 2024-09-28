@@ -168,8 +168,7 @@ class BulkAddOverlay {
             appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
                 buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
                 appendChildren(buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onMarkerTypeChanged.bind(this) }),
-                    buildNode('option', { value : MarkerType.Intro }, 'Intro'),
-                    buildNode('option', { value : MarkerType.Credits }, 'Credits'))
+                    ...Object.entries(MarkerType).map(kv => buildNode('option', { value : kv[1] }, kv[0])))
             ),
             appendChildren(buildNode('div', { id : 'bulkAddApplyType' }),
                 buildNode('label', { for : 'applyTypeSelect' }, 'Apply Action: '),

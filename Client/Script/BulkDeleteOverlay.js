@@ -105,6 +105,9 @@ class BulkDeleteOverlay {
             case MarkerEnum.Credits:
                 text += ' Credits';
                 break;
+            case MarkerEnum.Ad:
+                text += ' Ads';
+                break;
             default:
                 break;
         }

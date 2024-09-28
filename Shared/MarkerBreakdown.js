@@ -2,11 +2,15 @@ import { ContextualLog } from './ConsoleLog.js';
 
 import { MarkerType } from './MarkerType.js';
 
-const IntroMask =   0x0000FFFF;
-const CreditsShift = 16;
+// This isn't too expandable, but we really shouldn't have items with hundreds, or even tens of markers.
+// As long as this is only used for individual items, we can probably handle 8 marker types (0-15 markers
+// per type) before having to switch away from the shove-everything-in-a-32-bit-integer approach.
+const IntroMask    = 0x000000FFF;
+const CreditsMask  = 0x000FFF000;
+const CreditsShift = 12;
+const AdShift      = 24;
 
 /** @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap */
-
 
 const Log = new ContextualLog('MarkerBreakdown');
 
@@ -29,6 +33,8 @@ class MarkerBreakdown {
                 return delta;
             case MarkerType.Credits:
                 return delta << CreditsShift;
+            case MarkerType.Ad:
+                return delta << AdShift;
             default:
                 // Silently fall back to an intro
                 Log.error(`Invalid marker type "${markerType}"`);
@@ -40,15 +46,7 @@ class MarkerBreakdown {
      * Return the number of markers represented by the given key.
      * @param {number} key */
     static markerCountFromKey(key) {
-        return (key >> CreditsShift) + (key & IntroMask);
-    }
-
-    /**
-     * Retrieve the key representing the given number of intros and credits.
-     * @param {number} intros
-     * @param {number} credits */
-    static keyFromMarkerCount(intros, credits) {
-        return MarkerBreakdown.deltaFromType(intros, MarkerType.Intro) + MarkerBreakdown.deltaFromType(credits, MarkerType.Credits);
+        return (key >> AdShift) + ((key & CreditsMask) >> CreditsShift) + (key & IntroMask);
     }
 
     /**
@@ -81,7 +79,7 @@ class MarkerBreakdown {
                 continue;
             }
 
-            const realKey = this.#ic(key) + this.#cc(key);
+            const realKey = this.#ic(key) + this.#cc(key) + this.#ac(key);
             collapsed[realKey] ??= 0;
             collapsed[realKey] += value;
         }
@@ -108,6 +106,20 @@ class MarkerBreakdown {
     }
 
     /**
+     * Return a breakdown only consisting of ad markers.
+     * @returns {MarkerBreakdownMap} */
+    adBuckets() {
+        return this.#buckets(this.#ac);
+    }
+
+    /** Return an integer key that represents the total number of each marker type in this breakdown. */
+    key() {
+        return MarkerBreakdown.deltaFromType(this.totalIntros(), MarkerType.Intro) +
+            MarkerBreakdown.deltaFromType(this.totalCredits(), MarkerType.Credits) +
+            MarkerBreakdown.deltaFromType(this.totalAds(), MarkerType.Ad);
+    }
+
+    /**
      * @param {(key: number|string) => number} keyFunc */
     #buckets(keyFunc) {
         const collapsed = {};
@@ -127,12 +139,14 @@ class MarkerBreakdown {
     /** Intro count from key */
     #ic(v) { return +v & IntroMask; }
     /** Credits count from key */
-    #cc(v) { return +v >> CreditsShift; }
+    #cc(v) { return (+v & CreditsMask) >> CreditsShift; }
+    /** Ad count from key */
+    #ac(v) { return +v >> AdShift; }
 
     /**
      * Return the total count of markers in this breakdown. */
     totalMarkers() {
-        return Object.entries(this.#counts).reduce((acc, kv) => acc + ((this.#cc(kv[0]) + this.#ic(kv[0])) * kv[1]), 0);
+        return Object.entries(this.#counts).reduce((acc, kv) => acc + ((this.#ac(kv[0]) + this.#cc(kv[0]) + this.#ic(kv[0])) * kv[1]), 0);
     }
 
     /**
@@ -145,6 +159,12 @@ class MarkerBreakdown {
      * The total number of credits markers in this breakdown. */
     totalCredits() {
         return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#cc(kv[0]) * kv[1]), 0);
+    }
+
+    /**
+     * The total number of ad markers in this breakdown. */
+    totalAds() {
+        return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#ac(kv[0]) * kv[1]), 0);
     }
 
     /**
@@ -169,6 +189,12 @@ class MarkerBreakdown {
      * The total number of items that have a credits marker in this breakdown. */
     itemsWithCredits() {
         return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#cc(kv[0]) > 0 ? kv[1] : 0), 0);
+    }
+
+    /**
+     * The total number of items that have an ad marker in this breakdown. */
+    itemsWithAds() {
+        return Object.entries(this.#counts).reduce((acc, kv) => acc + (this.#ac(kv[0]) > 0 ? kv[1] : 0), 0);
     }
 
     /**

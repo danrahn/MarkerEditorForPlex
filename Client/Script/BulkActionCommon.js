@@ -615,7 +615,8 @@ class BulkActionCommon {
             buildNode('select', { id : 'markerTypeSelect' }, 0, { change : callback }),
             buildNode('option', { value : MarkerEnum.All }, 'All'),
             buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
-            buildNode('option', { value : MarkerEnum.Credits }, 'Credits')
+            buildNode('option', { value : MarkerEnum.Credits }, 'Credits'),
+            buildNode('option', { value : MarkerEnum.Ad }, 'Ad'),
         );
 
         select.value = initialValue;

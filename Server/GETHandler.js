@@ -31,7 +31,7 @@ class GETHandler {
      * the client, shared, or svg folder, as long as it doesn't contain '/..' or '\..'
      * somewhere in the path. For built packages, also allow index.[guid].(html|js)*/
     // eslint-disable-next-line prefer-named-capture-group
-    static #whitelistRegex = /^\/(dist\/)?(index\.([a-f0-9]+\.)?(html|js)|(client|shared|svg)\/((?![\\/]\.\.).)*)$/i;
+    static #whitelistRegex = /^\/(dist\/)?(index\.([a-f0-9]+\.)?(html|js)|(client|shared|svg)\/[^.]{2}((?![\\/]\.\.).)*)$/i;
 
     /**
      * Handle the given GET request.

@@ -211,7 +211,7 @@ class SqliteDatabase {
                     escapedValue = 'NULL';
                 } else {
                     throw new ServerError(
-                        `Unable to parameterize query, only expected strings and numbers, found ${typeof parameter}`,
+                        `Unable to parameterize query, only expected strings and numbers, found ${typeof value}`,
                         500);
                 }
             }

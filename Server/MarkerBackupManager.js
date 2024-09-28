@@ -155,9 +155,6 @@ aren't explicitly referenced.
 /*
 Backup table V6 modifications:
 
-| OLD COLUMN   | NEW COLUMN  | DESCRIPTION                                              |
-+--------------+-------------+----------------------------------------------------------+
-
 Schema remains the same, but this version will set the modified_at date to NULL for markers
 that have been added but not edited, (i.e. created_at equals modified_at). This is done to
 create a standard where a null modified_at means the marker has never been modified after it
@@ -172,6 +169,10 @@ In addition to the above, do the following:
   reliable, and there aren't really any downsides to having it enabled.
 */
 
+/*
+Backup table V7 modifications:
+
+Commercial markers set extra_data to null, so allow our backup database to store null as well.
 
 /**
  * The accepted operation types
@@ -188,7 +189,9 @@ const MarkerOp = {
 };
 
 /* eslint-disable indent */ /* eslint-disable no-useless-concat */
-/** The main table. See above for details. */
+/** The main table. See above for details.
+ *  WARNING: Indentation is copied as-is into the database, so if any spacing changes,
+ *  it might break database updates that adjust the schema. */
 const ActionsTable = `
 CREATE TABLE IF NOT EXISTS actions (
     id           INTEGER      PRIMARY KEY AUTOINCREMENT,
@@ -204,7 +207,7 @@ CREATE TABLE IF NOT EXISTS actions (
     modified_at  INTEGER      DEFAULT NULL,` /* V4 -> VARCHAR to INTEGER */ + `
     created_at   INTEGER      NOT NULL,` /* V4 -> DATETIME to INTEGER */+ `
     recorded_at  INTEGER      DEFAULT (strftime('%s','now')),` /* V4 -> DATETIME to INTEGER */ + `
-    extra_data   VARCHAR(255) NOT NULL,
+    extra_data   VARCHAR(255),` /* V7 -> Allow NULL for ad markers. */ + `
     section_uuid VARCHAR(255) NOT NULL,
     restores_id  INTEGER,
     restored_id  INTEGER,` +
@@ -226,7 +229,7 @@ CREATE TABLE IF NOT EXISTS actions (
  */
 
 /** The current table schema version. */
-const CurrentSchemaVersion = 6;
+const CurrentSchemaVersion = 7;
 
 /** Single-row table that indicates the current version of the actions table. */
 const CheckVersionTable = `
@@ -303,7 +306,15 @@ const SchemaUpgrades = [
     // Set modified_at to null if it equals added_at to indicate that there haven't been any additional
     // edits after the initial add.
     `UPDATE actions SET modified_at = NULL where modified_at=created_at;
-    UPDATE schema_version SET version=6;`
+    UPDATE schema_version SET version=6;`,
+
+    // 6 -> 7:
+    // Allows extra_data to be null for ad markers
+    /* eslint-disable max-len */
+    `PRAGMA writable_schema = TRUE;
+    UPDATE sqlite_schema SET sql = replace(sql, 'extra_data   VARCHAR(255) NOT NULL', 'extra_data   VARCHAR(255)') WHERE name='actions' AND type='table';
+    PRAGMA writable_schema = RESET;`,
+    /* eslint-enable */
 ];
 /* eslint-enable */
 
@@ -357,6 +368,7 @@ class MarkerBackupManager {
         this.#checkBadThumbUrls.bind(this),
         async () => { }, // 4 -> 5. Just renaming columns, nothing else to do.
         PlexQueries.removeThumbUrlHack.bind(PlexQueries), // 5 -> 6. Remove Plex DB hack that commandeers thumb_url.
+        async () => { }, // 6 -> 7. Just allowing a column to be null. No followup needed.
     ];
 
     /**

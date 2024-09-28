@@ -11,6 +11,7 @@ import {
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
+import { MarkerType, supportedMarkerType } from '/Shared/MarkerType.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -19,7 +20,6 @@ import { errorResponseOverlay } from './ErrorHandling.js';
 import Icons from './Icons.js';
 import { MarkerAddStickySettings } from 'StickySettings';
 import { MarkerData } from '/Shared/PlexTypes.js';
-import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
@@ -184,6 +184,9 @@ class MarkerEdit {
             case 'c':
                 e.preventDefault();
                 return this.#setMarkerType(MarkerType.Credits);
+            case 'a':
+                e.preventDefault();
+                return this.#setMarkerType(MarkerType.Ad);
             case 'Enter':
                 // Only commit on Keyup to avoid any accidental double submissions
                 // that may result in confusing error UI. Left here for when my
@@ -253,16 +256,10 @@ class MarkerEdit {
         }
 
         this.#stickyAddSettings.setMarkerType(markerType);
-        switch (markerType) {
-            case MarkerType.Intro:
-                select.value = 'intro';
-                break;
-            case MarkerType.Credits:
-                select.value = 'credits';
-                break;
-            default:
-                Log.warn(`setMarkerType - Unknown type ${markerType} given.`);
-                break;
+        if (supportedMarkerType(markerType)) {
+            select.value = markerType;
+        } else {
+            Log.warn(`setMarkerType - Unknown type ${markerType} given.`);
         }
     }
 

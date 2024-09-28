@@ -431,9 +431,15 @@ export class ResultRow {
         const breakdown = mediaItem.markerBreakdown();
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
+        const ads = breakdown.itemsWithAds();
         const items = breakdown.totalItems();
-        tooltipText += `${intros} ${intros === 1 ? 'has' : 'have'} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
-        tooltipText += `${credits} ${credits === 1 ? 'has' : 'have'} credits (${(credits / items * 100).toFixed(0)}%)<hr>`;
+        /** @type {(n: number) => 'has' | 'have'} */
+        const hasHave = (n) => n === 1 ? 'has' : 'have';
+        tooltipText += `${intros} ${hasHave(intros)} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
+        tooltipText += `${credits} ${hasHave(credits)} credits (${(credits / items * 100).toFixed(0)}%)${ads < 1 ? '<hr>' : '<br>'}`;
+
+        // Only add ad data if there's at least one, since the average user without a DVR won't have many/any.
+        if (ads > 0) tooltipText += `${ads} ${hasHave(ads)} ads (${(ads / items * 100).toFixed(0)}%)<hr>`;
         for (const [key, episodeCount] of Object.entries(mediaItem.markerBreakdown().collapsedBuckets())) {
             tooltipText += `${episodeCount} ${episodeCount === 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
             if (+key !== 0) {
@@ -447,8 +453,10 @@ export class ResultRow {
         } else {
             const totalIntros = breakdown.totalIntros();
             const totalCredits = breakdown.totalCredits();
-            tooltipText += `<hr>${totalIntros} total intro${totalIntros === 1 ? '' : 's'}<br>`;
-            tooltipText += `${totalCredits} total credit${totalCredits === 1 ? '' : 's'}<br>`;
+            const totalAds = breakdown.totalAds();
+            tooltipText += `<hr>${plural(totalIntros, 'total intro')}<br>`;
+            tooltipText += `${plural(totalCredits, 'total credit')}<br>`;
+            if (totalAds > 0) tooltipText += `${plural(totalAds, 'total ad')}<br>`;
             tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
         }
 

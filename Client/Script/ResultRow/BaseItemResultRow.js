@@ -6,7 +6,6 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from '../CustomEvents.js';
 import { getSvgIcon } from '../SVGHelper.js';
 import Icons from '../Icons.js';
-import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import { ResultRow } from './ResultRow.js';
 import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
@@ -37,9 +36,7 @@ export class BaseItemResultRow extends ResultRow {
             // Episodes are loaded differently from movies. It's only expected that movies have a valid value
             // here. Episodes set this when creating the marker table for the first time.
             Log.assert(mediaItem instanceof ClientMovieData, 'mediaItem instanceof ClientMovieData');
-            this.#markerCountKey = MarkerBreakdown.keyFromMarkerCount(
-                mediaItem.markerBreakdown().totalIntros(),
-                mediaItem.markerBreakdown().totalCredits());
+            this.#markerCountKey = mediaItem.markerBreakdown().key();
         }
     }
 

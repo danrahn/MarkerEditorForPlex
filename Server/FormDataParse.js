@@ -40,7 +40,10 @@ class FormDataParse {
             });
 
             request.on('end', () => {
-                Log.verbose(`Form data parsed (${body.length} bytes)`);
+                if (body.length > 0) {
+                    Log.verbose(`Form data parsed (${body.length} bytes)`);
+                }
+
                 resolve(body);
             });
         });

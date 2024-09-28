@@ -442,12 +442,12 @@ class MovieData extends TopLevelData {
     edition;
 
     /**
-     * The length of the show, in milliseconds.
+     * The length of the movie, in milliseconds.
      * @type {number} */
     duration;
 
     /**
-     * Indicates whether we found a preview thumbnail file for this episode.
+     * Indicates whether we found a preview thumbnail file for this movie.
      * @type {boolean?} */
     hasThumbnails = undefined;
 

@@ -38,6 +38,7 @@ const SortConditions = {
     /**@readonly*/ MarkerCount : 1,
     /**@readonly*/ IntroMarkerCount : 2,
     /**@readonly*/ CreditsMarkerCount : 3,
+    /**@readonly*/ AdMarkerCount : 4,
 };
 
 /** @enum */
@@ -46,6 +47,7 @@ const SortConditionText = {
     [SortConditions.MarkerCount] : 'total markers',
     [SortConditions.IntroMarkerCount] : 'intro markers',
     [SortConditions.CreditsMarkerCount] : 'credits markers',
+    [SortConditions.AdMarkerCount] : 'ad markers',
 };
 
 /** @enum */
@@ -78,6 +80,8 @@ class FilterSettings {
     /**@readonly*/ static introCondition = 0;
     /**@readonly*/ static creditsLimit = -1;
     /**@readonly*/ static creditsCondition = 0;
+    /**@readonly*/ static adLimit = -1;
+    /**@readonly*/ static adCondition = 0;
     /**@readonly*/ static sortBy = SortConditions.Alphabetical;
     /**@readonly*/ static sortOrder = 0;
 
@@ -85,9 +89,13 @@ class FilterSettings {
      * @param {MarkerBreakdown} breakdown */
     static shouldFilter(breakdown) {
         return FilterSettings.hasFilter()
-            && (FilterSettings.#shouldFilterCore(breakdown.introBuckets(), FilterSettings.introLimit, FilterSettings.introCondition)
+            && (
+                FilterSettings.#shouldFilterCore(
+                    breakdown.introBuckets(), FilterSettings.introLimit, FilterSettings.introCondition)
                 || FilterSettings.#shouldFilterCore(
-                    breakdown.creditsBuckets(), FilterSettings.creditsLimit, FilterSettings.creditsCondition));
+                    breakdown.creditsBuckets(), FilterSettings.creditsLimit, FilterSettings.creditsCondition)
+                || FilterSettings.#shouldFilterCore(
+                    breakdown.adBuckets(), FilterSettings.adLimit, FilterSettings.adCondition));
     }
 
     /**
@@ -114,12 +122,16 @@ class FilterSettings {
     static resetFilter() {
         FilterSettings.introLimit = -1;
         FilterSettings.creditsLimit = -1;
+        FilterSettings.adLimit = -1;
     }
 
     /**
      * Returns whether a global filter is active. */
     static hasFilter() {
-        return FilterSettings.introLimit !== -1 || FilterSettings.creditsLimit !== -1 || !FilterSettings.isDefaultSort();
+        return FilterSettings.introLimit !== -1
+        || FilterSettings.creditsLimit !== -1
+        || FilterSettings.adLimit !== -1
+        || !FilterSettings.isDefaultSort();
     }
 
     /**
@@ -134,6 +146,12 @@ class FilterSettings {
             if (text.length !== 0) { text += '<br>'; }
 
             text += `Credits count ${FilterConditionText[FilterSettings.creditsCondition]} ${FilterSettings.creditsLimit}`;
+        }
+
+        if (FilterSettings.adLimit !== -1) {
+            if (text.length !== 0) { text += '<br>'; }
+
+            text += `Ad count ${FilterConditionText[FilterSettings.adCondition]} ${FilterSettings.adLimit}`;
         }
 
         if (!FilterSettings.isDefaultSort()) {
@@ -163,6 +181,8 @@ class FilterSettings {
                 return percentageSort ? 'itemsWithIntros' : 'totalIntros';
             case SortConditions.CreditsMarkerCount:
                 return percentageSort ? 'itemsWithCredits' : 'totalCredits';
+            case SortConditions.AdMarkerCount:
+                return percentageSort ? 'itemsWithAds' : 'totalAds';
             default:
                 Log.warn(`sortBreakdownMethod should only be called with marker-based sort conditions.`);
                 return 'totalMarkers';
@@ -205,6 +225,8 @@ class FilterDialog {
     #introFilter;
     /** @type {HTMLElement} */
     #creditsFilter;
+    /** @type {HTMLElement} */
+    #adFilter;
     /** @type {number} */
     #libType = -1;
 
@@ -244,6 +266,10 @@ class FilterDialog {
         const creditsCondition = creditsLimit === '' ? FilterConditions.Equals : FilterSettings.creditsCondition;
         this.#creditsFilter = filterRow('Credits', creditsCondition, creditsLimit);
 
+        const adLimit = FilterSettings.adLimit === -1 ? '' : FilterSettings.adLimit;
+        const adCondition = adLimit === '' ? FilterConditions.Equals : FilterSettings.adCondition;
+        this.#adFilter = filterRow('Ad', adCondition, adLimit);
+
         appendChildren(container,
             buildNode('h2', {}, 'Sort and Filter'),
             buildNode('hr'),
@@ -252,6 +278,7 @@ class FilterDialog {
                 buildNode('hr'),
                 this.#introFilter,
                 this.#creditsFilter,
+                this.#adFilter,
                 buildNode('hr')
             ),
             this.#sortOptions()
@@ -283,7 +310,8 @@ class FilterDialog {
                     buildNode('option', { value : SortConditions.Alphabetical }, 'Alphabetical'),
                     buildNode('option', { value : SortConditions.MarkerCount }, 'Marker Count'),
                     buildNode('option', { value : SortConditions.IntroMarkerCount }, 'Intro Marker Count'),
-                    buildNode('option', { value : SortConditions.CreditsMarkerCount }, 'Credits Marker Count')
+                    buildNode('option', { value : SortConditions.CreditsMarkerCount }, 'Credits Marker Count'),
+                    buildNode('option', { value : SortConditions.AdMarkerCount }, 'Ad Marker Count'),
                 )
             )
         );
@@ -395,38 +423,41 @@ class FilterDialog {
     /**
      * Validates the given filter, and signals the UI of a change if everything is valid. */
     #applyFilter() {
-        const introText = $$('input[type=text]', this.#introFilter);
-        const  introCount = parseInt(introText.value);
-        const introCondition = parseInt($$('select', this.#introFilter).value);
-        if (introText.value.length === 0) {
-            FilterSettings.introLimit = -1;
-        } else {
-            if (isNaN(introCount) || introCount === 0 && introCondition === FilterConditions.LessThan) {
-                this.#flashInput(introText);
+        const markerFilters = [
+            {
+                filter : this.#introFilter,
+                setLimit : (l) => FilterSettings.introLimit = l,
+                setCondition : (c) => FilterSettings.introCondition = c
+            },
+            {
+                filter : this.#creditsFilter,
+                setLimit : (l) => FilterSettings.creditsLimit = l,
+                setCondition : (c) => FilterSettings.creditsCondition = c
+            },
+            {
+                filter : this.#adFilter,
+                setLimit : (l) => FilterSettings.adLimit = l,
+                setCondition : (c) => FilterSettings.adCondition = c
+            },
+        ];
+
+        for (const markerFilter of markerFilters) {
+            const text = $$('input[type=text]', markerFilter.filter);
+            const count = parseInt(text.value);
+            const condition = parseInt($$('select', markerFilter.filter).value);
+            markerFilter.setCondition(condition);
+            if (text.value.length === 0) {
+                markerFilter.setLimit(-1);
+                continue;
+            }
+
+            if (isNaN(count) || count === 0 && condition === FilterConditions.LessThan) {
+                this.#flashInput(text);
                 return;
             }
 
-            FilterSettings.introLimit = introCount;
+            markerFilter.setLimit(count);
         }
-
-        FilterSettings.introCondition = introCondition;
-
-        // Can this be shared with above?
-        const creditsText = $$('input[type=text]', this.#creditsFilter);
-        const creditsCount = parseInt(creditsText.value);
-        const creditsCondition = parseInt($$('select', this.#creditsFilter).value);
-        if (creditsText.value.length === 0) {
-            FilterSettings.creditsLimit = -1;
-        } else {
-            if (isNaN(creditsCount) || creditsCount === 0 && creditsCondition === FilterConditions.LessThan) {
-                this.#flashInput(creditsText);
-                return;
-            }
-
-            FilterSettings.creditsLimit = creditsCount;
-        }
-
-        FilterSettings.creditsCondition = creditsCondition;
 
         FilterSettings.sortBy = parseInt($('#sortBy').value);
         FilterSettings.sortOrder = parseInt($('#sortOrder').value);

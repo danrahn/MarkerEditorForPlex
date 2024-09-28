@@ -1,6 +1,6 @@
 
-/** Set of supported marker types. The only known type not supported is Commercial markers. */
-const _supportedMarkerTypes = new Set(['intro', 'credits']);
+/** Set of known marker types. */
+const _supportedMarkerTypes = new Set(['intro', 'credits', 'commercial']);
 
 /**
  * Return whether the given marker type is a supported type.
@@ -14,7 +14,9 @@ const MarkerType = {
     /** @readonly */
     Intro   : 'intro',
     /** @readonly */
-    Credits : 'credits'
+    Credits : 'credits',
+    /** @readonly */
+    Ad      : 'commercial',
 };
 
 /**
@@ -26,7 +28,10 @@ const MarkerEnum = {
     /**@readonly*/
     Credits : 0x2,
     /**@readonly*/
-    All     : 0x1 | 0x2,
+    Ad      : 0x4,
+    /**@readonly*/
+    All     : 0x1 | 0x2 | 0x4,
+
     /**
      * Determine whether the given enum values matches the given marker type string.
      * @param {string} markerType
@@ -37,6 +42,8 @@ const MarkerEnum = {
                 return (markerEnum & MarkerEnum.Intro) !== 0;
             case MarkerType.Credits:
                 return (markerEnum & MarkerEnum.Credits) !== 0;
+            case MarkerType.Ad:
+                return (markerEnum & MarkerEnum.Ad) !== 0;
             default:
                 return false;
         }

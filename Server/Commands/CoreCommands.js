@@ -445,9 +445,10 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
     // value is any remaining markers associated with the id. Should line up with ignoredMarkerIds.
     const newMarkerInfo = await PlexQueries.reindex(metadataId);
 
-    Log.assert(
-        newMarkerInfo.markers.length === ignoredMarkerIds.length,
-        `BulkDelete - expected new marker count to equal ignoredMarkerIds count. What went wrong?`);
+    Log.assert( // Only valid when we're deleting all marker types.
+        applyTo !== MarkerEnum.All || newMarkerInfo.markers.length === ignoredMarkerIds.length,
+        `BulkDelete - expected new marker count (${newMarkerInfo.markers.length}) ` +
+        `to equal ignoredMarkerIds count (${ignoredMarkerIds.length}). What went wrong?`);
 
     /** @type {MarkerData[]} */
     const serializedMarkers = [];

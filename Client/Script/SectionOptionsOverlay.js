@@ -215,9 +215,11 @@ class SectionOptionsOverlay {
             buildNode('br'),
             buildNode('label', { for : 'deleteAllTypeSelect' }, 'Delete'),
             appendChildren(buildNode('select', { id : 'deleteAllTypeSelect' }),
-                buildNode('option', { value : MarkerEnum.Credits | MarkerEnum.Intro }, 'intro and credit markers'),
+                buildNode('option', { value : MarkerEnum.All }, 'all markers'),
                 buildNode('option', { value : MarkerEnum.Intro }, 'intro markers'),
-                buildNode('option', { value : MarkerEnum.Credits }, 'credit markers')),
+                buildNode('option', { value : MarkerEnum.Credits }, 'credit markers'),
+                buildNode('option', { value : MarkerEnum.Ad }, 'ad markers'),
+            ),
             buildNode('br'),
             okayButton,
             cancelButton);
