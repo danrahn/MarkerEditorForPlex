@@ -66,11 +66,12 @@ class TestBase {
 
     /**
      * General purpose method that will be called before a test is executed. */
-    testMethodSetup() {}
+    async testMethodSetup() {}
 
     /**
      * General purpose method that will be called after a test is executed. */
-    testMethodTeardown() {
+    /* eslint-disable-next-line require-await */ // Test classes that override this might be async
+    async testMethodTeardown() {
         // Tests that expect to fail disable Error logging in the main Log (see `expectFailure`). Rest it to Warn.
         BaseLog.setLevel(ConsoleLog.Level.Warn);
     }
@@ -202,7 +203,7 @@ class TestBase {
     async #runSingle(testMethod) {
         await this.resetState();
         await this.resume();
-        this.testMethodSetup();
+        await this.testMethodSetup();
         let success = true;
         let response = '';
         try {
@@ -212,7 +213,7 @@ class TestBase {
             response = ex.message;
         }
 
-        this.testMethodTeardown();
+        await this.testMethodTeardown();
 
         TestLog.verbose(`\t[${testMethod.name}]: ${success ? 'PASSED' : 'FAILED'}`);
         if (!success) {
@@ -368,14 +369,15 @@ class TestBase {
             Marker1 : { Id : 7, Start : 10000, End : 30000, Index : 0, Type : 'intro', Final : false },
             Marker2 : { Id : 8, Start : 40000, End : 45000, Index : 1, Type : 'credits', Final : false },
             Marker3 : { Id : 9, Start : 55000, End : 60000, Index : 2, Type : 'credits', Final : true },
+            Marker4 : { Id : 10, Start : 61000, End : 80000, Index : 3, Type : 'commercial', Final : false },
         },
         Movie3 : { Id : 102,
-            Marker1 : { Id : 10, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
+            Marker1 : { Id : 11, Start : 15000, End : 45000, Index : 0, Type : 'intro', Final : false },
         }
     };
     /* eslint-enable */
 
-    static NextMarkerIndex = 11;
+    static NextMarkerIndex = 12;
 
     /**
      * Create the minimal recreation of the Plex database and enter some default metadata and marker items. */
@@ -547,6 +549,7 @@ class TestBase {
         insertString += dbMarkerInsert(movie.Id, movie.Marker1.Index, movie.Marker1.Start, movie.Marker1.End, movie.Marker1.Type, movie.Marker1.Final);
         insertString += dbMarkerInsert(movie.Id, movie.Marker2.Index, movie.Marker2.Start, movie.Marker2.End, movie.Marker2.Type, movie.Marker2.Final);
         insertString += dbMarkerInsert(movie.Id, movie.Marker3.Index, movie.Marker3.Start, movie.Marker3.End, movie.Marker3.Type, movie.Marker3.Final);
+        insertString += dbMarkerInsert(movie.Id, movie.Marker4.Index, movie.Marker4.Start, movie.Marker4.End, movie.Marker4.Type, movie.Marker4.Final);
         movie = TestBase.DefaultMetadata.Movie3;
         insertString += dbMarkerInsert(movie.Id, movie.Marker1.Index, movie.Marker1.Start, movie.Marker1.End, movie.Marker1.Type, movie.Marker1.Final);
         return insertString;

@@ -87,7 +87,7 @@ class TestHelpers {
         checkField(row.end_time_offset, expectedEnd, 'DB marker end');
         checkField(row.index, expectedIndex, 'DB marker index'); // TODO: indexRemove: order
         checkField(row.text, expectedType, 'DB marker type');
-        checkField(row.extra_data.indexOf('final=1') !== -1, expectedFinal, 'Final credits');
+        checkField(row.extra_data === null ? false : row.extra_data.indexOf('final=1') !== -1, expectedFinal, 'Final credits');
         TestHelpers.verify(allIssues.length === 0, allIssues);
     }
 

@@ -11,9 +11,11 @@ class BasicCRUD extends TestBase {
             this.testSingleAdd,
             this.testSingleCreditAdd,
             this.testSingleFinalCreditAdd,
+            this.testSingleAdAdd,
             this.testSingleMovieAdd,
             this.testSingleMovieCreditsAdd,
             this.testSingleMovieFinalCreditsAdd,
+            this.testSingleMovieAdAdd,
             this.testAddFlippedStartAndEnd,
             this.testNegativeStart,
             this.testEqualStartAndEnd,
@@ -26,13 +28,15 @@ class BasicCRUD extends TestBase {
             this.testSingleMovieEdit,
             this.testSingleMovieCreditsEdit,
             this.testSingleMovieFinalCreditsEdit,
-            this.testIntroToCreditsToIntroEdit,
+            this.testSingleMovieAdEdit,
+            this.testMarkerTypeEdit,
             this.testEditOfNonexistentMarker,
             this.testEditOfFinalIntroMarker,
             this.testEditFlippedStartAndEnd,
             this.testSingleDelete,
             this.testSingleCreditsDelete,
             this.testSingleFinalCreditsDelete,
+            this.testSingleAdDelete,
             this.testSingleMovieDelete,
             this.testSingleMovieCreditsDelete,
             this.testSingleMovieFinalCreditsDelete,
@@ -67,6 +71,14 @@ class BasicCRUD extends TestBase {
     }
 
     /**
+     * Test adding a single ad marker to an episode that has no existing markers. */
+    async testSingleAdAdd() {
+        const show = TestBase.DefaultMetadata.Show1;
+        const episodeId = show.Season1.Episode1.Id;
+        await this.#testSingleAdd(episodeId, 45000, 50000, show.Id, show.Season1.Id, 'commercial', false /*final*/);
+    }
+
+    /**
      * Add a single intro marker to a movie that has no markers. */
     async testSingleMovieAdd() {
         const movie = TestBase.DefaultMetadata.Movie1;
@@ -85,6 +97,13 @@ class BasicCRUD extends TestBase {
     async testSingleMovieFinalCreditsAdd() {
         const movie = TestBase.DefaultMetadata.Movie1;
         await this.#testSingleAdd(movie.Id, 45000, 60000, -1, -1, 'credits', true /*final*/);
+    }
+
+    /**
+     * Add a single ad marker to a movie that has no markers. */
+    async testSingleMovieAdAdd() {
+        const movie = TestBase.DefaultMetadata.Movie1;
+        await this.#testSingleAdd(movie.Id, 45000, 60000, -1, -1, 'commercial', false /*final*/);
     }
 
     /**
@@ -199,23 +218,29 @@ class BasicCRUD extends TestBase {
     /**
      * Test editing an existing credits marker for a single movie. */
     testSingleMovieCreditsEdit() {
-        const movie = TestBase.DefaultMetadata.Movie3;
-        return this.#testSingleEdit(movie.Marker1.Id, 45000, 55000, movie.Id, -1, -1, 'credits', false /*final*/);
+        const movie = TestBase.DefaultMetadata.Movie2;
+        return this.#testSingleEdit(movie.Marker2.Id, 45000, 54000, movie.Id, -1, -1, 'credits', false /*final*/, 1 /*expectedIndex*/);
     }
 
     /**
      * Test editing an existing final credits marker for a single movie. */
     testSingleMovieFinalCreditsEdit() {
-        const movie = TestBase.DefaultMetadata.Movie3;
-        return this.#testSingleEdit(movie.Marker1.Id, 45000, 60000, movie.Id, -1, -1, 'credits', true /*final*/);
+        const movie = TestBase.DefaultMetadata.Movie2;
+        return this.#testSingleEdit(movie.Marker3.Id, 46000, 60000, movie.Id, -1, -1, 'credits', true /*final*/, 2 /*expectedIndex*/);
+    }
+
+    testSingleMovieAdEdit() {
+        const movie = TestBase.DefaultMetadata.Movie2;
+        return this.#testSingleEdit(movie.Marker4.Id, 65000, 95000, movie.Id, -1, -1, 'commercial', false /*final*/, 3 /*expectedIndex*/);
     }
 
     /**
-     * Test editing an existing marker between credits and intro for a single movie. */
-    async testIntroToCreditsToIntroEdit() {
+     * Test editing an existing marker between different marker types for a single movie. */
+    async testMarkerTypeEdit() {
         const movie = TestBase.DefaultMetadata.Movie3;
         await this.#testSingleEdit(movie.Marker1.Id, 45000, 60000, movie.Id, -1, -1, 'credits', true /*final*/);
         await this.#testSingleEdit(movie.Marker1.Id, 10000, 20000, movie.Id, -1, -1, 'intro', false /*final*/);
+        await this.#testSingleEdit(movie.Marker1.Id, 10000, 20000, movie.Id, -1, -1, 'commercial', false /*final*/);
         await this.#testSingleEdit(movie.Marker1.Id, 45000, 55000, movie.Id, -1, -1, 'credits', false /*final*/);
     }
 
@@ -229,7 +254,7 @@ class BasicCRUD extends TestBase {
      * @param {number} showId -1 for movies
      * @param {string} markerType
      * @param {boolean} final */
-    async #testSingleEdit(markerId, start, end, parentId, seasonId, showId, markerType='intro', final=false) {
+    async #testSingleEdit(markerId, start, end, parentId, seasonId, showId, markerType='intro', final=false, index=0) {
         const marker = await this.editMarker(markerId, start, end, markerType, final);
         return TestHelpers.validateMarker(
             marker,
@@ -239,7 +264,7 @@ class BasicCRUD extends TestBase {
             showId,
             start,
             end,
-            0 /*expectedIndex*/,
+            index,
             final,
             this.testDb);
     }
@@ -303,6 +328,12 @@ class BasicCRUD extends TestBase {
      * Test deleting a single final credits marker from an episode. */
     testSingleFinalCreditsDelete() {
         return this.#testSingleDelete(TestBase.DefaultMetadata.Show3.Season1.Episode2.Marker3);
+    }
+
+    /**
+     * Test deleting a single commercial marker from a movie. */
+    testSingleAdDelete() {
+        return this.#testSingleDelete(TestBase.DefaultMetadata.Movie2.Marker4);
     }
 
     /**

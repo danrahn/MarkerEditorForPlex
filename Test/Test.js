@@ -28,7 +28,7 @@ async function askForTests() {
     const tcName = await rl.question('Test Class Name: ');
     const testMethod = await rl.question('Test Method (Enter to run all class tests): ');
     rl.close();
-    return testRunner.runSpecific(tcName, testMethod);
+    return testRunner.runSpecific(tcName, testMethod || null);
 }
 
 /**
