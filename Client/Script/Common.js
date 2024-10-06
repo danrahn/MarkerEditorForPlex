@@ -317,6 +317,41 @@ const validNegative = e =>
     && e.target.selectionStart === 0
     && (e.target.value[0] !== '-' || e.target.selectionEnd !== e.target.selectionStart);
 
+
+/**
+ * Return the new time in milliseconds for the time input based on the given values.
+ * Takes into account jumping between positive and negative offsets.
+ * @param {number} previous The old time in milliseconds
+ * @param {number} min The minimum value
+ * @param {number} max The maximum value
+ * @param {number} delta The baseline number of milliseconds to adjust previous */
+function getNewTime(previous, min, max, delta) {
+    const newTime = Math.min(max, Math.max(min, previous + delta));
+    if (min === 0) {
+        // Return early if negative values aren't allowed.
+        return newTime;
+    }
+
+    // If we're at zero and crossing the boundary, switch to the inverse (0 => -0, -0 => 0)
+    if (previous === 0) {
+        if (Object.is(previous, 0)) {
+            if (delta < 0) {
+                return -0;
+            }
+        } else if (delta > 0) {
+            return 0;
+        }
+    }
+
+    // If the default adjustment switches between negative and positive, first stop at the
+    // appropriate zero value (jumping positive stops at -0, jumping negative stops at 0).
+    if (Object.is(Math.abs(previous), previous) !== Object.is(Math.abs(newTime), newTime)) {
+        return (previous < 0 || Object.is(previous, -0)) ? -0 : 0;
+    }
+
+    return newTime;
+}
+
 /**
  * A common input handler that allows incremental
  * time changes with keyboard shortcuts.
@@ -357,7 +392,8 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
         timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
     }
 
-    const newTime = Math.min(max, Math.max(min, currentValueMs + timeDiff));
+    const newTime = getNewTime(currentValueMs, min, max, timeDiff);
+
     const newValue = needsHms ? msToHms(newTime) : newTime;
 
     // execCommand will make this undo-able, but is deprecated.
