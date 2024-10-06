@@ -4,6 +4,10 @@
     "host" : "localhost",
     "port" : 3232,
     "logLevel" : "DarkInfo",
+    "authentication" : {
+        "enabled" : false,
+        "sessionTimeout" : 86400
+    },
     "features" : {
         "autoOpen" : true,
         "extendedMarkerStats" : true,

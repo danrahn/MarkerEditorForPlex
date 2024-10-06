@@ -105,9 +105,12 @@ class SqliteDatabase {
      * @param {DbQueryParameters|null} parameters
      * @returns {Promise<any>} */
     #action(fn, query, parameters=null) {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             const callback = (err, result) => {
-                if (err) { throw ServerError.FromDbError(err); }
+                // Note: don't throw here. That may result in crashing the entire application since the standard
+                // try { await X() } catch (ex) {} won't catch it. Rejecting this with the error ensures our
+                // explicit catch handlers see this, and it's not bubbled up to the uncaught exception filter.
+                if (err) { reject(ServerError.FromDbError(err)); return; }
 
                 resolve(result);
             };

@@ -1,7 +1,7 @@
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 import ServerError from './ServerError.js';
 
-/** @typedef {!import('http').IncomingMessage} IncomingMessage */
+/** @typedef {!import('express').Request} ExpressRequest */
 
 /** @typedef {{ name : string, data : string, [optionalKeys: string]: string? }} ParsedFormField */
 /** @typedef {{ [name: string]: ParsedFormField }} ParsedFormData */
@@ -20,7 +20,7 @@ class FormDataParse {
      * Retrieves all data from the request body and returns the parsed body as an object of key-value pairs.
      * If we ever have reason to parse many megabytes/gigabytes of data, stream the data to a file first and
      * then parse. In the meantime, let the caller pass in a reasonable upper limit.
-     * @param {IncomingMessage} request
+     * @param {ExpressRequest} request
      * @param {number} maxSize Maximum number of bytes in the body before we bail out. */
     static async parseRequest(request, maxSize) {
         /** @type {string} */

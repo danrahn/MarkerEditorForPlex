@@ -2,8 +2,9 @@ import { contentType } from 'mime-types';
 import { createServer } from 'http';
 import { execFileSync } from 'child_process';
 import { gzip } from 'zlib';
+
 /** @typedef {!import('http').Server} Server */
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+/** @typedef {!import('express').Response} ExpressResponse */
 
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 
@@ -14,7 +15,7 @@ const Log = new ContextualLog('ServerHelpers');
 
 /**
  * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.
- * @param {ServerResponse} res
+ * @param {ExpressResponse} res
  * @param {Error|string} error The error to log
  * @param {number?} code Error code to return. Not necessary if error is a ServerError. */
 export function sendJsonError(res, error, code) {
@@ -32,7 +33,7 @@ export function sendJsonError(res, error, code) {
     Log.error(message);
     Log.verbose(stack);
 
-    if (!code) {
+    if (!code || typeof code !== 'number') {
         Log.warn(`sendJsonError didn't receive a valid error code, defaulting to 500`);
         code = 500;
     }
@@ -42,7 +43,7 @@ export function sendJsonError(res, error, code) {
 
 /**
  * Helper method that returns a success HTTP status code alongside any data we want to return to the client.
- * @param {ServerResponse} res
+ * @param {ExpressResponse} res
  * @param {Object} [data] Data to return to the client. If empty, returns a simple success message. */
 export function sendJsonSuccess(res, data) {
     // TMI logging, post the entire response, for verbose just indicate we succeeded.
@@ -57,7 +58,7 @@ export function sendJsonSuccess(res, data) {
 
 /**
  * Attempt to send gzip compressed data to reduce network traffic, falling back to plain text on failure.
- * @param {ServerResponse} res
+ * @param {ExpressResponse} res
  * @param {number} status HTTP status code.
  * @param {*} data The data to compress and return.
  * @param {string|false} typeString The MIME type of `data`.

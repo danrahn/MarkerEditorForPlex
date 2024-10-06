@@ -84,9 +84,54 @@
   text-align: center;
   width: calc(min(90%, 800px));
   margin: auto;
+  padding: 0 0 20px 0; /* Override default for better scrollbar positioning. */
+
+  & #serverSettingsScroll {
+    padding: 20px;
+    max-height: calc(100vh - 230px); /* 230 is fragile comes from various padding and margins. Something better should be done here. */
+    overflow: auto;
+  }
 
   & .serverSettingsSettings {
     text-align: left;
+  }
+
+  & .subSetting { /* Less padding and smaller text for sub-settings. */
+    padding-left: 10px;
+    padding-right: 10px;
+    display: inline-block;
+
+    & .serverSettingTitle {
+      font-size: medium;
+    }
+
+    & input {
+      width: 175px !important;
+      max-width: calc(100% - 10px);
+    }
+
+    & input[type=button] {
+      padding: 3px 20px 3px 20px !important;
+      text-align: center;
+    }
+
+    & input[type=text], input[type=number] {
+      padding: 3px !important;
+    }
+
+    & input:disabled {
+      border-color: var(--theme-input-background);
+      color: var(--button-disabled-shadow);
+    }
+  }
+
+  & .disabledSetting {
+    opacity: 80%;
+  }
+
+  & #serverSettingsMain {
+    max-height: 85vh;
+    overflow-y: scroll;
   }
 
   & .serverSettingTitle {
@@ -149,6 +194,10 @@
 
   & .invalidSubtle {
     background-color: var(--error-background-subtle);
+  }
+
+  & .valid {
+    background-color: var(--success-background);
   }
 
   /** Path Mappings table */
@@ -237,6 +286,10 @@
 
 #pauseServer {
   right: 80px;
+}
+
+#logoutServer {
+  left: 20px;
 }
 
 #shutdownRestartOverlay {

@@ -36,28 +36,31 @@ const Icons = {
     Table : 'table',
     /** @readonly A triangle with an exclamation point in the middle. */
     Warn : 'warn',
+    /** @readonly A logout icon - an arrow peeking out of a rectangle. */
+    Logout : 'logout',
 };
 
 /**
  * @typedef {{
-*   arrow : 'Arrow',
-*   back : 'Back',
-*   cancel : 'Cancel',
-*   chapter : 'Chapter',
-*   confirm : 'Confirm',
-*   cursor : 'Cursor',
-*   delete : 'Delete',
-*   edit : 'Edit',
-*   filter : 'Filter',
-*   help : 'Help',
-*   imgIcon : 'Img',
-*   info : 'Info',
-*   loading : 'Loading',
-*   pause : 'Pause',
-*   restart : 'Restart',
-*   settings : 'Settings',
-*   table : 'Table',
-*   warn : 'Warn',
+ *   arrow : 'Arrow',
+ *   back : 'Back',
+ *   cancel : 'Cancel',
+ *   chapter : 'Chapter',
+ *   confirm : 'Confirm',
+ *   cursor : 'Cursor',
+ *   delete : 'Delete',
+ *   edit : 'Edit',
+ *   filter : 'Filter',
+ *   help : 'Help',
+ *   imgIcon : 'Img',
+ *   info : 'Info',
+ *   loading : 'Loading',
+ *   pause : 'Pause',
+ *   restart : 'Restart',
+ *   settings : 'Settings',
+ *   table : 'Table',
+ *   warn : 'Warn',
+ *   logout : 'Logout',
  * }} IconKeys
  * */
 

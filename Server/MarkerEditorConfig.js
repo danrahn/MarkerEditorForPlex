@@ -3,16 +3,18 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-import { allServerSettings, isFeatureSetting, ServerConfigState, ServerSettings, Setting } from '../Shared/ServerConfig.js';
+import { allServerSettings, ServerConfigState, ServerSettings, Setting } from '../Shared/ServerConfig.js';
 import { BaseLog, ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import { PlexQueries, PlexQueryManager } from './PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
 import { testFfmpeg, testHostPort } from './ServerHelpers.js';
 import ServerError from './ServerError.js';
+import { User } from './Authentication/Authentication.js';
 
-/** @typedef {!import('/Shared/ServerConfig').PathMapping} PathMapping */
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
+/** @typedef {!import('/Shared/ServerConfig').PathMapping} PathMapping */
+/** @typedef {!import('/Shared/ServerConfig').RawSerializedConfig} RawSerializedConfig */
 
 /**
  * @template T
@@ -20,6 +22,11 @@ import ServerError from './ServerError.js';
 
 
 /**
+ * @typedef {{
+ *  enabled?: boolean,
+ *  sessionTimeout?: number
+ * }} RawAuthConfig
+ *
  * @typedef {{
  *  autoOpen?: boolean,
  *  extendedMarkerStats?: boolean,
@@ -33,6 +40,7 @@ import ServerError from './ServerError.js';
  *  host?: string,
  *  port?: number,
  *  logLevel?: string,
+ *  authentication?: RawAuthConfig,
  *  features?: RawConfigFeatures,
  *  pathMappings?: PathMapping[],
  * }} RawConfig
@@ -166,6 +174,40 @@ class ConfigBase {
 }
 
 /**
+ * Captures the 'authentication' portion of the configuration file.
+ */
+class AuthenticationConfig extends ConfigBase {
+    /** @type {ConfigBaseProtected} */
+    #Base = {};
+    /** @type {Setting<boolean>} */
+    enabled;
+    /** @type {Setting<number>} */
+    sessionTimeout;
+
+    constructor(json) {
+        const baseClass = {};
+        super(json, baseClass);
+        this.#Base = baseClass;
+        if (!json) {
+            Log.warn('Authentication not found in config, setting defaults');
+        }
+
+        this.enabled = this.#getOrDefault('enabled', false);
+        this.sessionTimeout = this.#getOrDefault('sessionTimeout', 86_400);
+        if (this.sessionTimeout < 300) {
+            Log.warn(`Session timeout must be at least 300 seconds, found ${this.sessionTimeout}. Setting to 300.`);
+            this.sessionTimeout = 300;
+        }
+    }
+
+    /** Forwards to {@link ConfigBase}s `#getOrDefault`
+     * @type {GetOrDefault} */
+    #getOrDefault(key, defaultValue=null) {
+        return this.#Base.getOrDefault(key, defaultValue);
+    }
+}
+
+/**
  * Captures the 'features' portion of the configuration file.
  */
 class PlexFeatures extends ConfigBase {
@@ -272,6 +314,9 @@ class MarkerEditorConfig extends ConfigBase {
     /** @type {Setting<string>} */
     #logLevel;
 
+    /** @type {AuthenticationConfig} */
+    #auth;
+
     /** Configurable features that can be enabled/disabled in this application.
      * @type {PlexFeatures} */
     #features;
@@ -354,6 +399,7 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
+        this.#auth = new AuthenticationConfig(this.#Base.json.authentication);
         this.#features = new PlexFeatures(this.#Base.json.features);
 
         this.#getPathMappings();
@@ -484,6 +530,14 @@ class MarkerEditorConfig extends ConfigBase {
         return !isNaN(portInt) && portInt > 0 && portInt < 65536 && portInt.toString() === port.toString();
     }
 
+    /**
+     * Verify that the given session timeout is at least 60 seconds.
+     * @param {string} timeout The user-supplied timeout. */
+    static ValidSessionTimeout(timeout) {
+        const timeoutInt = parseInt(timeout);
+        return !isNaN(timeoutInt) && timeoutInt > 59 && timeoutInt.toString() === timeout.toString();
+    }
+
     /** Forwards to {@link ConfigBase}s `#getOrDefault`}
      * @type {GetOrDefault} */
     #getOrDefault(key, defaultValue=null, defaultType=null) {
@@ -499,10 +553,15 @@ class MarkerEditorConfig extends ConfigBase {
     metadataPath() { return this.#dataPath.value(); }
     extendedMarkerStats() { return this.#features.extendedMarkerStats.value(); }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
+    useAuth() { return this.#auth.enabled.value(); }
+    authSessionTimeout() { return this.#auth.sessionTimeout.value(); }
     appVersion() { return this.#version.value(); }
     pathMappings() { return this.#mappings.value(); }
     getValid() { return this.#configState; }
-    /** @returns {SerializedConfig} */
+
+    /**
+     * Serializes the current config as a flat list (e.g. no Features or Authentication subbranches)
+     * @returns {SerializedConfig} */
     serialize() {
         return {
             dataPath : this.#dataPath.serialize(),
@@ -510,15 +569,31 @@ class MarkerEditorConfig extends ConfigBase {
             host : this.#host.serialize(),
             port : this.#port.serialize(),
             logLevel : this.#logLevel.serialize(),
-            features : {
-                autoOpen : this.#features.autoOpen.serialize(),
-                extendedMarkerStats : this.#features.extendedMarkerStats.serialize(),
-                previewThumbnails : this.#features.previewThumbnails.serialize(),
-                preciseThumbnails : this.#features.preciseThumbnails.serialize(),
-            },
+            authEnabled : this.#auth.enabled.serialize(),
+            authSessionTimeout : this.#auth.sessionTimeout.serialize(),
+            autoOpen : this.#features.autoOpen.serialize(),
+            extendedMarkerStats : this.#features.extendedMarkerStats.serialize(),
+            previewThumbnails : this.#features.previewThumbnails.serialize(),
+            preciseThumbnails : this.#features.preciseThumbnails.serialize(),
             pathMappings : this.#mappings.serialize(),
             version : this.#version.serialize(),
+            authUsername : this.#pseudoSetting(User.username()),
+            authPassword : this.#pseudoSetting(User.passwordSet() ? '' : null),
             state : this.#configState,
+        };
+    }
+
+    /**
+     * @template T
+     *
+     * Create a pseudo config value for a plain value type that isn't really a setting.
+     * @param {T} value
+     * @returns {TypedSetting<T>} */
+    #pseudoSetting(value) {
+        return {
+            value :  value,
+            defaultValue : undefined,
+            isValid : true,
         };
     }
 
@@ -538,7 +613,6 @@ class MarkerEditorConfig extends ConfigBase {
             newJson = JSON.parse(JSON.stringify(this.#Base.json));
         }
 
-        const val = s => (s.value === undefined || s.value === null) ? s.defaultValue : s.value;
         const explicitVal = s => s.value !== undefined && s.value !== null;
         const invalidOkay = s => {
             switch (s) {
@@ -546,32 +620,26 @@ class MarkerEditorConfig extends ConfigBase {
                     return false;
                 case ServerSettings.DataPath:
                     return newConfig.database.value && (
-                        !val(newConfig.features.previewThumbnails)
-                        || val(newConfig.features.preciseThumbnails));
+                        !settingValue(newConfig.previewThumbnails)
+                        || settingValue(newConfig.preciseThumbnails));
                 case ServerSettings.FFmpegThumbnails:
-                    return !val(newConfig.features.previewThumbnails);
+                    return !settingValue(newConfig.previewThumbnails);
             }
         };
 
         /** @type {Set<string>} */
         const changedKeys = new Set();
         /** @type {(k: string, s: TypedSetting<T>) => void} */
-        const setVal = (k, s) => {
-            if (isFeatureSetting(k)) {
-                (newJson.features ??= {})[k] = val(s);
-            } else {
-                newJson[k] = val(s);
-            }
-
+        const setVal = (k, s, r) => {
+            flatToRaw(k, r)[mapNameToRaw(k)] = settingValue(s);
             if (!s.unchanged) {
                 changedKeys.add(k);
             }
         };
 
         for (const settingKey of allServerSettings()) {
-            const isFeature = isFeatureSetting(settingKey);
             /** @type {TypedSetting<T>} */
-            const setting = isFeature ? newConfig.features[settingKey] : newConfig[settingKey];
+            const setting = newConfig[settingKey];
             if (!setting.isValid && !invalidOkay(settingKey)) {
                 result.message = `Invalid setting for "${settingKey}", cannot save settings.`;
                 result.config.state = ServerConfigState.Invalid;
@@ -580,13 +648,13 @@ class MarkerEditorConfig extends ConfigBase {
 
             if (explicitVal(setting)) {
                 // An explicit value always overrides whatever's in the previous config.
-                setVal(settingKey, setting);
+                setVal(settingKey, setting, newJson);
             } else {
                 // Default value used. If previous JSON had the value, overwrite it, otherwise
                 // leave it out of the config.
-                const jsonSetting = isFeature ? newJson.features?.[settingKey] : newJson[settingKey];
+                const jsonSetting = flatToRaw(settingKey, newJson, false /*create*/)?.[mapNameToRaw(settingKey)];
                 if (jsonSetting) {
-                    setVal(settingKey, setting);
+                    setVal(settingKey, setting, newJson);
                 }
             }
         }
@@ -596,6 +664,9 @@ class MarkerEditorConfig extends ConfigBase {
         // Try to change the internal state first, that way we don't write the config to disk if
         // we failed to update things internally for whatever reason.
         result.config.state = await this.#updateInternalConfig(newJson, changedKeys);
+
+        // Make sure any pseudo-settings aren't saved to the actual config.
+        delete newJson[ServerSettings.Username];
 
         // Overwrite existing contents. Using the original JSON should ensure that any extra
         // fields still remain, though order isn't guaranteed.
@@ -608,10 +679,15 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * @param {RawConfig} newConfig
      * @param {Set<string>} changedKeys */
+    // eslint-disable-next-line complexity
     async #updateInternalConfig(newConfig, changedKeys) {
 
-        if (changedKeys.has(ServerSettings.Host) || changedKeys.has(ServerSettings.Port)) {
-            // Need to do a full update anyway, so no need to try in-place updates.
+        // Server related settings requires a full server reboot, so no
+        // need to try any in-place updates.
+        if (changedKeys.has(ServerSettings.Host)
+            || changedKeys.has(ServerSettings.Port)
+            || changedKeys.has(ServerSettings.UseAuthentication)
+            || changedKeys.has(ServerSettings.SessionTimeout)) {
             return ServerConfigState.FullReloadNeeded;
         }
 
@@ -620,7 +696,8 @@ class MarkerEditorConfig extends ConfigBase {
         if (GetServerState() === ServerState.RunningWithoutConfig
             || changedKeys.has(ServerSettings.DataPath)
             || changedKeys.has(ServerSettings.Database)
-            || changedKeys.has(ServerSettings.ExtendedStats)) {
+            || changedKeys.has(ServerSettings.ExtendedStats)
+            || changedKeys.has(ServerSettings.SessionTimeout)) {
             return ServerConfigState.ReloadNeeded;
         }
 
@@ -628,7 +705,7 @@ class MarkerEditorConfig extends ConfigBase {
             waitForServerEvent(ServerEvents.ReloadThumbnailManager, PlexQueries.database());
 
         for (const key of changedKeys) {
-            const newValue = isFeatureSetting(key) ? newConfig.features[key] : newConfig[key];
+            const newValue = flatToRaw(key, newConfig, false /*create*/)?.[mapNameToRaw(key)];
             switch (key) {
                 case ServerSettings.LogLevel:
                 {
@@ -668,6 +745,19 @@ class MarkerEditorConfig extends ConfigBase {
                     this.#features.preciseThumbnails.setValue(newValue);
                     await waitForThumbsReset();
                     break;
+                case ServerSettings.UseAuthentication:
+                    this.#auth.enabled.setValue(newValue);
+                    break;
+                case ServerSettings.Username:
+                    await User.changeUsername(newValue);
+                    break;
+                case ServerSettings.SessionTimeout:
+                {
+                    // Just set the new value. Existing sessions keep their timeout,
+                    // only new sessions will get the new value.
+                    this.#auth.sessionTimeout.setValue(newValue);
+                    break;
+                }
                 case ServerSettings.PathMappings:
                     this.#getPathMappingsCore(newValue);
                     await waitForThumbsReset();
@@ -686,7 +776,7 @@ class MarkerEditorConfig extends ConfigBase {
      * @returns {Promise<SerializedConfig>} The config with isValid details. */
     async validateConfig(config) {
         /** @type {SerializedConfig} */
-        const newConfig = { features : {} };
+        const newConfig = { };
 
         // Host:Port is (currently) the only odd one out.
         const newHost = config.host.value || config.host.defaultValue;
@@ -705,31 +795,48 @@ class MarkerEditorConfig extends ConfigBase {
             unchanged : newHost === this.host(),
         };
 
+        /**
+         * @param {string} serverSetting */
+        const updateSingle = async (serverSetting) => {
+            /** @type {TypedSetting<T>} */
+            const setting = config[serverSetting];
+            if (!setting) {
+                throw new ServerError(`Unexpected server setting "${serverSetting}". Cannot validate.`, 400);
+            }
+
+            const newSetting = (await this.validateField(serverSetting, setting)).serialize(true);
+            newConfig[serverSetting] = newSetting;
+        };
+
+        // Independent settings
         for (const serverSetting of [
             ServerSettings.DataPath,
             ServerSettings.Database,
             ServerSettings.Port,
             ServerSettings.LogLevel,
             ServerSettings.PathMappings,
-            // Feature settings
+            ServerSettings.UseAuthentication,
             ServerSettings.AutoOpen,
             ServerSettings.ExtendedStats,
             ServerSettings.PreviewThumbnails,
-            ServerSettings.FFmpegThumbnails
+            ServerSettings.FFmpegThumbnails,
         ]) {
-            const isFeature = isFeatureSetting(serverSetting);
-            /** @type {TypedSetting<T>} */
-            const setting = isFeature ? config.features[serverSetting] : config[serverSetting];
-            if (!setting) {
-                throw new ServerError(`Unexpected server setting "${serverSetting}". Cannot validate.`, 400);
-            }
+            await updateSingle(serverSetting);
+        }
 
-            const newSetting = (await this.validateField(serverSetting, setting)).serialize(true);
-            if (isFeature) {
-                newConfig.features[serverSetting] = newSetting;
-            } else {
-                newConfig[serverSetting] = newSetting;
+        // Sub-settings that depend on the values above
+        if (settingValue(newConfig[ServerSettings.UseAuthentication])) {
+            // Ignore any changes to username/session timeout if auth has been disabled.
+            for (const authSetting of [
+                ServerSettings.Username,
+                ServerSettings.SessionTimeout,
+            ]) {
+                await updateSingle(authSetting);
             }
+        } else {
+            // Just keep the values the same.
+            newConfig[ServerSettings.Username] = { ...config[ServerSettings.Username] };
+            newConfig[ServerSettings.SessionTimeout] = { ...config[ServerSettings.SessionTimeout] };
         }
 
         return newConfig;
@@ -741,7 +848,8 @@ class MarkerEditorConfig extends ConfigBase {
      * @param {string} field
      * @param {TypedSetting<T>} value
      * @returns {Promise<Setting<T>>} */
-    validateField(field, value) {
+    // eslint-disable-next-line complexity
+    async validateField(field, value) {
         const setting = new Setting();
         setting.setFromSerialized(value);
         setting.setValid(true);
@@ -777,6 +885,36 @@ class MarkerEditorConfig extends ConfigBase {
                     && parsed.dark === !!BaseLog.getDarkConsole());
                 return setting;
             }
+            case ServerSettings.UseAuthentication:
+                setting.setUnchanged(setting.value() === this.useAuth());
+                setValidBoolean(setting);
+                return setting;
+            case ServerSettings.SessionTimeout:
+                setting.setUnchanged(setting.value() === this.authSessionTimeout());
+                setting.setValid(MarkerEditorConfig.ValidSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
+                return setting;
+            case ServerSettings.Username:
+            {
+                const val = setting.value();
+                setting.setUnchanged(val === User.username());
+                setting.setValid(val && val.length <= 256 && val.length === val.replace(/\s/g, '').length,
+                    val ? val.length > 256 ?
+                        'Usernames are limited to 256 characters' :
+                        'Username cannot contain whitespace' :
+                        'Username cannot be empty');
+                return setting;
+            }
+            case ServerSettings.Password:
+            {
+                // This is a pseudo-setting that is here so there's a single spot for configuration related
+                // validation, but since we don't store the password in config.json (or in plaintext), it
+                // doesn't really belong here. Valid in this case means the correct password was entered,
+                // or no password is set (i.e. enabling auth for the first time).
+                const valid = await this.#isPasswordValid(setting);
+                setting.setUnchanged(valid);
+                setting.setValid(valid, `Password is incorrect.`);
+                return setting;
+            }
             case ServerSettings.AutoOpen:
                 setting.setUnchanged(setting.value() === this.autoOpen());
                 setValidBoolean(setting);
@@ -808,6 +946,13 @@ class MarkerEditorConfig extends ConfigBase {
     }
 
     /**
+     * Return whether the given password is valid (or no password is set).
+     * @param {Setting<string>} setting */
+    async #isPasswordValid(setting) {
+        return !User.passwordSet() || await User.loginInternal(setting.value());
+    }
+
+    /**
      * Ensure the given data path exists and looks like the Plex data directory.
      * @param {Setting<string>} setting */
     #validateDataPath(setting) {
@@ -829,6 +974,8 @@ class MarkerEditorConfig extends ConfigBase {
             && !existsSync(join(setting.value(), 'Plug-in Support', 'Databases'))) {
             if (this.#allowInvalid) {
                 setting.setValid(false, `Found a directory, but it doesn't look like the Plex data directory`);
+                // TODO: If an invalid value is entered, reverted, and then never committed, we'll be stuck in
+                // an invalid state even though it _is_ valid.
                 this.#configState = ServerConfigState.Invalid;
                 return setting;
             }
@@ -988,6 +1135,49 @@ function getWin32DataPathFromRegistry() {
     }
 
     return '';
+}
+
+/**
+ * @template T
+ * @param {TypedSetting<T>} setting */
+function settingValue(setting) {
+    return (setting.value === null || setting.value === undefined) ? setting.defaultValue : setting.value;
+}
+
+/**
+ * Maps a flat setting name to a raw setting name.
+ * Retrieve the raw config path for the given setting.
+ * @param {string} setting */
+function mapNameToRaw(setting) {
+    switch (setting) {
+        case ServerSettings.UseAuthentication:
+            return 'enabled';
+        case ServerSettings.SessionTimeout:
+            return 'sessionTimeout';
+        default:
+            return setting;
+    }
+}
+
+/**
+ * Maps a setting to its location in the raw config.
+ * @param {string} setting
+ * @param {RawConfig} rawConfig
+ * @param {boolean} [create=true] If true, creates any necessary subsections. If false, returns
+ *                                undefined if it does not already exist in the raw config. */
+function flatToRaw(setting, rawConfig, create=true) {
+    switch (setting) {
+        default:
+            return rawConfig;
+        case ServerSettings.UseAuthentication:
+        case ServerSettings.SessionTimeout:
+            return create ? (rawConfig.authentication ??= {}) : rawConfig.authentication;
+        case ServerSettings.AutoOpen:
+        case ServerSettings.ExtendedStats:
+        case ServerSettings.PreviewThumbnails:
+        case ServerSettings.FFmpegThumbnails:
+            return create ? (rawConfig.features ??= {}) : rawConfig.features;
+    }
 }
 
 /**

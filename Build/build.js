@@ -21,6 +21,7 @@ import semver from 'semver';
 import webpack from 'webpack';
 
 /** @typedef {!import('nexe/lib/options').NexePatch} NexePatchFunction */
+/** @typedef {!import('webpack').Stats} Stats */
 
 import ReadMeGenerator from './ReadMeGenerator.cjs';
 
@@ -104,14 +105,36 @@ async function transpile() {
     });
 }
 
-import clientConfig from '../webpack.config.js';
+import { IndexJS as IndexWebpack, LoginJS as LoginWebpack } from '../webpack.config.js';
 
-let packedJs = '';
+/** List of HTML files that need to be injected with cache-bustable JS/CSS */
+const htmlFiles = {
+    index : { path : resolve(buildDir, '../index.html'), js : '' },
+    login : { path : resolve(buildDir, '../Client/login.html'), js : '' }
+};
+
 import StyleSheets from '../Client/Script/StyleSheets.js';
 const hashedStyles = [];
 
 import Icons from '../Client/Script/Icons.js';
 const hashedSVGs = [];
+
+/**
+ * Runs the given function and swallows any exceptions that are thrown.
+ * @param {(...any) => any} fn */
+function ignoreError (fn) {
+    try {
+        fn();
+    } catch (innerErr) {
+        // Swallow inner exceptions to try and clean up as much as possible.
+        // TODO: Copy all project files to a temporary directory so we don't need all these hacks.
+        console.error(`Exception thrown during cleanup. Project directory may be broken.`);
+        console.error(innerErr);
+        // console.error(innerErr.message);
+        // console.error(innerErr.stack || 'Callstack not available.');
+        console.log();
+    }
+}
 
 /**
  * Minify client code and inject minified source into html. */
@@ -158,44 +181,49 @@ async function minifyClient() {
     const newStyleText = `const StyleSheets = ${JSON.stringify(newCSS)};export default StyleSheets;`;
     writeFileSync(styleFile, newStyleText, { encoding : 'utf-8' });
 
-    const compiler = webpack(clientConfig);
     try {
-        await new Promise(r => {
-            compiler.run((err, stats) => {
-                if (err) {
-                    console.error(err.stack || err);
-                    if (err.details) {
-                        console.error(err.details);
-                    }
+        await Promise.all([
+            new Promise(r => { webpack(IndexWebpack).run(compileFn('index', r)); }),
+            new Promise(r => { webpack(LoginWebpack).run(compileFn('login', r)); })
+        ]);
 
-                    throw new Error(`Webpack error. Cannot continue.`);
-                }
+        // Now back up our original html files so we can replace "dev" JS and
+        // CSS imports with production cache-busting CSS. Note that we don't
+        // restore these until they're bundled into the exe.
+        for (const htmlFile of Object.values(htmlFiles)) {
+            copyFileSync(htmlFile.path, htmlFile.path + '_T');
+        }
 
-                const info = stats.toJson();
+        for (const [htmlName, htmlInfo] of Object.entries(htmlFiles)) {
 
-                if (stats.hasErrors()) {
-                    console.error(info.errors);
-                    throw new Error(`Webpack error. Cannot continue.`);
-                }
+            let html = readFileSync(htmlInfo.path).toString('utf-8').replace(
+                new RegExp(`(<script.*").*${htmlName}\\.js(".*?<\\/script>)`), `$1${htmlInfo.js}$2`);
+            for (const [baseStyle, newStyle] of Object.entries(styleSheetMap)) {
+                html = html.replace(new RegExp(`/${baseStyle}`), `/${newStyle}`);
+            }
 
-                if (stats.hasWarnings()) {
-                    console.warn(info.warnings);
-                }
+            writeFileSync(htmlInfo.path, html, { encoding : 'utf-8' });
+        }
+    } catch (err) {
+        // On error, we won't continue attempting to bundle, so remove all hashed files and
+        // restore HTML
+        for (const icon of hashedSVGs) {
+            ignoreError(() => rmSync(icon));
+        }
 
-                for (const asset of info.assets) {
-                    if (/^index\.[a-f0-9]+\.js$/i.test(asset.name)) {
-                        packedJs = asset.name;
-                        break;
-                    }
-                }
+        for (const style of hashedStyles) {
+            ignoreError(() => rmSync(style));
+        }
 
-                if (!packedJs) {
-                    throw new Error(`Unable to find packed js name. Cannot continue.`);
-                }
-
-                r();
+        for (const htmlInfo of Object.values(htmlFiles)) {
+            ignoreError(() => {
+                rmSync(htmlInfo.path);
+                renameSync(htmlInfo.path + '_T', htmlInfo.path);
+                rmSync(resolve(buildDir, `../${htmlInfo.js}`));
             });
-        });
+        }
+
+        throw err;
     } finally {
         rmSync(iconsFile);
         renameSync(iconsFileT, iconsFile);
@@ -205,15 +233,52 @@ async function minifyClient() {
 
         // Can't delete hashed files until they'be been bundled with nexe.
     }
+}
 
-    // Now remove the "dev" index.js import, and replace "dev" CSS with production cache-busting CSS
-    const indexHtmlPath = resolve(buildDir, '../dist/index.html');
-    let indexHtml = readFileSync(indexHtmlPath).toString('utf-8').replace(/<script.*\/index\.js".*?<\/script>/, '');
-    for (const [baseStyle, newStyle] of Object.entries(styleSheetMap)) {
-        indexHtml = indexHtml.replace(new RegExp(`/${baseStyle}`), `/${newStyle}`);
-    }
+/**
+ * Returns a webpack compilation function for a given JS file.
+ * @param {'index'|'login'} fileName The top-level JS file to compile
+ * @param {(any) => void} resolveFn */
+function compileFn (fileName, resolveFn) {
+    /**
+     * @param {Error?} err
+     * @param {Stats} stats */
+    const fn = (err, stats) => {
+        if (err) {
+            console.error(err.stack || err);
+            if (err.details) {
+                console.error(err.details);
+            }
 
-    writeFileSync(indexHtmlPath, indexHtml, { encoding : 'utf-8' });
+            throw new Error(`Webpack error. Cannot continue.`);
+        }
+
+        const info = stats.toJson();
+
+        if (stats.hasErrors()) {
+            console.error(info.errors);
+            throw new Error(`Webpack error. Cannot continue.`);
+        }
+
+        if (stats.hasWarnings()) {
+            console.warn(info.warnings);
+        }
+
+        for (const asset of info.assets) {
+            if (new RegExp(`^${fileName}\\.[a-f0-9]+\\.js$`, 'i').test(asset.name)) {
+                htmlFiles[fileName].js = asset.name;
+                break;
+            }
+        }
+
+        if (!htmlFiles[fileName].js) {
+            throw new Error(`Unable to find packed js name. Cannot continue.`);
+        }
+
+        resolveFn();
+    };
+
+    return fn;
 }
 
 /**
@@ -450,14 +515,6 @@ async function toExe() {
         rmSync(oldOut, { recursive : true, force : true });
     }
 
-    // Hacky. We want our binary to have the modified index.html in the root directory to make the
-    // logic in GETHandler simpler. but the real index.html already lives there. Temporarily rename
-    // it, move the modified version in its place, then clean things up after the binary is built.
-    const indexHtml = resolve(buildDir, '../index.html');
-    renameSync(indexHtml, resolve(buildDir, '../index.html_T'));
-    renameSync(resolve(buildDir, '../dist/index.html'), indexHtml);
-    renameSync(resolve(buildDir, `../dist/${packedJs}`), resolve(buildDir, `../${packedJs}`));
-
     try {
         await compile({
             input : resolve(buildDir, '../dist/built.cjs'),
@@ -477,8 +534,10 @@ async function toExe() {
             resources : [
                 resolve(buildDir, '../package.json'),
                 resolve(buildDir, '../index.html'),
+                resolve(buildDir, '../Client/login.html'),
                 resolve(buildDir, '../SVG/favicon.svg'),
                 resolve(buildDir, '../index.*.js'),
+                resolve(buildDir, '../login.*.js'),
                 resolve(buildDir, '../dist/built.cjs'),
                 ...hashedSVGs,
                 ...hashedStyles,
@@ -490,17 +549,21 @@ async function toExe() {
             ]
         }); // Don't catch, interrupt on failure.
     } finally {
-        rmSync(indexHtml);
-        renameSync(resolve(buildDir, '../index.html_T'), indexHtml);
-        rmSync(resolve(buildDir, `../${packedJs}`));
+        // Only delete hashed/temp files once we've bundled them, not after webpack.
+        for (const htmlInfo of Object.values(htmlFiles)) {
+            ignoreError(() => {
+                rmSync(htmlInfo.path);
+                renameSync(htmlInfo.path + '_T', htmlInfo.path);
+                rmSync(resolve(buildDir, `../${htmlInfo.js}`));
+            });
+        }
 
-        // Only delete hashed files once we've bundled them, not after webpack.
         for (const icon of hashedSVGs) {
-            rmSync(icon);
+            ignoreError(() => rmSync(icon));
         }
 
         for (const style of hashedStyles) {
-            rmSync(style);
+            ignoreError(() => rmSync(style));
         }
     }
 

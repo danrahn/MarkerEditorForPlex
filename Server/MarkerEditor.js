@@ -1,10 +1,14 @@
 /** External dependencies */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createServer } from 'http';
+import { default as express } from 'express';
 import { join } from 'path';
 import Open from 'open';
-/** @typedef {!import('http').IncomingMessage} IncomingMessage */
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+import { randomBytes } from 'crypto';
+import { default as session } from 'express-session';
+
+/** @typedef {!import('express').Request} ExpressRequest */
+/** @typedef {!import('express').Response} ExpressResponse */
 /** @typedef {!import('http').Server} httpServer */
 
 /** Server+Client shared dependencies */
@@ -17,6 +21,7 @@ import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
+import { AuthDatabase } from './Authentication/AuthDatabase.js';
 import { DatabaseImportExport } from './ImportExport.js';
 import FirstRunConfig from './FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
@@ -26,7 +31,9 @@ import { PlexQueryManager } from './PlexQueryManager.js';
 import { PostCommands } from '../Shared/PostCommands.js';
 import { ServerConfigState } from '../Shared/ServerConfig.js';
 import ServerError from './ServerError.js';
+import { default as Sqlite3Store } from './Authentication/SqliteSessionStore.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
+import { UserAuthentication } from './Authentication/Authentication.js';
 
 /**
  * @typedef {Object} CLIArguments
@@ -64,6 +71,10 @@ async function run() {
     // If we don't have a config file, still launch the server using some default values.
     const config = await MarkerEditorConfig.Create(argInfo, dataRoot);
     const configValid = config.getValid() === ServerConfigState.Valid;
+
+    await AuthDatabase.Initialize(dataRoot); // Even with an invalid config, set up the user/session database.
+    await UserAuthentication.Initialize();
+
     if (configValid) {
 
         // Set up the database, and make sure it's the right one.
@@ -85,7 +96,7 @@ async function run() {
     }
 
     Log.info('Creating server...');
-    await launchServer();
+    await launchServer(dataRoot);
     if (!configValid) {
         SetServerState(ServerState.RunningWithoutConfig);
     }
@@ -188,11 +199,16 @@ async function handleClose(signal, restart=false) {
     };
 
     if (Server) {
-        Server.close((err) => {
+        Server.close(async (err) => {
             if (err) {
                 Log.error(err, 'Failed to cleanly shut down HTTP server');
             } else {
                 Log.info('Successfully shut down HTTP server.');
+            }
+
+            // Only close session DB after the server itself has shut down.
+            if (!restart) {
+                await AuthDatabase.Close();
             }
 
             exitFn(err, restart);
@@ -243,7 +259,7 @@ async function waitForStable() {
 
 /**
  * Shuts down the server after a user-initiated shutdown request.
- * @param {ServerResponse} res */
+ * @param {ExpressResponse} res */
 async function userShutdown(res) {
     // Make sure we're in a stable state before shutting down
     await waitForStable();
@@ -252,7 +268,7 @@ async function userShutdown(res) {
 }
 
 /** Restarts the server after a user-initiated restart request.
- * @param {ServerResponse} res */
+ * @param {ExpressResponse} res */
 async function userRestart(res, data=undefined) {
     await waitForStable();
     sendJsonSuccess(res, data);
@@ -273,7 +289,7 @@ async function userSuspend(res) {
 /**
  * The response to our resume event. Kept at the global scope
  * to avoid passing it through the mess of init callbacks initiated by `run()`.
- * @type {ServerResponse|null} */
+ * @type {ExpressResponse|null} */
 let ResumeResponse = null;
 
 /**
@@ -284,7 +300,7 @@ let ResumeData;
 
 /**
  * Resumes the server after being disconnected from the Plex database.
- * @param {ServerResponse} res */
+ * @param {ExpressResponse} res */
 function userResume(res) {
     Log.verbose('Attempting to resume the server');
     if (GetServerState() !== ServerState.Suspended) {
@@ -304,7 +320,7 @@ function userResume(res) {
 
 /**
  * Restart without restarting the HTTP server. Essentially a suspend+resume.
- * @param {ServerResponse} res */
+ * @param {ExpressResponse} res */
 async function userReload(res, data) {
     Log.verbose('Attempting to reload marker data');
     if (![ServerState.Running, ServerState.RunningWithoutConfig].includes(GetServerState())) {
@@ -325,12 +341,18 @@ async function userReload(res, data) {
 
 /** Creates the server. Called after verifying the config file and database.
  * @returns {Promise<void>} */
-function launchServer() {
+async function launchServer() {
     if (!shouldCreateServer()) {
         return;
     }
 
-    Server = createServer(serverMain);
+    const app = express();
+    await initializeSessionStore(app);
+
+    // TODO: express-ify this with standard routing.
+    app.all('*', serverMain);
+
+    Server = createServer(app);
 
     return new Promise((resolve, _) => {
         Server.listen(Config.port(), Config.host(), () => {
@@ -349,6 +371,39 @@ function launchServer() {
             resolve();
         });
     });
+}
+
+/**
+ * Initialize session information. */
+async function initializeSessionStore(app) {
+    // Don't deal with session management is auth is disabled.
+    // Enabling auth forces a full server restart anyway.
+    if (!Config.useAuth()) {
+        return;
+    }
+
+    const sessionStore = new Sqlite3Store({
+        expire : Config.authSessionTimeout(),
+        clear : true,
+        intervalMs : 900000,
+    });
+
+    // On each boot, create a new session secret, but still allow older
+    // sessions to be validated by keeping around older secrets for a while.
+    const newSecret = randomBytes(32).toString('hex');
+    const oldSecrets = await Sqlite3Store.oldSecrets();
+    await Sqlite3Store.setNewSecret(newSecret);
+    app.use(
+        session({
+            secret : [newSecret, ...oldSecrets],
+            rolling : true, // Only expire sessions that are inactive for maxAge.
+            resave : false,
+            saveUninitialized : false,
+            name : 'markereditor.sid',
+            store : sessionStore,
+            cookie : { maxAge : Config.authSessionTimeout() * 1000 }
+        })
+    );
 }
 
 /**
@@ -378,9 +433,9 @@ function shouldCreateServer() {
 /**
  * Entrypoint for incoming connections to the server.
  * @type {Http.RequestListener}
- * @param {IncomingMessage} req
- * @param {ServerResponse} res */
-async function serverMain(req, res) {
+ * @param {ExpressRequest} req
+ * @param {ExpressResponse} res */
+function serverMain(req, res) {
     Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
     const method = req.method?.toLowerCase();
 
@@ -399,11 +454,9 @@ async function serverMain(req, res) {
         // Only serve static resources via GET, and only accept queries for JSON via POST.
         switch (method) {
             case 'get':
-                await GETHandler.handleRequest(req, res);
-                return;
+                return GETHandler.handleRequest(req, res);
             case 'post':
-                await handlePost(req, res);
-                return;
+                return handlePost(req, res);
             default:
                 return sendJsonError(res, new ServerError(`Unexpected method "${req.method?.toUpperCase()}"`, 405));
         }
@@ -415,8 +468,8 @@ async function serverMain(req, res) {
 
 /**
  * Map of server actions (shutdown/restart/etc) to their corresponding functions.
- * Split from EndpointMap as some of these require direct access to the ServerResponse.
- * @type {{[endpoint: string]: (res : ServerResponse) => any}} */
+ * Split from EndpointMap as some of these require direct access to the ExpressResponse.
+ * @type {{[endpoint: string]: (res : ExpressResponse) => any}} */
 const ServerActionMap = {
     [PostCommands.ServerShutdown] : (res) => userShutdown(res),
     [PostCommands.ServerRestart]  : (res) => userRestart(res),
@@ -437,9 +490,9 @@ ServerEventHandler.on(ServerEvents.SoftRestart, async (response, data, resolve) 
 
 /**
  * Handle POST requests, used to return JSON data queried by the client.
- * @param {IncomingMessage} req
- * @param {ServerResponse} res */
-function handlePost(req, res) {
+ * @param {ExpressRequest} req
+ * @param {ExpressResponse} res */
+async function handlePost(req, res) {
     const url = req.url.toLowerCase();
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex === -1 ? url.substring(1) : url.substring(1, endpointIndex);
@@ -449,12 +502,18 @@ function handlePost(req, res) {
         return sendJsonError(res, new ServerError('Server is suspended', 503));
     }
 
-    if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
-        && typeof ServerActionMap[endpoint] === 'function') {
-        return ServerActionMap[endpoint](res);
-    }
+    try {
+        if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
+            && typeof ServerActionMap[endpoint] === 'function') {
+            await ServerActionMap[endpoint](res);
+            return;
+        }
 
-    return runPostCommand(endpoint, req, res);
+        await runPostCommand(endpoint, req, res);
+    } catch (ex) {
+        ex.message = `Exception thrown for ${req.url}: ${ex.message}`;
+        sendJsonError(res, ex, ex.code || 500);
+    }
 }
 
 /**

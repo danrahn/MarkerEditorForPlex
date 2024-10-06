@@ -35,23 +35,40 @@ async function jsonPostCore(url, body=null) {
     }
 
     try {
-        const response = await (await fetch(url, init)).json();
-        Log.verbose(response, `Response from ${url}`);
-        if (!response || response.Error) {
+        const response = await fetch(url, init);
+        if (!response.ok) {
+            switch (response.status) {
+                case 401:
+                case 403:
+                    // 401/403 always indicates an expired/invalid session.
+                    // If we're not already at login.html, immediate redirect to it.
+                    if (window.location.href.toLowerCase().indexOf('login.html') === -1) {
+                        Log.warn('Authentication error, redirecting to login.');
+                        window.location = '/login.html?expired=1';
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        const result = await response.json();
+        Log.verbose(result, `Response from ${url}`);
+        if (!result || result.Error) {
 
             // Global check to see if we failed because the server is suspended.
             // If so, show the undismissible 'Server Paused' overlay.
-            if (response.Error && response.Error === 'Server is suspended') {
+            if (result.Error && result.Error === 'Server is suspended') {
                 Log.info('Action was not completed because the server is suspended.');
                 window.dispatchEvent(new Event(CustomEvents.ServerPaused));
                 // Return unfulfillable Promise. Gross, but since the user can't do anything anyway, we don't really care.
                 return new Promise((_resolve, _reject) => {});
             }
 
-            throw new FetchError(response ? response.Error : `Request to ${url} failed`);
+            throw new FetchError(result ? result.Error : `Request to ${url} failed`);
         }
 
-        return response;
+        return result;
     } catch (err) {
         throw new FetchError(err.message, err.stack);
     }
@@ -199,7 +216,7 @@ export const ServerCommands = {
     /**
      * Retrieve all episodes in the given season.
      * @param {number} id
-     * @returns {Promise<SerializedEpisodeData>} */
+     * @returns {Promise<SerializedEpisodeData[]>} */
     getEpisodes : (id) => jsonRequest(PostCommands.GetEpisodes, { id }),
 
     /**
@@ -239,7 +256,7 @@ export const ServerCommands = {
      * @param {string} setting
      * @param {TypedSetting<T>} value
      * @returns {Promise<TypedSetting<T>>} */
-    validateConfigValue : (setting, value) => jsonRequest(PostCommands.ValidateConfigValue, { setting, value }),
+    validateConfigValue : (setting, value) => jsonBodyRequest(PostCommands.ValidateConfigValue, { setting, value }),
 
     /**
      * @param {SerializedConfig} config
@@ -308,18 +325,43 @@ export const ServerCommands = {
      * @param {Object} database
      * @param {number} sectionId
      * @param {number} resolveType */
-    importDatabase : (database, sectionId, resolveType) => jsonBodyRequest('import_db', { database, sectionId, resolveType }),
+    importDatabase : (database, sectionId, resolveType) => jsonBodyRequest(PostCommands.ImportDb, { database, sectionId, resolveType }),
 
     /**
      * Retrieve chapter data (if any) for the given media item (supports shows, seasons, episodes, and movies).
      * @param {number} metadataId
      * @returns {Promise<ChapterMap>} */
-    getChapters : (metadataId) => jsonRequest('get_chapters', { id : metadataId }),
+    getChapters : (metadataId) => jsonRequest(PostCommands.GetChapters, { id : metadataId }),
 
     /**
      * Retrieve all information relevant for marker table creation for a given movie/episode id.
      * @param {number} metadataId
-     * @returns {Promise<ExtendedQueryInfo} */
-    extendedQuery : (metadataId) => jsonRequest('query_full', { id : metadataId }),
+     * @returns {Promise<ExtendedQueryInfo>} */
+    extendedQuery : (metadataId) => jsonRequest(PostCommands.FullQuery, { id : metadataId }),
+
+    /**
+     * Attempt to log in with the given username and password.
+     * @param {string} username
+     * @param {string} password
+     * @returns {Promise<{ success: boolean }>} */
+    login : (username, password) => jsonBodyRequest(PostCommands.Login, { username, password }),
+
+    /**
+     * Log out of the current session.
+     * @returns {Promise<{ success: boolean }>} */
+    logout : () => jsonRequest(PostCommands.Logout),
+
+    /**
+     * Change the password for the given user.
+     * Since currently one one user is supported, `username` MUST be the same as that user.
+     * @param {string} username The user to change the password for
+     * @param {string} oldPass The user's old password
+     * @param {string} newPass The user's new password */
+    changePassword : (username, oldPass, newPass) => jsonBodyRequest(PostCommands.ChangePassword, { username, oldPass, newPass }),
+
+    /**
+     * Check whether user authentication is enabled, but a password is not set.
+     * @returns {Promise<{ value : boolean }>} */
+    needsPassword : () => jsonRequest(PostCommands.NeedsPassword),
 };
 /* eslint-enable */

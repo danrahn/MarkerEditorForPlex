@@ -10,7 +10,7 @@ import { createServer } from 'http';
 import { join } from 'path';
 import { TestLog } from '../TestRunner.js';
 
-/** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
+/** @typedef {!import('/Shared/ServerConfig').RawSerializedConfig} RawSerializedConfig */
 /** @template T @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T> */
 
 export default class ConfigTest extends TestBase {
@@ -34,26 +34,27 @@ export default class ConfigTest extends TestBase {
     async validateEmptyConfig() {
         // NOTE: This class is expected to fail if Marker Editor is unable to find the Plex data path automatically
         const dataPath = MarkerEditorConfig.getDefaultPlexDataPath();
-        /** @type {SerializedConfig} */
+        /** @type {RawSerializedConfig} */
         const defaultConfig = {
             dataPath : this.#testValue(null, dataPath),
             database : this.#testValue(null, join(dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db')),
             host : this.#testValue(null, 'localhost'),
             port : this.#testValue(null, 3232),
             logLevel : this.#testValue(null, 'Info'),
-            features : {
-                autoOpen : this.#testValue(null, true),
-                extendedMarkerStats : this.#testValue(null, true),
-                previewThumbnails : this.#testValue(null, true),
-                preciseThumbnails : this.#testValue(null, false)
-            },
+            authEnabled : this.#testValue(null, false),
+            authUsername : this.#testValue(null, ''),
+            authSessionTimeout : this.#testValue(null, 86_400),
+            autoOpen : this.#testValue(null, true),
+            extendedMarkerStats : this.#testValue(null, true),
+            previewThumbnails : this.#testValue(null, true),
+            preciseThumbnails : this.#testValue(null, false),
             pathMappings : this.#testValue(null, [])
         };
 
         const form = new FormData();
         form.append('config', defaultConfig);
         try {
-            /** @type {SerializedConfig} */
+            /** @type {RawSerializedConfig} */
             const newConfig = await this.sendBody(PostCommands.ValidateConfig, { config : JSON.stringify(defaultConfig) });
             TestHelpers.verify(newConfig.dataPath?.value === null && newConfig.dataPath?.defaultValue === dataPath);
         }  catch {
@@ -243,7 +244,7 @@ export default class ConfigTest extends TestBase {
      * @param {TypedSetting<T>} value
      * @returns {Promise<TypedSetting<T>>} */
     #configValueTestResult(setting, value) {
-        return this.send(PostCommands.ValidateConfigValue, this.#settingObj(setting, value));
+        return this.sendBody(PostCommands.ValidateConfigValue, this.#settingObj(setting, value));
     }
 
     /**

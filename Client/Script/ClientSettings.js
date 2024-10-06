@@ -8,7 +8,7 @@ import {
     ctrlOrMeta } from './Common.js';
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
+import { errorMessage, errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import { LaunchFirstRunSetup, LaunchServerSettingsDialog } from 'ServerSettingsDialog';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -288,7 +288,12 @@ class ClientSettings {
 
     /** Whether to remember user options.
      * @type {StickySettingsSetting} */
-    stickySettings;
+    stickySettings = false;
+
+    /**
+     * Whether user authentication is enabled.
+     * @type {boolean} */
+    authEnabled;
 
     /**
      * Create an instance of ClientSettings based on the values stored in {@linkcode localStorage}.
@@ -317,7 +322,7 @@ class ClientSettings {
         const toggle = $('#toggleContainer');
         toggle.addEventListener('keydown', clickOnEnterCallback);
         toggle.addEventListener('keydown', this.#toggleKeydown.bind(this));
-        $('#settings').addEventListener('keydown', clickOnEnterCallback);
+        $('#settings')?.addEventListener('keydown', clickOnEnterCallback);
     }
 
     /** Save the current settings to {@linkcode localStorage}. */
@@ -491,12 +496,12 @@ class ClientSettingsUI {
             Log.getLevel(),
             'Set the log verbosity in the browser console.'));
 
-        const icon = (iconName, text, fn, hoverColor) => {
+        const icon = (iconName, text, fn, hoverColor, tooltip) => {
             const id = text.toLowerCase() + 'Server';
-            text += ' Server';
+            tooltip ||= text + ' Server';
             return ButtonCreator.iconButton(
                 iconName,
-                text,
+                tooltip,
                 ThemeColors.Primary,
                 fn,
                 { id : id, class : `serverStateButton ${hoverColor}OnHover` }
@@ -508,6 +513,8 @@ class ClientSettingsUI {
             icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this), 'blue'),
             icon(Icons.Restart, 'Restart', this.#restartServer.bind(this), 'yellow'),
             icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this), 'red'),
+            this.#settingsManager.authEnabled() ?
+                icon(Icons.Logout, 'Logout', this.#logout.bind(this), 'blue', 'Logout') : null,
             buildNode('h3', {}, 'Settings'),
             buildNode('hr')
         );
@@ -670,6 +677,17 @@ class ClientSettingsUI {
             'Are you sure you want to shut down the server?',
             'Shutdown',
             this.#onShutdownConfirm.bind(this));
+    }
+
+    /** Log out of the current session. */
+    async #logout() {
+        try {
+            await ServerCommands.logout();
+            window.location = '/login.html';
+        } catch (ex) {
+            errorToast('Failed to log out. Please try again later.');
+        }
+
     }
 
     /**
@@ -859,22 +877,27 @@ class SettingsManager {
      * @type {ClientSettingsUI} */
     #uiManager;
 
-    /** Creates the singleton SettingsManager for this session */
-    static CreateInstance() {
+    /**
+     * Creates the singleton SettingsManager for this session.
+     * @param {boolean} [settingsButton=true] Whether the settings button is visible. False implies we're at the login screen. */
+    static CreateInstance(settingsButton=true) {
         if (Instance) {
             Log.error('We should only have a single SettingsManager instance!');
             return;
         }
 
-        Instance = new SettingsManager();
+        Instance = new SettingsManager(settingsButton);
     }
 
-    constructor() {
+    constructor(settingsButton=true) {
         if (Instance) {
             throw new Error(`Don't create a new SettingsManager when the singleton already exists!`);
         }
 
-        $('#settings').addEventListener('click', this.#showSettings.bind(this));
+        if (settingsButton) {
+            $('#settings').addEventListener('click', this.#showSettings.bind(this));
+        }
+
         this.#settings = new ClientSettings();
         this.#uiManager = new ClientSettingsUI(this);
         this.#themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -888,7 +911,7 @@ class SettingsManager {
             const href = `Client/Style/${styleLink}.css`;
             return buildNode(
                 'link',
-                { rel : 'stylesheet', type : 'text/css', href : href },
+                { rel : 'stylesheet', type : 'text/css', href : href, data_name : link },
                 0,
                 addListener ? {
                     load : _ => {
@@ -905,9 +928,14 @@ class SettingsManager {
 
         this.#themeStyles = [
             styleNode('Theme', true),
-            styleNode('Overlay'),
-            styleNode('BulkAction'),
         ];
+
+        if (settingsButton) {
+            this.#themeStyles.push(...[
+                styleNode('Overlay'),
+                styleNode('BulkAction'),
+            ]);
+        }
 
         for (const style of this.#themeStyles) {
             $$('head').appendChild(style);
@@ -923,12 +951,14 @@ class SettingsManager {
         // After initialization, start the system theme listener.
         this.#themeQuery.addEventListener('change', this.#onSystemThemeChanged);
 
-        // Load the real SVG icon for the placeholder index.html help/settings icon
-        const commonProps = { width : 20, height : 20 };
-        $('#helpBtn').replaceWith(
-            getSvgIcon(Icons.Help, ThemeColors.Primary, { id : 'helpBtn', ...commonProps }));
-        $$('#settings svg').replaceWith(
-            getSvgIcon(Icons.Settings, ThemeColors.Primary, { ...commonProps }));
+        if (settingsButton) {
+            // Load the real SVG icon for the placeholder index.html help/settings icon
+            const commonProps = { width : 20, height : 20 };
+            $('#helpBtn').replaceWith(
+                getSvgIcon(Icons.Help, ThemeColors.Primary, { id : 'helpBtn', ...commonProps }));
+            $$('#settings svg').replaceWith(
+                getSvgIcon(Icons.Settings, ThemeColors.Primary, { ...commonProps }));
+        }
     }
 
     /** @returns Whether dark theme is currently enabled. */
@@ -1031,8 +1061,7 @@ class SettingsManager {
      * Toggle light/dark theme.
      * @param {boolean} isDark Whether dark mode is enabled.
      * @param {boolean} manual Whether we're toggling due to user interaction, or due to a change in the system theme.
-     * @returns {boolean} Whether we actually toggled the theme.
-     */
+     * @returns {boolean} Whether we actually toggled the theme. */
     toggleTheme(isDark, manual) {
         if (isDark === this.isDarkTheme()) {
             return false;
@@ -1047,17 +1076,20 @@ class SettingsManager {
             return false;
         }
 
-        const darkStyle = StyleSheets.ThemeDark + '.css';
-        const lightStyle = StyleSheets.ThemeLight + '.css';
-        const cssFind = isDark ? lightStyle : darkStyle;
-        const cssRep = isDark ? darkStyle: lightStyle;
+        Log.info(`Changing application theme to ${isDark ? 'Dark' : 'Light'}.`);
         for (const style of this.#themeStyles) {
+            const sheetName = style.getAttribute('data_name');
+            const cssFind = StyleSheets[sheetName + (isDark ? 'Light' : 'Dark')];
+            const cssRep = StyleSheets[sheetName + (isDark ? 'Dark' : 'Light')];
             style.href = style.href.replace(cssFind, cssRep);
         }
 
         Theme.setDarkTheme(this.#settings.theme.dark);
         return true;
     }
+
+    /** Return whether server authentication is enabled. */
+    authEnabled() { return this.#settings.authEnabled; }
 
     /**
      * Called after the client retrieves the server config. Enables the settings
@@ -1070,8 +1102,8 @@ class SettingsManager {
 
         // Now that we have the server config, we can show the settings icon.
         $('#settings').classList.remove('hidden');
-        const previewThumbs = new Setting().setFromSerialized(serverConfig.features.previewThumbnails);
-        const extendedStats = new Setting().setFromSerialized(serverConfig.features.extendedMarkerStats);
+        const previewThumbs = new Setting().setFromSerialized(serverConfig.previewThumbnails);
+        const extendedStats = new Setting().setFromSerialized(serverConfig.extendedMarkerStats);
         if (!previewThumbs.value()) {
             // If thumbnails aren't available server-side, don't make them an option client-side.
             this.#settings.previewThumbnails.block();
@@ -1081,6 +1113,8 @@ class SettingsManager {
             // Similarly, don't allow extended marker information if the server isn't set to collect it.
             this.#settings.extendedMarkerStats.block();
         }
+
+        this.#settings.authEnabled = serverConfig.authEnabled;
 
         return true;
     }

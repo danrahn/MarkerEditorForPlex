@@ -1,4 +1,4 @@
-import { ServerConfigState } from '../../Shared/ServerConfig.js';
+import { ServerConfigState, ServerSettings } from '../../Shared/ServerConfig.js';
 
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
 import { ServerState, SetServerState } from '../ServerState.js';
@@ -8,7 +8,7 @@ import { registerCommand } from './PostCommand.js';
 import { sendJsonSuccess } from '../ServerHelpers.js';
 import ServerError from '../ServerError.js';
 
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+/** @typedef {!import('express').Response} ExpressResponse */
 
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T> */
@@ -40,13 +40,18 @@ async function validateConfigValue(setting, value) {
     }
 
     const checkedSetting = await Config.validateField(setting, asJson);
+    if (setting === ServerSettings.Password) {
+        // Don't pass the actual password back to the client.
+        checkedSetting.setValue('');
+    }
+
     return checkedSetting.serialize();
 }
 
 /**
  * Replace the current configuration with the given configuration, if valid.
  * @param {SerializedConfig} config
- * @param {ServerResponse} response */
+ * @param {ExpressResponse} response */
 async function setConfig(config, response) {
     const oldConfigState = Config.getValid();
     const newConfig = await Config.trySetConfig(config);
@@ -72,10 +77,12 @@ async function setConfig(config, response) {
 }
 
 /**
- * Register all commands related to server configuration. */
+ * Register all commands related to server configuration.
+ * Validation commands use form fields to "hide" values from logging so we
+ * don't log password validation information. */
 export function registerConfigCommands() {
     registerCommand(PostCommands.GetConfig, _ => getConfig());
     registerCommand(PostCommands.ValidateConfig, q => validateConfig(q.fc('config', JSON.parse)));
-    registerCommand(PostCommands.ValidateConfigValue, q => validateConfigValue(q.s('setting'), q.s('value')));
+    registerCommand(PostCommands.ValidateConfigValue, q => validateConfigValue(q.fs('setting'), q.fs('value')));
     registerCommand(PostCommands.SetConfig, q => setConfig(q.fc('config', JSON.parse), q.response()), true /*ownsResponse*/);
 }

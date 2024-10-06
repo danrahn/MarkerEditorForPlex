@@ -1,8 +1,9 @@
 import { contentType, lookup } from 'mime-types';
 import { join } from 'path';
-import { readFileSync } from 'fs';
-/** @typedef {!import('http').IncomingMessage} IncomingMessage */
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+import { readFile } from 'fs';
+
+/** @typedef {!import('express').Request} ExpressRequest */
+/** @typedef {!import('express').Response} ExpressResponse */
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
@@ -12,6 +13,7 @@ import { isBinary, sendCompressedData } from './ServerHelpers.js';
 import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
 import { DatabaseImportExport } from './ImportExport.js';
 import ServerError from './ServerError.js';
+import { User } from './Authentication/Authentication.js';
 
 
 const Log = new ContextualLog('GETHandler');
@@ -30,14 +32,20 @@ class GETHandler {
      * Regex that defines valid paths, which are currently index.html, or anything inside
      * the client, shared, or svg folder, as long as it doesn't contain '/..' or '\..'
      * somewhere in the path. For built packages, also allow index.[guid].(html|js)*/
-    // eslint-disable-next-line prefer-named-capture-group
-    static #whitelistRegex = /^\/(dist\/)?(index\.([a-f0-9]+\.)?(html|js)|(client|shared|svg)\/[^.]{2}((?![\\/]\.\.).)*)$/i;
+    /* eslint-disable prefer-named-capture-group */
+    static #whitelistRegex = /^\/(dist\/)?((index|login)\.([a-f0-9]+\.)?(html|js)|(client|shared|svg)\/[^.]{2}((?![\\/]\.\.).)*)$/i;
+
+    /**
+     * Regex that defines allowed GET requests when the user is not signed in.
+     * Only allow access to static resources. */
+    static #noAuthRegex = /^(\/|.*\.(css|html|js|svg))$/i;
+    /* eslint-enable prefer-named-capture-group */
 
     /**
      * Handle the given GET request.
-     * @param {IncomingMessage} req
-     * @param {ServerResponse} res */
-    static handleRequest(req, res) {
+     * @param {ExpressRequest} req
+     * @param {ExpressResponse} res */
+    static async handleRequest(req, res) {
         let url = req.url;
 
         // GET requests should always have a URL
@@ -46,21 +54,37 @@ class GETHandler {
             return;
         }
 
-        if (!GETHandler.#requestAllowed(req)) {
-            res.writeHead(503).end(`Disallowed request during First Run experience: "${req.url}"`);
-            return;
+        if (!GETHandler.#requestAllowed(req, res)) {
+            return; // #requestAllowed handles writing the response.
         }
 
         // Only production files use cache-busing techniques, so don't
-        // set a cache-age if we're using raw dev files.
+        // set a cache-age if we're using raw dev files. Make an exception
+        // for production HTML though, as they do not use cache-busting.
         let cacheable = isBinary();
 
         if (url === '/') {
             url = '/index.html';
         }
 
-        // Never cache main index.html
-        if (url === '/index.html') {
+        const urlPlain = url.split('?')[0].toLowerCase();
+
+        if (urlPlain === '/index.html') {
+            if (Config.useAuth() && !User.signedIn(req)) {
+                res.redirect('/login.html');
+                return;
+            }
+
+            cacheable = false;
+        }
+
+        if (urlPlain === '/login.html') {
+            if (!Config.useAuth() || User.signedIn(req)) {
+                res.redirect('/');
+                return;
+            }
+
+            url = '/Client/login.html';
             cacheable = false;
         }
 
@@ -68,18 +92,18 @@ class GETHandler {
             case '/i/':
                 return ImageHandler.GetSvgIcon(url, res, cacheable);
             case '/t/':
-                return ImageHandler.GetThumbnail(url, res);
+                return await ImageHandler.GetThumbnail(url, res);
             default:
                 break;
         }
 
         if (url.startsWith('/export/')) {
-            return DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
+            return await DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
         }
 
-        const mimetype = contentType(lookup(url));
+        const mimetype = contentType(lookup(urlPlain));
         if (!mimetype) {
-            res.writeHead(404).end(`Bad MIME type: ${url}`);
+            res.writeHead(404).end(`Bad MIME type: ${urlPlain}`);
             return;
         }
 
@@ -89,23 +113,40 @@ class GETHandler {
             return;
         }
 
-        try {
-            const contents = readFileSync(join(ProjectRoot(), url));
+        // Avoid readFileSync to improve parallelism. Also avoid the promise version,
+        // as nexe doesn't work with fs/promise.
+        readFile(join(ProjectRoot(), url), (err, contents) => {
+            if (err) {
+                Log.warn(`Unable to serve ${url}: ${err.message}`);
+                res.writeHead(404).end(`Not Found: ${err.message}`);
+                return;
+            }
+
             sendCompressedData(res, 200, contents, mimetype, cacheable ? StaticCacheAge : 0);
-        } catch (err) {
-            Log.warn(`Unable to serve ${url}: ${err.message}`);
-            res.writeHead(404).end(`Not Found: ${err.message}`);
-        }
+        });
     }
 
     /**
-     * Determines whether the given request is allowed when the user hasn't gone
-     * through the first-time setup yet.
-     * @param {IncomingMessage} req */
-    static #requestAllowed(req) {
+     * Determines whether the given request is allowed. There are special cases for users
+     * who aren't signed in, and when the user hasn't gone through the first-time setup yet.
+     * @param {ExpressRequest} req
+     * @param {ExpressResponse} res */
+    static #requestAllowed(req, res) {
+        if (Config.useAuth() && !req.session.authenticated) {
+            if (!this.#noAuthRegex.test(req.url.split('?')[0])) {
+                res.writeHead(401).end(`Cannot access resource without authorization: "${req.url}"`);
+                return false;
+            }
+        }
+
         // Most GET requests are allowed in first run, except for thumbnails and export
-        return GetServerState() !== ServerState.RunningWithoutConfig
-            || (req.url.substring(0, 3) !== '/t/' && !req.url.startsWith('/export/'));
+        if (GetServerState() === ServerState.RunningWithoutConfig
+            && (req.url.substring(0, 3) === '/t/' || req.url.startsWith('/export/'))) {
+            res.writeHead(503).end(`Disallowed request during First Run experience: "${req.url}"`);
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -117,7 +158,7 @@ class ImageHandler {
     /**
      * Retrieve an SVG icon requests with the given color.
      * @param {string} url The svg url of the form /i/[hex color]/[icon].svg
-     * @param {ServerResponse} res
+     * @param {ExpressResponse} res
      * @param {boolean} cacheable Whether this request should be cached (i.e. whether we're
      *                            retrieving a cache-bustable SVG from a production binary) */
     static GetSvgIcon(url, res, cacheable=false) {
@@ -140,19 +181,20 @@ class ImageHandler {
             headers['Cache-Control'] = `max-age=${StaticCacheAge}, immutable`;
         }
 
-        try {
-            const icon = parts[2];
-            const contents = readFileSync(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' });
+        const icon = parts[2];
+        readFile(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' }, (err, contents) => {
+            if (err) {
+                return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
+            }
+
             res.writeHead(200, headers).end(Buffer.from(contents, 'utf-8'));
-        } catch (err) {
-            return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
-        }
+        });
     }
 
     /**
      * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds.
      * @param {string} url Thumbnail url
-     * @param {ServerResponse} res */
+     * @param {ExpressResponse} res */
     static async GetThumbnail(url, res) {
         const badRequest = (msg, errorCode=400) => {
             Log.error(msg, `Unable to retrieve thumbnail`);
@@ -182,8 +224,10 @@ class ImageHandler {
             // This is an expected fallback case when we initially fail to grab a thumbnail.
             // The 'timestamp' is actually the height of the SVG we want to generate that has
             // a generic 'Error' text in the middle of it.
-            try {
-                let contents = readFileSync(join(ProjectRoot(), 'SVG', 'badThumb.svg'), { encoding : 'utf-8' });
+            readFile(join(ProjectRoot(), 'SVG', 'badThumb.svg'), { encoding : 'utf-8' }, (err, contents) => {
+                if (err) {
+                    return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
+                }
 
                 // Raw file has IMAGE_HEIGHT to be replaced with our desired height, as
                 // width is constant, so height will depend on the aspect ratio.
@@ -193,10 +237,10 @@ class ImageHandler {
                     'x-content-type-options' : 'nosniff',
                     'Cache-Control' : `max-age=${ThumbCacheAge}`
                 }).end(Buffer.from(contents, 'utf-8'));
-                return;
-            } catch (err) {
-                return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
-            }
+            });
+
+
+            return;
         }
 
         try {

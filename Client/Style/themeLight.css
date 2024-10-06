@@ -18,6 +18,9 @@
   --error-background-subtle: #F774;
   --error-border: #C44;
 
+  /* Success */
+  --success-background: #7F74;
+
   /* Main sections */
   --media-item-hover: rgba(0,0,0,0.2);
   --section-options-background: rgba(30,100,0,0.2);

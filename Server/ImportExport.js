@@ -15,8 +15,7 @@ import ServerError from './ServerError.js';
 import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
-/** @typedef {!import('http').IncomingMessage} IncomingMessage */
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+/** @typedef {!import('express').Response} ExpressResponse */
 
 /** @typedef {!import('./FormDataParse').ParsedFormData} ParsedFormData */
 /** @typedef {!import('./FormDataParse').ParsedFormField} ParsedFormField */
@@ -107,7 +106,7 @@ export class DatabaseImportExport {
 
     /**
      * Exports a database of markers for the given section (or -1 for the entire library)
-     * @param {ServerResponse} response
+     * @param {ExpressResponse} response
      * @param {number} sectionId */
     static async exportDatabase(response, sectionId) {
         if (isNaN(sectionId)) {

@@ -18,6 +18,9 @@
   --error-background-subtle: #9334;
   --error-border: #C44;
 
+  /* Success */
+  --success-background: #3934;
+
   /* Main sections */
   --media-item-hover: rgba(0,0,0,0.5);
   --section-options-background: rgba(0,0,0,0.4);
@@ -60,4 +63,9 @@ a {
 
 a:visited {
   color: #6191c1;
+}
+
+::-ms-reveal {
+  /* "Show Password" eye icon is always black, which blends into dark mode backgrounds. Invert its color. */
+  filter: invert(80%);
 }

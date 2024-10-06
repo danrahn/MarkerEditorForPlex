@@ -53,6 +53,24 @@ function initializeServerSettingsTooltips() {
             `The port the server will listen on`,
             `Must be a number between 1 and 65535, but it's recommended to stay above 1023`
         ),
+        [ServerSettings.UseAuthentication] : createTooltip(
+            `Whether to require a password to access Marker Editor`,
+            `Note that if this is enabled, you will be immediately send to a login page asking you to set a password. ` +
+            `If you previously set a password, that must be entered, unless you manually delete auth.db in the Backup folder.`
+        ),
+        [ServerSettings.Username] : createTooltip(
+            `The username for session authentication`,
+            `Must not contain any whitespace, and cannot be more than 256 characters.`
+        ),
+        [ServerSettings.Password] : createTooltip(
+            `The password for session authentication`,
+            `Can be any non-blank value. If you don't remember your old password, you will have to manually delete auth.db ` +
+            `in the Backup directory, which will also destroy all active sessions.`
+        ),
+        [ServerSettings.SessionTimeout] : createTooltip(
+            `The time (in seconds) before a session expires due to inactivity.`,
+            `Must be at least 5 minutes (300 seconds).`
+        ),
         [ServerSettings.LogLevel] : createTooltip(
             `Server-side logging level`,
             `Determines what log events to write out. On consoles that support color output, 'Dark' determines ` +

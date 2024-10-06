@@ -73,4 +73,13 @@ export const PostCommands = {
     ServerSuspend : 'suspend',
     /** @readonly Reconnect to the Plex database after suspending the connection. */
     ServerResume : 'resume',
+
+    /** @readonly Log in, if auth is enabled. */
+    Login : 'login',
+    /** @readonly Log out of a session. */
+    Logout : 'logout',
+    /** @readonly Change the single-user password. */
+    ChangePassword : 'change_password',
+    /** @readonly Check whether authentication is enabled, but a user password is not set. */
+    NeedsPassword : 'check_password',
 };

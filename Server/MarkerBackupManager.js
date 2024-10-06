@@ -313,7 +313,8 @@ const SchemaUpgrades = [
     /* eslint-disable max-len */
     `PRAGMA writable_schema = TRUE;
     UPDATE sqlite_schema SET sql = replace(sql, 'extra_data   VARCHAR(255) NOT NULL', 'extra_data   VARCHAR(255)') WHERE name='actions' AND type='table';
-    PRAGMA writable_schema = RESET;`,
+    PRAGMA writable_schema = RESET;
+    UPDATE schema_version SET version=7;`,
     /* eslint-enable */
 ];
 /* eslint-enable */

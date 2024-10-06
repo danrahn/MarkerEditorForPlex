@@ -5,13 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Add, edit, and delete markers from your Plex database">
     <link rel="preload" href="Client/Style/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="Client/Style/Tooltip.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="Client/Style/Overlay.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="Client/Style/Settings.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="Client/Style/MarkerTable.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="Client/Style/BulkActionOverlay.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="icon" type="image/svg+xml; charset=UTF-8" href="SVG/favicon.svg">
-    <title>Marker Editor</title>
+    <title>Marker Editor - Login</title>
     <!--
         Before our full styles and scripts have loaded, set up the core set of styles.
         This results in a smoother loading experience.
@@ -54,15 +49,15 @@
     </script>
 
     <!--
-        The below styles are the core styles necessary for the layout of the landing page
+        The below styles are the core styles necessary for the layout of the login page
 
         * Title text
-        * Dark mode toggle/hep button
-        * Library selector
+        * Dark mode toggle/help button
+        * Login inputs
 
         This allows the elements to mostly stay where they are before the rest of our styles have loaded in.
-        
-        NOTE: Most of these styles are shared with login.html. Try to keep them in sync.
+
+        NOTE: Most of these styles are shared with index.html. Try to keep them in sync.
     -->
     <style>
         :root {
@@ -93,34 +88,37 @@
           display: none !important;
         }
 
-        #libraryList {
-          width: 100%;
-          margin: auto;
-          text-align: center;
-        }
-
         #topRightControls {
           position: relative;
           top: 30px;
         }
 
-        #helpContainer {
-          position: absolute;
-          top: 0;
-          right: 0;
+        .loginContainer {
+          padding-top: 10px;
+          width: 100%;
+          text-align: center;
         }
 
-        .fancySelect,
-        #search {
+        .loginField {
           padding: 5px;
           border-radius: 5px;
           background: transparent;
-          text-align: center;
           font-size: 14pt;
+          width: 240px;
         }
 
-        .fancySelect {
-          min-width: 350px;
+        input[type=password].loginField:not(:placeholder-shown),
+        input[type=text].loginField:not(:placeholder-shown) {
+          text-align: left;
+        }
+
+        input[type=password].loginField:placeholder-shown,
+        input[type=text].loginField:placeholder-shown {
+          text-align: center;
+        }
+
+        .loginField:hover {
+            border-color: var(--theme-border-hover);
         }
 
         #intro {
@@ -244,9 +242,6 @@
 
 <div id="plexFrame">
     <div id="topRightControls">
-        <div id="helpContainer" title="Show Help" tabindex="0">
-            <svg id="helpBtn"></svg>
-        </div>
         <div id="toggleContainer" title="Toggle Dark Mode" tabindex="0">
             <label id="darkModeToggle" for="darkModeCheckbox">
                 <input type="checkbox" name="darkModeCheckbox" id="darkModeCheckbox" title="Toggle Dark Mode">
@@ -255,18 +250,27 @@
         </div>
     </div>
     <div id="intro">
-        <h1 id="siteTitle">Marker Editor <i id="settings" class="hidden" title="Settings" tabIndex="0"><svg></svg></i></h1>
+        <h1 id="siteTitle">Marker Editor</h1>
     </div>
-    <form>
-        <div id="libraryList"><label for="libraries" class="hidden">Library selection</label><select id="libraries" class="fancySelect"></select></div>
-    </form>
-    <div id='status'></div>
-    <div id='container' class='hidden'>
-        <div id="searchContainer"><label for='search' class="hidden">Search</label><input type='text' id='search' name='search' placeholder='Search for a Show...' autocomplete='off' /></div>
-        <br>
-        <div id="toplevellist"></div>
-        <div id="seasonlist"></div>
-        <div id="episodelist"></div>
+    <div id='container'>
+        <div id="loginMessage" class="hidden loginContainer"></div>
+        
+        <div class='loginContainer'>
+            <label for='username' class="hidden">Username</label>
+            <input class='loginField' type='text' id='username' placeholder='Username' autocomplete='off' />
+        </div>
+        <div class='loginContainer'>
+            <label for='password' class="hidden">Password</label>
+            <input class='loginField' type='password' id='password' placeholder='Password' autocomplete='off' />
+        </div>
+        <div class='loginContainer hidden' id="confirmContainer">
+            <label for='passwordConfirm' class="hidden">Confirm Password</label>
+            <input class='loginField' type='password' id='passwordConfirm' placeholder='Confirm Password' autocomplete='off' />
+        </div>
+        <div class='loginContainer'>
+            <label for='passwordGo' class="hidden">Login</label>
+            <input class='loginField' type='button' id='passwordGo' value='Login' />
+        </div>
     </div>
 </div>
 <div id="toastContainer"></div>
@@ -275,13 +279,12 @@
 {
     "imports": {
         "./" : "/",
-        "ResultRow": "./Client/Script/ResultRow/index.js",
         "StickySettings": "./Client/Script/StickySettings/index.js",
         "ServerSettingsDialog": "./Client/Script/ServerSettingsDialog/index.js",
         "Shared/*": "./Shared/*"
     }
 }
 </script>
-<script src="Client/Script/index.js" type="module"></script>
+<script src="Client/Script/login.js" type="module"></script>
 </body>
 </html>

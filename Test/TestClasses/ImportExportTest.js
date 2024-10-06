@@ -1,5 +1,6 @@
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
+import { TestLog } from '../TestRunner.js';
 
 import { createReadStream, createWriteStream, existsSync, rmSync } from 'fs';
 import FormData from 'form-data';
@@ -13,7 +14,8 @@ import { Readable } from 'stream';
 import SqliteDatabase from '../../Server/SqliteDatabase.js';
 import TransactionBuilder from '../../Server/TransactionBuilder.js';
 
-/** @typedef {!import  ('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('express').Response} ExpressResponse */
+/** @typedef {!import('../../Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 /**
  * End-to-end testing of import/export.
@@ -36,12 +38,12 @@ class ImportExportTest extends TestBase {
 
     className() { return 'ImportExportTest'; }
 
-    testMethodSetup() {
-        this.#cleanup();
+    async testMethodSetup() {
+        await this.#cleanup();
     }
 
-    testMethodTeardown() {
-        this.#cleanup();
+    async testMethodTeardown() {
+        await this.#cleanup();
     }
 
     /**
@@ -70,7 +72,7 @@ class ImportExportTest extends TestBase {
      * Ensure only section 2 (Movies) markers are exported. */
     async exportSection2Test() {
         const data = await this.#getExportedData(2);
-        const expected = 4;
+        const expected = 5;
         TestHelpers.verify(data.length === expected, `Expected ${expected} markers in exported database, found ${data.length}`);
         const expectedGuids = new Set(['00', '01', '02']);
         for (const row of data) {
@@ -224,7 +226,7 @@ class ImportExportTest extends TestBase {
         form.append('sectionId', sectionId);
         form.append('resolveType', resolveType);
         form.append('database', createReadStream(this.#dbPath()));
-        /** @type {IncomingMessage} */
+        /** @type {ExpressResponse} */
         const response = await new Promise((resolve, _) => {
             form.submit('http://localhost:3233/import_db', (err, res) => {
                 if (err) throw err;
@@ -292,7 +294,7 @@ class ImportExportTest extends TestBase {
         const db = await SqliteDatabase.OpenDatabase(this.#dbPath(), false /*allowCreate*/);
         const data = await db.all('SELECT * FROM markers;');
         this.#verifyData(data);
-        db.close();
+        await db.close();
         return data;
     }
 
@@ -304,7 +306,7 @@ class ImportExportTest extends TestBase {
             TestHelpers.verify(Object.prototype.hasOwnProperty.call(row, 'id'));
 
             TestHelpers.verify(Object.prototype.hasOwnProperty.call(row, 'marker_type'));
-            TestHelpers.verify(['intro', 'credits'].indexOf(row.marker_type) !== -1,
+            TestHelpers.verify(Object.values(MarkerType).indexOf(row.marker_type) !== -1,
                 `DB export should have a valid marker type, found ${row.marker_type}.`);
 
             TestHelpers.verify(Object.prototype.hasOwnProperty.call(row, 'start'));
@@ -365,13 +367,24 @@ class ImportExportTest extends TestBase {
         }
 
         await query.exec();
-        db.close();
+        await db.close();
     }
 
     /** Delete exported DB on teardown */
-    #cleanup() {
+    async #cleanup() {
         if (existsSync(this.#dbPath())) {
-            rmSync(this.#dbPath());
+            // TODO: investigate node.exe holding on to ie.db even after we've awaited db.close()
+            for (let i = 0; i < 5; ++i) {
+                try {
+                    rmSync(this.#dbPath());
+                    return;
+                } catch (ex) {
+                    TestLog.warn(`\t\tUnable to delete temporary import database (try ${i + 1} of 5)`);
+                    await new Promise(r => { setTimeout(r, 2000); });
+                }
+            }
+
+            TestLog.error('\t\tFailed to clean up ie.db, the next test may fail.');
         }
     }
 

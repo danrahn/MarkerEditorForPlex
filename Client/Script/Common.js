@@ -181,7 +181,7 @@ function msToHms(ms) {
         time = hours + ':' + time;
     }
 
-    return ms < 0 ? '-' + time : time;
+    return (ms > 0 || Object.is(ms, 0)) ? time : '-' + time;
 }
 
 /**
@@ -214,7 +214,7 @@ function timeToMs(value, allowNegative=false) {
             return parseInt(value);
         }
 
-        // Assume sections.milliseconds
+        // Assume seconds.milliseconds
         return parseInt(parseFloat(value) * 1000);
     }
 
@@ -453,9 +453,18 @@ function toggleVisibility(ele, visible) {
     }
 }
 
+/**
+ * Helper that returns the element w ith the given id. Useful for scenarios where the id is statically
+ * defined and you want to use the same value to get said element.
+ * @param {string} id */
+function $id(id, ele=document) {
+    return $$('#' + id, ele);
+}
+
 export {
     $,
     $$,
+    $id,
     addEventsToElement,
     appendChildren,
     buildNode,

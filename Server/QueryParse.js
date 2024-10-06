@@ -3,8 +3,8 @@ import { parse } from 'url';
 import FormDataParse from './FormDataParse.js';
 import ServerError from './ServerError.js';
 
-/** @typedef {!import('http').IncomingMessage} IncomingMessage */
-/** @typedef {!import('http').ServerResponse} ServerResponse */
+/** @typedef {!import('express').Request} ExpressRequest */
+/** @typedef {!import('express').Response} ExpressResponse */
 /** @typedef {!import('querystring').ParsedUrlQuery} ParsedUrlQuery */
 /** @typedef {!import('./FormDataParse.js').ParsedFormData} ParsedFormData */
 
@@ -24,10 +24,10 @@ let initGuard = false;
 
 /*Small helper class to handle query parameters. */
 export class QueryParser {
-    /** @type {IncomingMessage} */
+    /** @type {ExpressRequest} */
     #request;
 
-    /** @type {ServerResponse} */
+    /** @type {ExpressResponse} */
     #response;
 
     /** @type {ParsedFormData} */
@@ -37,8 +37,8 @@ export class QueryParser {
     #params;
 
     /**
-     * @param {IncomingMessage} request
-     * @param {ServerResponse} response */
+     * @param {ExpressRequest} request
+     * @param {ExpressResponse} response */
     constructor(request, response) {
         if (!initGuard) {
             throw new ServerError(`QueryParser should only be instantiated via getQueryParser.`, 500);
@@ -55,6 +55,13 @@ export class QueryParser {
     async init() {
         this.#formData = await FormDataParse.parseRequest(this.#request, 1024 * 1024 * 32);
         return this;
+    }
+
+    /**
+     * Return the raw request.
+     * @returns {ExpressRequest} */
+    r() {
+        return this.#request;
     }
 
     /**
@@ -167,8 +174,8 @@ export class QueryParser {
 }
 
 /**
- * @param {IncomingMessage} request
- * @param {ServerResponse} response */
+ * @param {ExpressRequest} request
+ * @param {ExpressResponse} response */
 export async function getQueryParser(request, response) {
     initGuard = true;
     const parser = new QueryParser(request, response);
