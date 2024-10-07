@@ -64,6 +64,12 @@ async function run() {
 
     // In docker, the location of the config and backup data files are not the project root.
     const dataRoot = process.env.IS_DOCKER ? '/Data' : ProjectRoot();
+
+    // Initialize auth database before everything else, as it doesn't rely on Config, and
+    // FirstRunConfig might need access to it.
+    await AuthDatabase.Initialize(dataRoot);
+    await UserAuthentication.Initialize();
+
     if (!argInfo.isTest) {
         await FirstRunConfig(dataRoot, argInfo.cliSetup);
     }
@@ -72,8 +78,6 @@ async function run() {
     const config = await MarkerEditorConfig.Create(argInfo, dataRoot);
     const configValid = config.getValid() === ServerConfigState.Valid;
 
-    await AuthDatabase.Initialize(dataRoot); // Even with an invalid config, set up the user/session database.
-    await UserAuthentication.Initialize();
 
     if (configValid) {
 

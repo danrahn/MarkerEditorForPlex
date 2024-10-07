@@ -1,12 +1,13 @@
 import { existsSync, writeFileSync } from 'fs';
-import { createInterface as createReadlineInterface } from 'readline/promises';
 import { join } from 'path';
+import { read } from 'read';
 /** @typedef {!import('readline/promises').Interface} Interface */
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 import { testFfmpeg, testHostPort } from './ServerHelpers.js';
 import { MarkerEditorConfig } from './MarkerEditorConfig.js';
+import { User } from './Authentication/Authentication.js';
 
 /** @typedef {!import('./MarkerEditorConfig.js').PathMapping} PathMapping */
 /** @typedef {!import('./MarkerEditorConfig.js').RawConfigFeatures} RawConfigFeatures */
@@ -24,16 +25,12 @@ async function FirstRunConfig(dataRoot, forceCli) {
 
     const configExists = existsSync(configPath);
 
-    const rl = createReadlineInterface({
-        input : process.stdin,
-        output : process.stdout });
-
     if (configExists) {
         if (forceCli) {
             console.log('Welcome to Marker Editor for Plex!');
             console.log('The editor was launched with --cli-setup, but a config file was already found.');
             if (await askUserYesNo(`Do you want to exit configuration and start the app (Y), or continue with the \n` +
-                `configuration (N), overwriting your current config`, true, rl)) {
+                `configuration (N), overwriting your current config`, true)) {
                 return;
             }
         } else {
@@ -60,15 +57,14 @@ async function FirstRunConfig(dataRoot, forceCli) {
 
     if (!configExists) {
         if (!await askUserYesNo('Welcome to Marker Editor for Plex! It looks like this is your first run, as config.json\n' +
-                                'could not be found. Would you like to go through the first-time setup', true, rl)) {
-            if (await askUserYesNo('Would you like to skip this check in the future', false, rl)) {
+                                'could not be found. Would you like to go through the first-time setup', true)) {
+            if (await askUserYesNo('Would you like to skip this check in the future', false)) {
                 writeFileSync(configPath, '{}\n');
                 console.log('Wrote default configuration file to avoid subsequent checks.');
             } else {
                 Log.warn('Not going through first-time setup, attempting to use defaults for everything.');
             }
 
-            rl.close();
             return;
         }
     }
@@ -85,7 +81,7 @@ async function FirstRunConfig(dataRoot, forceCli) {
     /* eslint-disable-next-line max-len */
     console.log('For more information about what these settings control, see https://github.com/danrahn/MarkerEditorForPlex/wiki/Configuration');
     console.log();
-    await rl.question('Press Enter to continue to configuration (Ctrl+C to cancel at any point): ');
+    await read({ prompt : 'Press Enter to continue to configuration (Ctrl+C to cancel at any point): ' });
     console.log();
 
     /** @type {RawConfig} */
@@ -101,30 +97,41 @@ async function FirstRunConfig(dataRoot, forceCli) {
     } else {
         // DataPath isn't needed if a db path is provided and bif preview thumbnails are disabled.
         const defaultPath = MarkerEditorConfig.getDefaultPlexDataPath();
-        const dataPath = await askUserPath('Plex data directory path', rl, defaultPath, true /*canSkip*/);
+        const dataPath = await askUserPath('Plex data directory path', defaultPath, true /*canSkip*/);
         if (dataPath !== null) {
             config.dataPath = dataPath;
         }
 
         const defaultDb = join(dataPath ? config.dataPath : defaultPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db');
-        const database = await askUserPath('Plex database file (full path)', rl, defaultDb, dataPath !== null);
+        const database = await askUserPath('Plex database file (full path)', defaultDb, dataPath !== null);
         if (database !== null) {
             config.database = database;
         }
 
-        config.host = await askUser('Editor host', 'localhost', rl);
-        config.port = parseInt(await askUser('Editor port', '3232', rl, validPort, 'Invalid port number'));
+        config.host = await askUser('Editor host', 'localhost');
+        config.port = parseInt(await askUser('Editor port', '3232', validPort, 'Invalid port number'));
     }
 
-    config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info', rl);
+    config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info');
+    config.authentication = {};
+    config.authentication.enabled = await askUserYesNo('Do you want to require a username/password to access this application', false);
+    if (config.authentication.enabled) {
+        config.authentication.sessionTimeout = await askUser(
+            'Session timeout', 86400, validTimeout, 'Timeout must be a number greater than 300');
+        if (!await setupUserPass()) {
+            config.authentication.enabled = false;
+            console.log('Auth setup canceled, disabling.');
+        }
+    }
+
     config.features = {};
-    config.features.autoOpen = !isDocker && await askUserYesNo('Do you want the app to open in the browser automatically', true, rl);
-    config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true, rl);
-    await getThumbnailSettings(config, rl);
+    config.features.autoOpen = !isDocker && await askUserYesNo('Do you want the app to open in the browser automatically', true);
+    config.features.extendedMarkerStats = await askUserYesNo('Do you want to display extended marker statistics', true);
+    await getThumbnailSettings(config);
 
     // Path mappings are only used for ffmpeg thumbnails, so no need to query otherwise
     if (config.features.preciseThumbnails) {
-        const mappings = await getPathMappings(rl);
+        const mappings = await getPathMappings();
         if (mappings !== null) {
             config.pathMappings = mappings;
         }
@@ -133,15 +140,105 @@ async function FirstRunConfig(dataRoot, forceCli) {
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');
     writeFileSync(configPath, JSON.stringify(config, null, 4) + '\n');
-    rl.close();
+}
+
+/**
+ * Set up authentication related settings. */
+async function setupUserPass() {
+    let existingPass = '';
+    if (User.passwordSet()) {
+        console.log(`\n!!! Existing username/password detected !!!\n`);
+        console.log(`If you choose to change the username/password, you will be asked for the existing password.`);
+        console.log(`If you do not remember your old password, you will have to manually delete auth.db\n`);
+
+        const replace = await askUserYesNo('Do you want to change the existing username/password', false);
+        if (replace) {
+            existingPass = await askUserPrivate('Current password', null, async (pass) => {
+                if (pass === '-1') {
+                    return true;
+                }
+
+                return await User.loginInternal(pass);
+            }, 'Passwords do not match (-1 to abort)'); // Assume the user doesn't want '-1' as their password.
+
+            if (existingPass === '-1') {
+                console.log('Username/password setup aborted.');
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
+    const username = (await askUser('Username: ', null, value => {
+        value = value.trim();
+        return value.length === value.replace(/ /g, '').length && value.length <= 256 && value.length > 0;
+    }, 'Username cannot contain spaces and has a maximum length of 256 characters')).trim();
+
+    let password;
+    let failures = 0;
+    let passes = 0;
+    let abort = false;
+    const validatePass = pass => {
+        if (passes > 1 && pass === '-1') {
+            abort = true;
+            return true;
+        }
+
+        return pass.length > 0;
+    };
+
+    const validateConfirmation = pass => {
+        if (pass !== password) {
+            ++failures;
+            if (failures === 3) {
+                console.log('Password verification failed, please try again' +
+                    (passes > 1 ? ' (-1 to disable auth and continue setup).\n' : '\n'));
+                return true;
+            }
+        }
+
+        return pass === password;
+    };
+
+    for (;;) {
+        ++passes;
+        failures = 0;
+        password = await askUserPrivate('Password', null, validatePass, 'Password cannot be empty');
+        if (abort) {
+            return false;
+        }
+
+        await askUserPrivate(
+            'Confirm password', null, validateConfirmation, 'Passwords do not match');
+        if (failures < 3) {
+            break;
+        }
+    }
+
+    if (abort) {
+        return false;
+    }
+
+    if (!await User.changePassword(username, password, password)) {
+        console.log('\n!!! ERROR - auth setup failed !!!\n');
+        if (await askUserYesNo('Would you like to continue setup with auth disabled', false)) {
+            return false;
+        }
+
+        console.log('Aborting setup.');
+        throw new Error('Server setup failed, cannot continue');
+    }
+
+    return true;
 }
 
 /**
  * Determine the type of thumbnails to use, if any.
  * @param {RawConfig} config
  * @param {Interface} rl */
-async function getThumbnailSettings(config, rl) {
-    config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true, rl);
+async function getThumbnailSettings(config) {
+    config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true);
     if (!config.features.previewThumbnails) {
         return;
     }
@@ -161,34 +258,33 @@ async function getThumbnailSettings(config, rl) {
         console.log(`on-the-fly with ffmpeg. While Plex's thumbnails can be retrieved much faster`);
         console.log(`and use fewer resources, they are far less accurate, and are not available if`);
         console.log(`they are disabled in your library.`);
-        const standardThumbs = await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true, rl);
+        const standardThumbs = await askUserYesNo(`Do you want to use Plex's generated thumbnails (y), or ffmpeg (n)`, true);
         config.features.preciseThumbnails = !standardThumbs;
     } else if (ffmpegExists) { // !canUsePlexThumbs
         console.log(`WARN: No data path was provided, so Plex's generated thumbnails cannot be used.`);
         console.log(`      However, because FFmpeg has been detected, precise thumbnails can be enabled.`);
         console.log(`      For this to work, the path to your media must match what's in Plex's, or be`);
         console.log(`      properly mapped via pathMappings.\n`);
-        config.features.preciseThumbnails = await askUserYesNo(`Do you want to keep FFmpeg-based thumbnails enabled`, true, rl);
+        config.features.preciseThumbnails = await askUserYesNo(`Do you want to keep FFmpeg-based thumbnails enabled`, true);
     } else if (canUsePlexThumbs) { // !ffmpegExists
         console.log(`NOTE: Precise thumbnails cannot be enabled - FFmpeg not found on path.`);
         console.log(`      If you want to enable on-the-fly thumbnail generation, make sure FFmpeg`);
         console.log(`      is available.\n`);
-        await rl.question('Press Enter to continue: ');
+        await read({ prompt : 'Press Enter to continue: ' });
         config.features.preciseThumbnails = false;
     } else { // !ffmpegExists && !canUsePlexThumbs
         console.log('WARN: Cannot enable preview thumbnails - no data path provided, and FFmpeg was');
         console.log('      not found. To enable this feature in the future, provide your Plex data');
         console.log('      path in config.json, or ensure FFmpeg exists on your path.\n');
-        await rl.question('Press Enter to continue: ');
+        await read({ prompt : 'Press Enter to continue: ' });
         config.features.previewThumbnails = false;
     }
     /* eslint-enable require-atomic-updates */
 }
 
 /**
- * Retrieve mapped paths from the user, if any.
- * @param {Interface} rl */
-async function getPathMappings(rl) {
+ * Retrieve mapped paths from the user, if any. */
+async function getPathMappings() {
     /** @type {PathMapping[]} */
     const mappings = [];
     console.log();
@@ -202,9 +298,9 @@ async function getPathMappings(rl) {
     const endsWithSep = /[/\\]$/;
 
     let msg = 'Do you want to add a path mapping';
-    while (await askUserYesNo(msg, false, rl)) {
-        const from = await askUser(`Map from: `, null, rl);
-        const to = await askUser(`Map to: `, null, rl);
+    while (await askUserYesNo(msg, false)) {
+        const from = await askUser(`Map from: `, null);
+        const to = await askUser(`Map to: `, null);
 
         // If one path ends with a separator but the other doesn't, print a warning since that's likely not
         // what the user intended (e.g. if replacing 'Z:\Movies' with '/mnt/data/Movies', the user probably doesn't
@@ -215,7 +311,7 @@ async function getPathMappings(rl) {
             console.log(`      'to' path does${fromEndsWithSep ? ' not' : ''}. Is that intentional?`);
         }
 
-        const confirm = await askUserYesNo(`Confirm mapping from '${from}' to '${to}'`, true, rl);
+        const confirm = await askUserYesNo(`Confirm mapping from '${from}' to '${to}'`, true);
         if (confirm) {
             mappings.push({ from, to });
             console.log('Mapping added!');
@@ -236,7 +332,7 @@ async function getPathMappings(rl) {
  * @param {string} question
  * @param {Interface} rl
  * @param {string} defaultPath */
-async function askUserPath(question, rl, defaultPath, canSkip=false) {
+async function askUserPath(question, defaultPath, canSkip=false) {
     const defaultExists = defaultPath.length !== 0 && existsSync(defaultPath);
     const validate = path => {
         if (canSkip && path === '-1') {
@@ -248,7 +344,7 @@ async function askUserPath(question, rl, defaultPath, canSkip=false) {
 
     for (;;) {
         const defaultText = 'auto' + (canSkip ? ', -1 to skip' : '');
-        const answer = await askUser(question, defaultText, rl, validate, 'Path does not exist');
+        const answer = await askUser(question, defaultText, validate, 'Path does not exist');
         if (answer === '-1') {
             return null;
         }
@@ -270,17 +366,47 @@ async function askUserPath(question, rl, defaultPath, canSkip=false) {
  * @param {string} question The question to ask the user.
  * @param {string} defaultValue The default value if one is not provided.
  * @param {Interface} rl Console interface.
- * @param {(string) => boolean} [validateFunc=null] Function to validate the user's input, if any.
+ * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
-async function askUser(question, defaultValue, rl, validateFunc=null, validateMsg=null) {
+function askUser(question, defaultValue, validateFunc=null, validateMsg=null) {
+    return askUserCore(question, defaultValue, validateFunc, validateMsg, false /*silent*/);
+}
+
+/**
+ * Ask the user an open-ended question, hiding their input.
+ * @param {string} question The question to ask the user.
+ * @param {string} defaultValue The default value if one is not provided.
+ * @param {Interface} rl Console interface.
+ * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
+ * @param {string} validateMsg The message to display if validation fails.
+ * @returns {Promise<string>} */
+function askUserPrivate(question, defaultValue, validateFunc=null, validateMsg=null) {
+    return askUserCore(question, defaultValue, validateFunc, validateMsg, true /*silent*/);
+}
+
+/**
+ * Ask the user an open-ended question.
+ * @param {string} question The question to ask the user.
+ * @param {string} defaultValue The default value if one is not provided.
+ * @param {Interface} rl Console interface.
+ * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
+ * @param {string} validateMsg The message to display if validation fails.
+ * @returns {Promise<string>} */
+async function askUserCore(question, defaultValue, validateFunc=null, validateMsg=null, silent=false) {
     if (defaultValue) {
         question += ` (default: ${defaultValue}): `;
     }
 
     for (;;) {
-        const answer = await rl.question(question);
-        if (answer.length === 0 || !validateFunc || validateFunc(answer)) {
+        const opts = {};
+        if (silent) {
+            opts.silent = true;
+            opts.replace = '*';
+        }
+
+        const answer = await read({ prompt : question, ...opts });
+        if ((answer.length === 0 && defaultValue !== null) || !validateFunc || await validateFunc(answer)) {
             return answer.length === 0 ? defaultValue : answer;
         }
 
@@ -288,6 +414,7 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
             console.log(validateMsg);
         }
     }
+
 }
 
 /**
@@ -296,10 +423,10 @@ async function askUser(question, defaultValue, rl, validateFunc=null, validateMs
  * @param {boolean} defaultValue The default response.
  * @param {Interface} rl The console interface.
  * @returns {Promise<boolean>} */
-async function askUserYesNo(question, defaultValue, rl) {
+async function askUserYesNo(question, defaultValue) {
     question += ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
     for (;;) {
-        const answer = await rl.question(question);
+        const answer = await read({ prompt : question });
         if (answer.length === 0) {
             return defaultValue;
         }
@@ -321,6 +448,14 @@ async function askUserYesNo(question, defaultValue, rl) {
 function validPort(port) {
     const portInt = parseInt(port);
     return !isNaN(portInt) && portInt > 0 && portInt < 65536 && portInt.toString() === port;
+}
+
+/**
+ * Validate that the given session timeout is valid.
+ * @param {string} timeout */
+function validTimeout(timeout) {
+    const timeoutInt = parseInt(timeout);
+    return !isNaN(timeoutInt) && timeoutInt >= 300 && timeoutInt.toString() === timeout;
 }
 
 export default FirstRunConfig;
