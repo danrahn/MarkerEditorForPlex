@@ -21,6 +21,7 @@ import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
+import { User, UserAuthentication } from './Authentication/Authentication.js';
 import { AuthDatabase } from './Authentication/AuthDatabase.js';
 import { DatabaseImportExport } from './ImportExport.js';
 import FirstRunConfig from './FirstRunConfig.js';
@@ -33,7 +34,6 @@ import { ServerConfigState } from '../Shared/ServerConfig.js';
 import ServerError from './ServerError.js';
 import { default as Sqlite3Store } from './Authentication/SqliteSessionStore.js';
 import { ThumbnailManager } from './ThumbnailManager.js';
-import { UserAuthentication } from './Authentication/Authentication.js';
 
 /**
  * @typedef {Object} CLIArguments
@@ -509,7 +509,12 @@ async function handlePost(req, res) {
     try {
         if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
             && typeof ServerActionMap[endpoint] === 'function') {
-            await ServerActionMap[endpoint](res);
+            if (!Config.useAuth() || User.signedIn(req)) {
+                await ServerActionMap[endpoint](res);
+            } else {
+                sendJsonError(res, new ServerError('Not authorized', 401));
+            }
+
             return;
         }
 
