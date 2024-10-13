@@ -22,7 +22,7 @@ import { PostCommands } from '/Shared/PostCommands.js';
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @template T @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T> */
 
-const Log = new ContextualLog('ServerCommands');
+const Log = ContextualLog.Create('ServerCommands');
 
 /**
  * Core method that makes a request to the server, expecting JSON in return.

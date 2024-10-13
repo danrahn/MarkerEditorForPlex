@@ -17,7 +17,7 @@ import { SectionType } from '/Shared/PlexTypes.js';
 /** @typedef {!import('./ClientDataExtensions').ClientMovieData} ClientMovieData */
 
 
-const BaseLog = new ContextualLog('PlexUI');
+const BaseLog = ContextualLog.Create('PlexUI');
 
 /**
  * OR-able modifier states

@@ -31,7 +31,7 @@ import Tooltip from './Tooltip.js';
  * @property {boolean} hasError Whether any markers are completely cut off by the shift
  */
 
-const Log = new ContextualLog('BulkShift');
+const Log = ContextualLog.Create('BulkShift');
 
 /**
  * UI for bulk shifting markers for a given show/season by a set amount of time.

@@ -30,7 +30,7 @@ import TableElements from './TableElements.js';
  * }} BestFocusMatchBackups
  * */
 
-const Log = new ContextualLog('MarkerTable');
+const Log = ContextualLog.Create('MarkerTable');
 
 /**
  * Static helper class that encapsulates the logic that determines keyboard navigation targets.

@@ -7,7 +7,7 @@ import { PurgedMarkers } from '../PurgedMarkerManager.js';
 /** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
 
 
-const Log = new ContextualLog('SeasonRowBase');
+const Log = ContextualLog.Create('SeasonRowBase');
 
 export class SeasonResultRowBase extends ResultRow {
 

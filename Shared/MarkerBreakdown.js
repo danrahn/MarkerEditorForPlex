@@ -12,7 +12,7 @@ const AdShift      = 24;
 
 /** @typedef {{ [markerCount: number] : number }} MarkerBreakdownMap */
 
-const Log = new ContextualLog('MarkerBreakdown');
+const Log = ContextualLog.Create('MarkerBreakdown');
 
 /**
  * Manages marker statistics at an arbitrary level (section/series/season/episode)

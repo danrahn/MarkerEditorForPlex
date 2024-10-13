@@ -7,7 +7,7 @@ import { readFile } from 'fs';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './MarkerEditorConfig.js';
+import { Config, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import { isBinary, sendCompressedData } from './ServerHelpers.js';
 import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
@@ -16,7 +16,7 @@ import ServerError from './ServerError.js';
 import { User } from './Authentication/Authentication.js';
 
 
-const Log = new ContextualLog('GETHandler');
+const Log = ContextualLog.Create('GETHandler');
 
 /** The cache duration for cache-bustable files (30 days) */
 const StaticCacheAge = 86400 * 30;

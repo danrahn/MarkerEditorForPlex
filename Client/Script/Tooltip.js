@@ -2,7 +2,7 @@ import { $, buildNode } from './Common.js';
 import { Attributes } from './DataAttributes.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-const Log = new ContextualLog('Tooltip');
+const Log = ContextualLog.Create('Tooltip');
 
 const windowMargin = 10;
 

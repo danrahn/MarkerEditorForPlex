@@ -12,7 +12,7 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 /** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
 
-const Log = new ContextualLog('TimestampThumbs');
+const Log = ContextualLog.Create('TimestampThumbs');
 
 /**
  * @typedef {{

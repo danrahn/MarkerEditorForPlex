@@ -16,7 +16,7 @@ import Tooltip from '../Tooltip.js';
 /** @typedef {!import('../ClientDataExtensions').ClientMovieData} ClientMovieData */
 
 
-const Log = new ContextualLog('MovieRow');
+const Log = ContextualLog.Create('MovieRow');
 
 /**
  * A result row for a single movie.

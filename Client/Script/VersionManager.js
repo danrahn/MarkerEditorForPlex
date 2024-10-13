@@ -7,7 +7,7 @@ import ButtonCreator from './ButtonCreator.js';
 /** @typedef {{[version: string]: { ignoreType : number, ignoreDate : number}}} UpdateCheckSettings */
 
 
-const Log = new ContextualLog('VersionManager');
+const Log = ContextualLog.Create('VersionManager');
 
 /**
  * Handles checking whether a new version of the app is available on GitHub

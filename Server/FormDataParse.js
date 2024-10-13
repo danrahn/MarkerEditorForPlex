@@ -6,7 +6,7 @@ import ServerError from './ServerError.js';
 /** @typedef {{ name : string, data : string, [optionalKeys: string]: string? }} ParsedFormField */
 /** @typedef {{ [name: string]: ParsedFormField }} ParsedFormData */
 
-const Log = new ContextualLog('FormData');
+const Log = ContextualLog.Create('FormData');
 
 /** Regex that looks for expected 'Content-Disposition: form-data' key/value pairs */
 const headerRegex = /\b(?<key>\w+)="(?<value>[^"]+)"/g;

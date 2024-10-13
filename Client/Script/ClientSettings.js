@@ -27,7 +27,7 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
 
-const Log = new ContextualLog('ClientSettings');
+const Log = ContextualLog.Create('ClientSettings');
 
 /**
  * Base class for implementing a client-side setting.

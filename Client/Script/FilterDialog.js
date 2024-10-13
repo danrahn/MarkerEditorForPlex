@@ -12,7 +12,7 @@ import { SectionType } from '/Shared/PlexTypes.js';
 /** @typedef {!import('/Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 
-const Log = new ContextualLog('SortFilter');
+const Log = ContextualLog.Create('SortFilter');
 
 /**
  * TODO: BETWEEN and percentage-based for TV shows (something like >90% && <100% could be helpful)

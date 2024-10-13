@@ -4,7 +4,7 @@ import SqliteDatabase from './SqliteDatabase.js';
 
 /** @typedef {!import('./SqliteDatabase.js').DbQueryParameters} DbQueryParameters */
 
-const Log = new ContextualLog('SQLiteTxn');
+const Log = ContextualLog.Create('SQLiteTxn');
 
 class TransactionBuilder {
     /** @type {string[]} */

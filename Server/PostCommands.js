@@ -3,7 +3,7 @@
 
 import { GetServerState, ServerState } from './ServerState.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
-import { Config } from './MarkerEditorConfig.js';
+import { Config } from './Config/MarkerEditorConfig.js';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { getPostCommand } from './Commands/PostCommand.js';
 import { getQueryParser } from './QueryParse.js';
@@ -17,7 +17,7 @@ import { registerQueryCommands } from './Commands/QueryCommands.js';
 import ServerError from './ServerError.js';
 import { User } from './Authentication/Authentication.js';
 
-const Log = new ContextualLog('POSTCommands');
+const Log = ContextualLog.Create('POSTCommands');
 
 /** Subset of server commands that we accept when the config files doesn't exist or is in a bad state. */
 const badStateWhitelist = new Set([

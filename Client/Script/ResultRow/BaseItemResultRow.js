@@ -14,7 +14,7 @@ import Tooltip from '../Tooltip.js';
 /** @typedef {!import('./ResultRow').FocusNext} FocusNext */
 
 
-const Log = new ContextualLog('BaseItemRow');
+const Log = ContextualLog.Create('BaseItemRow');
 
 /**
  * Class with functionality shared between "base" media types, i.e. movies and episodes.

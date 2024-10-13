@@ -1,7 +1,7 @@
 import { Store } from 'express-session';
 
 import { AuthDB } from './AuthDatabase.js';
-import { Config } from '../MarkerEditorConfig.js';
+import { Config } from '../Config/MarkerEditorConfig.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import ServerError from '../ServerError.js';
 import { SessionSecretTableName } from './AuthenticationConstants.js';
@@ -18,7 +18,7 @@ import { SessionSecretTableName } from './AuthenticationConstants.js';
 /** @typedef {(err?: any) => void} EmptyStoreCallback */
 /** @typedef {(err: any, session?: import('express-session').SessionData | null) => void} StoreCallbackWithSession */
 
-const Log = new ContextualLog('SessionStore');
+const Log = ContextualLog.Create('SessionStore');
 
 const doNothing = () => {};
 

@@ -18,7 +18,7 @@ import { TimestampThumbnails } from './TimestampThumbnails.js';
 import Tooltip from './Tooltip.js';
 
 
-const Log = new ContextualLog('MarkerTableRow');
+const Log = ContextualLog.Create('MarkerTableRow');
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */

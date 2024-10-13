@@ -52,7 +52,7 @@ import TransactionBuilder from './TransactionBuilder.js';
  */
 
 
-const Log = new ContextualLog('PlexDB');
+const Log = ContextualLog.Create('PlexDB');
 
 /**
  * extra_data string for different marker types

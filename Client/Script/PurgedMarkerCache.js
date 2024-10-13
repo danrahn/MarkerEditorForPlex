@@ -8,7 +8,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 /** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 
 
-const Log = new ContextualLog('PurgedGroup');
+const Log = ContextualLog.Create('PurgedGroup');
 
 /** Enum defining the various states of initialization possible for a PurgedGroup
  * @enum */

@@ -33,7 +33,7 @@ import MarkerBreakdown from '../Shared/MarkerBreakdown.js';
  */
 
 
-const Log = new ContextualLog('MarkerCache');
+const Log = ContextualLog.Create('MarkerCache');
 
 /**
  * Extension of MarkerBreakdown to handle the parent hierarchy that the client-side breakdown doesn't have.

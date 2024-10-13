@@ -13,7 +13,7 @@ import { ThemeColors } from './ThemeColors.js';
 
 /** @typedef {!import('./Chart').ChartDataPoint} ChartDataPoint */
 
-const Log = new ContextualLog('BreakdownChart');
+const Log = ContextualLog.Create('BreakdownChart');
 
 /**
  * Available charts

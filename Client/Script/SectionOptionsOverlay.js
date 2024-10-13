@@ -17,7 +17,7 @@ import Tooltip from './Tooltip.js';
 /** @typedef {import('./Overlay').OverlayOptions} OverlayOptions */
 
 
-const Log = new ContextualLog('SectionOps');
+const Log = ContextualLog.Create('SectionOps');
 
 class SectionOptionsOverlay {
     /**

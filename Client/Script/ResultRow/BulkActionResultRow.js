@@ -8,7 +8,7 @@ import BulkShiftOverlay from '../BulkShiftOverlay.js';
 import ButtonCreator from '../ButtonCreator.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-const Log = new ContextualLog('BulkActionRow');
+const Log = ContextualLog.Create('BulkActionRow');
 
 /**
  * A result row that offers bulk marker actions, like shifting everything X milliseconds.

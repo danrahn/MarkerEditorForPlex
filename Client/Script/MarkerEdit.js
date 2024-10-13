@@ -31,7 +31,7 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
 
-const Log = new ContextualLog('MarkerEdit');
+const Log = ContextualLog.Create('MarkerEdit');
 
 /**
  * Handles the editing of markers in the marker table.

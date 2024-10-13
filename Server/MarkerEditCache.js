@@ -11,7 +11,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
  * */
 
 
-const Log = new ContextualLog('MarkerEditCache');
+const Log = ContextualLog.Create('MarkerEditCache');
 
 /**
  * Class that keeps track of marker created/modified dates.

@@ -421,13 +421,32 @@ class ConsoleLog {
  * better categorize log messages. */
 class ContextualLog extends ConsoleLog {
     static #longestPrefix = 0;
-    /** @type {Set<ContextualLog>} */
-    static #logs = new Set();
+    /** @type {{ [prefix: string]: ContextualLog }} */
+    static #logs = {};
+    /** @type {boolean} Ensures logs are only created via ContextualLog.Create */
+    static #createGuard = false;
     #prefix = '';
     #formattedPrefix = '';
+
+    static Create(prefix) {
+        const existing = ContextualLog.#logs[prefix];
+        if (existing) {
+            return ContextualLog.#logs[prefix];
+        }
+
+        ContextualLog.#createGuard = true;
+        const log = new ContextualLog(prefix);
+        ContextualLog.#createGuard = false;
+        return log;
+    }
+
     constructor(prefix) {
+        if (!ContextualLog.#createGuard) {
+            throw new Error('Contextual logs should only be created via ContextualLog.Create');
+        }
+
         super();
-        ContextualLog.#logs.add(this);
+        ContextualLog.#logs[prefix] = this;
         if (prefix) {
             this.#prefix = prefix;
             if (this.#prefix.length > ContextualLog.#longestPrefix) {
@@ -442,7 +461,7 @@ class ContextualLog extends ConsoleLog {
     /**
      * Recompute all whitespace after a new log is added. */
     static #notifyNewContextualLog() {
-        for (const log of ContextualLog.#logs) {
+        for (const log of Object.values(ContextualLog.#logs)) {
             log.#preComputeSpaces();
         }
     }

@@ -9,7 +9,7 @@ import MarkerTable from './MarkerTable.js';
 /** @typedef {!import('./ResultRow/EpisodeResultRow').EpisodeResultRow} EpisodeResultRow */
 /** @typedef {!import('./ResultRow/MovieResultRow').MovieResultRow} MovieResultRow */
 
-const Log = new ContextualLog('ClientData');
+const Log = ContextualLog.Create('ClientData');
 
 /**
  * @typedef {Object} BaseItemCommon

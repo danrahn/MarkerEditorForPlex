@@ -2,7 +2,7 @@ import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 import { $$ } from './Common.js';
 import { Attributes } from './DataAttributes.js';
 
-const Log = new ContextualLog('Animate');
+const Log = ContextualLog.Create('Animate');
 
 /**
  * @typedef {Object} CustomAnimationOptions

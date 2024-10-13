@@ -3,17 +3,16 @@ import { createServer as createHttpsServer } from 'https';
 import { join } from 'path';
 import { read } from 'read';
 
-import { ContextualLog } from '../Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { testFfmpeg, testHostPort } from './ServerHelpers.js';
+import { testFfmpeg, testHostPort } from '../ServerHelpers.js';
 import { MarkerEditorConfig } from './MarkerEditorConfig.js';
-import { User } from './Authentication/Authentication.js';
+import { User } from '../Authentication/Authentication.js';
 
-/** @typedef {!import('./MarkerEditorConfig.js').PathMapping} PathMapping */
-/** @typedef {!import('./MarkerEditorConfig.js').RawConfigFeatures} RawConfigFeatures */
-/** @typedef {!import('./MarkerEditorConfig.js').RawConfig} RawConfig */
+/** @typedef {!import('./MarkerEditorConfig').PathMapping} PathMapping */
+/** @typedef {!import('./MarkerEditorConfig').RawConfig} RawConfig */
 
-const Log = new ContextualLog('FirstRun');
+const Log = ContextualLog.Create('FirstRun');
 
 /**
  * Checks whether config.json exists. If it doesn't, asks the user

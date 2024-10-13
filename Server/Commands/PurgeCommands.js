@@ -13,7 +13,7 @@ import ServerError from '../ServerError.js';
 /** @typedef {!import('../../Shared/PlexTypes').MarkerDataMap} MarkerDataMap */
 
 
-const Log = new ContextualLog('PurgeCommands');
+const Log = ContextualLog.Create('PurgeCommands');
 
 /**
  * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.

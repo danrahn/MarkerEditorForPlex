@@ -3,7 +3,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from '../CustomEvents.js';
 import { StickySettingsType } from './StickySettingsTypes.js';
 
-const Log = new ContextualLog('StickySettings');
+const Log = ContextualLog.Create('StickySettings');
 
 /**
  * The protected fields of ConfigBase that are available to derived classes, but not available externally.

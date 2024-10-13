@@ -14,7 +14,7 @@ import Tooltip from './Tooltip.js';
 
 /** @typedef {{[attribute: string]: string}} AttributeMap */
 
-const Log = new ContextualLog('ButtonCreator');
+const Log = ContextualLog.Create('ButtonCreator');
 
 /**
  * A static class that creates various buttons used throughout the app.

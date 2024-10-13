@@ -19,7 +19,7 @@ import { ThemeColors } from '../ThemeColors.js';
 
 /** @typedef {{ scrollTo?: HTMLElement, focusTo?: HTMLElement}} FocusNext */
 
-const Log = new ContextualLog('ResultRow');
+const Log = ContextualLog.Create('ResultRow');
 
 /**
  * ResultRow is the base class that all result rows inherit from in some capacity.

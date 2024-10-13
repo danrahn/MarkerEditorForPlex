@@ -25,7 +25,7 @@ import Tooltip from '../Tooltip.js';
 /** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
 
-const Log = new ContextualLog('ShowRow');
+const Log = ContextualLog.Create('ShowRow');
 
 /**
  * A result row for a single show in the library.

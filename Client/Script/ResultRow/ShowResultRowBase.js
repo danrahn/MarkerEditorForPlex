@@ -4,7 +4,7 @@ import { $$, buildNode, plural } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 
-const Log = new ContextualLog('ShowRowBase');
+const Log = ContextualLog.Create('ShowRowBase');
 
 /**
  * Base class for a show result row, either a "real" one or a title placeholder.

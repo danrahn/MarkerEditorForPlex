@@ -1,26 +1,38 @@
 import { dirname, join } from 'path';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { createServer as createHttpsServer } from 'https';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 import {
     allServerSettings,
-    isAuthSetting,
-    isFeaturesSetting,
     isSslSetting,
     ServerConfigState,
     ServerSettings,
     Setting,
-    SslState } from '../Shared/ServerConfig.js';
-import { BaseLog, ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
-import { GetServerState, ServerState } from './ServerState.js';
-import { PlexQueries, PlexQueryManager } from './PlexQueryManager.js';
-import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
-import { testFfmpeg, testHostPort } from './ServerHelpers.js';
-import ServerError from './ServerError.js';
-import { User } from './Authentication/Authentication.js';
+    SslState } from '../../Shared/ServerConfig.js';
+import { BaseLog, ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
+import {
+    flatToRaw,
+    getDefaultPlexDataPath,
+    mapNameToRaw,
+    settingValue,
+    validatePathMappings,
+    validPort,
+    validSessionTimeout } from './ConfigHelpers.js';
+import { GetServerState, ServerState } from '../ServerState.js';
+import { PlexQueries, PlexQueryManager } from '../PlexQueryManager.js';
+import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
+import { testFfmpeg, testHostPort } from '../ServerHelpers.js';
+import AuthenticationConfig from './AuthenticationConfig.js';
+import ConfigBase from './ConfigBase.js';
+import PlexFeatures from './FeaturesConfig.js';
+import ServerError from '../ServerError.js';
+import SslConfig from './SslConfig.js';
+import { User } from '../Authentication/Authentication.js';
 
+/** @typedef {!import('./AuthenticationConfig').RawAuthConfig} RawAuthConfig */
+/** @typedef {!import('./FeaturesConfig').RawConfigFeatures} RawConfigFeatures */
+/** @typedef {!import('./SslConfig').RawSslConfig} RawSslConfig */
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('/Shared/ServerConfig').PathMapping} PathMapping */
 /** @typedef {!import('/Shared/ServerConfig').RawSerializedConfig} RawSerializedConfig */
@@ -31,30 +43,6 @@ import { User } from './Authentication/Authentication.js';
 
 
 /**
- * @typedef {{
- *  enabled?: boolean,
- *  sslHost?: string,
- *  sslPort?: number,
- *  certType?: 'pfx'|'pem',
- *  pfxPath?: string,
- *  pfxPassphrase?: string,
- *  pemCert?: string,
- *  pemKey?: string,
- *  sslOnly?: boolean,
- * }} RawSslConfig
- *
- * @typedef {{
- *  enabled?: boolean,
- *  sessionTimeout?: number
- * }} RawAuthConfig
- *
- * @typedef {{
- *  autoOpen?: boolean,
- *  extendedMarkerStats?: boolean,
- *  previewThumbnails?: boolean,
- *  preciseThumbnails?: boolean
- * }} RawConfigFeatures
- *
  * @typedef {{
  *  dataPath?: string,
  *  database?: string,
@@ -68,339 +56,7 @@ import { User } from './Authentication/Authentication.js';
  * }} RawConfig
  */
 
-const Log = new ContextualLog('EditorConfig');
-
-/**
- * @typedef {<T>(key: string, defaultValue?: T, defaultType?: string) => Setting<T>} GetOrDefault
- */
-
-/**
- * The protected fields of ConfigBase that are available to derived classes, but not available externally.
- * @typedef {{json : Object, getOrDefault : <T>(key: string, defaultValue?: T, defaultType?: string) => Setting<T> }} ConfigBaseProtected */
-
-/**
- * Base class for a piece of a configuration file.
- *
- * Note that this is also acting as a bit of an experiment with "protected" members, i.e. members
- * that are only accessible to the base class and those that derive from it. To accomplish this,
- * derived classes pass in an empty object to this base class's constructor, and this class
- * populates it with the "protected" members, bound to this base instance. Derived classes then
- * set their own private #Base member to that object, and use it as a proxy to this classes
- * private members.
- *
- * It's not super clean, and probably much easier to just make the base members public, or
- * duplicate the code between PlexFeatures and MarkerEditorConfig, but where's the fun in that?
- */
-class ConfigBase {
-    /** The raw configuration file.
-     * @type {object} */
-    #json;
-
-    /**
-     * @param {object} json
-     * @param {ConfigBaseProtected} protectedFields Out parameter - contains private members and methods
-     * to share with the derived class that called us, making them "protected" */
-    constructor(json, protectedFields) {
-        this.#json = json || {};
-        protectedFields.getOrDefault = this.#getOrDefault.bind(this);
-        protectedFields.json = this.#json;
-    }
-
-    /**
-     * @template T
-     * @param {string} key The config property to retrieve.
-     * @param {T?} [defaultValue] The default value if the property doesn't exist.
-     * @param {string?} defaultType If defaultValue is a function, defaultType indicates the return value type.
-     * @returns {Setting<T>} The retrieved property value.
-     * @throws if `value` is not in the config and `defaultValue` is not set. */
-    #getOrDefault(key, defaultValue=null, defaultType=null) {
-        if (!Object.prototype.hasOwnProperty.call(this.#json, key)) {
-            if (defaultValue === null) {
-                throw new Error(`'${key}' not found in config file, and no default is available.`);
-            }
-
-            // Some default values are non-trivial to determine, so don't compute it
-            // until we know we need it.
-            if (typeof defaultValue === 'function')  {
-                defaultValue = defaultValue();
-            }
-
-            Log.info(`'${key}' not found in config file. Defaulting to '${defaultValue}'.`);
-            return new Setting(null, defaultValue);
-        }
-
-        // If we have a default value and its type doesn't match what's in the config, reset it to default.
-        const value = this.#json[key];
-        return this.#checkType(key, value, defaultValue, defaultType);
-    }
-
-    /**
-     * @param {string} key
-     * @param {any} value
-     * @param {any} defaultValue
-     * @param {string?} defaultType */
-    #checkType(key, value, defaultValue, defaultType) {
-        const vt = typeof value;
-        let dt = typeof defaultValue;
-
-        if (dt === 'function') {
-            Log.assert(defaultType !== null, '#checkType - Cant have a null defaultType if defaultValue is a function.');
-            dt = defaultType;
-        }
-
-        if (defaultValue === null || vt === dt) {
-            Log.verbose(`Setting ${key} to ${dt === 'object' ? JSON.stringify(value) : value}`);
-            return new Setting(value, defaultValue);
-        }
-
-        Log.warn(`Type Mismatch: '${key}' should have a type of '${dt}', found '${vt}'. Attempting to coerce...`);
-
-        const space = '                ';
-        // Allow some simple conversions
-        switch (dt) {
-            case 'boolean':
-                // Intentionally don't allow for things like tRuE, just the standard lower- or title-case.
-                if (value === 'true' || value === 'True' || value === '1' || value === 1) {
-                    Log.warn(`${space}Coerced to boolean value 'true'`);
-                    return new Setting(true, defaultValue);
-                }
-
-                if (value === 'false' || value === 'False' || value === '0' || value === 0) {
-                    Log.warn(`${space}Coerced to boolean value 'false'`);
-                    return new Setting(false, defaultValue);
-                }
-
-                break;
-            case 'string':
-                switch (vt) {
-                    case 'boolean':
-                    case 'number':
-                        Log.warn(`${space}Coerced to string value '${value.toString()}'`);
-                        return new Setting(value.toString(), defaultValue);
-                }
-                break;
-            case 'number': {
-                const asNum = +value;
-                if (!isNaN(asNum)) {
-                    Log.warn(`${space}Coerced to number value '${asNum}'`);
-                    return new Setting(asNum, defaultValue);
-                }
-                break;
-            }
-        }
-
-        const ret = (typeof defaultValue === 'function') ? defaultValue() : defaultValue;
-        Log.error(`${space}Could not coerce. Ignoring value '${value}' and setting to '${ret}'`);
-        return new Setting(null, ret);
-    }
-}
-
-class SslConfig extends ConfigBase {
-    /** @type {ConfigBaseProtected} */
-    #Base = {};
-    /** @type {Setting<boolean>} */
-    enabled;
-
-    /** @type {Setting<string>} */
-    sslHost;
-    /** @type {Setting<number>} */
-    sslPort;
-
-    /** @type {Setting<string>} */
-    certType;
-
-    /** @type {Setting<string>} */
-    pfxPath;
-    /** @type {Setting<string>} */
-    pfxPassphrase;
-
-    /** @type {Setting<string>} */
-    pemCert;
-    /** @type {Setting<string>} */
-    pemKey;
-
-    /** @type {Setting<boolean>} */
-    sslOnly;
-
-    constructor(json) {
-        const baseClass = {};
-        super(json, baseClass);
-        this.#Base = baseClass;
-        if (!json) {
-            Log.warn('Authentication not found in config, setting defaults');
-        }
-
-        this.enabled = this.#getOrDefault('enabled', false);
-        this.sslHost = this.#getOrDefault('sslHost', '0.0.0.0');
-        this.sslPort = this.#getOrDefault('sslPort', 3233);
-        this.certType = this.#getOrDefault('certType', 'pfx');
-        this.pfxPath = this.#getOrDefault('pfxPath', '');
-        this.pfxPassphrase = this.#getOrDefault('pfxPassphrase', '');
-        this.pemCert = this.#getOrDefault('pemCert', '');
-        this.pemKey = this.#getOrDefault('pemKey', '');
-        this.sslOnly = this.#getOrDefault('sslOnly', false);
-
-        if (!this.enabled) {
-            // Not enabled, we don't care if anything's invalid.
-            return;
-        }
-
-        const pfxSet = this.pfxPath.value() && this.pfxPassphrase.value();
-        const pemSet = this.pemCert.value() && this.pemKey.value();
-        if (!pfxSet && !pemSet) {
-            Log.warn('SSL enabled, but no valid PFX or PEM certificate. Disabling SSL');
-            this.enabled.setValue(false);
-            return;
-        }
-
-        const certType = this.certType.value();
-        if (!certType) {
-            // No cert type - prefer PFX, but if not set, try PEM
-            this.certType.setValue(pfxSet ? 'pfx' : 'pem');
-        } else if (certType.toLowerCase() === 'pfx' ? !pfxSet : !pemSet) {
-            Log.warn(`SSL enabled with ${certType}, but cert/key not set. Disabling SSL`);
-            this.enabled.setValue(false);
-            return;
-        }
-
-        // Make sure we keep the lowercase version to make our lives easier
-        this.certType.setValue(this.certType.value().toLowerCase());
-
-        // Ensure files exist
-        if (this.certType.value() === 'pfx') {
-            if (!existsSync(this.pfxPath.value())) {
-                Log.warn(`PFX file "${this.pfxPath.value()}" could not be found. Disabling SSL`);
-                this.enabled.setValue(false);
-                return;
-            }
-        } else if (!existsSync(this.pemCert.value()) || !existsSync(this.pemKey.value())) {
-            Log.warn('PEM cert/key not found. Disabling SSL');
-            this.enabled.setValue(false);
-            return;
-        }
-
-        // Ensure cert/key are valid.
-        try {
-            createHttpsServer(this.sslKeys(), () => {}).close();
-        } catch (err) {
-            Log.warn(err.message, `SSL server creation failed`);
-            Log.warn('Disabling SSL.');
-            this.enabled.setValue(false);
-        }
-    }
-
-    /**
-     * Return the certificate options given the selected certificate type. */
-    sslKeys() {
-        const opts = {};
-        if (this.certType.value().toLowerCase() === 'pfx') {
-            opts.pfx = readFileSync(this.pfxPath.value());
-            opts.passphrase = this.pfxPassphrase.value();
-        } else {
-            opts.cert = readFileSync(this.pemCert.value());
-            opts.key = readFileSync(this.pemKey.value());
-        }
-
-        return opts;
-    }
-
-    /** Forwards to {@link ConfigBase}s `#getOrDefault`
-     * @type {GetOrDefault} */
-    #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault(key, defaultValue);
-    }
-}
-
-/**
- * Captures the 'authentication' portion of the configuration file.
- */
-class AuthenticationConfig extends ConfigBase {
-    /** @type {ConfigBaseProtected} */
-    #Base = {};
-    /** @type {Setting<boolean>} */
-    enabled;
-    /** @type {Setting<number>} */
-    sessionTimeout;
-
-    constructor(json) {
-        const baseClass = {};
-        super(json, baseClass);
-        this.#Base = baseClass;
-        if (!json) {
-            Log.warn('Authentication not found in config, setting defaults');
-        }
-
-        this.enabled = this.#getOrDefault('enabled', false);
-        this.sessionTimeout = this.#getOrDefault('sessionTimeout', 86_400);
-        if (this.sessionTimeout < 300) {
-            Log.warn(`Session timeout must be at least 300 seconds, found ${this.sessionTimeout}. Setting to 300.`);
-            this.sessionTimeout = 300;
-        }
-    }
-
-    /** Forwards to {@link ConfigBase}s `#getOrDefault`
-     * @type {GetOrDefault} */
-    #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault(key, defaultValue);
-    }
-}
-
-/**
- * Captures the 'features' portion of the configuration file.
- */
-class PlexFeatures extends ConfigBase {
-    /** Protected members of the base class.
-     * @type {ConfigBaseProtected} */
-    #Base = {};
-
-    /**
-     * Setting for opening the UI in the browser on launch
-     * @type {Setting<boolean>} */
-    autoOpen;
-
-    /**
-     * Setting for gathering all markers before launch to compile additional statistics.
-     * @type {Setting<boolean>} */
-    extendedMarkerStats;
-
-    /** Setting for displaying timestamped preview thumbnails when editing or adding markers.
-     * @type {Setting<boolean>} */
-    previewThumbnails;
-
-    /** Setting for displaying precise ffmpeg-based preview thumbnails opposed to the pre-generated Plex BIF files.
-     * @type {Setting<boolean>} */
-    preciseThumbnails;
-
-    /** Sets the application features based on the given json.
-     * @param {RawConfigFeatures} json */
-    constructor(json) {
-        const baseClass = {};
-        super(json, baseClass);
-        this.#Base = baseClass;
-        if (!json) {
-            Log.warn('Features not found in config, setting defaults');
-        }
-
-        this.autoOpen = this.#getOrDefault('autoOpen', true);
-        this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
-        this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
-        this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', false);
-
-        if (this.previewThumbnails.value() && this.preciseThumbnails.value()) {
-            const canEnable = testFfmpeg();
-            if (!canEnable) {
-                this.preciseThumbnails.setValue(false);
-                Log.warn(`Precise thumbnails enabled, but ffmpeg wasn't found in your path! Falling back to BIF`);
-            }
-        }
-    }
-
-    /** Forwards to {@link ConfigBase}s `#getOrDefault`
-     * @type {GetOrDefault} */
-    #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault(key, defaultValue);
-    }
-}
+const Log = ContextualLog.Create('EditorConfig');
 
 /**
  * Singleton editor config instance.
@@ -526,7 +182,7 @@ class MarkerEditorConfig extends ConfigBase {
             this.#host = new Setting('0.0.0.0', '0.0.0.0');
             this.#port = new Setting(3232, 3232);
         } else {
-            this.#dataPath = this.#getOrDefault('dataPath', MarkerEditorConfig.getDefaultPlexDataPath());
+            this.#dataPath = this.#getOrDefault('dataPath', getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath.value(), 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
@@ -600,84 +256,6 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         this.#mappings = new Setting(mappings.length === 0 ? null : validMappings, []);
-    }
-
-    /**
-     * Attempts to retrieve the default Plex data directory for the current platform,
-     * returning the empty string if it was not able to.
-     * @returns {string} */
-    static getDefaultPlexDataPath() {
-        const platform = process.platform;
-        switch (platform) {
-            case 'win32':
-            {
-                const registryOverride = getWin32DataPathFromRegistry();
-                if (registryOverride.length > 0) {
-                    return join(registryOverride, 'Plex Media Server');
-                }
-
-                if (!process.env.LOCALAPPDATA) {
-                    Log.warn('LOCALAPPDTA could not be found, manual intervention required.');
-                    return '';
-                }
-
-                return join(process.env.LOCALAPPDATA, 'Plex Media Server');
-            }
-            case 'darwin':
-                if (process.env.HOME) {
-                    return join(process.env.HOME, 'Library/Application Support/Plex Media Server');
-                }
-
-                // __fallthrough
-            case 'linux':
-            case 'aix':
-            case 'openbsd':
-            case 'sunos':
-            {
-                if (process.env.PLEX_HOME) {
-                    return join(process.env.PLEX_HOME, 'Library/Application Support/Plex Media Server');
-                }
-
-                // Common Plex data locations
-                const testPaths = [
-                    '/var/lib/plexmediaserver/Library/Application Support',
-                    '/var/snap/plexmediaserver/common/Library/Application Support',
-                    '/var/lib/plex',
-                    '/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData',
-                    '/volume1/Plex/Library',
-                ];
-
-                for (const path of testPaths) {
-                    const fullPath = join(path, 'Plex Media Server');
-                    if (existsSync(fullPath)) {
-                        return fullPath;
-                    }
-                }
-
-                return '';
-            }
-            case 'freebsd':
-                return '/usr/local/plexdata/Plex Media Server';
-            default:
-                Log.warn(`Found unexpected platform '${platform}', cannot find default data path.`);
-                return '';
-        }
-    }
-
-    /**
-     * Very basic port validation, ensuring it's an integer between 1 and 65,535.
-     * @param {string} port The port as a string */
-    static ValidPort(port) {
-        const portInt = parseInt(port);
-        return !isNaN(portInt) && portInt > 0 && portInt < 65536 && portInt.toString() === port.toString();
-    }
-
-    /**
-     * Verify that the given session timeout is at least 60 seconds.
-     * @param {string} timeout The user-supplied timeout. */
-    static ValidSessionTimeout(timeout) {
-        const timeoutInt = parseInt(timeout);
-        return !isNaN(timeoutInt) && timeoutInt > 59 && timeoutInt.toString() === timeout.toString();
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`}
@@ -1137,7 +715,7 @@ class MarkerEditorConfig extends ConfigBase {
                 // but use the not-really-a-setting HostPort value to validate this.
                 return setting.setUnchanged(setting.value() === this.host());
             case ServerSettings.Port:
-                setting.setValid(MarkerEditorConfig.ValidPort(setting.value()), `Port must be between 1 and 65535`);
+                setting.setValid(validPort(setting.value()), `Port must be between 1 and 65535`);
                 return setting.setUnchanged(setting.value() === this.port());
             case ServerSettings.HostPort:
                 return this.#validateHostPort(setting);
@@ -1157,7 +735,7 @@ class MarkerEditorConfig extends ConfigBase {
                 // See comment in SeverSettings.Host case
                 return setting.setUnchanged(setting.value() === this.sslHost());
             case ServerSettings.SslPort:
-                setting.setValid(MarkerEditorConfig.ValidPort(setting.value()), `Port must be between 1 and 65535`);
+                setting.setValid(validPort(setting.value()), `Port must be between 1 and 65535`);
                 return setting.setUnchanged(setting.value() === this.sslPort());
             case ServerSettings.CertType:
                 setting.setValue(setting.value().toLowerCase());
@@ -1191,7 +769,7 @@ class MarkerEditorConfig extends ConfigBase {
             case ServerSettings.SessionTimeout:
                 setting.setUnchanged(setting.value() === this.authSessionTimeout());
                 return setting.setValid(
-                    MarkerEditorConfig.ValidSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
+                    validSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
             case ServerSettings.Username:
             {
                 const val = setting.value();
@@ -1230,7 +808,7 @@ class MarkerEditorConfig extends ConfigBase {
 
                 return setting;
             case ServerSettings.PathMappings:
-                return this.#validatePathMappings(setting);
+                return validatePathMappings(setting, this.pathMappings());
             default:
                 throw new ServerError(`Unknown server setting '${field}'`, 400);
 
@@ -1327,7 +905,7 @@ class MarkerEditorConfig extends ConfigBase {
                 return false; // host and port are the same as our current host/port, so it's valid
             }
 
-            if (!MarkerEditorConfig.ValidPort(state.port)) {
+            if (!validPort(state.port)) {
                 setting.setValid(false, `Port must be between 1 and 65535`);
                 return false;
             }
@@ -1340,7 +918,7 @@ class MarkerEditorConfig extends ConfigBase {
                 return false; // host and port are the same as our current host/port, so it's valid
             }
 
-            if (!MarkerEditorConfig.ValidPort(state.port)) {
+            if (!validPort(state.port)) {
                 setting.setValid(false, `Port must be between 1 and 65535`);
                 return false;
             }
@@ -1449,129 +1027,6 @@ class MarkerEditorConfig extends ConfigBase {
             return false;
         }
     }
-
-    /**
-     * Ensure all path mappings are valid, setting isValid to false if that's not the case.
-     * @param {Setting<PathMapping[]>} setting */
-    #validatePathMappings(setting) {
-        // Don't verify that the paths exist, just make sure they're in the right format.
-        const values = setting.value();
-        const invalidRows = [];
-        if (!(values instanceof Array)) {
-            setting.setValid(false, `Expected an array of path mappings, found ${typeof values}`);
-            return setting;
-        }
-
-        const existing = this.pathMappings();
-        /** @type {(mapping: PathMapping) => boolean} */
-        const mappingExists = mapping => existing.some(map => map.from === mapping.from && map.to === mapping.to);
-
-        let i = 0;
-        let anyChangedMappings = existing.length !== values.length;
-        for (const mapping of values) {
-            anyChangedMappings ||= !mappingExists(mapping);
-            let rowInvalid = false;
-            const invalidInfo = { row : i++ };
-            if (typeof mapping.to === 'string') {
-                rowInvalid = !existsSync(mapping.to);
-                if (rowInvalid) {
-                    invalidInfo.toError = `Path does not exist.`;
-                }
-            } else {
-                rowInvalid = true;
-                invalidInfo.toError = `Expected 'to' path to be a string, found '${typeof mapping.to}'`;
-            }
-
-            if (typeof mapping.from !== 'string') {
-                rowInvalid = true;
-                invalidInfo.fromError = `Expected 'from' path to be a string, found '${typeof mapping.from}'`;
-            }
-
-            if (rowInvalid) {
-                invalidRows.push(invalidInfo);
-            }
-        }
-
-        if (invalidRows.length > 0) {
-            setting.setValid(false, JSON.stringify(invalidRows));
-        }
-
-        if (anyChangedMappings) {
-            setting.setUnchanged(false);
-        }
-
-        return setting;
-    }
-}
-
-/**
- * Look for the LocalAppDataPath override in the Windows registry.
- * Just use exec instead of importing an entirely new dependency just to grab a single value on Windows. */
-function getWin32DataPathFromRegistry() {
-    if (process.platform !== 'win32') {
-        Log.error('Attempting to access Windows registry on non-Windows system. Don\'t do that!');
-        return '';
-    }
-
-    try {
-        // Valid output should be formatted as follows:
-        // HKEY_CURRENT_USER\SOFTWARE\Plex, Inc.\Plex Media Server{\r\n}
-        //     LocalAppDataPath    REG_SZ    D:\Path\To\Folder{\r\n}{\r\n}
-        const data = execSync('REG QUERY "HKCU\\SOFTWARE\\Plex, Inc.\\Plex Media Server" /v LocalAppDataPath',
-            { timeout : 10000 });
-
-        return /REG_SZ\s+(?<dataPath>[^\r\n]+)/.exec(data.toString()).groups.dataPath;
-    } catch (_ex) {
-        Log.verbose('LocalAppData registry key does not exist or could not be parsed, assuming default location.');
-    }
-
-    return '';
-}
-
-/**
- * @template T
- * @param {TypedSetting<T>} setting */
-function settingValue(setting) {
-    return (setting.value === null || setting.value === undefined) ? setting.defaultValue : setting.value;
-}
-
-/**
- * Maps a flat setting name to a raw setting name.
- * Retrieve the raw config path for the given setting.
- * @param {string} setting */
-function mapNameToRaw(setting) {
-    switch (setting) {
-        case ServerSettings.UseSsl:
-            return 'enabled';
-        case ServerSettings.UseAuthentication:
-            return 'enabled';
-        case ServerSettings.SessionTimeout:
-            return 'sessionTimeout';
-        default:
-            return setting;
-    }
-}
-
-/**
- * Maps a setting to its location in the raw config.
- * @param {string} setting
- * @param {RawConfig} rawConfig
- * @param {boolean} [create=true] If true, creates any necessary subsections. If false, returns
- *                                undefined if it does not already exist in the raw config. */
-function flatToRaw(setting, rawConfig, create=true) {
-    if (isAuthSetting(setting)) {
-        return create ? (rawConfig.authentication ??= {}) : rawConfig.authentication;
-    }
-
-    if (isSslSetting(setting)) {
-        return create ? (rawConfig.ssl ??= {}) : rawConfig.ssl;
-    }
-
-    if (isFeaturesSetting(setting)) {
-        return create ? (rawConfig.features ??= {}) : rawConfig.features;
-    }
-
-    return rawConfig;
 }
 
 /**
@@ -1584,6 +1039,6 @@ let globalProjectRoot = undefined;
  *
  * Doesn't live in MarkerEditorConfig directly because it occasionally needs to be
  * accessed before MarkerEditorConfig is completely set up. */
-const ProjectRoot = () => (globalProjectRoot ??= dirname(dirname(fileURLToPath(import.meta.url))));
+const ProjectRoot = () => (globalProjectRoot ??= dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 
 export { MarkerEditorConfig, Instance as Config, ProjectRoot };

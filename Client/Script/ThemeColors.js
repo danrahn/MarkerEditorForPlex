@@ -2,7 +2,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 /** @typedef {!import('./Icons').IconKeys} IconKeys */
 
-const Log = new ContextualLog('ThemeColors');
+const Log = ContextualLog.Create('ThemeColors');
 
 /**
  * List of available theme colors. */

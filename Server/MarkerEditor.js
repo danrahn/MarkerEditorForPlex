@@ -17,7 +17,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 
 /** Server dependencies */
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
-import { Config, MarkerEditorConfig, ProjectRoot } from './MarkerEditorConfig.js';
+import { Config, MarkerEditorConfig, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
@@ -25,7 +25,7 @@ import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { User, UserAuthentication } from './Authentication/Authentication.js';
 import { AuthDatabase } from './Authentication/AuthDatabase.js';
 import { DatabaseImportExport } from './ImportExport.js';
-import FirstRunConfig from './FirstRunConfig.js';
+import FirstRunConfig from './Config/FirstRunConfig.js';
 import GETHandler from './GETHandler.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
@@ -45,7 +45,7 @@ import { ThumbnailManager } from './ThumbnailManager.js';
  * @property {boolean} cliSetup The user wants to set up Marker Editor using the command line, not a browser.
  */
 
-const Log = new ContextualLog('ServerCore');
+const Log = ContextualLog.Create('ServerCore');
 
 /**
  * HTTP server instance.

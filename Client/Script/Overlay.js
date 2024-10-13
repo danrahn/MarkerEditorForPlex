@@ -24,7 +24,7 @@ import Tooltip from './Tooltip.js';
  */
 
 
-const Log = new ContextualLog('Overlay');
+const Log = ContextualLog.Create('Overlay');
 
 /* eslint-disable no-invalid-this */ // Remove if Overlay becomes a proper class
 

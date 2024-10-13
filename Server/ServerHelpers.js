@@ -11,7 +11,7 @@ import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import ServerError from './ServerError.js';
 
 
-const Log = new ContextualLog('ServerHelpers');
+const Log = ContextualLog.Create('ServerHelpers');
 
 /**
  * Helper method that returns the given HTTP status code alongside a JSON object with a single 'Error' field.

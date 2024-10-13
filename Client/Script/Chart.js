@@ -12,7 +12,7 @@ import Tooltip from './Tooltip.js';
  * Adapted from PlexWeb/script/chart.js
  */
 
-const Log = new ContextualLog('Chart');
+const Log = ContextualLog.Create('Chart');
 
 /* eslint-disable no-invalid-this */ // Remove if Chart becomes a proper class
 

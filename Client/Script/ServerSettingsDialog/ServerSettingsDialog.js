@@ -25,7 +25,7 @@ import { PathMappingsTable } from './PathMappingsTable.js';
  * @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T>
  * */
 
-const Log = new ContextualLog('ServerConfig');
+const Log = ContextualLog.Create('ServerConfig');
 
 /**
  * Elements IDs for authentication password fields. */

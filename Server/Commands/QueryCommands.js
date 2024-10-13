@@ -3,7 +3,7 @@ import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import MarkerBreakdown from '../../Shared/MarkerBreakdown.js';
 import { supportedMarkerType } from '../../Shared/MarkerType.js';
 
-import { Config } from '../MarkerEditorConfig.js';
+import { Config } from '../Config/MarkerEditorConfig.js';
 import LegacyMarkerBreakdown from '../LegacyMarkerBreakdown.js';
 import { MarkerCache } from '../MarkerCacheManager.js';
 import { PlexQueries } from '../PlexQueryManager.js';
@@ -17,7 +17,7 @@ import { Thumbnails } from '../ThumbnailManager.js';
 /** @typedef {!import('../MarkerCacheManager').TreeStats} TreeStats */
 
 
-const Log = new ContextualLog('QueryCommands');
+const Log = ContextualLog.Create('QueryCommands');
 
 /* *********
  * Helpers *

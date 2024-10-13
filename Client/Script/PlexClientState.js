@@ -23,7 +23,7 @@ import { ServerCommands } from './Commands.js';
 /** @typedef {!import('./ResultRow/SeasonResultRow').SeasonResultRow} SeasonResultRow */
 /** @typedef {!import('./ResultRow/ShowResultRow').ShowResultRow} ShowResultRow */
 
-const Log = new ContextualLog('PlexClientState');
+const Log = ContextualLog.Create('PlexClientState');
 
 /**
  * A class that contains two maps, mapping words of media titles

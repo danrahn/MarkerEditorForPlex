@@ -32,7 +32,7 @@ import TableElements from './TableElements.js';
 /** @typedef {!import('./PurgedMarkerCache').PurgedSection} PurgedSection */
 
 
-const Log = new ContextualLog('PurgedManager');
+const Log = ContextualLog.Create('PurgedManager');
 
 /**
  * A class that holds the information relevant for a button callback

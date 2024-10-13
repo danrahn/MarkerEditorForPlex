@@ -4,7 +4,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import FetchError from './FetchError.js';
 import Overlay from './Overlay.js';
 
-const Log = new ContextualLog('ErrorHandling');
+const Log = ContextualLog.Create('ErrorHandling');
 
 /**
  * Displays an overlay for the given error

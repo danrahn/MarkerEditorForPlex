@@ -13,7 +13,7 @@ import SectionOptionsOverlay from '../SectionOptionsOverlay.js';
 import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
 
-const Log = new ContextualLog('SectionOptionsRow');
+const Log = ContextualLog.Create('SectionOptionsRow');
 
 /**
  * A section-wide header that is displayed no matter what the current view state is (beside the blank state).

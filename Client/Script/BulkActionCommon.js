@@ -15,7 +15,7 @@ import { Theme } from './ThemeColors.js';
 
 /** @typedef {{ [showId: number] : { [seasonId: number]: MarkerData[] } }} BulkMarkerResult */
 
-const Log = new ContextualLog('BulkAction');
+const Log = ContextualLog.Create('BulkAction');
 
 /**
  * Base class that represents a row in a bulk action customization table.

@@ -5,7 +5,7 @@ import { authSchemaUpgrades, authSchemaVersion } from './AuthenticationConstants
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import SqliteDatabase from '../SqliteDatabase.js';
 
-const Log = new ContextualLog('AuthDB');
+const Log = ContextualLog.Create('AuthDB');
 
 /** @readonly @type {AuthDatabase} */
 export let AuthDB;
@@ -54,7 +54,13 @@ export class AuthDatabase {
         const dbPath = join(dbRoot, 'auth.db');
         const db = await SqliteDatabase.OpenDatabase(dbPath, true /*allowCreate*/);
         this.#db = db;
-        const version = (await db.get('SELECT version FROM schema_version;'))?.version || 0;
+        let version = 0;
+        try {
+            version = (await db.get('SELECT version FROM schema_version;'))?.version || 0;
+        } catch (err) {
+            Log.info('Version information not found in auth DB, starting from scratch.');
+        }
+
         await this.#upgradeSchema(version);
     }
 

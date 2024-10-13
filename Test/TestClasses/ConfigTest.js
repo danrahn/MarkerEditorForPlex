@@ -3,7 +3,7 @@ import TestHelpers from '../TestHelpers.js';
 import { TestLog } from '../TestRunner.js';
 
 import { ServerSettings, SslState } from '../../Shared/ServerConfig.js';
-import { MarkerEditorConfig } from '../../Server/MarkerEditorConfig.js';
+import { MarkerEditorConfig } from '../../Server/Config/MarkerEditorConfig.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
 import { testHostPort } from '../../Server/ServerHelpers.js';
 

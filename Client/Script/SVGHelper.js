@@ -5,7 +5,7 @@ import { buildNode, buildNodeNS } from './Common.js';
 /** @typedef {!import('./Icons').IconKeys} IconKeys */
 /** @typedef {!import('./ThemeColors').ThemeColorKeys} ThemeColorKeys */
 
-const Log = new ContextualLog('SVGCache');
+const Log = ContextualLog.Create('SVGCache');
 
 /**
  * Subset of attributes that we expect might be set on an SVG

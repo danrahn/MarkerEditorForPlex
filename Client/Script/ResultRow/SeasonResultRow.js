@@ -29,7 +29,7 @@ import Tooltip from '../Tooltip.js';
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 
 
-const Log = new ContextualLog('SeasonRow');
+const Log = ContextualLog.Create('SeasonRow');
 
 /**
  * A result row for a single season of a show.

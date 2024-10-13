@@ -10,7 +10,7 @@ import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
 import { ValidationInputDelay } from './ServerSettingsDialogConstants.js';
 
-const Log = new ContextualLog('PathMappings');
+const Log = ContextualLog.Create('PathMappings');
 
 /**
  * Encapsulates the UI of the editable path mappings table in the server settings dialog.

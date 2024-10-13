@@ -3,7 +3,7 @@ import { join } from 'path';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './MarkerEditorConfig.js';
+import { Config, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from './ServerEvents.js';
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS schema_version (version INTEGER);
 INSERT INTO schema_version (version) SELECT ${CurrentSchemaVersion} WHERE NOT EXISTS (SELECT * FROM schema_version);`;
 
 
-const Log = new ContextualLog('ImportExport');
+const Log = ContextualLog.Create('ImportExport');
 
 /**
  * Static class that handles the import/export of markers

@@ -5,7 +5,7 @@ import { default as util } from 'util';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './MarkerEditorConfig.js';
+import { Config, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import ServerError from './ServerError.js';
 
@@ -14,7 +14,7 @@ const execFile = util.promisify(execFileCb);
 /** @typedef {!import('./SqliteDatabase'.default) SqliteDatabase} */
 
 
-const Log = new ContextualLog('ThumbManager');
+const Log = ContextualLog.Create('ThumbManager');
 
 /**
  * Thin wrapper around a ServerError to let callers know that

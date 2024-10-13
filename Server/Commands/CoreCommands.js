@@ -22,7 +22,7 @@ import ServerError from '../ServerError.js';
 /** @typedef {!import('../QueryParse').QueryParser} QueryParser */
 
 
-const Log = new ContextualLog('CoreCommands');
+const Log = ContextualLog.Create('CoreCommands');
 
 /*
  * Core add/edit/delete commands, including bulk operations

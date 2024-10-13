@@ -10,7 +10,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
-import { Config } from './MarkerEditorConfig.js';
+import { Config } from './Config/MarkerEditorConfig.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
@@ -29,7 +29,7 @@ import TransactionBuilder from './TransactionBuilder.js';
 /** @typedef {!import('./PlexQueryManager').RawMarkerData} RawMarkerData */
 
 
-const Log = new ContextualLog('MarkerBackup');
+const Log = ContextualLog.Create('MarkerBackup');
 
 /*
 Backup table V1:

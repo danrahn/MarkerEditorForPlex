@@ -39,7 +39,7 @@ import { ThemeColors } from './ThemeColors.js';
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
 
-const Log = new ContextualLog('BulkAddOverlay');
+const Log = ContextualLog.Create('BulkAddOverlay');
 
 /**
  * UI for bulk adding markers to a given show/season

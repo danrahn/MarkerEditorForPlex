@@ -2,7 +2,7 @@ import { ServerConfigState, ServerSettings } from '../../Shared/ServerConfig.js'
 
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
 import { ServerState, SetServerState } from '../ServerState.js';
-import { Config } from '../MarkerEditorConfig.js';
+import { Config } from '../Config/MarkerEditorConfig.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
 import { registerCommand } from './PostCommand.js';
 import { sendJsonSuccess } from '../ServerHelpers.js';

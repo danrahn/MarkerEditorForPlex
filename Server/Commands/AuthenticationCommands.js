@@ -1,4 +1,4 @@
-import { Config } from '../MarkerEditorConfig.js';
+import { Config } from '../Config/MarkerEditorConfig.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
 import { registerCommand } from './PostCommand.js';
 import ServerError from '../ServerError.js';
