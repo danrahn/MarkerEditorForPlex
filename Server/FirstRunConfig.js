@@ -1,7 +1,7 @@
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { createServer as createHttpsServer } from 'https';
 import { join } from 'path';
 import { read } from 'read';
-/** @typedef {!import('readline/promises').Interface} Interface */
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
@@ -113,6 +113,15 @@ async function FirstRunConfig(dataRoot, forceCli) {
     }
 
     config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info');
+
+    config.ssl = {};
+    config.ssl.enabled = await askUserYesNo('Do you want to enable secure (HTTPS) connections (note\n' +
+                                            'that this requires a valid PFX or PEM certificate)', false);
+    if (config.ssl.enabled) {
+        await setupSsl(config);
+    }
+
+
     config.authentication = {};
     config.authentication.enabled = await askUserYesNo('Do you want to require a username/password to access this application', false);
     if (config.authentication.enabled) {
@@ -140,6 +149,52 @@ async function FirstRunConfig(dataRoot, forceCli) {
     console.log();
     Log.info('Finished first-run setup, writing config.json and continuing');
     writeFileSync(configPath, JSON.stringify(config, null, 4) + '\n');
+}
+
+/**
+ * @param {RawConfig} config */
+async function setupSsl(config) {
+    const ssl = config.ssl;
+    ssl.sslOnly = await askUserYesNo('Force secure connections');
+
+    if (ssl.sslOnly) {
+        ssl.host = config.host;
+        ssl.port = config.port;
+    } else if (process.env.IS_DOCKER) {
+        ssl.host = '0.0.0.0';
+        ssl.port = 3233;
+    } else {
+        ssl.host = await askUser('HTTPS host', '0.0.0.0');
+        ssl.port = parseInt(await askUser('HTTPS port', '3233', validPort, 'Invalid port number'));
+    }
+
+    ssl.certType = (await askUser(
+        'Certificate type (PFX or PEM)', 'PFX',
+        value => ['pfx', 'pem'].includes(value.trim().toLowerCase()),
+        'Must enter "pfx" or "pem" (no quotes)')).trim().toLowerCase();
+
+    const validSSL = opts => {
+        try {
+            createHttpsServer(opts, () => {}).close();
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    if (ssl.certType === 'pfx') {
+        ssl.pfxPath = await askUserPath('Path to PKCS#12 certificate file');
+        ssl.pfxPassphrase = await askUserPrivate('Certificate passphrase');
+    } else {
+        ssl.pemCert = await askUserPath('Path to PEM certificate');
+        ssl.pemKey = await askUserPath('Path to PEM private key');
+    }
+
+    if (!validSSL(ssl.certType === 'pfx' ?
+        { pfx : readFileSync(ssl.pfxPath), passphrase : ssl.pfxPassphrase } :
+        { cert : readFileSync(ssl.pemCert), key : readFileSync(ssl.pemKey) })) {
+        Log.warn('Failed to initialize HTTPS server with given credentials. SSL will likely be disabled.\n');
+    }
 }
 
 /**
@@ -235,8 +290,7 @@ async function setupUserPass() {
 
 /**
  * Determine the type of thumbnails to use, if any.
- * @param {RawConfig} config
- * @param {Interface} rl */
+ * @param {RawConfig} config */
 async function getThumbnailSettings(config) {
     config.features.previewThumbnails = await askUserYesNo('Do you want to view preview thumbnails when editing markers', true);
     if (!config.features.previewThumbnails) {
@@ -330,9 +384,9 @@ async function getPathMappings() {
  * return that if the users enters 'auto', otherwise continue asking until
  * a valid path is provided.
  * @param {string} question
- * @param {Interface} rl
- * @param {string} defaultPath */
-async function askUserPath(question, defaultPath, canSkip=false) {
+ * @param {string} defaultPath
+ * @param {boolean} canSkip */
+async function askUserPath(question, defaultPath='', canSkip=false) {
     const defaultExists = defaultPath.length !== 0 && existsSync(defaultPath);
     const validate = path => {
         if (canSkip && path === '-1') {
@@ -365,7 +419,6 @@ async function askUserPath(question, defaultPath, canSkip=false) {
  * Ask the user an open-ended question (i.e. not yes/no).
  * @param {string} question The question to ask the user.
  * @param {string} defaultValue The default value if one is not provided.
- * @param {Interface} rl Console interface.
  * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
@@ -377,7 +430,6 @@ function askUser(question, defaultValue, validateFunc=null, validateMsg=null) {
  * Ask the user an open-ended question, hiding their input.
  * @param {string} question The question to ask the user.
  * @param {string} defaultValue The default value if one is not provided.
- * @param {Interface} rl Console interface.
  * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
@@ -389,7 +441,6 @@ function askUserPrivate(question, defaultValue, validateFunc=null, validateMsg=n
  * Ask the user an open-ended question.
  * @param {string} question The question to ask the user.
  * @param {string} defaultValue The default value if one is not provided.
- * @param {Interface} rl Console interface.
  * @param {(value: string) => boolean|Promise<boolean>} [validateFunc=null] Function to validate the user's input, if any.
  * @param {string} validateMsg The message to display if validation fails.
  * @returns {Promise<string>} */
@@ -420,9 +471,7 @@ async function askUserCore(question, defaultValue, validateFunc=null, validateMs
 /**
  * Ask the user a yes/no question, returning whether 'yes' was chosen.
  * @param {string} question The yes/no question.
- * @param {boolean} defaultValue The default response.
- * @param {Interface} rl The console interface.
- * @returns {Promise<boolean>} */
+ * @param {boolean} defaultValue The default response. */
 async function askUserYesNo(question, defaultValue) {
     question += ` [y/n]? (default: ${defaultValue ? 'y' : 'n'}): `;
     for (;;) {

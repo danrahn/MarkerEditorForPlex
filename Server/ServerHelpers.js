@@ -33,7 +33,7 @@ export function sendJsonError(res, error, code) {
     Log.error(message);
     Log.verbose(stack);
 
-    if (!code || typeof code !== 'number') {
+    if (!code || typeof code !== 'number' || code < 100 || code > 599) {
         Log.warn(`sendJsonError didn't receive a valid error code, defaulting to 500`);
         code = 500;
     }
@@ -106,21 +106,71 @@ export function testFfmpeg() {
     }
 }
 
+/** @type {Promise<void>[]} */
+const HostPortTestQueue = [];
+
 /**
  * Determine if the given host/port is in use.
  * @param {string} host
  * @param {number} port
- * @returns {Promise<{ valid: boolean, errorCode?: string }>}*/
-export function testHostPort(host, port) {
-    return new Promise(resolve => {
-        /** @type {Server} */
+ * @returns {Promise<{ valid: boolean, errorCode?: string, failedConnection?: string }>}*/
+export async function testHostPort(host, port, ...hostsAndPorts) {
+    if (HostPortTestQueue.length > 0) {
+        Log.warn('Multiple testHostPort requests came in at once. Waiting for previous one to finish');
+        const waitFor = HostPortTestQueue[HostPortTestQueue.length - 1];
+        await waitFor;
+    }
+
+    const promise = testHostPortCore(host, port, ...hostsAndPorts);
+    HostPortTestQueue.push(promise);
+    const result = await promise;
+    HostPortTestQueue.splice(HostPortTestQueue.indexOf(promise), 1);
+    return result;
+}
+
+/**
+ * Determine if the given host/port is in use.
+ * @param {string} host
+ * @param {number} port
+ * @param {(string|number)[]} hostsAndPorts
+ * @returns {Promise<{ valid: boolean, errorCode?: string, failedConnection?: string }>}*/
+async function testHostPortCore(host, port, ...hostsAndPorts) {
+    if (!host && !port) {
+        return { valid : true };
+    }
+
+    /** @type {Server[]} */
+    const servers = [];
+    if (hostsAndPorts.length % 2 !== 0) {
+        return { valid : false, errorCode : 'Invalid arguments passed to testHostPort' };
+    }
+
+    /** @type {(listenHost: string, listenPort: number) => Promise<{ valid: boolean, errorCode?: string, failedConnection?: string}>} */
+    const listenTest = (listenHost, listenPort) => {
         const serverPing = createServer();
-        serverPing.listen(port, host, () => {
-            serverPing.close(_ => resolve({ valid : true }));
-        }).on('error', (err) => {
-            serverPing.close(_ => resolve({ valid : false, errorCode : err.code }));
+        servers.push(serverPing);
+        return new Promise(resolve => {
+            serverPing.listen(listenPort, listenHost, () => {
+                resolve({ valid : true });
+            }).on('error', err => {
+                serverPing.close(_ => resolve({ valid : false, errorCode : err.code, failedConnection : `${listenHost}:${listenPort}` }));
+            });
         });
-    });
+    };
+
+    const promises = [listenTest(host, port)];
+    for (let i = 0; i < hostsAndPorts.length; ++i) {
+        promises.push(listenTest(hostsAndPorts[i++], hostsAndPorts[i]));
+    }
+
+    const results = await Promise.all(promises);
+    const firstError = results.find(r => !r.valid);
+
+    for (const server of servers) {
+        server.close(_ => {}); // Swallow any close() errors.
+    }
+
+    return firstError || results[0];
 }
 
 // Binaries invoke built.cjs (keep in sync with Build.js's transpile()). Assume anything else is from source.

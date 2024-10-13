@@ -1,9 +1,18 @@
 import { dirname, join } from 'path';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { createServer as createHttpsServer } from 'https';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-import { allServerSettings, ServerConfigState, ServerSettings, Setting } from '../Shared/ServerConfig.js';
+import {
+    allServerSettings,
+    isAuthSetting,
+    isFeaturesSetting,
+    isSslSetting,
+    ServerConfigState,
+    ServerSettings,
+    Setting,
+    SslState } from '../Shared/ServerConfig.js';
 import { BaseLog, ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import { PlexQueries, PlexQueryManager } from './PlexQueryManager.js';
@@ -24,6 +33,18 @@ import { User } from './Authentication/Authentication.js';
 /**
  * @typedef {{
  *  enabled?: boolean,
+ *  sslHost?: string,
+ *  sslPort?: number,
+ *  certType?: 'pfx'|'pem',
+ *  pfxPath?: string,
+ *  pfxPassphrase?: string,
+ *  pemCert?: string,
+ *  pemKey?: string,
+ *  sslOnly?: boolean,
+ * }} RawSslConfig
+ *
+ * @typedef {{
+ *  enabled?: boolean,
  *  sessionTimeout?: number
  * }} RawAuthConfig
  *
@@ -40,6 +61,7 @@ import { User } from './Authentication/Authentication.js';
  *  host?: string,
  *  port?: number,
  *  logLevel?: string,
+ *  ssl?: RawSslConfig,
  *  authentication?: RawAuthConfig,
  *  features?: RawConfigFeatures,
  *  pathMappings?: PathMapping[],
@@ -170,6 +192,122 @@ class ConfigBase {
         const ret = (typeof defaultValue === 'function') ? defaultValue() : defaultValue;
         Log.error(`${space}Could not coerce. Ignoring value '${value}' and setting to '${ret}'`);
         return new Setting(null, ret);
+    }
+}
+
+class SslConfig extends ConfigBase {
+    /** @type {ConfigBaseProtected} */
+    #Base = {};
+    /** @type {Setting<boolean>} */
+    enabled;
+
+    /** @type {Setting<string>} */
+    sslHost;
+    /** @type {Setting<number>} */
+    sslPort;
+
+    /** @type {Setting<string>} */
+    certType;
+
+    /** @type {Setting<string>} */
+    pfxPath;
+    /** @type {Setting<string>} */
+    pfxPassphrase;
+
+    /** @type {Setting<string>} */
+    pemCert;
+    /** @type {Setting<string>} */
+    pemKey;
+
+    /** @type {Setting<boolean>} */
+    sslOnly;
+
+    constructor(json) {
+        const baseClass = {};
+        super(json, baseClass);
+        this.#Base = baseClass;
+        if (!json) {
+            Log.warn('Authentication not found in config, setting defaults');
+        }
+
+        this.enabled = this.#getOrDefault('enabled', false);
+        this.sslHost = this.#getOrDefault('sslHost', '0.0.0.0');
+        this.sslPort = this.#getOrDefault('sslPort', 3233);
+        this.certType = this.#getOrDefault('certType', 'pfx');
+        this.pfxPath = this.#getOrDefault('pfxPath', '');
+        this.pfxPassphrase = this.#getOrDefault('pfxPassphrase', '');
+        this.pemCert = this.#getOrDefault('pemCert', '');
+        this.pemKey = this.#getOrDefault('pemKey', '');
+        this.sslOnly = this.#getOrDefault('sslOnly', false);
+
+        if (!this.enabled) {
+            // Not enabled, we don't care if anything's invalid.
+            return;
+        }
+
+        const pfxSet = this.pfxPath.value() && this.pfxPassphrase.value();
+        const pemSet = this.pemCert.value() && this.pemKey.value();
+        if (!pfxSet && !pemSet) {
+            Log.warn('SSL enabled, but no valid PFX or PEM certificate. Disabling SSL');
+            this.enabled.setValue(false);
+            return;
+        }
+
+        const certType = this.certType.value();
+        if (!certType) {
+            // No cert type - prefer PFX, but if not set, try PEM
+            this.certType.setValue(pfxSet ? 'pfx' : 'pem');
+        } else if (certType.toLowerCase() === 'pfx' ? !pfxSet : !pemSet) {
+            Log.warn(`SSL enabled with ${certType}, but cert/key not set. Disabling SSL`);
+            this.enabled.setValue(false);
+            return;
+        }
+
+        // Make sure we keep the lowercase version to make our lives easier
+        this.certType.setValue(this.certType.value().toLowerCase());
+
+        // Ensure files exist
+        if (this.certType.value() === 'pfx') {
+            if (!existsSync(this.pfxPath.value())) {
+                Log.warn(`PFX file "${this.pfxPath.value()}" could not be found. Disabling SSL`);
+                this.enabled.setValue(false);
+                return;
+            }
+        } else if (!existsSync(this.pemCert.value()) || !existsSync(this.pemKey.value())) {
+            Log.warn('PEM cert/key not found. Disabling SSL');
+            this.enabled.setValue(false);
+            return;
+        }
+
+        // Ensure cert/key are valid.
+        try {
+            createHttpsServer(this.sslKeys(), () => {}).close();
+        } catch (err) {
+            Log.warn(err.message, `SSL server creation failed`);
+            Log.warn('Disabling SSL.');
+            this.enabled.setValue(false);
+        }
+    }
+
+    /**
+     * Return the certificate options given the selected certificate type. */
+    sslKeys() {
+        const opts = {};
+        if (this.certType.value().toLowerCase() === 'pfx') {
+            opts.pfx = readFileSync(this.pfxPath.value());
+            opts.passphrase = this.pfxPassphrase.value();
+        } else {
+            opts.cert = readFileSync(this.pemCert.value());
+            opts.key = readFileSync(this.pemKey.value());
+        }
+
+        return opts;
+    }
+
+    /** Forwards to {@link ConfigBase}s `#getOrDefault`
+     * @type {GetOrDefault} */
+    #getOrDefault(key, defaultValue=null) {
+        return this.#Base.getOrDefault(key, defaultValue);
     }
 }
 
@@ -314,6 +452,9 @@ class MarkerEditorConfig extends ConfigBase {
     /** @type {Setting<string>} */
     #logLevel;
 
+    /** @type {SslConfig} */
+    #ssl;
+
     /** @type {AuthenticationConfig} */
     #auth;
 
@@ -399,6 +540,7 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
+        this.#ssl = new SslConfig(this.#Base.json.ssl);
         this.#auth = new AuthenticationConfig(this.#Base.json.authentication);
         this.#features = new PlexFeatures(this.#Base.json.features);
 
@@ -547,14 +689,20 @@ class MarkerEditorConfig extends ConfigBase {
     databasePath() { return this.#dbPath.value(); }
     host() { return this.#host.value(); }
     port() { return this.#port.value(); }
+    useSsl() { return this.#ssl.enabled.value(); }
+    sslHost() { return this.#ssl.sslHost.value(); }
+    sslPort() { return this.#ssl.sslPort.value(); }
+    sslOpts() { return this.#ssl.sslKeys(); }
+    sslOnly() { return this.#ssl.sslOnly.value(); }
+    sslState() { return this.useSsl() ? (this.sslOnly() ? SslState.Forced : SslState.Enabled) : SslState.Disabled; }
+    useAuth() { return this.#auth.enabled.value(); }
+    authSessionTimeout() { return this.#auth.sessionTimeout.value(); }
     autoOpen() { return this.#features.autoOpen.value(); }
     useThumbnails() { return this.#features.previewThumbnails.value(); }
     usePreciseThumbnails() { return this.#features.preciseThumbnails.value(); }
     metadataPath() { return this.#dataPath.value(); }
     extendedMarkerStats() { return this.#features.extendedMarkerStats.value(); }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
-    useAuth() { return this.#auth.enabled.value(); }
-    authSessionTimeout() { return this.#auth.sessionTimeout.value(); }
     appVersion() { return this.#version.value(); }
     pathMappings() { return this.#mappings.value(); }
     getValid() { return this.#configState; }
@@ -569,6 +717,16 @@ class MarkerEditorConfig extends ConfigBase {
             host : this.#host.serialize(),
             port : this.#port.serialize(),
             logLevel : this.#logLevel.serialize(),
+            sslEnabled : this.#ssl.enabled.serialize(),
+            sslHost : this.#ssl.sslHost.serialize(),
+            sslPort : this.#ssl.sslPort.serialize(),
+            certType : this.#ssl.certType.serialize(),
+            pfxPath : this.#ssl.pfxPath.serialize(),
+            // Don't pass the plaintext value to the client. Allow setting, not viewing.
+            pfxPassphrase : this.#pseudoSetting(''),
+            pemCert : this.#ssl.pemCert.serialize(),
+            pemKey : this.#ssl.pemKey.serialize(),
+            sslOnly : this.#ssl.sslOnly.serialize(),
             authEnabled : this.#auth.enabled.serialize(),
             authSessionTimeout : this.#auth.sessionTimeout.serialize(),
             autoOpen : this.#features.autoOpen.serialize(),
@@ -600,7 +758,7 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * @param {SerializedConfig} config */
     async trySetConfig(config) {
-        const newConfig = await this.validateConfig(config);
+        const newConfig = await this.validateConfig(config, true /*forWrite*/);
         const result = {
             success : false,
             message : '',
@@ -615,6 +773,11 @@ class MarkerEditorConfig extends ConfigBase {
 
         const explicitVal = s => s.value !== undefined && s.value !== null;
         const invalidOkay = s => {
+            if (isSslSetting(s)) {
+                // SSL settings don't matter if SSL isn't enabled.
+                return s !== ServerSettings.UseSsl && !settingValue(newConfig.sslEnabled);
+            }
+
             switch (s) {
                 default:
                     return false;
@@ -661,6 +824,9 @@ class MarkerEditorConfig extends ConfigBase {
 
         Log.info(newJson, 'Setting new Config');
 
+        // Sensitive fields aren't passed back to the client
+        newConfig.pfxPassphrase = this.#pseudoSetting('');
+
         // Try to change the internal state first, that way we don't write the config to disk if
         // we failed to update things internally for whatever reason.
         result.config.state = await this.#updateInternalConfig(newJson, changedKeys);
@@ -687,7 +853,16 @@ class MarkerEditorConfig extends ConfigBase {
         if (changedKeys.has(ServerSettings.Host)
             || changedKeys.has(ServerSettings.Port)
             || changedKeys.has(ServerSettings.UseAuthentication)
-            || changedKeys.has(ServerSettings.SessionTimeout)) {
+            || changedKeys.has(ServerSettings.SessionTimeout)
+            || changedKeys.has(ServerSettings.UseSsl)
+            || changedKeys.has(ServerSettings.SslOnly)
+            || changedKeys.has(ServerSettings.SslHost)
+            || changedKeys.has(ServerSettings.SslPort)
+            || changedKeys.has(ServerSettings.CertType)
+            || changedKeys.has(ServerSettings.PfxPath)
+            || changedKeys.has(ServerSettings.PfxPassphrase)
+            || changedKeys.has(ServerSettings.PemCert)
+            || changedKeys.has(ServerSettings.PemKey)) {
             return ServerConfigState.FullReloadNeeded;
         }
 
@@ -745,19 +920,9 @@ class MarkerEditorConfig extends ConfigBase {
                     this.#features.preciseThumbnails.setValue(newValue);
                     await waitForThumbsReset();
                     break;
-                case ServerSettings.UseAuthentication:
-                    this.#auth.enabled.setValue(newValue);
-                    break;
                 case ServerSettings.Username:
                     await User.changeUsername(newValue);
                     break;
-                case ServerSettings.SessionTimeout:
-                {
-                    // Just set the new value. Existing sessions keep their timeout,
-                    // only new sessions will get the new value.
-                    this.#auth.sessionTimeout.setValue(newValue);
-                    break;
-                }
                 case ServerSettings.PathMappings:
                     this.#getPathMappingsCore(newValue);
                     await waitForThumbsReset();
@@ -770,30 +935,18 @@ class MarkerEditorConfig extends ConfigBase {
         return ServerConfigState.Valid;
     }
 
+    /* eslint-disable require-atomic-updates */
     /**
      * Validate a serialized config.
      * @param {SerializedConfig} config
+     * @param {boolean} [forWrite=false] Whether we're planning on writing out the resulting config. This
+     *                                   determines whether sensitive settings are added to the response.
      * @returns {Promise<SerializedConfig>} The config with isValid details. */
-    async validateConfig(config) {
+    async validateConfig(config, forWrite=false) {
         /** @type {SerializedConfig} */
         const newConfig = { };
 
-        // Host:Port is (currently) the only odd one out.
-        const newHost = config.host.value || config.host.defaultValue;
-        const hostAndPort = `${newHost}:${config.port.value || config.port.defaultValue}`;
-        const hostAndPortValid = (await this.validateField(ServerSettings.HostPort, {
-            value : hostAndPort,
-            defaultValue : `localhost:3232`,
-            isValid : true,
-        })).serialize(true);
-
-        newConfig[ServerSettings.Host] = {
-            value : config.host.value || undefined,
-            defaultValue : config.host.defaultValue,
-            isValid : hostAndPortValid.isValid,
-            invalidMessage : hostAndPortValid.invalidMessage,
-            unchanged : newHost === this.host(),
-        };
+        await this.#validateHostsAndPorts(config, newConfig);
 
         /**
          * @param {string} serverSetting */
@@ -815,6 +968,7 @@ class MarkerEditorConfig extends ConfigBase {
             ServerSettings.Port,
             ServerSettings.LogLevel,
             ServerSettings.PathMappings,
+            ServerSettings.UseSsl,
             ServerSettings.UseAuthentication,
             ServerSettings.AutoOpen,
             ServerSettings.ExtendedStats,
@@ -823,6 +977,13 @@ class MarkerEditorConfig extends ConfigBase {
         ]) {
             await updateSingle(serverSetting);
         }
+
+        const copyExisting = (...settings) => {
+            for (const setting of settings) {
+                newConfig[setting] = { ...config[setting] };
+                newConfig[setting].unchanged = true;
+            }
+        };
 
         // Sub-settings that depend on the values above
         if (settingValue(newConfig[ServerSettings.UseAuthentication])) {
@@ -835,25 +996,132 @@ class MarkerEditorConfig extends ConfigBase {
             }
         } else {
             // Just keep the values the same.
-            newConfig[ServerSettings.Username] = { ...config[ServerSettings.Username] };
-            newConfig[ServerSettings.SessionTimeout] = { ...config[ServerSettings.SessionTimeout] };
+            copyExisting(ServerSettings.Username, ServerSettings.SessionTimeout);
+        }
+
+        const pfxPass = forWrite ? this.#ssl.pfxPassphrase.serialize(true) : this.#pseudoSetting('');
+        if (settingValue(newConfig[ServerSettings.UseSsl])) {
+            for (const sslSetting of [
+                ServerSettings.UseSsl,
+                ServerSettings.SslPort,
+                ServerSettings.CertType,
+                ServerSettings.SslOnly,
+            ]) {
+                await updateSingle(sslSetting);
+            }
+
+            if (settingValue(newConfig[ServerSettings.CertType]) === 'pfx') {
+                await updateSingle(ServerSettings.PfxPath);
+
+                let passphrase = config[ServerSettings.PfxPassphrase].value;
+                if (passphrase) {
+                    // Explicitly changed
+                    await updateSingle(ServerSettings.PfxPassphrase);
+                } else {
+                    passphrase = this.#ssl.pfxPassphrase.value();
+                    newConfig[ServerSettings.PfxPassphrase] = this.#ssl.pfxPassphrase.serialize(true);
+                }
+
+                if (newConfig[ServerSettings.PfxPath].isValid && newConfig[ServerSettings.PfxPassphrase].isValid) {
+                    const validCombo = await this.validateField(ServerSettings.Pfx, {
+                        value : JSON.stringify({
+                            pfx : newConfig[ServerSettings.PfxPath].value,
+                            passphrase : passphrase
+                        }),
+                        defaultValue : '',
+                        isValid : true
+                    });
+
+                    if (!validCombo.valid()) {
+                        newConfig[ServerSettings.PfxPassphrase].isValid = false;
+                        newConfig[ServerSettings.PfxPassphrase].invalidMessage = validCombo.message();
+                    }
+                }
+
+                copyExisting(ServerSettings.PemCert, ServerSettings.PemKey);
+            } else {
+                await Promise.all([updateSingle(ServerSettings.PemCert), updateSingle(ServerSettings.PemKey)]);
+                if (newConfig[ServerSettings.PemCert].isValid && newConfig[ServerSettings.PemKey].isValid) {
+                    const validCombo = await this.validateField(ServerSettings.Pem, {
+                        value : JSON.stringify({
+                            cert : newConfig[ServerSettings.PemCert].value,
+                            key : newConfig[ServerSettings.PemKey].value
+                        }),
+                        defaultValue : '',
+                        isValid : true
+                    });
+
+                    if (!validCombo.valid()) {
+                        newConfig[ServerSettings.PemKey].isValid = false;
+                        newConfig[ServerSettings.PemKey].invalidMessage = validCombo.message();
+                    }
+                }
+
+                copyExisting(ServerSettings.PfxPath);
+                newConfig[ServerSettings.PfxPassphrase] = pfxPass;
+            }
+        } else {
+            // Just keep the values the same. Keep the existing PfxPassphrase, since that was
+            // never passed to the client, so we don't have its potentially updated value.
+            copyExisting(...allServerSettings().filter(
+                setting => isSslSetting(setting)
+                    && !(setting in [ServerSettings.UseSsl, ServerSettings.PfxPassphrase])));
+            newConfig[ServerSettings.PfxPassphrase] = pfxPass;
         }
 
         return newConfig;
+    }
+    /* eslint-enable require-atomic-updates */
+
+    /**
+     * @param {SerializedConfig} config
+     * @param {SerializedConfig} newConfig */
+    async #validateHostsAndPorts(config, newConfig) {
+        // Host:Port is (currently) the only odd one out.
+        const newHost = config.host.value || config.host.defaultValue;
+        const newState = settingValue(config.sslEnabled) ? (settingValue(config.sslOnly) ? 2 : 1) : 0;
+        const hostAndPortValid = (await this.validateField(ServerSettings.HostPort, {
+            value : JSON.stringify({
+                host : newHost,
+                port : settingValue(config.port),
+                sslHost : settingValue(config.sslHost),
+                sslPort : settingValue(config.sslPort),
+                sslState : newState,
+            }),
+            defaultValue : ``,
+            isValid : true,
+        })).serialize(true);
+
+        newConfig[ServerSettings.Host] = {
+            value : (newState === 2 ? this.host() : config.host.value) || undefined,
+            defaultValue : config.host.defaultValue,
+            isValid : newState === 2 || hostAndPortValid.isValid,
+            invalidMessage : newState === 2 ? '' : hostAndPortValid.invalidMessage,
+            unchanged : newState === 2 || newHost === this.host(),
+        };
+
+        newConfig[ServerSettings.SslHost] = {
+            value : (newState === 0 ? this.sslHost() : config.sslHost.value) || undefined,
+            defaultValue : config.sslHost.defaultValue,
+            isValid : newState === 0 || hostAndPortValid.isValid,
+            invalidMessage : newState === 0 ? '' : hostAndPortValid.invalidMessage,
+            unchanged : newState === 0 || settingValue(config.sslHost) === this.sslHost()
+        };
     }
 
     /**
      * Validate a single configuration field of type T
      * @template T
      * @param {string} field
-     * @param {TypedSetting<T>} value
-     * @returns {Promise<Setting<T>>} */
+     * @param {TypedSetting<T>} value */
     // eslint-disable-next-line complexity
     async validateField(field, value) {
         const setting = new Setting();
         setting.setFromSerialized(value);
         setting.setValid(true);
 
+        /**
+         * @param {Setting<boolean>} boolSetting */
         const setValidBoolean = boolSetting =>
             boolSetting.setValid(
                 typeof boolSetting.value() === 'boolean',
@@ -867,42 +1135,72 @@ class MarkerEditorConfig extends ConfigBase {
             case ServerSettings.Host:
                 // We really need host+port to validate the host, so skip it here,
                 // but use the not-really-a-setting HostPort value to validate this.
-                setting.setUnchanged(setting.value() === this.host());
-                return setting;
+                return setting.setUnchanged(setting.value() === this.host());
             case ServerSettings.Port:
                 setting.setValid(MarkerEditorConfig.ValidPort(setting.value()), `Port must be between 1 and 65535`);
-                setting.setUnchanged(setting.value() === this.port());
-                return setting;
+                return setting.setUnchanged(setting.value() === this.port());
             case ServerSettings.HostPort:
                 return this.#validateHostPort(setting);
             case ServerSettings.LogLevel:
             {
                 const parsed = Log.getFromString(setting.value());
                 setting.setValid(parsed.level !== ConsoleLog.Level.Invalid, `Unexpected LogLevel string "${setting.value()}"`);
-                setting.setUnchanged(
+                return setting.setUnchanged(
                     parsed.level === BaseLog.getLevel()
                     && parsed.trace === !!BaseLog.getTrace()
                     && parsed.dark === !!BaseLog.getDarkConsole());
-                return setting;
             }
+            case ServerSettings.UseSsl:
+                setting.setUnchanged(setting.value() === this.useSsl());
+                return setValidBoolean(setting);
+            case ServerSettings.SslHost:
+                // See comment in SeverSettings.Host case
+                return setting.setUnchanged(setting.value() === this.sslHost());
+            case ServerSettings.SslPort:
+                setting.setValid(MarkerEditorConfig.ValidPort(setting.value()), `Port must be between 1 and 65535`);
+                return setting.setUnchanged(setting.value() === this.sslPort());
+            case ServerSettings.CertType:
+                setting.setValue(setting.value().toLowerCase());
+                setting.setValid(['pfx', 'pem'].includes(setting.value()), `Only PFX and PEM certificates are supported.`);
+                return setting.setUnchanged(setting.value() === this.#ssl.certType.value());
+            case ServerSettings.PfxPath:
+                setting.setValid(existsSync(setting.value()), `Pfx path does not exist`);
+                return setting.setUnchanged(setting.value() === this.#ssl.pfxPath.value());
+            case ServerSettings.PfxPassphrase:
+                setting.setValid(setting.value()?.length > 0);
+                return setting;
+            case ServerSettings.PemCert:
+                setting.setValid(existsSync(setting.value()), `Pem path does not exist`);
+                return setting.setUnchanged(setting.value() === this.#ssl.pemCert.value());
+            case ServerSettings.PemKey:
+                setting.setValid(existsSync(setting.value()), `Pem key path does not exist`);
+                return setting.setUnchanged(setting.value() === this.#ssl.pemKey.value());
+            case ServerSettings.Pfx:
+                setting.setValid(this.#validateCertificates(setting.value(), true), `PFX validation failed`);
+                setting.setValue(''); // Unused by client, and we shouldn't send back the passphrase
+                return setting;
+            case ServerSettings.Pem:
+                setting.setValid(this.#validateCertificates(setting.value(), false), `PEM validation failed`);
+                return setting;
+            case ServerSettings.SslOnly:
+                setting.setUnchanged(setting.value() === this.sslOnly());
+                return setValidBoolean(setting);
             case ServerSettings.UseAuthentication:
                 setting.setUnchanged(setting.value() === this.useAuth());
-                setValidBoolean(setting);
-                return setting;
+                return setValidBoolean(setting);
             case ServerSettings.SessionTimeout:
                 setting.setUnchanged(setting.value() === this.authSessionTimeout());
-                setting.setValid(MarkerEditorConfig.ValidSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
-                return setting;
+                return setting.setValid(
+                    MarkerEditorConfig.ValidSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
             case ServerSettings.Username:
             {
                 const val = setting.value();
                 setting.setUnchanged(val === User.username());
-                setting.setValid(val && val.length <= 256 && val.length === val.replace(/\s/g, '').length,
+                return setting.setValid(val && val.length <= 256 && val.length === val.replace(/\s/g, '').length,
                     val ? val.length > 256 ?
                         'Usernames are limited to 256 characters' :
                         'Username cannot contain whitespace' :
                         'Username cannot be empty');
-                return setting;
             }
             case ServerSettings.Password:
             {
@@ -912,21 +1210,17 @@ class MarkerEditorConfig extends ConfigBase {
                 // or no password is set (i.e. enabling auth for the first time).
                 const valid = await this.#isPasswordValid(setting);
                 setting.setUnchanged(valid);
-                setting.setValid(valid, `Password is incorrect.`);
-                return setting;
+                return setting.setValid(valid, `Password is incorrect.`);
             }
             case ServerSettings.AutoOpen:
                 setting.setUnchanged(setting.value() === this.autoOpen());
-                setValidBoolean(setting);
-                return setting;
+                return setValidBoolean(setting);
             case ServerSettings.ExtendedStats:
                 setting.setUnchanged(setting.value() === this.extendedMarkerStats());
-                setValidBoolean(setting);
-                return setting;
+                return setValidBoolean(setting);
             case ServerSettings.PreviewThumbnails:
                 setting.setUnchanged(setting.value() === this.useThumbnails());
-                setValidBoolean(setting);
-                return setting;
+                return setValidBoolean(setting);
             case ServerSettings.FFmpegThumbnails:
                 setting.setUnchanged(setting.value() === this.usePreciseThumbnails());
                 setValidBoolean(setting);
@@ -936,9 +1230,7 @@ class MarkerEditorConfig extends ConfigBase {
 
                 return setting;
             case ServerSettings.PathMappings:
-            {
                 return this.#validatePathMappings(setting);
-            }
             default:
                 throw new ServerError(`Unknown server setting '${field}'`, 400);
 
@@ -1014,31 +1306,109 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * Ensure the given host:port is valid and not currently in use.
      * @param {Setting<string>} setting */
+    // eslint-disable-next-line complexity
     async #validateHostPort(setting) {
-        /** @type {string[]} */
-        const split = setting.value().split(':');
-        if (split.length !== 2) {
-            setting.setValid(false, `Unexpected host:port input: "${setting.value()}"`);
+        /** @type {{ host: string, port: number, sslHost: string, sslPort: number, sslState: number }} */
+        const state = JSON.parse(setting.value());
+        const nou = v => v === null || v === undefined;
+        if (nou(state.host) || nou(state.port) || nou(state.sslHost) || nou(state.sslPort) || nou(state.sslState)) {
+            setting.setValid(false, `Unexpected input. Not all required fields available.`);
             return setting;
         }
 
-        const host = split[0];
-        const port = +split[1];
+        // Assume valid initially.
+        setting.setValid(true);
 
-        setting.setUnchanged(host === this.host() && port === this.port());
+        const sameHostPort = (h1, h2, p1, p2) =>
+            h1.localeCompare(h2, undefined, { sensitivity : 'accent' }) === 0 && p1 === p2;
 
-        if (host.localeCompare(this.host(), undefined, { sensitivity : 'accent' }) === 0
-            && port === this.port()) {
-            return setting; // host and port are the same as our current host/port, so it's valid
-        }
+        const checkHttp = () => {
+            if (sameHostPort(state.host, this.host(), state.port, this.port())) {
+                return false; // host and port are the same as our current host/port, so it's valid
+            }
 
-        if (!MarkerEditorConfig.ValidPort(port)) {
-            setting.setValid(false, `Port must be between 1 and 65535`);
-            return setting;
+            if (!MarkerEditorConfig.ValidPort(state.port)) {
+                setting.setValid(false, `Port must be between 1 and 65535`);
+                return false;
+            }
+
+            return true;
+        };
+
+        const checkHttps = () => {
+            if (sameHostPort(state.sslHost, this.sslHost(), state.sslPort, this.sslPort())) {
+                return false; // host and port are the same as our current host/port, so it's valid
+            }
+
+            if (!MarkerEditorConfig.ValidPort(state.port)) {
+                setting.setValid(false, `Port must be between 1 and 65535`);
+                return false;
+            }
+
+            return true;
+        };
+
+        const toTest = [];
+        const currentState = this.sslState();
+        const httpIsOldHttps = sameHostPort(state.host, this.sslHost(), state.port, this.sslPort());
+        const httpsIsOldHttp = sameHostPort(state.sslHost, this.host(), state.sslPort, this.sslPort());
+
+        switch (state.sslState) {
+            case SslState.Disabled:
+                if (!checkHttp() || (currentState !== 0 && httpIsOldHttps)) {
+                    return setting;
+                }
+
+                toTest.push(state.host, state.port);
+                break;
+            case SslState.Enabled:
+            {
+                const httpChanged = checkHttp();
+                const httpsChanged = checkHttps();
+                if ((!httpChanged && !httpsChanged) || !setting.valid()) {
+                    return setting;
+                }
+
+                if (sameHostPort(state.host, state.sslHost, state.port, state.sslPort)) {
+                    setting.setValid(false, 'HTTP host/port cannot equal HTTPS host/port');
+                    return setting;
+                }
+
+                switch (currentState) {
+                    case SslState.Disabled:
+                        if (httpChanged) toTest.push(state.host, state.port);
+                        if (!httpsIsOldHttp) toTest.push(state.sslHost, state.sslPort);
+                        break;
+                    case SslState.Enabled:
+                        if (httpChanged && !httpIsOldHttps) toTest.push(state.host, state.port);
+                        if (httpsChanged && !httpsIsOldHttp) toTest.push(state.sslHost, state.sslPort);
+                        break;
+                    case SslState.Forced:
+                        if (!httpIsOldHttps) toTest.push(state.host, state.port);
+                        if (httpsChanged) toTest.push(state.sslHost, state.sslPort);
+                        break;
+                }
+
+                break;
+            }
+            case SslState.Forced:
+                if (!checkHttps()) {
+                    return setting;
+                }
+
+                if (currentState !== 2 && httpsIsOldHttp) {
+                    return setting;
+                }
+
+                toTest.push(state.sslHost, state.sslPort);
+                break;
+            default:
+                setting.setValid(false, `Unexpected SSL state '${state.sslState}', expected 0-2`);
+                return setting;
         }
 
         // Harder case. Try spinning up a server with the given host/port. If it succeeds, it's valid.
-        const serverTest = await testHostPort(split[0], +split[1]);
+        const serverTest = await testHostPort(...toTest);
         if (!serverTest.valid) {
             switch (serverTest.errorCode) {
                 case 'ENOTFOUND':
@@ -1048,15 +1418,36 @@ class MarkerEditorConfig extends ConfigBase {
                     setting.setValid(false, `Address not available - host is likely invalid.`);
                     break;
                 case 'EADDRINUSE':
-                    setting.setValid(false, `${setting.value()} is already in use.`);
+                    setting.setValid(false, `${serverTest.failedConnection} is already in use.`);
                     break;
                 default:
-                    setting.setValid(false, `Unable to bind to ${setting.value()}: ${serverTest.errorCode}`);
+                    setting.setValid(false, `Unable to bind to ${serverTest.failedConnection}: ${serverTest.errorCode}`);
                     break;
             }
         }
 
         return setting;
+    }
+
+    /**
+     * @param {string} json
+     * @param {boolean} pfx */
+    #validateCertificates(json, pfx) {
+        try {
+            const opts = JSON.parse(json);
+            if (pfx) {
+                opts.pfx = readFileSync(opts.pfx);
+                opts.passphrase ||= this.#ssl.pfxPassphrase.value();
+            } else {
+                opts.cert = readFileSync(opts.cert);
+                opts.key = readFileSync(opts.key);
+            }
+
+            createHttpsServer(opts, () => {}).close();
+            return true;
+        } catch (err) {
+            return false;
+        }
     }
 
     /**
@@ -1150,6 +1541,8 @@ function settingValue(setting) {
  * @param {string} setting */
 function mapNameToRaw(setting) {
     switch (setting) {
+        case ServerSettings.UseSsl:
+            return 'enabled';
         case ServerSettings.UseAuthentication:
             return 'enabled';
         case ServerSettings.SessionTimeout:
@@ -1166,18 +1559,19 @@ function mapNameToRaw(setting) {
  * @param {boolean} [create=true] If true, creates any necessary subsections. If false, returns
  *                                undefined if it does not already exist in the raw config. */
 function flatToRaw(setting, rawConfig, create=true) {
-    switch (setting) {
-        default:
-            return rawConfig;
-        case ServerSettings.UseAuthentication:
-        case ServerSettings.SessionTimeout:
-            return create ? (rawConfig.authentication ??= {}) : rawConfig.authentication;
-        case ServerSettings.AutoOpen:
-        case ServerSettings.ExtendedStats:
-        case ServerSettings.PreviewThumbnails:
-        case ServerSettings.FFmpegThumbnails:
-            return create ? (rawConfig.features ??= {}) : rawConfig.features;
+    if (isAuthSetting(setting)) {
+        return create ? (rawConfig.authentication ??= {}) : rawConfig.authentication;
     }
+
+    if (isSslSetting(setting)) {
+        return create ? (rawConfig.ssl ??= {}) : rawConfig.ssl;
+    }
+
+    if (isFeaturesSetting(setting)) {
+        return create ? (rawConfig.features ??= {}) : rawConfig.features;
+    }
+
+    return rawConfig;
 }
 
 /**

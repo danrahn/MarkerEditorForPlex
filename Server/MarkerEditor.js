@@ -1,6 +1,7 @@
 /** External dependencies */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { createServer } from 'http';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { default as express } from 'express';
 import { join } from 'path';
 import Open from 'open';
@@ -50,6 +51,11 @@ const Log = new ContextualLog('ServerCore');
  * HTTP server instance.
  * @type {httpServer} */
 let Server;
+
+/**
+ * HTTPS server instance.
+ * @type {httpServer} */
+let ServerSSL;
 
 /** Global flag indicating if the server is running tests. */
 let IsTest = false;
@@ -192,6 +198,7 @@ async function handleClose(signal, restart=false) {
             Log.info('Restarting server...');
             SetServerState(ServerState.ReInit);
             Server = null;
+            ServerSSL = null;
             run();
         } else if (!IsTest) {
             // Gross, but integration tests does its own killing
@@ -202,9 +209,11 @@ async function handleClose(signal, restart=false) {
         }
     };
 
-    if (Server) {
-        Server.close(async (err) => {
+    let anyError = false;
+    const closeFn = r =>
+        async (err) => {
             if (err) {
+                anyError = true;
                 Log.error(err, 'Failed to cleanly shut down HTTP server');
             } else {
                 Log.info('Successfully shut down HTTP server.');
@@ -215,12 +224,15 @@ async function handleClose(signal, restart=false) {
                 await AuthDatabase.Close();
             }
 
-            exitFn(err, restart);
-        });
-    } else {
-        // Didn't even get to server creation, immediately terminate/restart
-        exitFn(new Error('Error before server creation'), restart);
-    }
+            r();
+        };
+
+    await Promise.all([
+        new Promise(r => { if (Server) { Server.close(closeFn(r)); } else { r(); } }),
+        new Promise(r => { if (ServerSSL) { ServerSSL.close(closeFn(r)); } else { r(); } })
+    ]);
+
+    exitFn(anyError || (!Server && !ServerSSL), restart);
 }
 
 /**
@@ -345,41 +357,61 @@ async function userReload(res, data) {
 
 /** Creates the server. Called after verifying the config file and database.
  * @returns {Promise<void>} */
-async function launchServer() {
+function launchServer() {
     if (!shouldCreateServer()) {
         return;
     }
 
+    return Promise.all([
+        new Promise(r => { createServer(Config.host(), Config.port(), false /*ssl*/, r); }),
+        new Promise(r => { createServer(Config.sslHost(), Config.sslPort(), true /*ssl*/, r); })
+    ]);
+}
+
+/**
+ * Create an HTTP or HTTPS server.
+ * @param {string} host
+ * @param {number} port
+ * @param {boolean} ssl
+ * @param {() => void} resolve */
+async function createServer(host, port, ssl, resolve) {
+    if (ssl ? !Config.useSsl() : Config.sslOnly()) {
+        resolve();
+        return;
+    }
+
     const app = express();
-    await initializeSessionStore(app);
+    await initializeSessionStore(app, ssl);
 
     // TODO: express-ify this with standard routing.
     app.all('*', serverMain);
 
-    Server = createServer(app);
+    const listenerCallback = () => {
+        const url = `http${ssl ? 's' : ''}://${host}:${port}`;
+        Log.info(`HTTP${ssl ? 'S' : ''} Server running at ${url} (Ctrl+C to exit)`);
+        if (process.env.IS_DOCKER) {
+            Log.info(`NOTE: External port may be different when run in Docker, based on '-p' passed into docker run`);
+        }
 
-    return new Promise((resolve, _) => {
-        Server.listen(Config.port(), Config.host(), () => {
-            const url = `http://${Config.host()}:${Config.port()}`;
-            Log.info(`Server running at ${url} (Ctrl+C to exit)`);
-            if (process.env.IS_DOCKER) {
-                Log.info(`NOTE: External port will be different when run in Docker, based on '-p' passed into docker run`);
-            }
+        if (!ssl && Config.autoOpen() && GetServerState() === ServerState.FirstBoot) {
+            Log.info('Launching browser...');
+            Open(url);
+        }
 
-            if (Config.autoOpen() && GetServerState() === ServerState.FirstBoot) {
-                Log.info('Launching browser...');
-                Open(url);
-            }
+        SetServerState(ServerState.Running);
+        resolve();
+    };
 
-            SetServerState(ServerState.Running);
-            resolve();
-        });
-    });
+    if (ssl) {
+        ServerSSL = createHttpsServer(Config.sslOpts(), app).listen(port, host, listenerCallback);
+    } else {
+        Server = createHttpServer(app).listen(port, host, listenerCallback);
+    }
 }
 
 /**
  * Initialize session information. */
-async function initializeSessionStore(app) {
+async function initializeSessionStore(app, https=false) {
     // Don't deal with session management is auth is disabled.
     // Enabling auth forces a full server restart anyway.
     if (!Config.useAuth()) {
@@ -395,7 +427,7 @@ async function initializeSessionStore(app) {
     // On each boot, create a new session secret, but still allow older
     // sessions to be validated by keeping around older secrets for a while.
     const newSecret = randomBytes(32).toString('hex');
-    const oldSecrets = await Sqlite3Store.oldSecrets();
+    const oldSecrets = await Sqlite3Store.oldSecrets(https);
     await Sqlite3Store.setNewSecret(newSecret);
     app.use(
         session({
@@ -405,7 +437,7 @@ async function initializeSessionStore(app) {
             saveUninitialized : false,
             name : 'markereditor.sid',
             store : sessionStore,
-            cookie : { maxAge : Config.authSessionTimeout() * 1000 }
+            cookie : { maxAge : Config.authSessionTimeout() * 1000, secure : https }
         })
     );
 }
@@ -509,7 +541,7 @@ async function handlePost(req, res) {
     try {
         if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)
             && typeof ServerActionMap[endpoint] === 'function') {
-            if (!Config.useAuth() || User.signedIn(req)) {
+            if (!Config?.useAuth() || User.signedIn(req)) {
                 await ServerActionMap[endpoint](res);
             } else {
                 sendJsonError(res, new ServerError('Not authorized', 401));

@@ -1,5 +1,5 @@
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
-import { ServerConfigState, ServerSettings } from '/Shared/ServerConfig.js';
+import { ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
 
 import { $, $$, $id, appendChildren, buildNode, buildText } from '../Common.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
@@ -12,7 +12,7 @@ import Icons from '../Icons.js';
 import Overlay from '../Overlay.js';
 import { ServerCommands } from '../Commands.js';
 
-import { buttonsFromConfigState, settingId, settingInput, settingsDialogIntro } from './ServerSettingsDialogHelper.js';
+import { buttonsFromConfigState, settingHolder, settingId, settingInput, settingsDialogIntro } from './ServerSettingsDialogHelper.js';
 import { SettingTitles, ValidationInputDelay } from './ServerSettingsDialogConstants.js';
 import { GetTooltip } from './ServerSettingsTooltips.js';
 import { PathMappingsTable } from './PathMappingsTable.js';
@@ -30,6 +30,12 @@ const Log = new ContextualLog('ServerConfig');
 /**
  * Elements IDs for authentication password fields. */
 const EleIds = {
+    /** @readonly Contains all SSL sub-settings. */
+    SslSettings : 'sslHolder',
+    /** @readonly Holds PFX certificate settings. */
+    PfxSettings : 'pfxHolder',
+    /** @readonly Holds PEM certificate settings. */
+    PemSettings : 'pemHolder',
     /** @readonly Old password confirmation when changing the password. */
     OldPass : 'newAuthOld',
     /** @readonly New password. */
@@ -38,6 +44,8 @@ const EleIds = {
     ConfPass : 'newAuthConf',
     /** @readonly Current password confirmation to disable auth. */
     DisableConf : 'authDisableConfirm',
+    /** @readonly Sub-settings for Authentication. */
+    AuthSettings  : 'authSettingsHolder',
     /** @readonly Container for password change confirmations. */
     ChangePassHolder : 'changePasswordHolder',
     /** @readonly 'Apply' button */
@@ -64,6 +72,8 @@ class ServerSettingsDialog {
     /** @type {number} */
     #keyupTimer;
     /** @type {boolean} Whether we're in the middle of validate. */
+    #inDbValidate = false;
+    /** @type {boolean} Whether we're currently validating a single configuration value. */
     #inValidate = false;
     /** @type {PathMappingsTable} */
     #pathMappings;
@@ -80,6 +90,8 @@ class ServerSettingsDialog {
         const [title, description] = settingsDialogIntro(this.#initialValues.state);
         const container = buildNode('div', { id : 'serverSettingsContainer', class : 'settingsContainer' });
         const config = this.#initialValues;
+        const hostPortEnabled = !config.sslEnabled.value || !config.sslOnly.value;
+        const hostPortClass = { class : hostPortEnabled ? '' : 'disabledSetting' };
         appendChildren(container,
             appendChildren(buildNode('div', { id : 'serverSettingsScroll' }),
                 appendChildren(buildNode('div'),
@@ -90,8 +102,10 @@ class ServerSettingsDialog {
                 appendChildren(buildNode('div', { class : 'serverSettingsSettings' }),
                     this.#buildStringSetting(ServerSettings.DataPath, config.dataPath, this.#validateDataPath.bind(this)),
                     this.#buildStringSetting(ServerSettings.Database, config.database),
-                    this.#buildStringSetting(ServerSettings.Host, config.host, this.#validateHostPort.bind(this)),
-                    this.#buildNumberSetting(ServerSettings.Port, config.port, this.#validatePort.bind(this), 1, 65535),
+                    this.#buildStringSetting(ServerSettings.Host, config.host, this.#validateHostPort.bind(this), hostPortClass),
+                    this.#buildNumberSetting(
+                        ServerSettings.Port, config.port, this.#validatePort.bind(this, false), 1, 65535, hostPortClass),
+                    ...this.#buildSslSettings(),
                     ...this.#buildAuthenticationSettings(),
                     this.#buildLogLevelSetting(),
                     this.#buildBooleanSetting(ServerSettings.AutoOpen, config.autoOpen),
@@ -119,13 +133,41 @@ class ServerSettingsDialog {
         }, container);
     }
 
+    /**
+     * Build the UI for a number input setting.
+     * @param {HTMLInputElement} input
+     * @param {string} setting
+     * @param {TypedSetting<number>} settingInfo
+     * @param {(setting: string, e: Event) => void} [customValidate]
+     * @param {number} min
+     * @param {number} max
+     * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildNumberSetting(setting, settingInfo, customValidate, min, max, attributes={}) {
         const input = buildNode('input', { type : 'number', min : min, max : max, value : settingInfo.value || '' });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
+    /**
+     * Build the UI for a text input setting.
+     * @param {HTMLInputElement} input
+     * @param {string} setting
+     * @param {TypedSetting<string>} settingInfo
+     * @param {(setting: string, e: Event) => void} [customValidate]
+     * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildStringSetting(setting, settingInfo, customValidate, attributes={}) {
         const input = buildNode('input', { type : 'text', value : settingInfo.value || '' });
+        return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
+    }
+
+    /**
+     * Build the UI for a password input setting.
+     * @param {HTMLInputElement} input
+     * @param {string} setting
+     * @param {TypedSetting<number>} settingInfo
+     * @param {(setting: string, e: Event) => void} [customValidate]
+     * @param {Object} attributes Custom attributes to apply to the setting/input. */
+    #buildPasswordSetting(setting, settingInfo, customValidate, attributes={}) {
+        const input = buildNode('input', { type : 'password', value : settingInfo.value || '' });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -133,7 +175,7 @@ class ServerSettingsDialog {
      * Build the UI for an input setting (number/text).
      * @param {HTMLInputElement} input
      * @param {string} setting
-     * @param {TypedSetting<string>} settingInfo
+     * @param {TypedSetting<string|number>} settingInfo
      * @param {(setting: string, e: Event) => void} [customValidate]
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildInputSetting(input, setting, settingInfo, customValidate, attributes={}) {
@@ -165,6 +207,10 @@ class ServerSettingsDialog {
      * @returns {(e: Event) => void} */
     #timedChangeListener(validateFn) {
         return e => {
+            if (this.#inValidate) {
+                return;
+            }
+
             if (this.#keyupTimer) {
                 clearTimeout(this.#keyupTimer);
                 Tooltip.dismiss();
@@ -238,8 +284,9 @@ class ServerSettingsDialog {
      * Build UI for a boolean (enabled/disabled) setting.
      * @param {string} settingName
      * @param {TypedSetting<boolean>} settingInfo
-     * @param {(e: Event) => void} [changeHandler] */
-    #buildBooleanSetting(settingName, settingInfo, changeHandler) {
+     * @param {(e: Event) => void} [changeHandler]
+     * @param {Object} [attributes={}] */
+    #buildBooleanSetting(settingName, settingInfo, changeHandler, attributes={}) {
         const select = appendChildren(buildNode('select'),
             buildNode('option', { value : 0 }, 'Disabled'),
             buildNode('option', { value : 1 }, 'Enabled')
@@ -254,7 +301,207 @@ class ServerSettingsDialog {
 
         select.addEventListener('keydown', this.#inputKeydownListener.bind(this));
 
-        return this.#buildSettingEntry(settingName, settingInfo, input);
+        return this.#buildSettingEntry(settingName, settingInfo, input, attributes);
+    }
+
+    /**
+     * Settings chunk for SSL/HTTPS related settings. */
+    #buildSslSettings() {
+        const config = this.#initialValues;
+        const setting = config.sslEnabled;
+        const enabled = setting.value === null || setting.value === undefined ? setting.defaultValue : setting.value;
+        const certType = config.certType;
+        const pfx = certType.value !== 'pem';
+
+        const attr = { class : 'subSetting' };
+
+        const certSelect = appendChildren(
+            buildNode('select', { }, 0, { change : this.#onCertTypeChanged.bind(this) }),
+            buildNode('option', { value : 'pfx' }, 'PFX'),
+            buildNode('option', { value : 'pem' }, 'PEM')
+        );
+
+        certSelect.value = pfx ? 'pfx' : 'pem';
+        const certHolder = buildNode('span', { class : 'selectHolder' }, certSelect);
+
+        return [
+            this.#buildBooleanSetting(ServerSettings.UseSsl, this.#initialValues.sslEnabled, this.#onSslChanged.bind(this)),
+            appendChildren(buildNode('div', { id : EleIds.SslSettings, class : enabled ? '' : 'hidden' }),
+                this.#buildBooleanSetting(ServerSettings.SslOnly, config.sslOnly, this.#onSslOnlyChanged.bind(this), attr),
+                this.#buildStringSetting(ServerSettings.SslHost, config.sslHost, this.#validateHostPortSsl.bind(this), attr),
+                this.#buildNumberSetting(ServerSettings.SslPort, config.sslPort, this.#validatePort.bind(this, true), 1, 65535, attr),
+                this.#buildSettingEntry(ServerSettings.CertType, config.certType, certHolder, attr),
+                appendChildren(buildNode('div', { id : EleIds.PfxSettings, class : pfx ? '' : 'hidden' }),
+                    this.#buildStringSetting(ServerSettings.PfxPath, config.pfxPath, this.#onPfxPathChanged.bind(this), attr),
+                    this.#buildPasswordSetting(
+                        ServerSettings.PfxPassphrase, config.pfxPassphrase, this.#onPfxPassChanged.bind(this), attr),
+                ),
+                appendChildren(buildNode('div', { id : EleIds.PemSettings, class : pfx ? 'hidden' : '' }),
+                    this.#buildStringSetting(ServerSettings.PemCert, config.pemCert, this.#onPemCertPathChanged.bind(this), attr),
+                    this.#buildStringSetting(ServerSettings.PemKey, config.pemKey, this.#onPemKeyPathChanged.bind(this), attr)
+                ),
+            )
+        ];
+    }
+
+    /**
+     * Shows/hides SSL settings when secure connections are enabled/disabled. */
+    async #onSslChanged() {
+        const subSettings = $id(EleIds.SslSettings);
+        if (+settingInput(ServerSettings.UseSsl).value) {
+            subSettings.classList.remove('hidden');
+            slideDown(subSettings, subSettings.getBoundingClientRect().height + 'px', 300);
+            await this.#validateHostPortSsl(null);
+            if (!+settingInput(ServerSettings.SslOnly)) {
+                this.#onSslOnlyChanged();
+            }
+        } else {
+            slideUp(subSettings, 300, () => subSettings.classList.add('hidden'));
+            await this.#validateHostPort(null);
+            if (+settingInput(ServerSettings.SslOnly).value) {
+                this.#onSslOnlyChanged();
+            }
+        }
+    }
+
+    /**
+     * Enables/disables main host/port settings, and validates relevant host/port settings. */
+    #onSslOnlyChanged() {
+        const host = settingInput(ServerSettings.Host);
+        const port = settingInput(ServerSettings.Port);
+        if (+settingInput(ServerSettings.SslOnly).value && +settingInput(ServerSettings.UseSsl).value) {
+            host.setAttribute('disabled', 1);
+            port.setAttribute('disabled', 1);
+            host.classList.remove('invalid');
+            port.classList.remove('invalid');
+            settingHolder(host).classList.add('disabledSetting');
+            settingHolder(port).classList.add('disabledSetting');
+            Tooltip.setTooltip(host, 'Cannot adjust HTTPS host when HTTPS is forced.');
+            Tooltip.setTooltip(port, 'Cannot adjust HTTPS host when HTTPS is forced.');
+            settingInput(ServerSettings.Port).setAttribute('disabled', 1);
+            this.#validateHostPortSsl(null);
+        } else {
+            Tooltip.removeTooltip(host);
+            Tooltip.removeTooltip(port);
+            host.removeAttribute('disabled');
+            port.removeAttribute('disabled');
+            settingHolder(host).classList.remove('disabledSetting');
+            settingHolder(port).classList.remove('disabledSetting');
+            this.#validateHostPort(null);
+        }
+    }
+
+    /**
+     * Shows/hides PFX/PEM certificate settings based on the currently selected value. */
+    #onCertTypeChanged() {
+        const pxfActive = settingInput(ServerSettings.CertType).value === 'pfx';
+        const show = pxfActive ? $id(EleIds.PfxSettings) : $id(EleIds.PemSettings);
+        const hide = pxfActive ? $id(EleIds.PemSettings) : $id(EleIds.PfxSettings);
+        show.classList.remove('hidden');
+        slideDown(show, show.getBoundingClientRect().height + 'px', 250);
+        slideUp(hide, 250, () => hide.classList.add('hidden'));
+        pxfActive ? this.#validatePfx() : this.#validatePem();
+    }
+
+    /**
+     * Checks whether the given PFX path exists, and if so, validates the cert+passphrase.
+     * @param {Event} e */
+    async #onPfxPathChanged(e) {
+        if (await this.#validateSingle(ServerSettings.PfxPath, false, e)) {
+            this.#validatePfx();
+        }
+    }
+
+    /**
+     * Checks whether the given passphrase is valid (if provided), and if so, validates the cert+passphrase.
+     * @param {Event} e */
+    async #onPfxPassChanged(e) {
+        if (await this.#validateSingle(ServerSettings.PfxPassphrase, false, e)) {
+            this.#validatePfx();
+        }
+    }
+
+    /**
+     * Checks whether the given PFX certificate path and passphrase are valid. */
+    #validatePfx() {
+        const pathInput = settingInput(ServerSettings.PfxPath);
+        const passInput = settingInput(ServerSettings.PfxPassphrase);
+        const data = {
+            pfx : pathInput.value,
+            passphrase : passInput.value
+        };
+
+        return this.#validateCertificates(ServerSettings.Pfx, pathInput, passInput, data);
+    }
+
+    /**
+     * Checks whether the given certificate path exists, and if so, validates the cert+key.
+     * @param {Event} e */
+    async #onPemCertPathChanged(e) {
+        if (await this.#validateSingle(ServerSettings.PemCert, false, e)) {
+            this.#validatePem();
+        }
+
+    }
+
+    /**
+     * Checks whether the given key path exists, and if so, validates the cert+key.
+     * @param {Event} e */
+    async #onPemKeyPathChanged(e) {
+        if (await this.#validateSingle(ServerSettings.PemKey, false, e)) {
+            this.#validatePem();
+        }
+    }
+
+    /**
+     * Checks whether the given PEM cert and key are valid. */
+    #validatePem() {
+        const certInput = settingInput(ServerSettings.PemCert);
+        const keyInput = settingInput(ServerSettings.PemKey);
+        const data = {
+            cert : certInput.value,
+            key : keyInput.value
+        };
+
+        return this.#validateCertificates(ServerSettings.Pem, certInput, keyInput, data);
+    }
+
+    /**
+     * Core routine that checks whether a given cert+key combo are valid.
+     * @param {'pfx'|'pem'} setting The setting to check (PFX or PEM)
+     * @param {HTMLInputElement} certInput The certificate input
+     * @param {HTMLInputElement} keyInput The key input
+     * @param {Object} data */
+    async #validateCertificates(setting, certInput, keyInput, data) {
+        const newSetting = {
+            value : JSON.stringify(data),
+            defaultValue : '',
+            isValid : true,
+        };
+
+        const setInvalid = message => {
+            certInput.classList.add('invalid');
+            keyInput.classList.add('invalid');
+            Tooltip.setTooltip(certInput, message);
+            Tooltip.setTooltip(keyInput, message);
+        };
+
+        this.#inValidate = true;
+        try {
+            const validSetting = await ServerCommands.validateConfigValue(setting, JSON.stringify(newSetting));
+            if (validSetting.isValid) {
+                certInput.classList.remove('invalid');
+                keyInput.classList.remove('invalid');
+                Tooltip.removeTooltip(certInput);
+                Tooltip.removeTooltip(keyInput);
+            } else {
+                setInvalid('Certificate and key do not match.');
+            }
+        } catch (err) {
+            setInvalid('Error validating certificate.');
+        }
+
+        this.#inValidate = false;
     }
 
     /**
@@ -273,15 +520,8 @@ class ServerSettingsDialog {
      * #2 is only shown when authentication was enabled and the user wants to disable it.
      * #4 is only shown after the user clicks 'Click to Change' */
     #buildAuthenticationSettings() {
-        const select = appendChildren(buildNode('select'),
-            buildNode('option', { value : 0 }, 'Disabled'),
-            buildNode('option', { value : 1 }, 'Enabled')
-        );
-
         const useAuth = this.#initialValues.authEnabled;
-        const authInput = buildNode('span', { class : 'selectHolder' }, select);
         const defaultValue = useAuth.value === null ? (useAuth.defaultValue ? 1 : 0) : (useAuth.value ? 1 : 0);
-        select.value = defaultValue;
 
         const subAttributes = {
             class : 'subSetting authSubSetting'
@@ -292,8 +532,6 @@ class ServerSettingsDialog {
             subAttributes.disabled = 1;
             subAttributes.class += ' disabledSetting';
         }
-
-        select.addEventListener('change', this.#onAuthChanged.bind(this));
 
         const disableConfirmHolder = appendChildren(buildNode('div', { id : 'disableAuthHolder', class : 'hidden' }),
             this.#plainAuthInput(
@@ -324,18 +562,24 @@ class ServerSettingsDialog {
         );
 
         return [
-            this.#buildSettingEntry(ServerSettings.UseAuthentication, useAuth, authInput),
+            this.#buildBooleanSetting(ServerSettings.UseAuthentication, this.#initialValues.authEnabled, this.#onAuthChanged.bind(this)),
             disableConfirmHolder,
-            this.#buildNumberSetting(
-                ServerSettings.SessionTimeout, this.#initialValues.authSessionTimeout, null, 300, Number.MAX_SAFE_INTEGER, subAttributes),
-            this.#buildStringSetting(
-                ServerSettings.Username, this.#initialValues[ServerSettings.Username], null, { maxlength : 256, ...subAttributes }),
-            this.#buildButtonSetting(
-                ServerSettings.Password,
-                this.#initialValues[ServerSettings.Password],
-                'Click to Change',
-                this.#showHidePasswordUpdate.bind(this),
-                subAttributes
+            appendChildren(buildNode('div', { id : EleIds.AuthSettings, class : defaultValue ? '' : 'hidden' }),
+                this.#buildNumberSetting(
+                    ServerSettings.SessionTimeout,
+                    this.#initialValues.authSessionTimeout,
+                    null,
+                    300,
+                    Number.MAX_SAFE_INTEGER, subAttributes),
+                this.#buildStringSetting(
+                    ServerSettings.Username, this.#initialValues[ServerSettings.Username], null, { maxlength : 256, ...subAttributes }),
+                this.#buildButtonSetting(
+                    ServerSettings.Password,
+                    this.#initialValues[ServerSettings.Password],
+                    'Click to Change',
+                    this.#showHidePasswordUpdate.bind(this),
+                    subAttributes
+                )
             ),
             buildNode('br'),
             newPassHolder
@@ -349,6 +593,7 @@ class ServerSettingsDialog {
     #onAuthChanged() {
         const disableConfirmHolder = $$('#disableAuthHolder');
         const disableConfirmInput = $$('.authSubSetting', disableConfirmHolder);
+        const authSettings = $id(EleIds.AuthSettings);
         const value = +settingInput(ServerSettings.UseAuthentication).value;
         for (const setting of $('.authSubSetting')) {
             if (setting === disableConfirmInput) {
@@ -375,11 +620,18 @@ class ServerSettingsDialog {
                 slideUp(disableConfirmHolder, 250, () => {
                     disableConfirmHolder.classList.add('hidden');
                 });
+
+                authSettings.classList.remove('hidden');
+                slideDown(authSettings, authSettings.getBoundingClientRect().height + 'px', 250);
             }
         } else {
             if (!$id(EleIds.ChangePassHolder).classList.contains('hidden')) {
                 this.#showHidePasswordUpdate();
             }
+
+            slideUp(authSettings, 250, () => {
+                authSettings.classList.add('hidden');
+            });
 
             if (this.#initialValues.authEnabled.value) {
                 // Disabling auth when previously enabled. Require password confirmation.
@@ -780,12 +1032,13 @@ class ServerSettingsDialog {
     async #notifyConfigSaved(newConfig, button) {
         const newHost = this.#val(newConfig.host);
         const newPort = this.#val(newConfig.port);
-        const differentHost = this.#val(this.#initialValues.host) !== newHost;
-        const differentPort = this.#val(this.#initialValues.port) !== newPort;
+        /** @type {(setting: string) => boolean} */
+        const different = setting => this.#val(newConfig[setting]) !== this.#val(this.#initialValues[setting]);
+        const differentHost = different(ServerSettings.Host);
+        const differentPort = different(ServerSettings.Port);
         const needsRedirect = differentHost || differentPort;
-        const authChanged = this.#val(newConfig.authEnabled) !== this.#val(this.#initialValues.authEnabled)
-            || (this.#val(newConfig.authEnabled)
-                && this.#val(newConfig.authSessionTimeout) !== this.#val(this.#initialValues.authSessionTimeout));
+        const authChanged = different(ServerSettings.UseAuthentication)
+            || (this.#val(newConfig.authEnabled) && different(ServerSettings.SessionTimeout));
         await flashBackground(button, Theme.getHex(ThemeColors.Green, 8), 1000);
         if (needsRedirect) {
             // Overlay refreshing
@@ -799,6 +1052,18 @@ class ServerSettingsDialog {
             Overlay.show(
                 `Settings applied! The server needs to reboot to change authentication options, which ` +
                 `may take a few moments. Press 'Reload' below to refresh the page once the server has been rebooted.`,
+                'Reload',
+                () => { window.location = '/'; }
+            );
+        } else if (different(ServerSettings.UseSsl)
+            || different(ServerSettings.SslOnly)
+            || different(ServerSettings.SslHost)
+            || different(ServerSettings.SslPort)) {
+            Overlay.show(
+                `Settings applied! The server needs to reboot to change HTTPS options, which ` +
+                `may take a few moments. Press 'Reload' below to refresh the page once the server has been rebooted.<br><br>` +
+                `Note that if you adjusted the host/port or enabled/disabled the HTTP[S] server, you may need to ` +
+                `manually navigate to the new location.`,
                 'Reload',
                 () => { window.location = '/'; }
             );
@@ -834,6 +1099,15 @@ class ServerSettingsDialog {
             ServerSettings.Host,
             ServerSettings.Port,
             ServerSettings.LogLevel,
+            ServerSettings.UseSsl,
+            ServerSettings.SslOnly,
+            ServerSettings.SslHost,
+            ServerSettings.SslPort,
+            ServerSettings.CertType,
+            ServerSettings.PfxPath,
+            ServerSettings.PfxPassphrase,
+            ServerSettings.PemCert,
+            ServerSettings.PemKey,
             ServerSettings.UseAuthentication,
             ServerSettings.Username,
             ServerSettings.SessionTimeout,
@@ -853,16 +1127,24 @@ class ServerSettingsDialog {
      * Get the current value for the given setting.
      * @param {string} setting
      * @returns {TypedSetting<any>} */
+    // eslint-disable-next-line complexity
     #getCurrentConfigValue(setting) {
         let isNum = false;
         switch (setting) {
             case ServerSettings.Port:
+            case ServerSettings.SslPort:
             case ServerSettings.SessionTimeout:
                 isNum = true;
                 // __fallthrough
             case ServerSettings.DataPath:
             case ServerSettings.Database:
             case ServerSettings.Host:
+            case ServerSettings.SslHost:
+            case ServerSettings.CertType:
+            case ServerSettings.PfxPath:
+            case ServerSettings.PfxPassphrase:
+            case ServerSettings.PemCert:
+            case ServerSettings.PemKey:
             case ServerSettings.Username:
             {
                 let currentValue = settingInput(setting).value;
@@ -878,6 +1160,8 @@ class ServerSettingsDialog {
             }
             case ServerSettings.LogLevel:
                 return this.#getCurrentLogLevelSettings();
+            case ServerSettings.UseSsl:
+            case ServerSettings.SslOnly:
             case ServerSettings.UseAuthentication:
             case ServerSettings.AutoOpen:
             case ServerSettings.ExtendedStats:
@@ -943,6 +1227,8 @@ class ServerSettingsDialog {
      * @param {Event} e */
     async #validateSingle(setting, successBackground, e) {
         try {
+            this.#inValidate = true;
+
             /** @type {TypedSetting<any>} */
             const originalSetting = this.#initialValues[setting];
 
@@ -970,35 +1256,40 @@ class ServerSettingsDialog {
             if (successBackground) e.target.classList[validSetting.isValid ? 'add' : 'remove']('valid');
             if (validSetting.isValid) {
                 Tooltip.removeTooltip(e.target);
-            } else {
-                Tooltip.setTooltip(e.target, validSetting.invalidMessage || `Invalid value`, { maxWidth : 450 });
-                if (document.activeElement === e.target) {
-                    e.target.blur();
-                    e.target.focus();
-                }
+                return true;
+            }
+
+            Tooltip.setTooltip(e.target, validSetting.invalidMessage || `Invalid value`, { maxWidth : 450 });
+            if (document.activeElement === e.target) {
+                e.target.blur();
+                e.target.focus();
             }
         } catch (ex) {
             errorToast(`Could not validate setting: ${errorMessage(ex)}`, 5000);
             e.target.classList.add('invalid');
         }
+
+        this.#inValidate = false;
+        return false;
     }
 
     /**
      * Verifies the new host:port value is valid.
      * @param {Event} e */
-    async #validatePort(e) {
-        await this.#validateSingle(ServerSettings.Port, false /*successBackground*/, e);
+    async #validatePort(ssl, e) {
+        const setting = ssl ? ServerSettings.SslPort : ServerSettings.Port;
+        await this.#validateSingle(setting, false /*successBackground*/, e);
         /** @type {HTMLInputElement} */
-        const portInput = settingInput(ServerSettings.Port);
+        const portInput = settingInput(setting);
         if (portInput.classList.contains('invalid')) {
             // The port itself is invalid, so we can't really test the host
             /** @type {HTMLInputElement} */
-            const hostInput = settingInput(ServerSettings.Host);
+            const hostInput = settingInput(ssl ? ServerSettings.Host : ServerSettings.SslHost);
             Tooltip.removeTooltip(hostInput);
             hostInput.classList.remove('invalid');
         } else {
             // Port is valid, so make sure host:port is valid.
-            this.#validateHostPort(e);
+            this.#validateHostPortCore(e, ssl);
         }
     }
 
@@ -1007,14 +1298,14 @@ class ServerSettingsDialog {
      * connection to the database file.
      * @param {Event} e */
     #validateDataPath(e) {
-        if (this.#inValidate) {
+        if (this.#inDbValidate) {
             // We were called recursively. The second time around, manually validate
             // just the data path.
-            this.#inValidate = false;
+            this.#inDbValidate = false;
             return this.#validateSingle(ServerSettings.DataPath, false /*successBackground*/, e);
         }
 
-        this.#inValidate = true;
+        this.#inDbValidate = true;
         /** @type {HTMLInputElement} */
         const dataPathInput = settingInput(ServerSettings.DataPath);
         /** @type {HTMLInputElement} */
@@ -1045,40 +1336,76 @@ class ServerSettingsDialog {
     /**
      * Verifies that the given host:port is a valid combination.
      * @param {Event} e */
-    async #validateHostPort(e) {
-        /** @type {HTMLInputElement} */
+    #validateHostPort(e) {
+        return this.#validateHostPortCore(e, false);
+    }
+
+    /**
+     * Verifies that the given host:port is a valid combination.
+     * @param {Event} e */
+    #validateHostPortSsl(e) {
+        return this.#validateHostPortCore(e, true);
+    }
+
+    /**
+     * Verifies that the given host:port is a valid combination.
+     * @param {Event} e */
+    async #validateHostPortCore(e, ssl) {
         const hostInput = settingInput(ServerSettings.Host);
-        /** @type {HTMLInputElement} */
         const portInput = settingInput(ServerSettings.Port);
-        const originalHost = this.#initialValues.host;
-        const originalPort = this.#initialValues.port;
+        const sslHostInput = settingInput(ServerSettings.SslHost);
+        const sslPortInput = settingInput(ServerSettings.SslPort);
+
+        const config = this.#initialValues;
+        const originalHost = config.host;
+        const originalPort = config.port;
+        const originalSslHost = config.sslHost;
+        const originalSslPort = config.sslPort;
+
+        const sslEnabled = parseInt(settingInput(ServerSettings.UseSsl).value) === 1;
+        const forceSsl = sslEnabled && parseInt(settingInput(ServerSettings.SslOnly).value) === 1;
+
+        const fields = {
+            host : hostInput.value || originalHost.defaultValue,
+            port : parseInt(portInput.value) || originalPort.defaultValue,
+            sslHost : sslHostInput.value || originalSslHost.defaultValue,
+            sslPort : parseInt(sslPortInput.value) || originalSslPort.defaultValue,
+            sslState : sslEnabled ? (forceSsl ? SslState.Forced : SslState.Enabled) : SslState.Disabled,
+        };
+
         try {
+            this.#inValidate = true;
             const newSetting = {
-                value : (hostInput.value || originalHost.defaultValue) + ':' + (portInput.value || originalPort.defaultValue),
-                defaultValue : `${originalHost.defaultValue}:${originalPort.defaultValue}`,
+                value : JSON.stringify(fields),
+                defaultValue : '',
                 isValid : originalHost.isValid && originalPort.isValid,
             };
 
             const settingResult = await ServerCommands.validateConfigValue(ServerSettings.HostPort, JSON.stringify(newSetting));
+            const hostI = ssl ? sslHostInput : hostInput;
+            const portI = ssl ? sslPortInput : portInput;
             if (settingResult.isValid) {
-                Tooltip.removeTooltip(hostInput);
-                hostInput.classList.remove('invalid');
-                portInput.classList.remove('invalid');
+                Tooltip.removeTooltip(hostI);
+                Tooltip.removeTooltip(portI);
+                hostI.classList.remove('invalid');
+                portI.classList.remove('invalid');
             } else {
-                Tooltip.setTooltip(hostInput, settingResult.invalidMessage || `Invalid hostname`, { maxWidth : 450 });
-                Tooltip.setTooltip(portInput, settingResult.invalidMessage || `Invalid host+port`, { maxWidth : 450 });
-                hostInput.classList.add('invalid');
-                portInput.classList.add('invalid');
-                if (document.activeElement === originalHost || document.activeElement === originalPort) {
-                    document.activeElement.blur();
-                    document.activeElement.focus();
+                Tooltip.setTooltip(hostI, settingResult.invalidMessage || `Invalid hostname`, { maxWidth : 450 });
+                Tooltip.setTooltip(portI, settingResult.invalidMessage || `Invalid host+port`, { maxWidth : 450 });
+                hostI.classList.add('invalid');
+                portI.classList.add('invalid');
+                const active = document.activeElement;
+                if (active === hostI || active === portI) {
+                    active.blur();
+                    active.focus();
                 }
             }
-
         } catch (ex) {
             errorToast(`Could not validate host and port: ${errorMessage(ex)}`, 5000);
-            e.target.classList.add('invalid');
+            e?.target.classList.add('invalid');
         }
+
+        this.#inValidate = false;
     }
 
     /**

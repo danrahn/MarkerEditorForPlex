@@ -20,6 +20,19 @@ isDefault means value is the default value
 */
 
 /**
+ * @typedef {Object} SslSettings
+ * @property {TypedSetting<boolean>} enabled Whether to enable the HTTPS server
+ * @property {TypedSetting<string>} sslHost The address to listen on.
+ * @property {TypedSetting<number>} sslPort The port to host the HTTPS server on.
+ * @property {TypedSetting<'pfx'|'pem'>} certType The type of certificate to use ("pfx" or "pem")
+ * @property {TypedSetting<string>} pfxPath Path to a PFX file
+ * @property {TypedSetting<string>} pfxPassphrase Passphrase for the given PFX  file
+ * @property {TypedSetting<string>} pemCert Path to a PEM cert file
+ * @property {TypedSetting<string>} pemKey Path to a PEM private key file
+ * @property {TypedSetting<boolean>} sslOnly Only enable the HTTPS server
+ */
+
+/**
  * @typedef {Object} AuthenticationSettings
  * @property {TypedSetting<boolean>} enabled
  * @property {TypedSetting<number>} sessionTimeout
@@ -40,6 +53,8 @@ isDefault means value is the default value
  * @property {TypedSetting<string>} host
  * @property {TypedSetting<number>} port
  * @property {TypedSetting<string>} logLevel
+ * @property {SslSettings} ssl
+ * @property {AuthenticationSettings} authentication
  * @property {ConfigFeatures} features
  * @property {TypedSetting<PathMapping[]>} pathMappings
  * @property {TypedSetting<string>} version
@@ -53,6 +68,15 @@ isDefault means value is the default value
  * @property {TypedSetting<string>} host
  * @property {TypedSetting<number>} port
  * @property {TypedSetting<string>} logLevel
+ * @property {TypedSetting<boolean>} sslEnabled Whether to enable the HTTPS server
+ * @property {TypedSetting<string>} sslHost The address to listen on.
+ * @property {TypedSetting<number>} sslPort The port to host the HTTPS server on.
+ * @property {TypedSetting<'pfx'|'pem'>} certType The type of certificate to use ("pfx" or "pem")
+ * @property {TypedSetting<string>} pfxPath Path to a PFX file
+ * @property {TypedSetting<string>} pfxPassphrase Passphrase for the given PFX  file
+ * @property {TypedSetting<string>} pemCert Path to a PEM cert file
+ * @property {TypedSetting<string>} pemKey Path to a PEM private key file
+ * @property {TypedSetting<boolean>} sslOnly Only enable the HTTPS server
  * @property {TypedSetting<boolean>} authEnabled
  * @property {TypedSetting<number>} authSessionTimeout
  * @property {TypedSetting<boolean>} autoOpen Whether to open a browser window on boot
@@ -101,21 +125,18 @@ export class Setting {
 
     /**
      * @param {T} value */
-    setValue(value) { this.#value = value; }
+    setValue(value) { this.#value = value; return this; }
 
     /**
      * Retrieve this setting's current value. If no explicit value has been set, returns the default value. */
-    value() {
-        if (this.#value === null || this.#value === undefined) {
-            return this.#defaultValue;
-        }
-
-        return this.#value;
-    }
+    value() { return this.isDefault() ? this.#defaultValue : this.#value; }
 
     /**
      * Return whether this setting is valid. */
     valid() { return this.#isValid; }
+
+    /** Return the invalid message, if any. */
+    message() { return this.#invalidMessage; }
 
     /**
      * Set whether this setting is valid.
@@ -124,16 +145,21 @@ export class Setting {
     setValid(valid, invalidMessage) {
         this.#isValid = valid;
         this.#invalidMessage = valid ? undefined : invalidMessage;
+        return this;
     }
 
     /**
      * Set whether this setting is unchanged from the currently loaded server setting.
      * @param {boolean} unchanged */
-    setUnchanged(unchanged) { this.#unchanged = unchanged; }
+    setUnchanged(unchanged) { this.#unchanged = unchanged; return this; }
 
     /**
      * Return whether this setting is identical to the currently loaded server setting. */
     isUnchanged() { return this.#unchanged; }
+
+    /**
+     * Return whether this value is explicitly set or using the default. */
+    isDefault() { return this.#value === null || this.#value === undefined; }
 
     /**
      * Return an object representation of this setting.
@@ -182,11 +208,33 @@ export const ServerSettings = {
     SessionTimeout : 'authSessionTimeout',
     /** @readonly List of mappings from paths in the Plex database to paths relative to the current system. */
     PathMappings : 'pathMappings',
+    /** @readonly Whether to enable SSL (HTTPS) */
+    UseSsl : 'sslEnabled',
+    /** @readonly The address the HTTPS server should listen on. */
+    SslHost : 'sslHost',
+    /** @readonly The port to use for the HTTPS server. */
+    SslPort : 'sslPort',
+    /** @readonly The type of certificate to use ("pfx" or "pem"). */
+    CertType : 'certType',
+    /** @readonly Path to a PFX certificate file. */
+    PfxPath : 'pfxPath',
+    /** @readonly Password for the PFX certificate. */
+    PfxPassphrase : 'pfxPassphrase',
+    /** @readonly Path to a PEM certificate file. */
+    PemCert : 'pemCert',
+    /** @readonly Path to a PEM private key file. */
+    PemKey : 'pemKey',
+    /** @readonly Don't launch the HTTP server, only HTTPS */
+    SslOnly : 'sslOnly',
 
     /** @readonly The name of the encompassing "features" object of the configuration file. */
     Features : 'features',
     /** @readonly Not a real setting, but used to validate the host and port together. */
     HostPort : 'hostPort',
+    /** @readonly Used to validate a PFX certificate and its associated passphrase. */
+    Pfx : 'pfx',
+    /** @readonly Used to validate a PEM certificate and private key. */
+    Pem : 'pem',
 };
 
 /**
@@ -198,6 +246,15 @@ export function allServerSettings() {
         ServerSettings.Host,
         ServerSettings.Port,
         ServerSettings.LogLevel,
+        ServerSettings.UseSsl,
+        ServerSettings.SslHost,
+        ServerSettings.SslPort,
+        ServerSettings.CertType,
+        ServerSettings.PfxPath,
+        ServerSettings.PfxPassphrase,
+        ServerSettings.PemCert,
+        ServerSettings.PemKey,
+        ServerSettings.SslOnly,
         ServerSettings.UseAuthentication,
         ServerSettings.Username,
         ServerSettings.SessionTimeout,
@@ -208,6 +265,67 @@ export function allServerSettings() {
         ServerSettings.PathMappings,
     ];
 }
+
+/**
+ * Return whether the given setting is part of the SSL settings group.
+ * @param {string} setting */
+export function isSslSetting(setting) {
+    switch (setting) {
+        default:
+            return false;
+        case ServerSettings.UseSsl:
+        case ServerSettings.SslHost:
+        case ServerSettings.SslPort:
+        case ServerSettings.CertType:
+        case ServerSettings.PfxPath:
+        case ServerSettings.PfxPassphrase:
+        case ServerSettings.PemCert:
+        case ServerSettings.PemKey:
+        case ServerSettings.SslOnly:
+            return true;
+    }
+}
+
+/**
+ * Return whether the given setting is part of the Authentication settings group.
+ * @param {string} setting */
+export function isAuthSetting(setting) {
+    switch (setting) {
+        default:
+            return false;
+        case ServerSettings.UseAuthentication:
+        case ServerSettings.Username:
+        case ServerSettings.Password:
+        case ServerSettings.SessionTimeout:
+            return true;
+    }
+}
+
+/**
+ * Return whether the given setting is part of the Features settings group.
+ * @param {string} setting */
+export function isFeaturesSetting(setting) {
+    switch (setting) {
+        default:
+            return false;
+        case ServerSettings.AutoOpen:
+        case ServerSettings.ExtendedStats:
+        case ServerSettings.PreviewThumbnails:
+        case ServerSettings.FFmpegThumbnails:
+            return true;
+    }
+}
+
+/**
+ * SSL state */
+export const SslState = {
+    /** @readonly SSL is not enabled */
+    Disabled : 0,
+    /** @readonly SSL is enabled */
+    Enabled : 1,
+    /** @readonly SSL is forced (no HTTP) */
+    Forced : 2
+};
 
 /**
  * Current state of the config file

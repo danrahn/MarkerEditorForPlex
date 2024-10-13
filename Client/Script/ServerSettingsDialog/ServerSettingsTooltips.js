@@ -51,7 +51,46 @@ function initializeServerSettingsTooltips() {
         ),
         [ServerSettings.Port] : createTooltip(
             `The port the server will listen on`,
-            `Must be a number between 1 and 65535, but it's recommended to stay above 1023`
+            `Must be a number between 1 and 65535, but it's recommended to stay above 1023.`
+        ),
+        [ServerSettings.UseSsl] : createTooltip(
+            `Create a server that supports SSL communication (HTTPS)`,
+            `In order for SSL to be enabled, a valid certificate and private key must be provided. The HTTPS server ` +
+            `must also only be accessed via the domain(s) listed in the certificate, otherwise browsers will complain.`
+        ),
+        [ServerSettings.SslOnly] : createTooltip(
+            `Force secure connections`,
+            `If enabled, will not launch the HTTP server and will only serve HTTPS requests.`
+        ),
+        [ServerSettings.SslHost] : createTooltip(
+            `The host to listen on for the HTTPS server.`,
+            `Defaults to 0.0.0.0, so make sure that if you keep the default, you don't accidentally expose the server ` +
+            `more broadly than you intend.`
+        ),
+        [ServerSettings.SslPort] : createTooltip(
+            `The port to listen on for the HTTPS server.`,
+            `Must be a number between 1 and 65535, but it's recommended to stay above 1023.`
+        ),
+        [ServerSettings.CertType] : createTooltip(
+            `The type of certificate to use for the HTTPS server.`,
+            `PFX (certificate file + string passphrase) and PEM (certificate file + ` +
+            `private key file) are supported.`
+        ),
+        [ServerSettings.PfxPath] : createTooltip(
+            `Path to a PKCS#12 certificate file.`,
+            ``
+        ),
+        [ServerSettings.PfxPassphrase] : createTooltip(
+            `Passphrase for the PFX certificate.`,
+            ``
+        ),
+        [ServerSettings.PemCert] : createTooltip(
+            `Path to a PEM certificate file`,
+            ``
+        ),
+        [ServerSettings.PemKey] : createTooltip(
+            `Path to a PEM private key file.`,
+            ``
         ),
         [ServerSettings.UseAuthentication] : createTooltip(
             `Whether to require a password to access Marker Editor`,

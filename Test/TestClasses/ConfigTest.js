@@ -1,16 +1,16 @@
-import { MarkerEditorConfig } from '../../Server/MarkerEditorConfig.js';
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
+import { TestLog } from '../TestRunner.js';
 
+import { ServerSettings, SslState } from '../../Shared/ServerConfig.js';
+import { MarkerEditorConfig } from '../../Server/MarkerEditorConfig.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
-import { ServerSettings } from '../../Shared/ServerConfig.js';
 import { testHostPort } from '../../Server/ServerHelpers.js';
 
 import { createServer } from 'http';
 import { join } from 'path';
-import { TestLog } from '../TestRunner.js';
 
-/** @typedef {!import('/Shared/ServerConfig').RawSerializedConfig} RawSerializedConfig */
+/** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @template T @typedef {!import('/Shared/ServerConfig').TypedSetting<T>} TypedSetting<T> */
 
 export default class ConfigTest extends TestBase {
@@ -34,13 +34,22 @@ export default class ConfigTest extends TestBase {
     async validateEmptyConfig() {
         // NOTE: This class is expected to fail if Marker Editor is unable to find the Plex data path automatically
         const dataPath = MarkerEditorConfig.getDefaultPlexDataPath();
-        /** @type {RawSerializedConfig} */
+        /** @type {SerializedConfig} */
         const defaultConfig = {
             dataPath : this.#testValue(null, dataPath),
             database : this.#testValue(null, join(dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db')),
             host : this.#testValue(null, 'localhost'),
             port : this.#testValue(null, 3232),
             logLevel : this.#testValue(null, 'Info'),
+            sslEnabled : this.#testValue(null, false),
+            sslOnly : this.#testValue(null, false),
+            sslHost : this.#testValue(null, '0.0.0.0'),
+            sslPort : this.#testValue(null, 3233),
+            certType :  this.#testValue(null, 'pfx'),
+            pfxPath : this.#testValue(null, ''),
+            pfxPassphrase : this.#testValue(null, ''),
+            pemCert : this.#testValue(null, ''),
+            pemKey : this.#testValue(null, ''),
             authEnabled : this.#testValue(null, false),
             authUsername : this.#testValue(null, ''),
             authSessionTimeout : this.#testValue(null, 86_400),
@@ -54,7 +63,7 @@ export default class ConfigTest extends TestBase {
         const form = new FormData();
         form.append('config', defaultConfig);
         try {
-            /** @type {RawSerializedConfig} */
+            /** @type {SerializedConfig} */
             const newConfig = await this.sendBody(PostCommands.ValidateConfig, { config : JSON.stringify(defaultConfig) });
             TestHelpers.verify(newConfig.dataPath?.value === null && newConfig.dataPath?.defaultValue === dataPath);
         }  catch {
@@ -103,7 +112,15 @@ export default class ConfigTest extends TestBase {
             ++goodPort;
         }
 
-        const goodHostPort = this.#testValue(`localhost:${goodPort}`, 'localhost:3232');
+        const validationData = (host, port) => JSON.stringify({
+            host : host,
+            port : port,
+            sslHost : '',
+            sslPort : port,
+            sslState : SslState.Disabled,
+        });
+
+        const goodHostPort = this.#testValue(validationData('localhost', goodPort));
         /** @type {TypedSetting<string>} */
         let result = await this.#configValueTestResult(setting, goodHostPort);
         TestHelpers.verify(result.isValid, `Expected known good host:port to be valid, but was marked invalid`);
@@ -129,7 +146,7 @@ export default class ConfigTest extends TestBase {
         // Test invalid hostnames (makes a reasonable assumption that the given hosts aren't valid)
         const badHosts = ['local7host', '192.168.0', '192.168.1.256', 'github.com'];
         for (const badHost of badHosts) {
-            result = await this.#configValueTestResult(setting, this.#testValue(`${badHost}:${goodPort}`, 'localhost:3232'));
+            result = await this.#configValueTestResult(setting, this.#testValue(validationData(badHost, goodPort), ''));
             TestHelpers.verify(!result.isValid, `Expected known bad host to be invalid, but was marked valid.`);
             TestHelpers.verify(
                 result.invalidMessage?.indexOf('not be found') !== -1 || result.invalidMessage?.indexOf('not available') !== -1,
@@ -139,7 +156,7 @@ export default class ConfigTest extends TestBase {
         // Test invalid ports. Some overlap with testPort(), but good to check in conjunction with the host
         const badPorts = [-3232, -1, 0, 65536];
         for (const badPort of badPorts) {
-            result = await this.#configValueTestResult(setting, this.#testValue(`$localhost:${badPort}`, 'localhost:3232'));
+            result = await this.#configValueTestResult(setting, this.#testValue(validationData('localhost', badPort), ''));
             TestHelpers.verify(!result.isValid, `Expected known bad port to be invalid, but was marked valid.`);
             TestHelpers.verify(result.invalidMessage, `Expected an invalid message, found nothing.`);
         }

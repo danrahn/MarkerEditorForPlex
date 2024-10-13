@@ -46,12 +46,12 @@ export default class Sqlite3Store extends Store {
      * Retrieve a list of ~recent session secrets, used to validate sessions that were created
      * outside of the current process.
      * @returns {Promise<string[]>} */
-    static async oldSecrets() {
+    static async oldSecrets(https) {
         // Only grab secrets from the last 7 days (and opportunistically prune them). This will
         // invalidate older sessions if the server has restarted, but that's not the end of the world.
         const oneWeekAgo = Math.floor(new Date().getTime() / 1000) - (86_400 * 7);
         await AuthDB.db().run(`DELETE FROM ${SessionSecretTableName} WHERE created_at < ?;`, [oneWeekAgo]);
-        return (await AuthDB.db().all(`SELECT key FROM ${SessionSecretTableName};`)).map(secret => secret.key);
+        return (await AuthDB.db().all(`SELECT key FROM ${SessionSecretTableName} WHERE https=?;`, https ? 1 : 0)).map(secret => secret.key);
     }
 
     /**

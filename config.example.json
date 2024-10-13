@@ -4,6 +4,17 @@
     "host" : "localhost",
     "port" : 3232,
     "logLevel" : "DarkInfo",
+    "ssl" : {
+        "enabled" : false,
+        "sslOnly" : false,
+        "sslHost" : "0.0.0.0",
+        "sslPort" : 3233,
+        "certType" : "pfx",
+        "pfxPath" : "/path/to/cert.pfx",
+        "pfxPassphrase" : "password",
+        "pemCert" : "/path/to/pem/cert.pem",
+        "pemKey" : "/path/to/pem/key.pem"
+    },
     "authentication" : {
         "enabled" : false,
         "sessionTimeout" : 86400

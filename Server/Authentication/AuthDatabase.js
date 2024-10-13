@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-import { AuthDatabaseSchema } from './AuthenticationConstants.js';
+import { authSchemaUpgrades, authSchemaVersion } from './AuthenticationConstants.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import SqliteDatabase from '../SqliteDatabase.js';
 
+const Log = new ContextualLog('AuthDB');
 
 /** @readonly @type {AuthDatabase} */
 export let AuthDB;
@@ -51,8 +53,24 @@ export class AuthDatabase {
 
         const dbPath = join(dbRoot, 'auth.db');
         const db = await SqliteDatabase.OpenDatabase(dbPath, true /*allowCreate*/);
-        await db.exec(AuthDatabaseSchema);
         this.#db = db;
+        const version = (await db.get('SELECT version FROM schema_version;'))?.version || 0;
+        await this.#upgradeSchema(version);
+    }
+
+    /**
+     * Attempts to upgrade the database schema if it's not the latest version.
+     * @param {number} currentSchema */
+    async #upgradeSchema(currentSchema) {
+        while (currentSchema < authSchemaVersion) {
+            Log.info(`Upgrade auth db schema from ${currentSchema} to ${currentSchema + 1}`);
+            await this.#db.exec(authSchemaUpgrades[currentSchema]);
+            if (currentSchema === 0) {
+                return;
+            }
+
+            ++currentSchema;
+        }
     }
 
     db() { return this.#db; }

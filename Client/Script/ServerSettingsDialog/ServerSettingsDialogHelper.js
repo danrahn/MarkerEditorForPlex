@@ -22,6 +22,22 @@ export function settingInput(setting, extra=null) {
 }
 
 /**
+ * Retrieve the setting's top-level DIV container.
+ * @param {string|HTMLElement} setting
+ * @param {string?} extra Any extra data to append to the setting. */
+export function settingHolder(setting, extra=null) {
+    const input = typeof setting === 'string' ? settingInput(setting, extra) : setting;
+    if (!input) { return input; }
+
+    let parent = input;
+    while (parent && !parent.classList.contains('serverSetting')) {
+        parent = parent.parentElement;
+    }
+
+    return parent;
+}
+
+/**
  * Return the title and description for this dialog, as the intent differs
  * depending on the current state of the config file.
  * @param {ServerConfigState} state
