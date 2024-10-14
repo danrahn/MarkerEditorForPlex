@@ -3,7 +3,7 @@ import TestHelpers from '../TestHelpers.js';
 import { TestLog } from '../TestRunner.js';
 
 import { ServerSettings, SslState } from '../../Shared/ServerConfig.js';
-import { MarkerEditorConfig } from '../../Server/Config/MarkerEditorConfig.js';
+import { getDefaultPlexDataPath } from '../../Server/Config/ConfigHelpers.js';
 import { PostCommands } from '../../Shared/PostCommands.js';
 import { testHostPort } from '../../Server/ServerHelpers.js';
 
@@ -33,7 +33,7 @@ export default class ConfigTest extends TestBase {
      * Ensure that an empty configuration is considered valid */
     async validateEmptyConfig() {
         // NOTE: This class is expected to fail if Marker Editor is unable to find the Plex data path automatically
-        const dataPath = MarkerEditorConfig.getDefaultPlexDataPath();
+        const dataPath = getDefaultPlexDataPath();
         /** @type {SerializedConfig} */
         const defaultConfig = {
             dataPath : this.#testValue(null, dataPath),

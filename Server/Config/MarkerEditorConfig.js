@@ -189,7 +189,7 @@ class MarkerEditorConfig extends ConfigBase {
 
             this.#host = this.#getOrDefault('host', 'localhost');
             this.#port = this.#getOrDefault('port', 3232);
-            if (!MarkerEditorConfig.ValidPort(this.#port.value())) {
+            if (!validPort(this.#port.value())) {
                 this.#configState = ServerConfigState.Invalid;
                 this.#port.setValid(false, `Invalid port`);
             }

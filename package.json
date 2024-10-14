@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.0",
+    "express-rate-limit": "^7.4.1",
     "express-session": "^1.18.0",
     "mime-types": "^2.1.35",
     "open": "^8.4.0",

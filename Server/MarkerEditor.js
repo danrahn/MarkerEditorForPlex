@@ -6,6 +6,7 @@ import { default as express } from 'express';
 import { join } from 'path';
 import Open from 'open';
 import { randomBytes } from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { default as session } from 'express-session';
 
 /** @typedef {!import('express').Request} ExpressRequest */
@@ -19,8 +20,8 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { Config, MarkerEditorConfig, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
+import { isBinary, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
-import { sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { User, UserAuthentication } from './Authentication/Authentication.js';
 import { AuthDatabase } from './Authentication/AuthDatabase.js';
@@ -383,8 +384,34 @@ async function createServer(host, port, ssl, resolve) {
     const app = express();
     await initializeSessionStore(app, ssl);
 
-    // TODO: express-ify this with standard routing.
-    app.all('*', serverMain);
+    if (Config.useAuth()) {
+        // One unauthenticated request per second, spread out over 5 seconds.
+        const strictRateLimit = {
+            windowMs : 5000,
+            limit : 5,
+            message : { Error : 'Too many requests' }
+        };
+
+        app.use(`/${PostCommands.Login}`, rateLimit(strictRateLimit));
+        app.use(`/${PostCommands.NeedsPassword}`, rateLimit(strictRateLimit));
+
+        // Strict limit for other POST commands as well, but no limit for authenticated users.
+        app.post('*', rateLimit({ skip : (req, _res) => req.session?.authenticated, ...strictRateLimit }), serverPost);
+
+        // Pretty high limits for all GET requests. This should only affect loading everything
+        // required for login.html, as the main page is only available after logging in.
+        // Basically just prevents the user from constantly force-reloading the page.
+        app.get('*', rateLimit({
+            windowMs : 10000,
+            limit : isBinary() ? 25 : 200, // Binary bundles JS into a single file, source gets raw JS (>40 files)
+            skip : (req, _res) => req.session?.authenticated
+        }), serverGet);
+    } else {
+        // Explicitly ignore rate limiting - the user has bigger problems than DoS if they're externally exposing an unauthenticated app.
+        const noRateLimit = rateLimit({ windowMs : 5000, limit : 200, skip : () => true });
+        app.get('*', noRateLimit, serverGet);
+        app.post('*', noRateLimit, serverPost);
+    }
 
     const listenerCallback = () => {
         const url = `http${ssl ? 's' : ''}://${host}:${port}`;
@@ -467,39 +494,42 @@ function shouldCreateServer() {
 }
 
 /**
- * Entrypoint for incoming connections to the server.
+ * Entrypoint for incoming GET requests to the server.
  * @type {Http.RequestListener}
  * @param {ExpressRequest} req
  * @param {ExpressResponse} res */
-function serverMain(req, res) {
-    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) ${req.method}: ${req.url}`);
-    const method = req.method?.toLowerCase();
-
+function serverGet(req, res) {
+    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) GET: ${req.url}`);
     if (GetServerState() === ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');
-        if (method === 'get') {
-            // GET methods don't return JSON
-            res.statusCode = 503;
-            return res.end();
-        }
-
-        return sendJsonError(res, new ServerError('Server is shutting down', 503));
+        res.statusCode = 503;
+        res.end();
+        return;
     }
 
     try {
-        // Only serve static resources via GET, and only accept queries for JSON via POST.
-        switch (method) {
-            case 'get':
-                return GETHandler.handleRequest(req, res);
-            case 'post':
-                return handlePost(req, res);
-            default:
-                return sendJsonError(res, new ServerError(`Unexpected method "${req.method?.toUpperCase()}"`, 405));
-        }
-    } catch (e) {
-        e.message = `Exception thrown for ${req.url}: ${e.message}`;
-        sendJsonError(res, e, e.code || 500);
+        return GETHandler.handleRequest(req, res);
+    } catch (err) {
+        err.message = `Exception thrown for ${req.url}: ${err.message}`;
+        sendJsonError(res, err, err.code || 500);
     }
+}
+
+/**
+ * Entrypoint for incoming POST requests to the server.
+ * @type {Http.RequestListener}
+ * @param {ExpressRequest} req
+ * @param {ExpressResponse} res */
+function serverPost(req, res) {
+    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) POST: ${req.url}`);
+
+    if (GetServerState() === ServerState.ShuttingDown) {
+        Log.warn('Got a request when attempting to shut down the server, returning 503.');
+        sendJsonError(res, new ServerError('Server is shutting down', 503));
+        return;
+    }
+
+    return handlePost(req, res);
 }
 
 /**

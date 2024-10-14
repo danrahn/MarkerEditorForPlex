@@ -6,7 +6,7 @@ import { read } from 'read';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 import { testFfmpeg, testHostPort } from '../ServerHelpers.js';
-import { MarkerEditorConfig } from './MarkerEditorConfig.js';
+import { getDefaultPlexDataPath } from './ConfigHelpers.js';
 import { User } from '../Authentication/Authentication.js';
 
 /** @typedef {!import('./MarkerEditorConfig').PathMapping} PathMapping */
@@ -95,7 +95,7 @@ async function FirstRunConfig(dataRoot, forceCli) {
         config.port = 3232;
     } else {
         // DataPath isn't needed if a db path is provided and bif preview thumbnails are disabled.
-        const defaultPath = MarkerEditorConfig.getDefaultPlexDataPath();
+        const defaultPath = getDefaultPlexDataPath();
         const dataPath = await askUserPath('Plex data directory path', defaultPath, true /*canSkip*/);
         if (dataPath !== null) {
             config.dataPath = dataPath;

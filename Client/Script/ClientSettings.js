@@ -1114,7 +1114,7 @@ class SettingsManager {
             this.#settings.extendedMarkerStats.block();
         }
 
-        this.#settings.authEnabled = serverConfig.authEnabled;
+        this.#settings.authEnabled = new Setting().setFromSerialized(serverConfig.authEnabled).value();
 
         return true;
     }
