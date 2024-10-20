@@ -1,5 +1,5 @@
+import { allServerSettings, ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
-import { ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
 
 import { $, $$, $append, $br, $buttonInput, $div, $divHolder, $h, $hr, $i, $id, $label, $numberInput, $option,
     $passwordInput, $plainDivHolder, $select, $span, $text, $textInput, $textSpan } from '../HtmlHelpers.js';
@@ -103,6 +103,7 @@ class ServerSettingsDialog {
                     this.#buildStringSetting(ServerSettings.Host, config.host, this.#validateHostPort.bind(this), hostPortClass),
                     this.#buildNumberSetting(
                         ServerSettings.Port, config.port, this.#validatePort.bind(this, false), 1, 65535, hostPortClass),
+                    this.#buildStringSetting(ServerSettings.BaseUrl, config.baseUrl),
                     ...this.#buildSslSettings(),
                     ...this.#buildAuthenticationSettings(),
                     this.#buildLogLevelSetting(),
@@ -1089,30 +1090,7 @@ class ServerSettingsDialog {
 
         // TODO: Is it worth considering cases where session timeout/username changes, but
         //       auth is also being disabled? For now, no.
-        for (const setting of [
-            ServerSettings.DataPath,
-            ServerSettings.Database,
-            ServerSettings.Host,
-            ServerSettings.Port,
-            ServerSettings.LogLevel,
-            ServerSettings.UseSsl,
-            ServerSettings.SslOnly,
-            ServerSettings.SslHost,
-            ServerSettings.SslPort,
-            ServerSettings.CertType,
-            ServerSettings.PfxPath,
-            ServerSettings.PfxPassphrase,
-            ServerSettings.PemCert,
-            ServerSettings.PemKey,
-            ServerSettings.UseAuthentication,
-            ServerSettings.Username,
-            ServerSettings.SessionTimeout,
-            ServerSettings.AutoOpen,
-            ServerSettings.ExtendedStats,
-            ServerSettings.PreviewThumbnails,
-            ServerSettings.FFmpegThumbnails,
-            ServerSettings.PathMappings,
-        ]) {
+        for (const setting of allServerSettings()) {
             values[setting] = this.#getCurrentConfigValue(setting);
         }
 
@@ -1135,6 +1113,7 @@ class ServerSettingsDialog {
             case ServerSettings.DataPath:
             case ServerSettings.Database:
             case ServerSettings.Host:
+            case ServerSettings.BaseUrl:
             case ServerSettings.SslHost:
             case ServerSettings.CertType:
             case ServerSettings.PfxPath:

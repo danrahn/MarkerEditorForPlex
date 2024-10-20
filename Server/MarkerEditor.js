@@ -392,8 +392,8 @@ async function createServer(host, port, ssl, resolve) {
             message : { Error : 'Too many requests' }
         };
 
-        app.use(`/${PostCommands.Login}`, rateLimit(strictRateLimit));
-        app.use(`/${PostCommands.NeedsPassword}`, rateLimit(strictRateLimit));
+        app.use(`*/${PostCommands.Login}`, rateLimit(strictRateLimit));
+        app.use(`*/${PostCommands.NeedsPassword}`, rateLimit(strictRateLimit));
 
         // Strict limit for other POST commands as well, but no limit for authenticated users.
         app.post('*', rateLimit({ skip : (req, _res) => req.session?.authenticated, ...strictRateLimit }), serverPost);
@@ -559,7 +559,12 @@ ServerEventHandler.on(ServerEvents.SoftRestart, async (response, data, resolve) 
  * @param {ExpressRequest} req
  * @param {ExpressResponse} res */
 async function handlePost(req, res) {
-    const url = req.url.toLowerCase();
+    let url = req.url.toLowerCase();
+    const baseUrl = Config.baseUrl();
+    if (url.startsWith(baseUrl)) {
+        url = '/' + url.substring(baseUrl.length);
+    }
+
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex === -1 ? url.substring(1) : url.substring(1, endpointIndex);
     if (GetServerState() === ServerState.Suspended

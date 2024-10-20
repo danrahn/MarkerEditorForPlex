@@ -48,20 +48,23 @@ class GETHandler {
     static async handleRequest(req, res) {
         let url = req.url;
 
+        // Even if a baseUrl is set, also parse baseless requests.
+        const usingBase = url.startsWith(Config.baseUrl());
+        const baseUrl = usingBase ? Config.baseUrl() : '/';
+
+        if (usingBase) {
+            url = '/' + url.substring(baseUrl.length);
+        }
+
         // GET requests should always have a URL
         if (!url) {
             res.writeHead(400).end(`Invalid request - no URL found`);
             return;
         }
 
-        if (!GETHandler.#requestAllowed(req, res)) {
+        if (!GETHandler.#requestAllowed(url, req, res)) {
             return; // #requestAllowed handles writing the response.
         }
-
-        // Only production files use cache-busing techniques, so don't
-        // set a cache-age if we're using raw dev files. Make an exception
-        // for production HTML though, as they do not use cache-busting.
-        let cacheable = isBinary();
 
         if (url === '/') {
             url = '/index.html';
@@ -71,22 +74,29 @@ class GETHandler {
 
         if (urlPlain === '/index.html') {
             if (Config.useAuth() && !User.signedIn(req)) {
-                res.redirect('/login.html');
+                res.redirect(`${baseUrl}login.html`);
                 return;
             }
 
-            cacheable = false;
+            GETHandler.serveWithBaseUrl(url, baseUrl, res);
+            return;
         }
 
         if (urlPlain === '/login.html') {
             if (!Config.useAuth() || User.signedIn(req)) {
-                res.redirect('/');
+                res.redirect(baseUrl);
                 return;
             }
 
             url = '/Client/login.html';
-            cacheable = false;
+            GETHandler.serveWithBaseUrl(url, baseUrl, res);
+            return;
         }
+
+        // Only production files use cache-busing techniques, so don't
+        // set a cache-age if we're using raw dev files. Make an exception
+        // for production HTML though, as they do not use cache-busting.
+        const cacheable = isBinary();
 
         switch (url.substring(0, 3)) {
             case '/i/':
@@ -129,24 +139,45 @@ class GETHandler {
     /**
      * Determines whether the given request is allowed. There are special cases for users
      * who aren't signed in, and when the user hasn't gone through the first-time setup yet.
+     * @param {string} url The requested URL (with baseUrl stripped if present)
      * @param {ExpressRequest} req
      * @param {ExpressResponse} res */
-    static #requestAllowed(req, res) {
+    static #requestAllowed(url, req, res) {
         if (Config.useAuth() && !req.session.authenticated) {
-            if (!this.#noAuthRegex.test(req.url.split('?')[0])) {
-                res.writeHead(401).end(`Cannot access resource without authorization: "${req.url}"`);
+            if (!this.#noAuthRegex.test(url.split('?')[0])) {
+                res.writeHead(401).end(`Cannot access resource without authorization: "${url}"`);
                 return false;
             }
         }
 
         // Most GET requests are allowed in first run, except for thumbnails and export
         if (GetServerState() === ServerState.RunningWithoutConfig
-            && (req.url.substring(0, 3) === '/t/' || req.url.startsWith('/export/'))) {
-            res.writeHead(503).end(`Disallowed request during First Run experience: "${req.url}"`);
+            && (url.substring(0, 3) === '/t/' || url.startsWith('/export/'))) {
+            res.writeHead(503).end(`Disallowed request during First Run experience: "${url}"`);
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Serve an HTTP file that has [[BASE_URL]] indicators that should be
+     * replaced with the user-defined base url.
+     * @param {string} url The URL to retrieve
+     * @param {string} baseUrl The base URL to replace the placeholder with.
+     * @param {ExpressResponse} res */
+    static serveWithBaseUrl(url, baseUrl, res) {
+        const mimetype = contentType(lookup(url));
+        readFile(join(ProjectRoot(), url), (err, contents) => {
+            if (err) {
+                Log.warn(`Unable to serve ${url}: ${err.message}`);
+                res.writeHead(404).end(`Not Found: ${err.message}`);
+                return;
+            }
+
+            const html = contents.toString('utf-8').replaceAll('[[BASE_URL]]', baseUrl);
+            sendCompressedData(res, 200, html, mimetype, 0 /*cacheAge*/);
+        });
     }
 }
 

@@ -104,7 +104,7 @@ class LoginManager {
         this.#loggingIn = true;
         try {
             await ServerCommands.login(username, password);
-            window.location = '/';
+            window.location = 'login.html';
         } catch (ex) {
             ++this.#failures;
             if (this.#failures > 3) {
@@ -152,7 +152,7 @@ class LoginManager {
         this.#loggingIn = true;
         try {
             await ServerCommands.changePassword(username, '' /*oldPass*/, this.#password.value);
-            window.location = '/';
+            window.location = 'index.html';
         } catch (ex) {
             errorToast(`Setting password failed: ${ex.message}`, 5000);
         } finally {

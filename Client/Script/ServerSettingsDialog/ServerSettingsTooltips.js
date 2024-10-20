@@ -53,6 +53,11 @@ function initializeServerSettingsTooltips() {
             `The port the server will listen on`,
             `Must be a number between 1 and 65535, but it's recommended to stay above 1023.`
         ),
+        [ServerSettings.BaseUrl] : createTooltip(
+            `The root of this application.`,
+            `Useful for reverse proxies. E.g. if you're using a proxy that forwards example.com/markerEdit to localhost:3232, ` +
+            `this value should be markerEdit.`
+        ),
         [ServerSettings.UseSsl] : createTooltip(
             `Create a server that supports SSL communication (HTTPS)`,
             `In order for SSL to be enabled, a valid certificate and private key must be provided. The HTTPS server ` +

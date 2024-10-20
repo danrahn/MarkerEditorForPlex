@@ -92,7 +92,7 @@ async function getSvgAsync(iconName, color, attributes, placeholder) {
         Log.tmi(`Already requesting data for "${iconName}", waiting...`);
     } else {
         svgFetchMap.set(iconName, new Promise(resolve => {
-            fetch(`/i/${iconName}.svg`, { headers : { accept : 'image/svg+xml' } }).then(r => r.text().then(data => {
+            fetch(`i/${iconName}.svg`, { headers : { accept : 'image/svg+xml' } }).then(r => r.text().then(data => {
                 Log.verbose(`Got SVG data for "${iconName}", caching it.`);
                 setCache(iconName, data);
                 resolve();

@@ -10,6 +10,7 @@ export const SettingTitles = {
     [ServerSettings.Database] : 'Database File',
     [ServerSettings.Host] : 'Listen Host',
     [ServerSettings.Port] : 'Listen Port',
+    [ServerSettings.BaseUrl] : 'Base URL',
     [ServerSettings.UseSsl] : 'Enable HTTPS',
     [ServerSettings.SslOnly] : 'Force HTTPS',
     [ServerSettings.SslHost] : 'HTTPS Host',

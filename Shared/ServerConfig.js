@@ -52,6 +52,7 @@ isDefault means value is the default value
  * @property {TypedSetting<string>} database
  * @property {TypedSetting<string>} host
  * @property {TypedSetting<number>} port
+ * @property {TypedSetting<string>} baseUrl
  * @property {TypedSetting<string>} logLevel
  * @property {SslSettings} ssl
  * @property {AuthenticationSettings} authentication
@@ -66,6 +67,7 @@ isDefault means value is the default value
  * @property {TypedSetting<string>} dataPath
  * @property {TypedSetting<string>} database
  * @property {TypedSetting<string>} host
+ * @property {TypedSetting<number>} port
  * @property {TypedSetting<number>} port
  * @property {TypedSetting<string>} logLevel
  * @property {TypedSetting<boolean>} sslEnabled Whether to enable the HTTPS server
@@ -188,6 +190,8 @@ export const ServerSettings = {
     Host : 'host',
     /** @readonly The port to listen on. */
     Port : 'port',
+    /** @readonly The base URL for this application. Useful for reverse proxies. */
+    BaseUrl : 'baseUrl',
     /** @readonly The server-side logging level. */
     LogLevel : 'logLevel',
     /** @readonly Whether to auto-open a browser window on launch. */
@@ -245,6 +249,7 @@ export function allServerSettings() {
         ServerSettings.Database,
         ServerSettings.Host,
         ServerSettings.Port,
+        ServerSettings.BaseUrl,
         ServerSettings.LogLevel,
         ServerSettings.UseSsl,
         ServerSettings.SslHost,

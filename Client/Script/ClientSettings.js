@@ -681,7 +681,7 @@ class ClientSettingsUI {
     async #logout() {
         try {
             await ServerCommands.logout();
-            window.location = '/login.html';
+            window.location = 'login.html';
         } catch (ex) {
             errorToast('Failed to log out. Please try again later.');
         }
