@@ -72,7 +72,7 @@ export class PathMappingsTable {
     /**
      * Return a "no path mappings" spanning table row. */
     #noPathMappingsRow() {
-        return $tr('tr', { class : 'noPathMappings' }, $td('No path mappings', { colspan : 3 }));
+        return $tr({ class : 'noPathMappings' }, $td('No path mappings', { colspan : 3 }));
     }
 
     /**
