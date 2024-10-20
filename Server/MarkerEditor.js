@@ -239,7 +239,7 @@ async function handleClose(signal, restart=false) {
 /**
  * Properly close out open resources in preparation for shutting down the process.
  * @param {boolean} fullShutdown Whether we're _really_ shutting down the process, or just suspending/restarting it. */
-async function cleanupForShutdown(fullShutdown) {
+async function cleanupForShutdown(fullShutdown, resetConfig=true) {
     LegacyMarkerBreakdown.Clear();
     MarkerCacheManager.Close();
     DatabaseImportExport.Close(fullShutdown);
@@ -250,9 +250,12 @@ async function cleanupForShutdown(fullShutdown) {
         ThumbnailManager.Close(fullShutdown),
     ]);
 
-    // Ensure this is always last, as some classes
-    // above may rely on values here.
-    MarkerEditorConfig.Close();
+    // Ensure this is always last, as some classes above may rely on values here.
+    // Also don't close it if we're just suspending the server, as the server itself
+    // is still running and needs values from the config.
+    if (resetConfig) {
+        MarkerEditorConfig.Close();
+    }
 
     // Either we failed to resume the server, or we got a shutdown request in the middle of
     // resuming. Send a failure response now so the server can close cleanly.
@@ -298,7 +301,7 @@ async function userSuspend(res) {
     await waitForStable();
 
     SetServerState(ServerState.Suspended);
-    await cleanupForShutdown(false /*fullShutdown*/);
+    await cleanupForShutdown(false /*fullShutdown*/, false /*resetConfig*/);
     Log.info('Server successfully suspended.');
     sendJsonSuccess(res);
 }
@@ -332,6 +335,8 @@ function userResume(res) {
 
     ResumeResponse = res;
 
+    // Only once we resume do we clear out the old config and reload any potential changes.
+    MarkerEditorConfig.Close();
     run();
 }
 
