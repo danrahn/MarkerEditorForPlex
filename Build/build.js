@@ -1,5 +1,6 @@
 import {
     copyFileSync,
+    cpSync,
     existsSync,
     mkdirSync,
     readdirSync,
@@ -706,6 +707,12 @@ async function build() {
         resolve(buildDir, '../node_modules/sqlite3/package.json'),
         resolve(buildDir, '../dist/node_modules/sqlite3/package.json')
     );
+
+    // nexe doesn't support ESM modules either, like `read`
+    cpSync(
+        resolve(buildDir, '../node_modules/read'),
+        resolve(buildDir, '../dist/node_modules/read'),
+        { force : true, recursive : true });
 
     msg('Writing README');
     writeReadme();

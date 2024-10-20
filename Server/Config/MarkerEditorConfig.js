@@ -20,9 +20,9 @@ import {
     validPort,
     validSessionTimeout } from './ConfigHelpers.js';
 import { GetServerState, ServerState } from '../ServerState.js';
+import { isBinary, testFfmpeg, testHostPort } from '../ServerHelpers.js';
 import { PlexQueries, PlexQueryManager } from '../PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
-import { testFfmpeg, testHostPort } from '../ServerHelpers.js';
 import AuthenticationConfig from './AuthenticationConfig.js';
 import ConfigBase from './ConfigBase.js';
 import PlexFeatures from './FeaturesConfig.js';
@@ -104,6 +104,12 @@ class MarkerEditorConfig extends ConfigBase {
     /** The port to bind the application to.
      * @type {Setting<number>} */
     #port;
+
+    /**
+     * The base URL to use for this instance. Useful for reverse proxy setups that e.g.
+     * forward http://example.com:80/markerEditor to http://localhost:3232
+     * @type {Setting<string>}*/
+    #baseUrl;
 
     /** @type {Setting<string>} */
     #logLevel;
@@ -195,6 +201,8 @@ class MarkerEditorConfig extends ConfigBase {
             }
         }
 
+        this.#baseUrl = this.#getOrDefault('baseUrl', '/');
+        this.#fixupBaseUrl(this.#baseUrl, false /*setUnchanged*/);
         await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
         this.#ssl = new SslConfig(this.#Base.json.ssl);
         this.#auth = new AuthenticationConfig(this.#Base.json.authentication);
@@ -267,6 +275,7 @@ class MarkerEditorConfig extends ConfigBase {
     databasePath() { return this.#dbPath.value(); }
     host() { return this.#host.value(); }
     port() { return this.#port.value(); }
+    baseUrl() { return this.#baseUrl.value(); }
     useSsl() { return this.#ssl.enabled.value(); }
     sslHost() { return this.#ssl.sslHost.value(); }
     sslPort() { return this.#ssl.sslPort.value(); }
@@ -294,6 +303,7 @@ class MarkerEditorConfig extends ConfigBase {
             database : this.#dbPath.serialize(),
             host : this.#host.serialize(),
             port : this.#port.serialize(),
+            baseUrl : this.#baseUrl.serialize(),
             logLevel : this.#logLevel.serialize(),
             sslEnabled : this.#ssl.enabled.serialize(),
             sslHost : this.#ssl.sslHost.serialize(),
@@ -426,10 +436,11 @@ class MarkerEditorConfig extends ConfigBase {
     // eslint-disable-next-line complexity
     async #updateInternalConfig(newConfig, changedKeys) {
 
-        // Server related settings requires a full server reboot, so no
-        // need to try any in-place updates.
+        // Some settings require a full server reboot (or aren't worth implementing
+        // in-place updates for), so skip update attempts.
         if (changedKeys.has(ServerSettings.Host)
             || changedKeys.has(ServerSettings.Port)
+            || changedKeys.has(ServerSettings.BaseUrl)
             || changedKeys.has(ServerSettings.UseAuthentication)
             || changedKeys.has(ServerSettings.SessionTimeout)
             || changedKeys.has(ServerSettings.UseSsl)
@@ -544,6 +555,7 @@ class MarkerEditorConfig extends ConfigBase {
             ServerSettings.DataPath,
             ServerSettings.Database,
             ServerSettings.Port,
+            ServerSettings.BaseUrl,
             ServerSettings.LogLevel,
             ServerSettings.PathMappings,
             ServerSettings.UseSsl,
@@ -719,6 +731,8 @@ class MarkerEditorConfig extends ConfigBase {
                 return setting.setUnchanged(setting.value() === this.port());
             case ServerSettings.HostPort:
                 return this.#validateHostPort(setting);
+            case ServerSettings.BaseUrl:
+                return this.#fixupBaseUrl(setting);
             case ServerSettings.LogLevel:
             {
                 const parsed = Log.getFromString(setting.value());
@@ -1008,6 +1022,30 @@ class MarkerEditorConfig extends ConfigBase {
     }
 
     /**
+     * Do some behind-the-scenes cleanup to add '/' to the beginning and end of the url
+     * to make our lives easier, but don't annoy the user by forcing it. Don't do any validation
+     * outside of that. Always assume a valid value - it's on the user if they screw up.
+     * @param {Setting<string>} setting */
+    #fixupBaseUrl(setting, setUnchanged=true) {
+        const originalVal = setting.value();
+        let newVal = originalVal;
+        if (originalVal.length === 0) {
+            newVal = '/';
+        } else if (originalVal.length === 1 && originalVal !== '/') {
+            newVal = `/${originalVal}/`;
+        } else {
+            if (originalVal[0] !== '/') newVal = '/' + newVal;
+            if (originalVal[originalVal.length - 1] !== '/') newVal += '/';
+        }
+
+        if (originalVal !== newVal) {
+            setting.setValue(newVal);
+        }
+
+        return setUnchanged ? setting.setUnchanged(setting.value() === this.baseUrl()) : setting;
+    }
+
+    /**
      * @param {string} json
      * @param {boolean} pfx */
     #validateCertificates(json, pfx) {
@@ -1039,6 +1077,8 @@ let globalProjectRoot = undefined;
  *
  * Doesn't live in MarkerEditorConfig directly because it occasionally needs to be
  * accessed before MarkerEditorConfig is completely set up. */
-const ProjectRoot = () => (globalProjectRoot ??= dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+const ProjectRoot = () => (globalProjectRoot ??= isBinary() ?
+    dirname(dirname(fileURLToPath(import.meta.url))) :
+    dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 
 export { MarkerEditorConfig, Instance as Config, ProjectRoot };
