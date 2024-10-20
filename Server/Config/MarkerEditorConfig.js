@@ -179,26 +179,25 @@ class MarkerEditorConfig extends ConfigBase {
         const configExists = this.#configState !== ServerConfigState.DoesNotExist;
         this.#logLevel = this.#getOrDefault('logLevel', 'Info');
         Log.setFromString(this.#logLevel.value());
-        if (process.env.IS_DOCKER) {
+        const isDocker = process.env.IS_DOCKER;
+        if (isDocker) {
             // Config _should_ have the right values in Docker, but "help" the user out
             // by forcing it in case they were altered afterwards.
             this.#dataPath = new Setting('/PlexDataDirectory', '/PlexDataDirectory');
             const dbPath = join(this.#dataPath.value(), 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
             this.#dbPath = new Setting(dbPath, dbPath);
-            this.#host = new Setting('0.0.0.0', '0.0.0.0');
-            this.#port = new Setting(3232, 3232);
         } else {
             this.#dataPath = this.#getOrDefault('dataPath', getDefaultPlexDataPath());
             this.#dbPath = this.#getOrDefault(
                 'database',
                 join(this.#dataPath.value(), 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db'));
+        }
 
-            this.#host = this.#getOrDefault('host', 'localhost');
-            this.#port = this.#getOrDefault('port', 3232);
-            if (!validPort(this.#port.value())) {
-                this.#configState = ServerConfigState.Invalid;
-                this.#port.setValid(false, `Invalid port`);
-            }
+        this.#host = this.#getOrDefault('host', isDocker ? '0.0.0.0' : 'localhost');
+        this.#port = this.#getOrDefault('port', 3232);
+        if (!validPort(this.#port.value())) {
+            this.#configState = ServerConfigState.Invalid;
+            this.#port.setValid(false, `Invalid port`);
         }
 
         this.#baseUrl = this.#getOrDefault('baseUrl', '/');

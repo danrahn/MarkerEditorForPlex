@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\app.js"
+            "program": "${workspaceFolder}/app.js"
         },
         {
             "type": "node",
@@ -27,7 +27,7 @@
             "name" : "Run Tests",
             "skipFiles": [ "<node_internals>/**" ],
             "args": [ "--test" ],
-            "program": "${workspaceFolder}\\Test\\Test.js"
+            "program": "${workspaceFolder}/Test/Test.js"
         },
         {
             "type" : "node",
@@ -35,7 +35,7 @@
             "name" : "Run Custom Test(s)",
             "skipFiles": [ "<node_internals>/**" ],
             "args": [ "--test", "-tc", "[testClassName]", "-tm", "[testMethodName]" ],
-            "program": "${workspaceFolder}\\Test\\Test.js"
+            "program": "${workspaceFolder}/Test/Test.js"
         },
         {
             "type" : "node",
@@ -44,7 +44,7 @@
             "console": "integratedTerminal",
             "skipFiles": [ "<node_internals>/**" ],
             "args": [ "--test", "--ask-input" ],
-            "program": "${workspaceFolder}\\Test\\Test.js"
+            "program": "${workspaceFolder}/Test/Test.js"
         },
         {
             "type" : "node",
@@ -52,7 +52,7 @@
             "name" : "Debug Build Command",
             "skipFiles": [ "<node_internals>/**" ],
             "runtimeExecutable": "npm",
-            "runtimeArgs": ["run", "build", "ia32", "verbose", "pack"]
+            "runtimeArgs": ["run", "build"]
         }
     ]
 }

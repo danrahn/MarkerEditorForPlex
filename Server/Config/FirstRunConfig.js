@@ -91,8 +91,6 @@ async function FirstRunConfig(dataRoot, forceCli) {
         // In Docker, file paths are static, provided by the user during docker run
         config.dataPath = '/PlexDataDirectory';
         config.database = join(config.dataPath, 'Plug-in Support/Databases/com.plexapp.plugins.library.db');
-        config.host = '0.0.0.0';
-        config.port = 3232;
     } else {
         // DataPath isn't needed if a db path is provided and bif preview thumbnails are disabled.
         const defaultPath = getDefaultPlexDataPath();
@@ -106,11 +104,10 @@ async function FirstRunConfig(dataRoot, forceCli) {
         if (database !== null) {
             config.database = database;
         }
-
-        config.host = await askUser('Editor host', 'localhost');
-        config.port = parseInt(await askUser('Editor port', '3232', validPort, 'Invalid port number'));
     }
 
+    config.host = await askUser('Editor host', isDocker ? '0.0.0.0' : 'localhost');
+    config.port = parseInt(await askUser('Editor port', '3232', validPort, 'Invalid port number'));
     config.logLevel = await askUser('Server log level (see wiki for available values)', 'Info');
 
     config.ssl = {};
@@ -119,7 +116,6 @@ async function FirstRunConfig(dataRoot, forceCli) {
     if (config.ssl.enabled) {
         await setupSsl(config);
     }
-
 
     config.authentication = {};
     config.authentication.enabled = await askUserYesNo('Do you want to require a username/password to access this application', false);
@@ -159,9 +155,6 @@ async function setupSsl(config) {
     if (ssl.sslOnly) {
         ssl.host = config.host;
         ssl.port = config.port;
-    } else if (process.env.IS_DOCKER) {
-        ssl.host = '0.0.0.0';
-        ssl.port = 3233;
     } else {
         ssl.host = await askUser('HTTPS host', '0.0.0.0');
         ssl.port = parseInt(await askUser('HTTPS port', '3233', validPort, 'Invalid port number'));
