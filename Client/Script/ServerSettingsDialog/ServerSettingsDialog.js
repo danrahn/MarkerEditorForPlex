@@ -1,7 +1,8 @@
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 import { ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
 
-import { $, $$, $id, appendChildren, buildNode, buildText } from '../Common.js';
+import { $, $$, $append, $br, $buttonInput, $div, $divHolder, $h, $hr, $i, $id, $label, $numberInput, $option,
+    $passwordInput, $plainDivHolder, $select, $span, $text, $textInput, $textSpan } from '../HtmlHelpers.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
 import { flashBackground, slideDown, slideUp } from '../AnimationHelpers.js';
 import { Theme, ThemeColors } from '../ThemeColors.js';
@@ -88,18 +89,15 @@ class ServerSettingsDialog {
      * Entrypoint for displaying the server settings UI. */
     launch() {
         const [title, description] = settingsDialogIntro(this.#initialValues.state);
-        const container = buildNode('div', { id : 'serverSettingsContainer', class : 'settingsContainer' });
+        const container = $div({ id : 'serverSettingsContainer', class : 'settingsContainer' });
         const config = this.#initialValues;
         const hostPortEnabled = !config.sslEnabled.value || !config.sslOnly.value;
         const hostPortClass = { class : hostPortEnabled ? '' : 'disabledSetting' };
-        appendChildren(container,
-            appendChildren(buildNode('div', { id : 'serverSettingsScroll' }),
-                appendChildren(buildNode('div'),
-                    buildNode('h1', {}, title),
-                    buildNode('span', {}, description),
-                ),
-                buildNode('hr'),
-                appendChildren(buildNode('div', { class : 'serverSettingsSettings' }),
+        $append(container,
+            $divHolder({ id : 'serverSettingsScroll' },
+                $plainDivHolder($h(1, title), $span(description)),
+                $hr(),
+                $divHolder({ class : 'serverSettingsSettings' },
                     this.#buildStringSetting(ServerSettings.DataPath, config.dataPath, this.#validateDataPath.bind(this)),
                     this.#buildStringSetting(ServerSettings.Database, config.database),
                     this.#buildStringSetting(ServerSettings.Host, config.host, this.#validateHostPort.bind(this), hostPortClass),
@@ -117,8 +115,8 @@ class ServerSettingsDialog {
                     this.#buildPathMappings(),
                 ),
             ),
-            buildNode('hr'),
-            appendChildren(buildNode('div', { id : 'serverSettingsSubmit' }),
+            $hr(),
+            $divHolder({ id : 'serverSettingsSubmit' },
                 ButtonCreator.fullButton('Apply', Icons.Confirm, ThemeColors.Green, this.#onApply.bind(this), { id : EleIds.ApplyChanges }),
                 ...buttonsFromConfigState(this.#initialValues.state)
             ),
@@ -143,7 +141,7 @@ class ServerSettingsDialog {
      * @param {number} max
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildNumberSetting(setting, settingInfo, customValidate, min, max, attributes={}) {
-        const input = buildNode('input', { type : 'number', min : min, max : max, value : settingInfo.value || '' });
+        const input = $numberInput({ min : min, max : max, value : settingInfo.value || '' });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -155,7 +153,7 @@ class ServerSettingsDialog {
      * @param {(setting: string, e: Event) => void} [customValidate]
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildStringSetting(setting, settingInfo, customValidate, attributes={}) {
-        const input = buildNode('input', { type : 'text', value : settingInfo.value || '' });
+        const input = $textInput({ value : settingInfo.value || '' });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -167,7 +165,7 @@ class ServerSettingsDialog {
      * @param {(setting: string, e: Event) => void} [customValidate]
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildPasswordSetting(setting, settingInfo, customValidate, attributes={}) {
-        const input = buildNode('input', { type : 'password', value : settingInfo.value || '' });
+        const input = $passwordInput({ value : settingInfo.value || '' });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -252,7 +250,7 @@ class ServerSettingsDialog {
      * @param {(e: Event) => any} onClick Method to invoke when the button is clicked
      * @param {Object} [attributes={}] Any additional attributes to apply to the input/element. */
     #buildButtonSetting(setting, settingInfo, value, onClick, attributes={}) {
-        const input = buildNode('input', { type : 'button', value : value });
+        const input = $buttonInput({ value });
         const outerAttrs = { ...attributes };
         if (attributes.disabled) {
             input.setAttribute('disabled', 1);
@@ -287,12 +285,12 @@ class ServerSettingsDialog {
      * @param {(e: Event) => void} [changeHandler]
      * @param {Object} [attributes={}] */
     #buildBooleanSetting(settingName, settingInfo, changeHandler, attributes={}) {
-        const select = appendChildren(buildNode('select'),
-            buildNode('option', { value : 0 }, 'Disabled'),
-            buildNode('option', { value : 1 }, 'Enabled')
+        const select = $append($select(),
+            $option('Disabled', 0),
+            $option('Enabled', 1)
         );
 
-        const input = buildNode('span', { class : 'selectHolder' }, select);
+        const input = $span(select, { class : 'selectHolder' });
         const defaultValue = settingInfo.value === null ? (settingInfo.defaultValue ? 1 : 0) : (settingInfo.value ? 1 : 0);
         select.value = defaultValue;
         if (changeHandler) {
@@ -315,28 +313,28 @@ class ServerSettingsDialog {
 
         const attr = { class : 'subSetting' };
 
-        const certSelect = appendChildren(
-            buildNode('select', { }, 0, { change : this.#onCertTypeChanged.bind(this) }),
-            buildNode('option', { value : 'pfx' }, 'PFX'),
-            buildNode('option', { value : 'pem' }, 'PEM')
+        const certSelect = $append(
+            $select('certSelection', this.#onCertTypeChanged.bind(this)),
+            $option('PFX', 'pfx'),
+            $option('PEM', 'pem')
         );
 
         certSelect.value = pfx ? 'pfx' : 'pem';
-        const certHolder = buildNode('span', { class : 'selectHolder' }, certSelect);
+        const certHolder = $span(certSelect, { class : 'selectHolder' });
 
         return [
             this.#buildBooleanSetting(ServerSettings.UseSsl, this.#initialValues.sslEnabled, this.#onSslChanged.bind(this)),
-            appendChildren(buildNode('div', { id : EleIds.SslSettings, class : enabled ? '' : 'hidden' }),
+            $divHolder({ id : EleIds.SslSettings, class : enabled ? '' : 'hidden' },
                 this.#buildBooleanSetting(ServerSettings.SslOnly, config.sslOnly, this.#onSslOnlyChanged.bind(this), attr),
                 this.#buildStringSetting(ServerSettings.SslHost, config.sslHost, this.#validateHostPortSsl.bind(this), attr),
                 this.#buildNumberSetting(ServerSettings.SslPort, config.sslPort, this.#validatePort.bind(this, true), 1, 65535, attr),
                 this.#buildSettingEntry(ServerSettings.CertType, config.certType, certHolder, attr),
-                appendChildren(buildNode('div', { id : EleIds.PfxSettings, class : pfx ? '' : 'hidden' }),
+                $divHolder({ id : EleIds.PfxSettings, class : pfx ? '' : 'hidden' },
                     this.#buildStringSetting(ServerSettings.PfxPath, config.pfxPath, this.#onPfxPathChanged.bind(this), attr),
                     this.#buildPasswordSetting(
                         ServerSettings.PfxPassphrase, config.pfxPassphrase, this.#onPfxPassChanged.bind(this), attr),
                 ),
-                appendChildren(buildNode('div', { id : EleIds.PemSettings, class : pfx ? 'hidden' : '' }),
+                $divHolder({ id : EleIds.PemSettings, class : pfx ? 'hidden' : '' },
                     this.#buildStringSetting(ServerSettings.PemCert, config.pemCert, this.#onPemCertPathChanged.bind(this), attr),
                     this.#buildStringSetting(ServerSettings.PemKey, config.pemKey, this.#onPemKeyPathChanged.bind(this), attr)
                 ),
@@ -533,14 +531,14 @@ class ServerSettingsDialog {
             subAttributes.class += ' disabledSetting';
         }
 
-        const disableConfirmHolder = appendChildren(buildNode('div', { id : 'disableAuthHolder', class : 'hidden' }),
+        const disableConfirmHolder = $divHolder({ id : 'disableAuthHolder', class : 'hidden' },
             this.#plainAuthInput(
                 'Confirm with Password',
                 EleIds.DisableConf,
                 { style : 'margin-bottom: 15px' },
                 this.#validateSingle.bind(this, ServerSettings.Password, true /*successBackground*/),
                 'Current Password'),
-            buildNode('br')
+            $br(),
         );
 
         const oldAttributes = { ...subAttributes };
@@ -555,7 +553,7 @@ class ServerSettingsDialog {
             Tooltip.setTooltip($$('input', oldPasswordInput), 'Auth has never been enabled, there is no existing password.');
         }
 
-        const newPassHolder = appendChildren(buildNode('div', { id : EleIds.ChangePassHolder, class : 'hidden' }),
+        const newPassHolder = $divHolder({ id : EleIds.ChangePassHolder, class : 'hidden' },
             oldPasswordInput,
             this.#plainAuthInput('New Password', EleIds.NewPass, subAttributes, this.#onPassInputChanged.bind(this)),
             this.#plainAuthInput('Confirm Password', EleIds.ConfPass, subAttributes, this.#onPassInputChanged.bind(this)),
@@ -564,7 +562,7 @@ class ServerSettingsDialog {
         return [
             this.#buildBooleanSetting(ServerSettings.UseAuthentication, this.#initialValues.authEnabled, this.#onAuthChanged.bind(this)),
             disableConfirmHolder,
-            appendChildren(buildNode('div', { id : EleIds.AuthSettings, class : defaultValue ? '' : 'hidden' }),
+            $divHolder({ id : EleIds.AuthSettings, class : defaultValue ? '' : 'hidden' },
                 this.#buildNumberSetting(
                     ServerSettings.SessionTimeout,
                     this.#initialValues.authSessionTimeout,
@@ -581,7 +579,7 @@ class ServerSettingsDialog {
                     subAttributes
                 )
             ),
-            buildNode('br'),
+            $br(),
             newPassHolder
         ];
     }
@@ -678,7 +676,7 @@ class ServerSettingsDialog {
      * @param {string} [placeholder=''] The placeholder text, if any */
     #plainAuthInput(title, id, attributes, validate, placeholder='') {
         const validateFn = validate || this.#validateSingle.bind(this, ServerSettings.Password, true /*successBackground*/);
-        const input = buildNode('input', { id : id, type : 'password', placeholder : placeholder }, 0, {
+        const input = $passwordInput({ id, placeholder }, {
             change : this.#timedChangeListener(validateFn),
             keyup : this.#timedKeyupListener(validateFn),
             keydown : this.#inputKeydownListener.bind(this),
@@ -692,11 +690,11 @@ class ServerSettingsDialog {
 
         attributes.class = (attributes.class ? attributes.class + ' ' : '') + 'serverSetting stringSetting subSetting authSubSetting';
 
-        return appendChildren(buildNode('div', attributes),
-            appendChildren(buildNode('span', { class : 'serverSettingTitle' }),
-                buildNode('label', { for : id }, title)
+        return $divHolder(attributes,
+            $append($span(null, { class : 'serverSettingTitle' }),
+                $label(title, id)
             ),
-            appendChildren(buildNode('div'), input));
+            $div({}, input));
     }
 
     /**
@@ -721,30 +719,30 @@ class ServerSettingsDialog {
     #buildLogLevelSetting() {
         const options = [];
         for (let i = ConsoleLog.Level.TMI; i <= ConsoleLog.Level.Error; ++i) {
-            options.push(buildNode('option', { value : i }, ConsoleLog.LevelString(i)));
+            options.push($option(ConsoleLog.LevelString(i), i));
         }
 
         const levelId = settingId(ServerSettings.LogLevel);
         const darkId = settingId(ServerSettings.LogLevel, 'dark');
-        const levelSelect = appendChildren(buildNode('select', { id : levelId }), ...options);
+        const levelSelect = $append($select(levelId), ...options);
         const settings = this.#initialValues.logLevel;
         const initialValues = Log.getFromString(settings.value || settings.defaultValue);
         levelSelect.value = initialValues.level;
 
-        const darkSelect = appendChildren(buildNode('select', { id : darkId }),
-            buildNode('option', { value : 0 }, 'Disabled'),
-            buildNode('option', { value : 1 }, 'Enabled')
+        const darkSelect = $append($select(darkId),
+            $option('Disabled', 0),
+            $option('Enabled', 1)
         );
 
         darkSelect.value = initialValues.dark ? 1 : 0;
 
-        const input = appendChildren(buildNode('div', { id : 'serverLogLevel' }),
-            appendChildren(buildNode('span', { class : 'selectHolder' }),
-                buildNode('label', { for : levelId }, 'Level: '),
+        const input = $divHolder({ id : 'serverLogLevel' },
+            $append($span(null, { class : 'selectHolder' }),
+                $label('Level: ', levelId),
                 levelSelect
             ),
-            appendChildren(buildNode('span', { class : 'selectHolder' }),
-                buildNode('label', { for : darkId }, 'Dark: '),
+            $append($span(null, { class : 'selectHolder' }),
+                $label('Dark: ', darkId),
                 darkSelect
             )
         );
@@ -777,9 +775,7 @@ class ServerSettingsDialog {
         }
 
         const subSetting = attributes.class && /\bsubSetting\b/.test(attributes.class);
-        const icon = buildNode('i',
-            { class : 'labelHelpIcon' },
-            getSvgIcon(Icons.Help, ThemeColors.Primary, { height : subSetting ? 14 : 18 }));
+        const icon = $i({ class : 'labelHelpIcon' }, getSvgIcon(Icons.Help, ThemeColors.Primary, { height : subSetting ? 14 : 18 }));
         Tooltip.setTooltip(icon,
             GetTooltip(setting),
             {
@@ -792,14 +788,14 @@ class ServerSettingsDialog {
             attributes.class = 'serverSetting';
         }
 
-        return appendChildren(buildNode('div', attributes),
-            appendChildren(buildNode('span', { class : 'serverSettingTitle' }),
-                buildNode('label', { for : id }, SettingTitles[setting]),
+        return $divHolder(attributes,
+            $append($span(null, { class : 'serverSettingTitle' }),
+                $label(SettingTitles[setting], id),
                 icon
             ),
-            appendChildren(buildNode('div'),
+            $plainDivHolder(
                 userInput,
-                buildNode('span', { class : 'serverSettingDefaultInfo' }, `Default Value: ${this.#getDefault(settingInfo.defaultValue)}`),
+                $span(`Default Value: ${this.#getDefault(settingInfo.defaultValue)}`, { class : 'serverSettingDefaultInfo' }),
             ),
         );
     }
@@ -928,11 +924,10 @@ class ServerSettingsDialog {
                             return AuthChangeResult.PasswordChanged;
                         } catch (err) {
                             errorToast(
-                                appendChildren(buildNode('div'),
-                                    buildText('Failed to initialize authentication. Please try again later.'),
-                                    buildNode('br'),
-                                    buildNode('br'),
-                                    buildText(`Error: ${err.message}`)
+                                $plainDivHolder(
+                                    $text('Failed to initialize authentication. Please try again later.'),
+                                    $br(), $br(),
+                                    $text(`Error: ${err.message}`)
                                 )
                             );
 
@@ -1060,10 +1055,11 @@ class ServerSettingsDialog {
             || different(ServerSettings.SslHost)
             || different(ServerSettings.SslPort)) {
             Overlay.show(
-                `Settings applied! The server needs to reboot to change HTTPS options, which ` +
-                `may take a few moments. Press 'Reload' below to refresh the page once the server has been rebooted.<br><br>` +
-                `Note that if you adjusted the host/port or enabled/disabled the HTTP[S] server, you may need to ` +
-                `manually navigate to the new location.`,
+                $textSpan(
+                    `Settings applied! The server needs to reboot to change HTTPS options, which ` +
+                    `may take a few moments. Press 'Reload' below to refresh the page once the server has been rebooted.`, $br(), $br(),
+                    `Note that if you adjusted the host/port or enabled/disabled the HTTP[S] server, you may need to ` +
+                    `manually navigate to the new location.`),
                 'Reload',
                 () => { window.location = '/'; }
             );

@@ -1,4 +1,5 @@
-import { $$, appendChildren, buildNode, ctrlOrMeta, plural } from '../Common.js';
+import { $$, $append, $br, $div, $divHolder, $hr, $span } from '../HtmlHelpers.js';
+import { ctrlOrMeta, plural } from '../Common.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
 import { Attributes } from '../DataAttributes.js';
 import { BaseItemResultRow } from './BaseItemResultRow.js';
@@ -11,6 +12,7 @@ import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { purgeIcon } from './ResultRow.js';
 import { ServerCommands } from '../Commands.js';
 import Tooltip from '../Tooltip.js';
+import TooltipBuilder from '../TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('../ClientDataExtensions').ClientMovieData} ClientMovieData */
@@ -50,22 +52,21 @@ export class MovieResultRow extends BaseItemResultRow {
         }
 
         const titleText = 'Click to expand/contract.';
-        const titleNode = buildNode('div', { class : 'movieName', title : titleText });
+        const titleNode = $div({ class : 'movieName', title : titleText });
         titleNode.appendChild(this.getExpandArrow());
-        titleNode.appendChild(buildNode('span', {}, mov.title));
+        titleNode.appendChild($span(mov.title));
         if (mov.originalTitle) {
-            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${mov.originalTitle})`));
+            titleNode.appendChild($span(` (${mov.originalTitle})`, { class : 'resultRowAltTitle' }));
         }
 
-        titleNode.appendChild(buildNode('span', {}, ` (${mov.year})`));
+        titleNode.appendChild($span(` (${mov.year})`));
         if (mov.edition) {
-            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` [${mov.edition}]`));
+            titleNode.appendChild($span(` [${mov.edition}]`, { class : 'resultRowAltTitle' }));
         }
 
-        const row = buildNode('div', { [Attributes.MetadataId] : mov.metadataId });
-        appendChildren(row,
-            appendChildren(
-                buildNode('div',
+        const row = $divHolder({ [Attributes.MetadataId] : mov.metadataId },
+            $append(
+                $div(
                     { class : 'baseItemResult tabbableRow', tabindex : 0 },
                     0,
                     {
@@ -73,13 +74,10 @@ export class MovieResultRow extends BaseItemResultRow {
                         keydown : this.onBaseItemResultRowKeydown.bind(this),
                         longpress : this.showHideMarkerTablesAfterLongPress.bind(this),
                     }),
-                appendChildren(buildNode('div', { class : 'movieName', title : titleText }),
-                    titleNode
-                ),
-
+                $div({ class : 'movieName', title : titleText }, titleNode),
                 this.#buildMarkerText()
             ),
-            buildNode('hr', { class : 'episodeSeparator' })
+            $hr({ class : 'episodeSeparator' })
         );
 
         this.setHtml(row);
@@ -106,15 +104,15 @@ export class MovieResultRow extends BaseItemResultRow {
         const movie = this.movie();
         const hasPurges = this.hasPurgedMarkers();
         let text;
-        let tooltipText = '';
+        const tooltip = new TooltipBuilder();
 
         // Three scenarios to find the number of markers:
         // realMarkerCount == -1: we don't know how many markers we have, add '?' with a title
         // Extended stats disabled and no markers grabbed, but we have a realMarkerCount - use it
         // All other scenarios: use the actual marker table count.
         if (!ClientSettings.showExtendedMarkerInfo() && this.movie().realMarkerCount === -1) {
-            text = buildNode('span', {}, '? Marker(s)');
-            tooltipText = 'Click on the row to load marker counts.';
+            text = $span('? Marker(s)');
+            tooltip.addRaw('Click on the row to load marker counts.');
         } else {
             let markerCount = 0;
             if (!ClientSettings.showExtendedMarkerInfo() && !this.#markersGrabbed) {
@@ -124,7 +122,7 @@ export class MovieResultRow extends BaseItemResultRow {
             }
 
             const smallScreen = isSmallScreen();
-            text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
+            text = $span(smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
             if (smallScreen) {
                 text.classList.add('smallScreenMarkerCount');
             }
@@ -134,19 +132,23 @@ export class MovieResultRow extends BaseItemResultRow {
             text.appendChild(purgeIcon());
         }
 
-        const main = buildNode('div', { class : 'episodeDisplayText' }, text);
+        const main = $div({ class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
-            if (tooltipText) {
-                Tooltip.setTooltip(main, tooltipText);
+            if (!tooltip.empty()) {
+                Tooltip.setTooltip(main, tooltip.get());
             }
 
             return main;
         }
 
-        tooltipText += tooltipText.length > 0 ? '<br><br>' : '';
+        if (!tooltip.empty()) {
+            tooltip.addLine($br());
+        }
+
         const purgeCount = this.getPurgeCount();
         const markerText = purgeCount === 1 ? 'marker' : 'markers';
-        Tooltip.setTooltip(main, `${tooltipText}Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
+        tooltip.addRaw(`Found ${purgeCount} purged ${markerText}.`, $br(), `Click for details.`);
+        Tooltip.setTooltip(main, tooltip.get());
         main.addEventListener('click', this.#onMoviePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
         main.title = '';

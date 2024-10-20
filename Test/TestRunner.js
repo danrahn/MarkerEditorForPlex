@@ -30,7 +30,7 @@ class CustomLogLevelLog extends ContextualLog {
     #logLevel;
 
     constructor(prefix) {
-        super(prefix);
+        super(prefix, true); // Force bypass create guard
         this.#logLevel = ConsoleLog.Level.Verbose;
     }
 

@@ -1,11 +1,6 @@
-import {
-    $,
-    $$,
-    appendChildren,
-    buildNode,
-    clearEle,
-    clickOnEnterCallback,
-    ctrlOrMeta } from './Common.js';
+import { $, $$, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $link, $option, $select, $span,
+    $textSpan } from './HtmlHelpers.js';
+import { clickOnEnterCallback, ctrlOrMeta } from './Common.js';
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { errorMessage, errorResponseOverlay, errorToast } from './ErrorHandling.js';
@@ -23,6 +18,7 @@ import { Setting } from '/Shared/ServerConfig.js';
 import { StickySettingsType } from 'StickySettings';
 import StyleSheets from './StyleSheets.js';
 import Tooltip from './Tooltip.js';
+import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
@@ -465,7 +461,7 @@ class ClientSettingsUI {
                 'Extended Marker Stats',
                 'extendedStatsSetting',
                 this.#settingsManager.showExtendedMarkerInfo(),
-                `When browsing shows/seasons, show a breakdown<br>of how many episodes have markers.`
+                new TooltipBuilder(`When browsing shows/seasons, show a breakdown`, ` of how many episodes have markers.`).get(),
             ));
         }
 
@@ -482,7 +478,7 @@ class ClientSettingsUI {
             'this setting determines whether chapter edit mode is entered automatically the next time you add a marker.'
         ));
 
-        options.push(buildNode('hr'));
+        options.push($hr());
 
         // Log level setting. This isn't a setting that's serialized via ClientSettings,
         // instead using ConsoleLog's own storage mechanism.
@@ -508,29 +504,30 @@ class ClientSettingsUI {
             );
         };
 
-        options.push(buildNode('hr'));
-        const container = appendChildren(buildNode('div', { class : 'settingsContainer clientSettings' }),
-            icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this), 'blue'),
-            icon(Icons.Restart, 'Restart', this.#restartServer.bind(this), 'yellow'),
-            icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this), 'red'),
-            this.#settingsManager.authEnabled() ?
-                icon(Icons.Logout, 'Logout', this.#logout.bind(this), 'blue', 'Logout') : null,
-            buildNode('h3', {}, 'Settings'),
-            buildNode('hr')
+        options.push($hr());
+        const container = $append(
+            $divHolder({ class : 'settingsContainer clientSettings' },
+                icon(Icons.Pause, 'Pause', this.#pauseServer.bind(this), 'blue'),
+                icon(Icons.Restart, 'Restart', this.#restartServer.bind(this), 'yellow'),
+                icon(Icons.Cancel, 'Shutdown', this.#shutdownServer.bind(this), 'red'),
+                this.#settingsManager.authEnabled() ?
+                    icon(Icons.Logout, 'Logout', this.#logout.bind(this), 'blue', 'Logout') : null,
+                $h(3, 'Settings'),
+                $hr()
+            ),
+            ...options
         );
 
-        options.forEach(option => container.appendChild(option));
-
-        appendChildren(container,
+        $append(container,
             ButtonCreator.textButton(
                 `Server Settings`,
                 () => { LaunchServerSettingsDialog(); },
                 { class : 'launchServerSettingsButton' }),
-            buildNode('hr'),
+            $hr(),
         );
 
-        appendChildren(container.appendChild(buildNode('div', { class : 'formInput flexKeepRight' })),
-            appendChildren(buildNode('div', { class : 'settingsButtons' }),
+        $append(container.appendChild($div({ class : 'formInput flexKeepRight' })),
+            $divHolder({ class : 'settingsButtons' },
                 ButtonCreator.textButton('Apply', this.#applySettings.bind(this), { class : 'greenOnHover' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'redOnHover' })
             )
@@ -541,18 +538,18 @@ class ClientSettingsUI {
 
     /**
      * Transition to a confirmation UI when the user attempts to restart or shut down the server.
-     * @param {string} message Overlay message to display
+     * @param {string|HTMLElement} message Overlay message to display
      * @param {string} confirmText Confirmation button text.
      * @param {Function} confirmCallback Callback invoked when shutdown/restart is confirmed. */
     serverStateCommon(message, confirmText, confirmCallback) {
         Log.tmi(`Transitioning to ${confirmText} confirmation`);
-        const container = buildNode('div', { id : 'shutdownRestartOverlay' });
-        appendChildren(container,
-            buildNode('div', { id : 'serverStateMessage' }, message),
-            buildNode('hr'),
-            appendChildren(
-                buildNode('div', { class : 'formInput' }),
-                appendChildren(buildNode('div', { class : 'settingsButtons' }),
+        const container = $div({ id : 'shutdownRestartOverlay' });
+        $append(container,
+            $div({ id : 'serverStateMessage' }, message),
+            $hr(),
+            $append(
+                $div({ class : 'formInput' }),
+                $divHolder({ class : 'settingsButtons' },
                     ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
                     ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'redOnHover' })))
         );
@@ -563,9 +560,9 @@ class ClientSettingsUI {
     /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */
     #pauseServer() {
         this.serverStateCommon(
-            'Are you sure you want to pause the server?<br><br>' +
-            'This will disconnect from the Plex database to allow you to resume Plex. When you want to continue ' +
-            'editing markers, shut down Plex again and Resume.',
+            $textSpan('Are you sure you want to pause the server?', $br(), $br(),
+                'This will disconnect from the Plex database to allow you to resume Plex. When you want to continue ' +
+                'editing markers, shut down Plex again and Resume.'),
             'Pause',
             this.#onPauseConfirm.bind(this)
         );
@@ -644,7 +641,8 @@ class ClientSettingsUI {
                 return;
             }
 
-            cancelBtn.innerHTML = `<span>Refreshing in ${nextValue}</span>`;
+            $clear(cancelBtn);
+            cancelBtn.appendChild($span(`Refreshing in ${nextValue}`));
             setTimeout(refreshCountdown, 1000);
         };
 
@@ -706,7 +704,7 @@ class ClientSettingsUI {
         Overlay.setDismissible(false);
         $('#serverStateMessage').innerText = 'Server is shutting down now.';
         const btnHolder = $('#srCancel').parentElement;
-        clearEle(btnHolder);
+        $clear(btnHolder);
     }
 
     /**
@@ -750,7 +748,7 @@ class ClientSettingsUI {
      * @returns A new checkbox setting for the settings dialog.
      */
     #buildSettingCheckbox(label, name, checked, tooltip='') {
-        return appendChildren(buildNode('div', { class : 'formInput' }),
+        return $divHolder({ class : 'formInput' },
             this.#buildLabelNode(label, name, tooltip),
             customCheckbox({ id : name, checked : checked }));
     }
@@ -764,16 +762,16 @@ class ClientSettingsUI {
      * @param {string} [tooltip] The tooltip text, if any. */
     #buildSettingDropdown(title, name, options, selectedValue=null, tooltip='') {
         const labelNode = this.#buildLabelNode(title, name, tooltip);
-        const select = buildNode('select', { name : name, id : name });
+        const select = $select(name, null, { name });
         for (const [label, value] of Object.entries(options)) {
-            select.appendChild(buildNode('option', { value }, label));
+            select.appendChild($option(label, value));
         }
 
         if (selectedValue !== null) {
             select.value = selectedValue;
         }
 
-        return appendChildren(buildNode('div', { class : 'formInput' }), labelNode, select);
+        return $divHolder({ class : 'formInput' }, labelNode, select);
     }
 
     /**
@@ -783,19 +781,17 @@ class ClientSettingsUI {
      * @param {string} tooltip The tooltip, if any */
     #buildLabelNode(label, name, tooltip) {
         if (tooltip) {
-            const node = appendChildren(buildNode('span'),
-                buildNode('label', { for : name }, label + ' '),
-                appendChildren(buildNode('span', { class : 'labelHelpIcon' }),
-                    getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 12, height : 12 })
-                ),
-                buildNode('span', {}, ': ')
+            const node = $append($span(),
+                $label(label + ' ', name),
+                $append($span(getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 12, height : 12 }), { class : 'labelHelpIcon' })),
+                $span(': ')
             );
 
             Tooltip.setTooltip($$('.labelHelpIcon', node), tooltip);
             return node;
         }
 
-        return buildNode('label', { for : name }, label + ': ');
+        return $label(label + ': ', name);
     }
 
     /** Apply and save settings after the user chooses to commit their changes. */
@@ -909,10 +905,8 @@ class SettingsManager {
         const styleNode = (link, addListener=false) => {
             const styleLink = StyleSheets[link + (this.isDarkTheme() ? 'Dark' : 'Light')];
             const href = `Client/Style/${styleLink}.css`;
-            return buildNode(
-                'link',
+            return $link(
                 { rel : 'stylesheet', type : 'text/css', href : href, data_name : link },
-                0,
                 addListener ? {
                     load : _ => {
                         const tempThemes = [$$('#themeTempLight'), $$('#themeTempDark')];

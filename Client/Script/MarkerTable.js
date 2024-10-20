@@ -1,4 +1,5 @@
-import { $, $$, appendChildren, buildNode, clearEle, msToHms, scrollAndFocus, toggleVisibility } from './Common.js';
+import { $, $$, $append, $br, $clear, $div, $h, $hr, $plainDivHolder, $table, $tbody, $textSpan, $thead } from './HtmlHelpers.js';
+import { msToHms, scrollAndFocus, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
@@ -573,12 +574,12 @@ class MarkerTable {
     #html;
 
     /**
-     * The actual <table> element.
+     * The actual table element.
      * @type {HTMLTableElement} */
     #table;
 
     /**
-     * The element that controls the visibility of the <table>. Used for better animations.
+     * The element that controls the visibility of the table. Used for better animations.
      * @type {HTMLDivElement} */
     #visibilityControl;
 
@@ -670,21 +671,19 @@ class MarkerTable {
      * @param {MarkerData[]} markers */
     #initCore(markers) {
         this.#markers = markers.sort((a, b) => a.start - b.start);
-        const container = buildNode('div', { class : 'tableHolder' });
-        const table = buildNode('table', { class : 'markerTable' }, 0, { keydown : this.#onTableKeydown.bind(this) });
+        const container = $div({ class : 'tableHolder' });
+        const table = $table({ class : 'markerTable' }, { keydown : this.#onTableKeydown.bind(this) });
         table.appendChild(
-            appendChildren(buildNode('thead'),
-                TableElements.rawTableRow(
-                    TableElements.centeredColumn('Type'),
-                    TableElements.timeColumn('Start Time'),
-                    TableElements.timeColumn('End Time'),
-                    TableElements.dateColumn(isSmallScreen() ? 'Added' : 'Date Added'),
-                    TableElements.optionsColumn('Options', ClientSettings.useThumbnails() ? 3 : 2)
-                )
+            $thead(TableElements.rawTableRow(
+                TableElements.centeredColumn('Type'),
+                TableElements.timeColumn('Start Time'),
+                TableElements.timeColumn('End Time'),
+                TableElements.dateColumn(isSmallScreen() ? 'Added' : 'Date Added'),
+                TableElements.optionsColumn('Options', ClientSettings.useThumbnails() ? 3 : 2))
             )
         );
 
-        const rows = buildNode('tbody');
+        const rows = $tbody();
         if (markers.length === 0) {
             rows.appendChild(TableElements.noMarkerRow());
         }
@@ -700,18 +699,16 @@ class MarkerTable {
             { class : 'markerRow' }));
         table.appendChild(rows);
 
-        this.#visibilityControl = buildNode('div', { class : 'hidden markerTableVisibility' });
+        this.#visibilityControl = $div({ class : 'hidden markerTableVisibility' });
 
         // markerTableSpacer is a 10px empty div that is used to ensure there's a consistent margin when
         // showing/hiding the marker table. When animating the table we explicitly set the height, which can
         // result in margin-top of the table itself not being respected, leading to extra shifting as the height
         // grows large enough to fit all of the table. By setting the top margin of the table to 0 and ensuring
         // the spacer div is always visible before animating the table height, we guarantee static top positioning.
-        appendChildren(container,
-            buildNode('div', { class : 'hidden markerTableSpacer' }),
-            appendChildren(this.#visibilityControl,
-                table
-            )
+        $append(container,
+            $div({ class : 'hidden markerTableSpacer' }),
+            $append(this.#visibilityControl, table)
         );
 
         this.#html = container;
@@ -737,7 +734,7 @@ class MarkerTable {
         if (this.#markers.length !== 0) {
             // Reset data
             Log.warn(`Attempting to lazy-init a marker table that already has markers!`);
-            clearEle(this.#tbody());
+            $clear(this.#tbody());
         }
 
         this.#chapters = chapters;
@@ -882,7 +879,7 @@ class MarkerTable {
                     `Adjust this marker's timings or delete the other marker first to avoid overlap.`;
                 this.#valueErrorToast(
                     `Marker Overlap`,
-                    `New marker overlaps [${msToHms(row.startTime())}-${msToHms(row.endTime())}].<br>${message}`);
+                    $textSpan(`New marker overlaps [${msToHms(row.startTime())}-${msToHms(row.endTime())}].`, $br(), message));
                 return false;
             }
         }
@@ -893,12 +890,9 @@ class MarkerTable {
     /**
      * Displays an error message when a marker's bounds are invalid.
      * @param {string} title
-     * @param {string} message */
+     * @param {string|HTMLElement|Text} message */
     #valueErrorToast(title, message) {
-        errorToast(appendChildren(buildNode('div'),
-            buildNode('h4', {}, title),
-            buildNode('hr'),
-            buildNode('span', {}, message)), 5000);
+        errorToast($plainDivHolder($h(4, title), $hr(), message), 5000);
     }
 
     /**
@@ -1062,7 +1056,7 @@ class MarkerTable {
         // First need to explicitly set tr height so it doesn't immediately shrink when we clear the element
         row.style.height = row.getBoundingClientRect().height + 'px';
         return animateOpacity(row, 1, 0, 100, () => {
-            clearEle(row);
+            $clear(row);
             slideUp(row, 150, () => { callback?.(); this.#tbody().removeChild(row); });
         });
     }

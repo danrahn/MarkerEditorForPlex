@@ -1,4 +1,4 @@
-import { $, appendChildren, buildNode, buildText } from './Common.js';
+import { $, $append, $br, $div, $text } from './HtmlHelpers.js';
 import { animate } from './AnimationHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import FetchError from './FetchError.js';
@@ -14,14 +14,13 @@ const Log = ContextualLog.Create('ErrorHandling');
 export function errorResponseOverlay(message, err, onDismiss = Overlay.dismiss) {
     const errType = err instanceof FetchError ? 'Server Message' : 'Error';
     Overlay.show(
-        appendChildren(
-            buildNode('div'),
-            buildText(message),
-            buildNode('br'),
-            buildNode('br'),
-            buildText(errType + ':'),
-            buildNode('br'),
-            buildText(errorMessage(err))),
+        $append(
+            $div(),
+            $text(message),
+            $br(), $br(),
+            $text(errType + ':'),
+            $br(),
+            $text(errorMessage(err))),
         'OK',
         onDismiss);
 }
@@ -30,7 +29,7 @@ export function errorResponseOverlay(message, err, onDismiss = Overlay.dismiss) 
  * Displays an error message in the top-left of the screen for a couple seconds.
  * @param {string|HTMLElement} message */
 export function errorToast(message, duration = 2500) {
-    const msg = buildNode('div', { class : 'errorToast' }, message);
+    const msg = $div({ class : 'errorToast' }, message);
     const container = $('#toastContainer');
     container.appendChild(msg);
 

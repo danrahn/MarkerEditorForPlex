@@ -1,4 +1,5 @@
-import { $, $$, buildNode, clearEle, clickOnEnterCallback } from './Common.js';
+import { $, $$, $br, $clear, $div, $option, $textSpan } from './HtmlHelpers.js';
+import { clickOnEnterCallback } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { FilterSettings, SortConditions, SortOrder } from './FilterDialog.js';
@@ -166,20 +167,20 @@ class PlexUIManager {
      * If only a single library is returned, automatically select it.
      * @param {LibrarySection[]} libraries List of libraries found in the database. */
     init(libraries) {
-        clearEle(this.#dropdown);
+        $clear(this.#dropdown);
         if (libraries.length < 1) {
             Overlay.show('No Movie/TV libraries found in the database.');
             return;
         }
 
-        this.#dropdown.appendChild(buildNode('option', { value : '-1', [Attributes.LibraryType] : '-1' }, 'Select a library to parse'));
+        this.#dropdown.appendChild($option('Select a library to parse', '-1', { [Attributes.LibraryType] : '-1' }));
         const savedSection = ClientSettings.lastSection();
 
         // We might not find the section if we're using a different database or the library was deleted.
         let lastSectionExists = false;
         for (const library of libraries) {
             lastSectionExists ||= library.id === savedSection;
-            this.#dropdown.appendChild(buildNode('option', { value : library.id, [Attributes.LibraryType] : library.type }, library.name));
+            this.#dropdown.appendChild($option(library.name, library.id, { [Attributes.LibraryType] : library.type }));
         }
 
         if (savedSection !== -1 && !lastSectionExists) {
@@ -353,7 +354,7 @@ class PlexUIManager {
         /** @type {ClientMovieData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
         if (searchResults.length === 0) {
-            movieList.appendChild(buildNode('div', { class : 'topLevelResult movieResult' }, 'No results found.'));
+            movieList.appendChild($div({ class : 'topLevelResult movieResult' }, 'No results found.'));
             return;
         }
 
@@ -396,11 +397,11 @@ class PlexUIManager {
                 $$('.tabbableRow', movieList[focusIndex]).focus();
             };
 
-            const text = `Results are limited to the top ${rowsLimit} items, ` +
-            `click here to load up to ${searchResults.length - nextFilterIndex} more.<br><br>` +
-            `WARNING: loading too many rows might hang your browser page.<br>`;
+            const text = $textSpan(`Results are limited to the top ${rowsLimit} items, ` +
+            `click here to load up to ${searchResults.length - nextFilterIndex} more.`, $br(), $br(),
+            `WARNING: loading too many rows might hang your browser page.`, $br());
             movieList.appendChild(
-                buildNode('div',
+                $div(
                     { class : 'topLevelResult movieResult tabbableRow', tabindex : 0, style : 'text-align: center' },
                     text,
                     { click : loadTheRest,
@@ -424,7 +425,7 @@ class PlexUIManager {
         /** @type {ShowData[]} */
         const searchResults = PlexClientState.getUnfilteredSearchResults();
         if (searchResults.length === 0) {
-            showList.appendChild(buildNode('div', { class : 'topLevelResult showResult' }, 'No results found.'));
+            showList.appendChild($div({ class : 'topLevelResult showResult' }, 'No results found.'));
             return;
         }
 
@@ -446,20 +447,21 @@ class PlexUIManager {
     }
 
     noResultsBecauseNoSearchRow() {
-        return buildNode(
-            'div',
+        return $div(
             { class : 'topLevelResult noSearchRow tabbableRow', tabindex : 0 },
             'Click here to load all items, or narrow things down with a filter or search above.',
-            { click : /**@this {PlexUIManager}*/ function() {
-                this.#search();
-                const firstItem = PlexClientState.getActiveSearchRows()[0];
-                if (firstItem instanceof MovieResultRow) {
-                    firstItem.focus();
-                } else {
-                    firstItem.html().focus();
-                }
-            }.bind(this),
-              keydown : clickOnEnterCallback }
+            {
+                click : /**@this {PlexUIManager}*/ function() {
+                    this.#search();
+                    const firstItem = PlexClientState.getActiveSearchRows()[0];
+                    if (firstItem instanceof MovieResultRow) {
+                        firstItem.focus();
+                    } else {
+                        firstItem.html().focus();
+                    }
+                }.bind(this),
+                keydown : clickOnEnterCallback
+            }
         );
     }
 

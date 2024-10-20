@@ -1,5 +1,4 @@
-import { $, buildNode } from './Common.js';
-import { Attributes } from './DataAttributes.js';
+import { $, $clear, $div, $span } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 const Log = ContextualLog.Create('Tooltip');
@@ -16,6 +15,13 @@ export const TooltipTextSize = {
 };
 
 /**
+ * A weak reference. Only defined here since VSCode's intellisense doesn't resolve this built-in type.
+ * @template T
+ * @typedef {Object} WeakRef<T>
+ * @property {() => T?} deref Returns the WekRef object's target object, or undefined if the target object has been reclaimed.
+ */
+
+/**
  * @typedef {Object} TooltipOptions
  * @property {number}  [delay=250] The delay between hovering over the item and displaying the tooltip. Default=250ms
  * @property {number} [maxWidth=350] Determines the maximum width of the tooltip. Default=350px
@@ -25,20 +31,22 @@ export const TooltipTextSize = {
  */
 
 /**
- * Maps TooltipOptions fields to the actual attribute we add to the tooltip target. */
-const OptionToAttribute = {
-    /** @readonly */ delay : Attributes.TooltipDelay,
-    /** @readonly */ maxWidth : Attributes.TooltipWidth,
-    /** @readonly */ centered : Attributes.TooltipCentered,
-    /** @readonly */ textSize : Attributes.TooltipTextSize,
-    /** @readonly */ noBreak : Attributes.TooltipNoBreak,
-};
+ * @typedef {Object} TooltipEntryType
+ * @property {WeakRef<Element>} targetRef A weak reference to the target for this tooltip
+ * @property {string|HTMLElement} tooltip The tooltip to display
+ *
+ * @typedef {TooltipEntryType & TooltipOptions} TooltipEntry
+ */
+
+/**
+ * Custom attribute used to identify tooltip targets. */
+const TooltipId = 'data-tt-id';
 
 /**
  * @param {TooltipOptions} options
- * @param {HTMLElement?} target
+ * @param {TooltipEntry?} existing
  * @returns {TooltipOptions} */
-function optionsFromOptions(options={}, target) {
+function optionsFromOptions(options={}, existing) {
     /**
      * @template T
      * @param {string} v
@@ -49,15 +57,15 @@ function optionsFromOptions(options={}, target) {
         if (setVal === null || setVal === undefined) {
             // If our options don't have the given value set, but our baseline element does,
             // use the baseline's value.
-            if (target?.hasAttribute(OptionToAttribute[v])) {
-                const targetValue = target.getAttribute(OptionToAttribute[v]);
-                switch (typeof targetValue) {
+            const existingValue = existing?.[v];
+            if (existingValue !== null && existingValue !== undefined) {
+                switch (typeof existingValue) {
                     case 'boolean':
-                        return +targetValue === 1;
+                        return +existingValue === 1;
                     case 'number':
-                        return +targetValue;
+                        return +existingValue;
                     default:
-                        return targetValue;
+                        return existingValue;
                 }
             }
 
@@ -88,6 +96,10 @@ export default class Tooltip {
      * @type {HTMLElement} */
     static #tooltip;
 
+    /**
+     * @type {{ [elementId: string]: TooltipEntry }} */
+    static #tooltips = {};
+
     /** Contains the setTimeout id of a scroll event, which will hide the tooltip when expired
      * @type {number|null} */
     static #hideTooltipTimer = null;
@@ -101,6 +113,9 @@ export default class Tooltip {
     /** @type {HTMLElement} The element whose tooltip is currently visible. */
     static #ttTarget = null;
 
+    /** Used to map elements to their tooltips. */
+    static #nextId = 0;
+
     static Setup() {
         if (Tooltip.#initialized) {
             return;
@@ -108,10 +123,11 @@ export default class Tooltip {
 
         Tooltip.#initialized = true;
         const frame = $('#plexFrame');
-        Tooltip.#tooltip = buildNode('div', { id : 'tooltip' }, 0, { click : Tooltip.dismiss });
+        Tooltip.#tooltip = $div({ id : 'tooltip' }, 0, { click : Tooltip.dismiss });
         frame.appendChild(Tooltip.#tooltip);
         frame.addEventListener('scroll', Tooltip.onScroll);
         frame.addEventListener('keydown', Tooltip.dismiss); // Any keyboard input dismisses tooltips.
+        setInterval(Tooltip.clearStaleTooltips, 60_000);
     }
 
     /**
@@ -134,14 +150,10 @@ export default class Tooltip {
      * @param {string|HTMLElement} tooltip The tooltip text.
      * @param {TooltipOptions?} tooltipOptions The duration an element must be hovered before the tooltip is shown, in ms. */
     static setTooltip(element, tooltip, tooltipOptions) {
-        const hasTT = element.hasAttribute(Attributes.TooltipText);
-        const options = optionsFromOptions(tooltipOptions, element);
-        this.setText(element, tooltip);
-        element.setAttribute(Attributes.TooltipDelay, options.delay);
-        if (options.maxWidth) element.setAttribute(Attributes.TooltipWidth, options.maxWidth);
-        if (options.centered) element.setAttribute(Attributes.TooltipCentered, 1);
-        if (options.textSize) element.setAttribute(Attributes.TooltipTextSize, options.textSize);
-        if (options.noBreak) element.setAttribute(Attributes.TooltipNoBreak, 1);
+        const existing = Tooltip.#tooltips[Tooltip.#ttId(element)];
+        const hasTT = !!existing;
+        const options = optionsFromOptions(tooltipOptions, existing);
+        this.setText(element, tooltip, options);
 
         if (!hasTT) {
             element.addEventListener('mousemove', Tooltip.#onMouseMove);
@@ -155,7 +167,8 @@ export default class Tooltip {
      * Handles tooltip positioning when the mouse location moves
      * @param {MouseEvent} e */
     static #onMouseMove(e) {
-        Tooltip.showTooltip(e, this.getAttribute(Attributes.TooltipText), this.getAttribute(Attributes.TooltipDelay));
+        const options = Tooltip.#getOptions(this);
+        Tooltip.showTooltip(e, options.tooltip, options.delay);
     }
 
     /**
@@ -182,32 +195,59 @@ export default class Tooltip {
         };
 
         // Focus delay is a bit more than the default value of 250ms
-        const delay = Math.max(500, parseInt(this.getAttribute(Attributes.TooltipDelay)));
-        Tooltip.showTooltip(fakeE, this.getAttribute(Attributes.TooltipText), delay);
+        const options = Tooltip.#getOptions(this);
+        const delay = Math.max(500, options.delay);
+        Tooltip.showTooltip(fakeE, options.tooltip, delay);
     }
 
     /**
      * Sets the tooltip text for the given element.
      * Assumes `element` has gone through the initial tooltip setup.
      * @param {HTMLElement} element
-     * @param {string|HTMLElement} tooltip */
-    static setText(element, tooltip) {
-        const asString = (typeof tooltip === 'string' ? tooltip : tooltip.outerHTML);
-        element.setAttribute(Attributes.TooltipText, asString);
-        if (Tooltip.#showingTooltip && Tooltip.#ttTarget === element) {
-            Tooltip.#tooltip.innerHTML = tooltip;
+     * @param {string|HTMLElement} tooltip
+     * @param {TooltipOptions} options */
+    static setText(element, tooltip, options={}) {
+        const existingOptions = this.#getOptions(element);
+        if (existingOptions) {
+            options.delay ??= existingOptions.delay;
+            options.maxWidth ??= existingOptions.maxWidth;
+            options.centered ??= existingOptions.centered;
+            options.textSize ??= existingOptions.textSize;
+            options.noBreak ??= existingOptions.noBreak;
         }
+
+        this.#tooltips[Tooltip.#ttId(element, true /*create*/)] = { targetRef : new WeakRef(element), tooltip : tooltip, ...options };
+        if (Tooltip.#showingTooltip && Tooltip.#ttTarget === element) {
+            if (tooltip instanceof Element) {
+                $clear(Tooltip.#tooltip);
+                Tooltip.#tooltip.appendChild(tooltip);
+            } else {
+                Tooltip.#tooltip.innerText = tooltip;
+            }
+        }
+    }
+
+    /**
+     * @param {HTMLElement} element */
+    static #ttId(element, create=false) {
+        let id = element.getAttribute(TooltipId);
+        if (create && !id) {
+            id = (++Tooltip.#nextId).toString();
+            element.setAttribute(TooltipId, id);
+        }
+
+        return id || 0;
+    }
+
+    static #getOptions(element) {
+        return Tooltip.#tooltips[Tooltip.#ttId(element)];
     }
 
     /**
      * Removes the tooltip from the given element
      * @param {HTMLElement} element */
     static removeTooltip(element) {
-        element.removeAttribute(Attributes.TooltipText);
-        element.removeAttribute(Attributes.TooltipDelay);
-        element.removeAttribute(Attributes.TooltipCentered);
-        element.removeAttribute(Attributes.TooltipNoBreak);
-        element.removeAttribute(Attributes.TooltipTextSize);
+        delete Tooltip.#tooltips[Tooltip.#ttId(element)];
         element.removeEventListener('mousemove', Tooltip.#onMouseMove);
         element.removeEventListener('mouseleave', Tooltip.dismiss);
         element.removeEventListener('focusin', Tooltip.#onFocus);
@@ -218,16 +258,7 @@ export default class Tooltip {
     }
 
     /**
-     * Retrieve the current tooltip text for the given element,
-     * or an empty string if it does not exist.
-     * @param {HTMLElement} element
-     */
-    static getText(element) {
-        return element.getAttribute(Attributes.TooltipText) || '';
-    }
-
-    /**
-     * Updates the position of Show a tooltip with the given text at a position relative to the current clientX/Y.
+     * Updates the position of a tooltip with the given text at a position relative to the current clientX/Y.
      * If the tooltip is not currently visible, resets the delay timer.
      * @param {MouseEvent} e The MouseEvent that triggered this function.
      * @param {string} text The text to display.
@@ -235,7 +266,7 @@ export default class Tooltip {
     static showTooltip(e, text, delay=250) {
         // If we have a raw string, shove it in a span first
         if (typeof(text) == 'string') {
-            text = buildNode('span', {}, text);
+            text = $span(text);
         }
 
         if (Tooltip.#showingTooltip) {
@@ -281,19 +312,21 @@ export default class Tooltip {
         }
 
         Tooltip.#ttTarget = e.target;
-        while (Tooltip.#ttTarget && !Tooltip.#ttTarget.hasAttribute(Attributes.TooltipText)) {
+        while (Tooltip.#ttTarget && !Tooltip.#ttTarget.hasAttribute(TooltipId)) {
             Tooltip.#ttTarget = Tooltip.#ttTarget.parentElement;
         }
 
         Tooltip.#showingTooltip = true;
         const tooltip = Tooltip.#tooltip;
 
-        const ttUpdated = Tooltip.#ttTarget && Tooltip.#ttTarget.getAttribute(Attributes.TooltipText);
-        if (ttUpdated) {
-            tooltip.innerHTML = ttUpdated;
+        const options = Tooltip.#tooltips[Tooltip.#ttId(Tooltip.#ttTarget)];
+        const ttUpdated = options?.tooltip;
+        const newText = ttUpdated || text;
+        if (newText instanceof Element) {
+            $clear(tooltip);
+            tooltip.appendChild(newText);
         } else {
-            tooltip.innerHTML = '';
-            tooltip.appendChild(text);
+            tooltip.innerText = newText;
         }
 
         tooltip.style.display = 'inline';
@@ -310,7 +343,7 @@ export default class Tooltip {
         const borderAdjust = Tooltip.#borderWidth(tooltip);
         const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
         const maxWidth = document.body.clientWidth + window.scrollX - widthAdjust;
-        const centered = Tooltip.#ttTarget.hasAttribute(Attributes.TooltipCentered);
+        const centered = options.centered;
         if (centered) {
             const centerAdjust = parseInt(tooltip.clientWidth / 2);
             tooltip.style.left = Math.min(e.clientX + window.scrollX, e.clientX + window.scrollX - centerAdjust) + 'px';
@@ -330,17 +363,18 @@ export default class Tooltip {
      * @param {HTMLElement} tooltip */
     static #setAttributes(tooltip) {
         const ttTarget = Tooltip.#ttTarget;
-        const ar = a => ttTarget.hasAttribute(a) ? 'add' : 'remove';
-        if (ttTarget.hasAttribute(Attributes.TooltipWidth)) {
-            tooltip.style.maxWidth = `calc(min(90%, ${ttTarget.getAttribute(Attributes.TooltipWidth) + 'px'}))`;
+        const options = Tooltip.#getOptions(ttTarget);
+        const ar = a => options[a] ? 'add' : 'remove';
+        if (options.maxWidth > 0) {
+            tooltip.style.maxWidth = `calc(min(90%, ${options.maxWidth + 'px'}))`;
         } else {
             tooltip.style.removeProperty('max-width');
         }
 
-        tooltip.classList[ar(Attributes.TooltipWidth)]('larger');
-        tooltip.classList[ar(Attributes.TooltipCentered)]('centered');
-        tooltip.classList[ar(Attributes.TooltipNoBreak)]('noBreak');
-        const textSize = +ttTarget.getAttribute(Attributes.TooltipTextSize);
+        tooltip.classList[ar('maxWidth')]('larger');
+        tooltip.classList[ar('centered')]('centered');
+        tooltip.classList[ar('noBreak')]('noBreak');
+        const textSize = options.textSize;
         tooltip.classList[textSize <= 0 ? 'remove' : 'add']('largerText');
         tooltip.classList[textSize >= 0 ? 'remove' : 'add']('smallerText');
     }
@@ -366,5 +400,26 @@ export default class Tooltip {
      */
     static active() {
         return Tooltip.#showingTooltip;
+    }
+
+    /**
+     * Removes tooltip information for any elements that have been deleted. */
+    static clearStaleTooltips() {
+        const toDelete = new Set();
+        for (const [id, entry] of Object.entries(Tooltip.#tooltips)) {
+            // There are no guarantees on exactly when an unreferenced element will get garbage collected,
+            // but that's fine here. The allocated element probably uses far more memory than the handful of
+            // flags we have allocated here, so we're not ballooning memory usage that much by keeping these
+            // around for potentially longer than strictly necessary.
+            if (!entry.targetRef.deref()) {
+                toDelete.add(id);
+            }
+        }
+
+        if (toDelete.size > 0) {
+            Log.verbose(`clearStaleTooltips: Removed ${toDelete.size} disconnected tooltip(s).`);
+        }
+
+        toDelete.forEach(id => delete Tooltip.#tooltips[id]);
     }
 }

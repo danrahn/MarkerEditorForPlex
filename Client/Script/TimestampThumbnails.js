@@ -1,4 +1,5 @@
-import { $, $$, buildNode, ctrlOrMeta, msToHms } from './Common.js';
+import { $, $$, $img } from './HtmlHelpers.js';
+import { ctrlOrMeta, msToHms } from './Common.js';
 import { slideDown, slideUp } from './AnimationHelpers.js';
 import { Attributes } from './DataAttributes.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -240,8 +241,7 @@ export class TimestampThumbnails {
         const width = widthOverride || (isSmallScreen() ? 180 : 240);
         const timestamp = isEnd ? this.#markerRow.endTime() : this.#markerRow.startTime();
         const src = `t/${this.#markerRow.baseItemRow().mediaItem().metadataId}/${timestamp}`;
-        const thumbnail = buildNode(
-            'img',
+        const thumbnail = $img(
             {
                 src : src,
                 class : `inputThumb loading thumb${isEnd ? 'End' : 'Start'}${widthOverride ? ' staticThumb' : ''}`,
@@ -249,7 +249,6 @@ export class TimestampThumbnails {
                 width : width,
                 height : 0,
             },
-            0,
             {
                 error : this.#onThumbnailPreviewLoadFailed.bind(this),
                 load : this.#onThumbnailPreviewLoad.bind(this),

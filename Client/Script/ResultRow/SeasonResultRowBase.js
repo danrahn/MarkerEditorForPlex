@@ -1,6 +1,6 @@
 import { ResultRow } from './ResultRow.js';
 
-import { $$, buildNode } from '../Common.js';
+import { $$, $div, $span } from '../HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 
@@ -35,9 +35,9 @@ export class SeasonResultRowBase extends ResultRow {
         }
 
         const season = this.season();
-        const title = buildNode('div', { class : 'selectedSeasonTitle' }, buildNode('span', {}, `Season ${season.index}`));
+        const title = $div({ class : 'selectedSeasonTitle' }, $span(`Season ${season.index}`));
         if (season.title.length > 0 && season.title.toLowerCase() !== `season ${season.index}`) {
-            title.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${season.title})`));
+            title.appendChild($span(` (${season.title})`, { class : 'resultRowAltTitle' }));
         }
 
         const row = this.buildRowColumns(title, null, this.onClick());

@@ -6,7 +6,7 @@ import { SeasonTitleResultRow } from './SeasonTitleResultRow.js';
 import { SectionOptionsResultRow } from './SectionOptionsResultRow.js';
 import { ShowTitleResultRow } from './ShowTitleResultRow.js';
 
-import { $$, buildNode, plural } from '../Common.js';
+import { $$, $hr } from '../HtmlHelpers.js';
 import { filteredListIcon, ResultRow } from './ResultRow.js';
 import { FilterSettings, SortConditions, SortOrder } from '../FilterDialog.js';
 import { UISection, UISections } from '../ResultSections.js';
@@ -17,6 +17,7 @@ import { errorResponseOverlay } from '../ErrorHandling.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import Overlay from '../Overlay.js';
 import { PlexClientState } from '../PlexClientState.js';
+import { plural } from '../Common.js';
 import { ServerCommands } from '../Commands.js';
 import Tooltip from '../Tooltip.js';
 
@@ -214,11 +215,11 @@ export class SeasonResultRow extends SeasonResultRowBase {
 
         this.#showTitle = new ShowTitleResultRow(PlexClientState.getActiveShow());
         addRow(this.#showTitle.buildRow());
-        addRow(buildNode('hr'));
+        addRow($hr());
         this.#seasonTitle = new SeasonTitleResultRow(PlexClientState.getActiveSeason());
         addRow(this.#seasonTitle.buildRow());
         addRow(new BulkActionResultRow(this.season()).buildRow());
-        addRow(buildNode('hr', { style : 'margin-top: 0' }));
+        addRow($hr({ style : 'margin-top: 0' }));
 
         for (const metadataId of Object.keys(data).map(m => parseInt(m))) {
             const episodeRow = new EpisodeResultRow(PlexClientState.getEpisode(metadataId), this);
@@ -311,10 +312,10 @@ export class SeasonResultRow extends SeasonResultRowBase {
         // Recreate headers
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
-        addRow(buildNode('hr'));
+        addRow($hr());
         addRow(this.#seasonTitle.html());
         addRow(new BulkActionResultRow(this.season()).buildRow());
-        addRow(buildNode('hr', { style : 'margin-top: 0' }));
+        addRow($hr({ style : 'margin-top: 0' }));
         this.#episodesFiltered = 0;
         let anyShowing = false;
         const episodes = this.#sortedEpisodes(); // Object.values(this.#episodes).sort((a, b) => a.episode().index - b.episode().index);

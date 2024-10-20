@@ -1,159 +1,8 @@
-import { addLongPressListener } from './LongPressHandler.js';
-
-/** @typedef {(target: EventTarget) => void} CustomEventCallback */
-
-/**
- * Removes all children from the given element.
- * @param {HTMLElement} ele The element to clear.
- */
-function clearEle(ele) {
-    while (ele.firstChild) {
-        ele.removeChild(ele.firstChild);
-    }
-}
-
-
-/**
- * Custom jQuery-like selector method.
- * If the selector starts with '#' and contains no spaces, return the result of `querySelector`,
- * otherwise return the result of `querySelectorAll`.
- * @param {DOMString} selector The selector to match.
- * @param {HTMLElement} ele The scope of the query. Defaults to `document`. */
-function $(selector, ele=document) {
-    if (selector.indexOf('#') === 0 && selector.indexOf(' ') === -1) {
-        return $$(selector, ele);
-    }
-
-    return ele?.querySelectorAll(selector);
-}
-
-/**
- * Like $, but forces a single element to be returned. i.e. querySelector.
- * @param {string} selector The query selector.
- * @param {HTMLElement} [ele=document] The scope of the query. Defaults to `document`. */
-function $$(selector, ele=document) {
-    return ele?.querySelector(selector);
-}
-
-/**
- * Helper method to create DOM elements.
- * @param {string} type The TAG to create.
- * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {object} [options={}] Additional options */
-function buildNode(type, attrs, content, events, options={}) {
-    const ele = document.createElement(type);
-    return _buildNode(ele, attrs, content, events, options);
-}
-
-/**
- * Creates a text node with the given text.
- * @param {string} text */
-function buildText(text) {
-    return document.createTextNode(text);
-}
-
-/**
- * Helper method to create DOM elements with the given namespace (e.g. SVGs).
- * @param {string} ns The namespace to create the element under.
- * @param {string} type The type of element to create.
- * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element. */
-function buildNodeNS(ns, type, attrs, content, events, options={}) {
-    const ele = document.createElementNS(ns, type);
-    return _buildNode(ele, attrs, content, events, options);
-}
-
-/**
- * "Private" core method for buildNode and buildNodeNS, that handles both namespaced and non-namespaced elements.
- * @param {HTMLElement} ele The HTMLElement to attach the given properties to.
- * @param {{[attribute: string]: string}} [attrs] Attributes to apply to the element (e.g. class, id, or custom attributes).
- * @param {string|HTMLElement|SVGElement} [content] The inner content of the element, either a string or an element.
- * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {object} [options] */
-function _buildNode(ele, attrs, content, events, options) {
-    if (attrs) {
-        for (const [key, value] of Object.entries(attrs)) {
-            ele.setAttribute(key, value);
-        }
-    }
-
-    if (events) {
-        addEventsToElement(ele, events, options.thisArg);
-    }
-
-    if (content) {
-        if (content instanceof Element) {
-            ele.appendChild(content);
-        } else {
-            ele.innerHTML = content;
-        }
-    }
-
-    return ele;
-}
-
-/**
- * Map of existing custom events that have additional setup via the specified method.
- * @type {{ [event: string]: (ele: HTMLElement, (target: HTMLElement) => void) => void }} */
-const CustomEvents = {
-    longpress : addLongPressListener,
-};
-
-/**
- * Attach all specified events to the given element, with some custom handling around non-standard events.
- * @param {Element} element The element to add events to
- * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
- * @param {Element?} thisArg */
-function addEventsToElement(element, events, thisArg=null) {
-    for (const [event, func] of Object.entries(events)) {
-        /** @type {EventListener[]} */
-        let handlers = func;
-        if (!(func instanceof Array)) {
-            handlers = [func];
-        }
-
-        const customEvent = CustomEvents[event];
-
-        for (const handler of handlers) {
-            if (customEvent) {
-                if (thisArg) {
-                    customEvent(element, handler.bind(thisArg, element));
-                } else {
-                    customEvent(element, handler);
-                }
-            } else if (thisArg) {
-                element.addEventListener(event, handler.bind(thisArg, element));
-            } else {
-                element.addEventListener(event, handler);
-            }
-        }
-    }
-}
-
-/**
- * Helper to append multiple children to a single element at once.
- * @param {HTMLElement} parent Parent element to append children to.
- * @param {...HTMLElement} elements Elements to append this this `HTMLElement`
- * @returns {HTMLElement} `parent` */
-function appendChildren(parent, ...elements) {
-    for (const element of elements) {
-        if (element) {
-            parent.appendChild(element);
-        }
-    }
-
-    return parent;
-}
-
-
 /**
  * Return 'n text' if n is 1, otherwise 'n texts'.
  * @param {number} n The number of items.
  * @param {string} text The type of item. */
-function plural(n, text) {
+export function plural(n, text) {
     return `${n} ${text}${n === 1 ? '' : 's'}`;
 }
 
@@ -161,7 +10,7 @@ function plural(n, text) {
  * Pads 0s to the front of `val` until it reaches the length `pad`.
  * @param {number} val The value to pad.
  * @param {number} pad The minimum length of the string to return. */
-function pad0(val, pad) {
+export function pad0(val, pad) {
     val = val.toString();
     return '0'.repeat(Math.max(0, pad - val.length)) + val;
 }
@@ -169,7 +18,7 @@ function pad0(val, pad) {
 /**
  * Convert milliseconds to a user-friendly [h:]mm:ss.000 string.
  * @param {number} ms */
-function msToHms(ms) {
+export function msToHms(ms) {
     const msAbs = Math.abs(ms);
     let seconds = msAbs / 1000;
     const hours = Math.floor(seconds / 3600);
@@ -206,7 +55,7 @@ const hmsRegex = new RegExp('' +
  * Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
  * @param {string} value The time to parse
  * @returns The number of milliseconds indicated by `value`. */
-function timeToMs(value, allowNegative=false) {
+export function timeToMs(value, allowNegative=false) {
     let ms = 0;
     if (value.indexOf(':') === -1) {
         if (value.indexOf('.') === -1) {
@@ -298,7 +147,7 @@ const adjustKeys = {
  * @param {number} m Maximum value
  * @param {number} f Truncation factor
  * @returns {number} */
-const roundDelta = (c, m, f, r=c % f) => r === 0 ? 0 : -r + ((m - c < f - r) || (r < (f / 2)) ? 0 : f);
+export const roundDelta = (c, m, f, r=c % f) => r === 0 ? 0 : -r + ((m - c < f - r) || (r < (f / 2)) ? 0 : f);
 
 /**
  * Map of "special" time input shortcuts that requires additional parameters
@@ -321,11 +170,12 @@ const validNegative = e =>
 /**
  * Return the new time in milliseconds for the time input based on the given values.
  * Takes into account jumping between positive and negative offsets.
+ * @param {KeyboardEvent} e The event that triggered this calculation
  * @param {number} previous The old time in milliseconds
  * @param {number} min The minimum value
  * @param {number} max The maximum value
  * @param {number} delta The baseline number of milliseconds to adjust previous */
-function getNewTime(previous, min, max, delta) {
+function getNewTime(e, previous, min, max, delta) {
     const newTime = Math.min(max, Math.max(min, previous + delta));
     if (min === 0) {
         // Return early if negative values aren't allowed.
@@ -334,6 +184,11 @@ function getNewTime(previous, min, max, delta) {
 
     // If we're at zero and crossing the boundary, switch to the inverse (0 => -0, -0 => 0)
     if (previous === 0) {
+        // Stay at whatever zero we're at if it's a repeat event (holding down the key)
+        if (e.repeat) {
+            return previous;
+        }
+
         if (Object.is(previous, 0)) {
             if (delta < 0) {
                 return -0;
@@ -356,7 +211,7 @@ function getNewTime(previous, min, max, delta) {
  * A common input handler that allows incremental
  * time changes with keyboard shortcuts.
  * @param {KeyboardEvent} e */
-function timeInputShortcutHandler(e, maxDuration=NaN) {
+export function timeInputShortcutHandler(e, maxDuration=NaN) {
     if (e.key.length !== 1 || e.ctrlKey || /[\d:.]/.test(e.key)) {
         return;
     }
@@ -392,7 +247,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
         timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
     }
 
-    const newTime = getNewTime(currentValueMs, min, max, timeDiff);
+    const newTime = getNewTime(e, currentValueMs, min, max, timeDiff);
 
     const newValue = needsHms ? msToHms(newTime) : newTime;
 
@@ -412,7 +267,7 @@ function timeInputShortcutHandler(e, maxDuration=NaN) {
  * @param {number} offset
  * @param {number} duration
  * @returns {number} */
-function realMs(offset, duration) {
+export function realMs(offset, duration) {
     // '===' treats -0 as +0, but Object.is can tell the difference.
     if (offset < 0 || Object.is(offset, -0)) {
         return duration + offset;
@@ -424,7 +279,7 @@ function realMs(offset, duration) {
 /**
  * General callback to treat 'Enter' on a given element as a click.
  * @param {KeyboardEvent} e */
-function clickOnEnterCallback(e) {
+export function clickOnEnterCallback(e) {
     if (e.ctrlKey || e.shiftKey || e.altKey || e.key !== 'Enter') {
         return;
     }
@@ -437,7 +292,7 @@ function clickOnEnterCallback(e) {
  * @param {() => boolean} condition The condition to test until it returns true.
  * @param {number} timeout Number of milliseconds before giving up.
  * @returns {Promise<void>} */
-function waitFor(condition, timeout) {
+export function waitFor(condition, timeout) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => { clearInterval(interval); reject(new Error('hit waitFor timeout')); }, timeout);
         const interval = setInterval(() => {
@@ -455,7 +310,7 @@ function waitFor(condition, timeout) {
  * @param {Event} e The initiating event.
  * @param {HTMLElement} scrollTarget The block to scroll into view
  * @param {HTMLElement?} focusTarget The element within scrollTarget to focus on, or scrollTarget if not provided */
-function scrollAndFocus(e, scrollTarget, focusTarget) {
+export function scrollAndFocus(e, scrollTarget, focusTarget) {
     // Stop propagation in addition to preventDefault, since we don't want any
     // subsequent events firing and causing potentially unexpected side-effects,
     // like a keyboard event preventing tooltips from displaying after arrow navigation.
@@ -473,7 +328,7 @@ function scrollAndFocus(e, scrollTarget, focusTarget) {
  * Used by mouse events, as macOS treats Ctrl+Click as a right click, so
  * any Ctrl action can also be used on macOS with cmd+click.
  * @param {MouseEvent} e */
-function ctrlOrMeta(e) {
+export function ctrlOrMeta(e) {
     return e?.ctrlKey || e?.metaKey;
 }
 
@@ -481,42 +336,10 @@ function ctrlOrMeta(e) {
  * Show or hide the given element.
  * @param {HTMLElement} ele
  * @param {boolean} visible */
-function toggleVisibility(ele, visible) {
+export function toggleVisibility(ele, visible) {
     if (visible) {
         ele.classList.remove('hidden');
     } else {
         ele.classList.add('hidden');
     }
 }
-
-/**
- * Helper that returns the element w ith the given id. Useful for scenarios where the id is statically
- * defined and you want to use the same value to get said element.
- * @param {string} id */
-function $id(id, ele=document) {
-    return $$('#' + id, ele);
-}
-
-export {
-    $,
-    $$,
-    $id,
-    addEventsToElement,
-    appendChildren,
-    buildNode,
-    buildNodeNS,
-    buildText,
-    clearEle,
-    clickOnEnterCallback,
-    ctrlOrMeta,
-    msToHms,
-    pad0,
-    plural,
-    realMs,
-    roundDelta,
-    scrollAndFocus,
-    timeInputShortcutHandler,
-    timeToMs,
-    toggleVisibility,
-    waitFor,
-};

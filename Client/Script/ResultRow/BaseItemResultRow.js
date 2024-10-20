@@ -1,5 +1,4 @@
-
-import { $$, scrollAndFocus } from '../Common.js';
+import { $$ } from '../HtmlHelpers.js';
 import { Attributes } from '../DataAttributes.js';
 import { ClientMovieData } from '../ClientDataExtensions.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -7,6 +6,7 @@ import { CustomEvents } from '../CustomEvents.js';
 import { getSvgIcon } from '../SVGHelper.js';
 import Icons from '../Icons.js';
 import { ResultRow } from './ResultRow.js';
+import { scrollAndFocus } from '../Common.js';
 import { ThemeColors } from '../ThemeColors.js';
 import Tooltip from '../Tooltip.js';
 

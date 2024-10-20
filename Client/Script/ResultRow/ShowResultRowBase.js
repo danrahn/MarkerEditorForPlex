@@ -1,7 +1,8 @@
 import { ResultRow } from './ResultRow.js';
 
-import { $$, buildNode, plural } from '../Common.js';
+import { $$, $div, $span } from '../HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { plural } from '../Common.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 
 const Log = ContextualLog.Create('ShowRowBase');
@@ -39,12 +40,12 @@ export class ShowResultRowBase extends ResultRow {
         }
 
         const show = this.show();
-        const titleNode = buildNode('div', {}, show.title);
+        const titleNode = $div({}, show.title);
         if (show.originalTitle) {
-            titleNode.appendChild(buildNode('span', { class : 'resultRowAltTitle' }, ` (${show.originalTitle})`));
+            titleNode.appendChild($span(` (${show.originalTitle})`, { class : 'resultRowAltTitle' }));
         }
 
-        const customColumn = buildNode('div', { class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
+        const customColumn = $div({ class : 'showResultSeasons' }, plural(show.seasonCount, 'Season'));
         const row = this.buildRowColumns(titleNode, customColumn, this.onClick());
 
         this.setHtml(row);

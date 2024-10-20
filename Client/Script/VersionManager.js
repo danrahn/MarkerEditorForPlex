@@ -1,5 +1,6 @@
-import { $, $$, appendChildren, buildNode, plural } from './Common.js';
+import { $, $$, $br, $divHolder, $label, $option, $select, $span } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { plural } from './Common.js';
 
 import { animateOpacity } from './AnimationHelpers.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -92,21 +93,19 @@ class VersionManager {
      * Show the 'update available' banner
      * @param {{version: Version}[]} newer */
     #showUpdateBar(newer) {
-        const select = buildNode('select', { id : 'updateRemind', name : 'updateRemind' });
+        const select = $select('updateRemind', null, { name : 'updateRemind' });
         for (const [option, value] of Object.entries(IgnoreOptions)) {
             const optionText = value < IgnoreOptions.Never ? `In 1 ${option}` : `${option} for this version`;
-            select.appendChild(buildNode('option', { value }, optionText));
+            select.appendChild($option(optionText, value));
         }
 
         const newest = newer[0].version.toString();
         const current = this.#currentVersion.toString();
-        this.#updateBar = appendChildren(buildNode('div', { id : 'updateBar', }),
-            buildNode('span',
-                { id : 'updateString' },
-                `New version (${newest}) available, ${plural(newer.length, 'version')} ahead of ${current}`),
+        this.#updateBar = $divHolder({ id : 'updateBar', },
+            $span(`New version (${newest}) available, ${plural(newer.length, 'version')} ahead of ${current}`, { id : 'updateString' }),
             ButtonCreator.textButton('Go to Release', this.#updateCallback.bind(this), { auxclick : true }),
-            buildNode('br'),
-            buildNode('label', { for : 'updateRemind', id : 'updateRemindLabel' }, 'Or, remind me: '),
+            $br(),
+            $label('Or, remind me: ', 'updateRemind', { id : 'updateRemindLabel' }),
             select,
             ButtonCreator.textButton('Ignore for Now', this.#ignoreCallback.bind(this)));
         const frame = $$('#plexFrame');

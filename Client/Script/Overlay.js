@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode, clearEle } from './Common.js';
+import { $, $$, $append, $clear, $div, $i } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity } from './AnimationHelpers.js';
@@ -60,7 +60,7 @@ export default class Overlay {
      * @returns {Promise<void>} */
     static show(message, buttonText='OK', buttonFunc=Overlay.dismiss, dismissible=true) {
         return Overlay.build({ dismissible : dismissible, centered : false, focusBack : null },
-            buildNode('div', { id : 'overlayMessage', class : 'overlayDiv' }, message),
+            $div({ id : 'overlayMessage', class : 'overlayDiv' }, message),
             ButtonCreator.textButton(
                 buttonText,
                 buttonFunc,
@@ -79,7 +79,7 @@ export default class Overlay {
         }
 
         if (message instanceof HTMLElement) {
-            clearEle(div);
+            $clear(div);
             div.appendChild(message);
         } else {
             div.innerHTML = message;
@@ -98,7 +98,10 @@ export default class Overlay {
      * Expects the overlay to exist. */
     static dismiss() {
         const main = Overlay.get();
-        const ret = animateOpacity(main, 1, 0, 250, true /*deleteAfterTransition*/);
+        const ret = animateOpacity(main, 1, 0, 250, () => {
+            main.parentElement.removeChild(main);
+            Tooltip.clearStaleTooltips();
+        });
 
         Overlay.#focusBack?.focus();
         Overlay.#focusBack = null;
@@ -155,7 +158,7 @@ export default class Overlay {
                 await animateOpacity(container, 1, 0, delay);
             }
 
-            clearEle(container);
+            $clear(container);
             return {
                 overlayNode,
                 container,
@@ -166,7 +169,7 @@ export default class Overlay {
         // We're not already showing an overlay, build one.
         return {
             overlayNode : Overlay.#overlayNode(options),
-            container : buildNode('div', { id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' }),
+            container : $div({ id : 'overlayContainer', class : options.centered ? 'centeredOverlay' : 'defaultOverlay' }),
             inTransition : false,
         };
     }
@@ -265,7 +268,7 @@ export default class Overlay {
      * @param {OverlayOptions} options The options for the overlay. See `build` for details.
      * @returns The main overlay Element. */
     static #overlayNode(options) {
-        return buildNode('div',
+        return $div(
             {
                 id : 'mainOverlay',
                 style : `opacity: ${options.delay === 0 ? '1' : '0'}`,
@@ -332,9 +335,8 @@ export default class Overlay {
     };
 
     static #addCloseButton() {
-        const close = appendChildren(
-            buildNode(
-                'i',
+        const close = $append(
+            $i(
                 { tabindex : 0, class : 'overlayCloseButton' },
                 0,
                 { click : Overlay.dismiss,

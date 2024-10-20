@@ -1,4 +1,5 @@
-import { $, appendChildren, buildNode, msToHms, pad0, timeInputShortcutHandler, timeToMs, toggleVisibility } from './Common.js';
+import { $, $append, $br, $div, $divHolder, $h, $hr, $label, $textInput, $textSpan } from './HtmlHelpers.js';
+import { msToHms, pad0, timeInputShortcutHandler, timeToMs, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { Attributes } from './DataAttributes.js';
@@ -14,6 +15,7 @@ import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
 import Tooltip from './Tooltip.js';
+import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').EpisodeData} EpisodeData */
 /** @typedef {!import('/Shared/PlexTypes').SeasonData} SeasonData */
@@ -82,50 +84,35 @@ class BulkShiftOverlay {
      * Launch the bulk shift overlay.
      * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
     show(focusBack) {
-        const container = buildNode('div', { id : 'bulkActionContainer' });
-        const title = buildNode('h1', {}, `Shift Markers for ${this.#mediaItem.title}`);
-        this.#startTimeInput = buildNode(
-            'input', {
-                type : 'text',
-                placeholder : 'ms or mm:ss[.000]',
-                name : 'shiftStartTime',
-                id : 'shiftStartTime'
-            },
-            0,
-            { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : timeInputShortcutHandler
-            });
+        const container = $div({ id : 'bulkActionContainer' });
+        const title = $h(1, `Shift Markers for ${this.#mediaItem.title}`);
+        this.#startTimeInput = $textInput(
+            { placeholder : 'ms or mm:ss[.000]', name : 'shiftStartTime', id : 'shiftStartTime' },
+            { keyup : this.#onTimeShiftChange.bind(this), keydown : timeInputShortcutHandler });
 
         const endVisible = this.#stickySettings.separateShift();
-        this.#endTimeInput = buildNode('input',
-            {   type : 'text',
-                placeholder : 'ms or mm:ss[.000]',
-                name : 'shiftEndTime',
-                id : 'shiftEndTime',
-                class : endVisible ? '' : 'hidden' },
-            0,
-            { keyup : this.#onTimeShiftChange.bind(this),
-              keydown : timeInputShortcutHandler
-            });
+        this.#endTimeInput = $textInput(
+            { placeholder : 'ms or mm:ss[.000]', name : 'shiftEndTime', id : 'shiftEndTime', class : endVisible ? '' : 'hidden' },
+            { keyup : this.#onTimeShiftChange.bind(this), keydown : timeInputShortcutHandler });
 
         const separateShiftCheckbox = customCheckbox(
             { id : 'separateShiftCheck', checked : endVisible },
             { change : this.#onSeparateShiftChange },
             {},
             { thisArg : this });
-        appendChildren(container,
+        $append(container,
             title,
-            buildNode('hr'),
-            appendChildren(buildNode('div', { id : 'shiftZone' }),
-                buildNode('label', { for : 'shiftStartTime', id : 'shiftStartTimeLabel' }, 'Time shift: '),
+            $hr(),
+            $divHolder({ id : 'shiftZone' },
+                $label('Time shift: ', 'shiftStartTime', { id : 'shiftStartTimeLabel' }),
                 this.#startTimeInput,
-                buildNode('label', { for : 'shiftEndTime', class : endVisible ? '' : 'hidden', id : 'shiftEndTimeLabel' }, 'End shift: '),
+                $label('End shift: ', 'shiftEndTime', { class : endVisible ? '' : 'hidden', id : 'shiftEndTimeLabel' }),
                 this.#endTimeInput),
-            appendChildren(buildNode('div', { id : 'expandShrinkCheck' }),
-                buildNode('label', { for : 'separateShiftCheck' }, 'Shift start and end times separately:'),
+            $divHolder({ id : 'expandShrinkCheck' },
+                $label('Shift start and end times separately:', 'separateShiftCheck'),
                 separateShiftCheckbox),
             BulkActionCommon.markerSelectType('Shift Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
-            appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
+            $divHolder({ id : 'bulkActionButtons' },
                 ButtonCreator.fullButton('Apply',
                     Icons.Confirm,
                     ThemeColors.Green,
@@ -223,13 +210,15 @@ class BulkShiftOverlay {
         unresolved : 'Some episodes have multiple markers, please resolve below or Force Apply.',
         unresolvedAgain : 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.',
         cutoff : 'The current shift will cut off some markers. Are you sure you want to continue?',
-        error : 'The current shift completely moves at least one selected marker beyond the bounds of the episode.<br>' +
-                'Do you want to ignore those and continue?',
-        unresolvedPlus : 'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.<br>' +
-                         'Additionally, some markers are either cut off or completely beyond the bounds of an episode (or both).<br>' +
-                         'Cut off markers will be applied and invalid markers will be ignored.',
-        cutoffPlus : 'The current shift will cut off some markers, and ignore markers beyond the bounds of the episode.<br>' +
-                     'Are you sure you want to continue?',
+        error : $textSpan('The current shift completely moves at least one selected marker beyond the bounds of the episode.', $br(),
+            'Do you want to ignore those and continue?'),
+        unresolvedPlus : $textSpan(
+            'Are you sure you want to shift markers with unresolved conflicts? Anything unchecked will not be shifted.', $br(),
+            'Additionally, some markers are either cut off or completely beyond the bounds of an episode (or both).', $br(),
+            'Cut off markers will be applied and invalid markers will be ignored.'),
+        cutoffPlus : $textSpan(
+            'The current shift will cut off some markers, and ignore markers beyond the bounds of the episode.', $br(),
+            'Are you sure you want to continue?'),
         invalidOffset : `Couldn't parse time offset, make sure it's valid.`
     };
 
@@ -247,8 +236,8 @@ class BulkShiftOverlay {
         const attributes = { id : 'resolveShiftMessage', [Attributes.BulkShiftResolveMessage] : messageType };
         let node;
         if (addForceButton) {
-            node = appendChildren(buildNode('div', attributes),
-                buildNode('h4', {}, message),
+            node = $divHolder(attributes,
+                $h(4, message),
                 ButtonCreator.fullButton(
                     'Force shift',
                     Icons.Confirm,
@@ -257,7 +246,7 @@ class BulkShiftOverlay {
                     { id : 'shiftForceApplySub', class : 'shiftForceApply' })
             );
         } else {
-            node = buildNode('h4', attributes, message);
+            node = $h(4, message, attributes);
         }
 
         const container = $('#bulkActionContainer');
@@ -778,11 +767,11 @@ class BulkShiftRow extends BulkActionRow {
             return false;
         }
 
-        let startWarnText = '';
-        let endWarnText = '';
+        const startWarnText = new TooltipBuilder();
+        const endWarnText = new TooltipBuilder();
         if (start < 0) {
-            startWarnText = `<br>This shift will truncate the marker by ${msToHms(-start)}.`;
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.substring(4));
+            startWarnText.addLine(`This shift will truncate the marker by ${msToHms(-start)}.`);
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.get());
             this.#isWarn = true;
         } else {
             BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.On, true);
@@ -790,25 +779,25 @@ class BulkShiftRow extends BulkActionRow {
 
         if (end > maxDuration) {
             this.#isWarn = true;
-            endWarnText = `<br>This shift will truncate the marker by ${msToHms(end - maxDuration)}.`;
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.substring(4));
+            endWarnText.addLine(`This shift will truncate the marker by ${msToHms(end - maxDuration)}.`);
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.get());
         } else {
             BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.On, true);
         }
 
         const overlap = this.#parent.overlappingMarkers(this.markerId(), this.#episode.metadataId, newStart, newEnd);
         for (const marker of overlap) {
-            const warnText = `<br>Overlaps with ${marker.markerType} marker: [${msToHms(marker.start)}-${msToHms(marker.end)}]`;
-            startWarnText += warnText;
-            endWarnText += warnText;
+            const warnText = `Overlaps with ${marker.markerType} marker: [${msToHms(marker.start)}-${msToHms(marker.end)}]`;
+            startWarnText.addLine(warnText);
+            endWarnText.addLine(warnText);
         }
 
-        if (startWarnText) {
-            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.substring(4));
+        if (!startWarnText.empty()) {
+            BulkShiftClasses.set(newStartNode, BulkShiftClasses.Type.Warn, true, startWarnText.get());
         }
 
-        if (endWarnText) {
-            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.substring(4));
+        if (!endWarnText.empty()) {
+            BulkShiftClasses.set(newEndNode, BulkShiftClasses.Type.Warn, true, endWarnText.get());
         }
 
         return true;

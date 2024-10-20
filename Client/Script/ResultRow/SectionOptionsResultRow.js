@@ -1,6 +1,6 @@
 import { ResultRow } from './ResultRow.js';
 
-import { appendChildren, buildNode, toggleVisibility } from '../Common.js';
+import { $append, $div } from '../HtmlHelpers.js';
 import { FilterDialog, FilterSettings } from '../FilterDialog.js';
 import { Attributes } from '../DataAttributes.js';
 import ButtonCreator from '../ButtonCreator.js';
@@ -11,6 +11,7 @@ import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import SectionOptionsOverlay from '../SectionOptionsOverlay.js';
 import { ThemeColors } from '../ThemeColors.js';
+import { toggleVisibility } from '../Common.js';
 import Tooltip from '../Tooltip.js';
 
 const Log = ContextualLog.Create('SectionOptionsRow');
@@ -38,8 +39,8 @@ export class SectionOptionsResultRow extends ResultRow {
             return this.html();
         }
 
-        const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Section Options');
-        const row = buildNode('div', { class : 'sectionOptionsResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
+        const titleNode = $div({ class : 'bulkActionTitle' }, 'Section Options');
+        const row = $div({ class : 'sectionOptionsResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
 
         this.#purgeButton = ButtonCreator.dynamicButton(
             'Purged Markers Found', Icons.Warn, ThemeColors.Orange, () => PurgedMarkers.showCurrentSection(this.#purgeButton),
@@ -64,10 +65,10 @@ export class SectionOptionsResultRow extends ResultRow {
             function (_e, self) { new SectionOptionsOverlay().show(self); },
             { class : 'moreSectionOptionsBtn', [Attributes.TableNav] : 'more-options' });
 
-        appendChildren(row,
+        $append(row,
             titleNode,
-            appendChildren(
-                row.appendChild(buildNode('div', { class : 'goBack' })),
+            $append(
+                row.appendChild($div({ class : 'goBack' })),
                 this.#purgeButton,
                 this.#filterButton,
                 this.#moreOptionsButton));

@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, buildText } from './Common.js';
+import { $$, $br, $plainDivHolder, $text } from './HtmlHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 import { errorToast } from './ErrorHandling.js';
 import { ServerCommands } from './Commands.js';
@@ -110,11 +110,10 @@ class LoginManager {
             if (this.#failures > 3) {
                 // More than three failed attempts. Let the user know how to reset authentication
                 // if they have access to the server files.
-                errorToast(appendChildren(buildNode('div'),
-                    buildText(`Login failed: ${ex.message}`),
-                    buildNode('br'),
-                    buildNode('br'),
-                    buildText(`If you don't remember your username or password, exit this application, ` +
+                errorToast($plainDivHolder(
+                    $text(`Login failed: ${ex.message}`),
+                    $br(), $br(),
+                    $text(`If you don't remember your username or password, exit this application, ` +
                         `delete auth.db in the Backup directory, and restart.`)),
                 5000);
             } else {

@@ -1,4 +1,4 @@
-import { $, $$, clearEle } from './Common.js';
+import { $, $$, $clear } from './HtmlHelpers.js';
 import { animateOpacity } from './AnimationHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from './CustomEvents.js';
@@ -82,7 +82,7 @@ class ResultSections {
      * @param {UISection} uiSection */
     clearSections(uiSection) {
         this.#sectionOperation(uiSection, ele => {
-            clearEle(ele);
+            $clear(ele);
         });
     }
 

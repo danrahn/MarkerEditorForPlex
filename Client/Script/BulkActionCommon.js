@@ -1,4 +1,5 @@
-import { $, $$, appendChildren, buildNode, clickOnEnterCallback, ctrlOrMeta, scrollAndFocus, toggleVisibility } from './Common.js';
+import { $, $$, $append, $div, $label, $option, $plainDivHolder, $select, $span, $table, $tbody, $thead } from './HtmlHelpers.js';
+import { clickOnEnterCallback, ctrlOrMeta, scrollAndFocus, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { customCheckbox } from './CommonUI.js';
@@ -156,7 +157,7 @@ class BulkActionRow {
         {},
         { thisArg : this });
 
-        return appendChildren(checkbox, buildNode('label', { for : checkboxName, class : 'hidden' }, `Marker ${identifier} Checkbox`));
+        return $append(checkbox, $label(`Marker ${identifier} Checkbox`, checkboxName, { class : 'hidden' }));
     }
 }
 
@@ -216,7 +217,7 @@ class BulkActionTable {
     }
 
     /**
-     * Retrieve the HTML <table> */
+     * Retrieve the HTML table */
     html() {
         if (this.#tbody) {
             this.#html.appendChild(this.#tbody);
@@ -262,7 +263,7 @@ class BulkActionTable {
             !this.#html,
             `BulkActionTable.buildTableHead: We should only be building a table header if the table doesn't already exist!`);
 
-        this.#html = buildNode('table', { class : 'markerTable', id : 'bulkActionCustomizeTable' });
+        this.#html = $table({ class : 'markerTable', id : 'bulkActionCustomizeTable' });
         const mainCheckbox = customCheckbox({
             title : 'Select/unselect all',
             name : 'selAllCheck',
@@ -272,9 +273,8 @@ class BulkActionTable {
         { change : BulkActionCommon.selectUnselectAll,
           keydown : [ clickOnEnterCallback, this.#onMainCheckboxKeydown.bind(this) ] });
 
-        this.#html.appendChild(
-            appendChildren(buildNode('thead'), TableElements.rawTableRow(mainCheckbox, ...columns)));
-        this.#tbody = buildNode('tbody');
+        this.#html.appendChild($thead(TableElements.rawTableRow(mainCheckbox, ...columns)));
+        this.#tbody = $tbody();
     }
 
     #onMainCheckboxKeydown(e) {
@@ -351,8 +351,8 @@ class BulkActionTable {
      * If the first item is not in the viewport, pin it to the top/bottom. */
     #repositionMultiSelectCheckboxes() {
         if (!this.#multiSelectContainer) {
-            this.#multiSelectContainer = buildNode('div', { class : 'multiSelectContainer hidden' });
-            const label = buildNode('span', { class : 'multiSelectLabel' });
+            this.#multiSelectContainer = $div({ class : 'multiSelectContainer hidden' });
+            const label = $span(null, { class : 'multiSelectLabel' });
             this.#multiSelectContainer.appendChild(label);
             let checked = true;
             for (const id of ['multiSelectSelect', 'multiSelectDeselect']) {
@@ -611,20 +611,17 @@ class BulkActionCommon {
      * @param {() => void} callback The function to call when the value changes.
      * @param {number} initialValue The initial value to select in the dropdown. Defaults to 'All'. */
     static markerSelectType(label, callback, initialValue=MarkerEnum.All) {
-        const select = appendChildren(
-            buildNode('select', { id : 'markerTypeSelect' }, 0, { change : callback }),
-            buildNode('option', { value : MarkerEnum.All }, 'All'),
-            buildNode('option', { value : MarkerEnum.Intro }, 'Intro'),
-            buildNode('option', { value : MarkerEnum.Credits }, 'Credits'),
-            buildNode('option', { value : MarkerEnum.Ad }, 'Ad'),
+        const select = $append(
+            $select('markerTypeSelect', callback),
+            $option('All', MarkerEnum.All),
+            $option('Intro', MarkerEnum.Intro),
+            $option('Credits', MarkerEnum.Credits),
+            $option('Ad', MarkerEnum.Ad),
         );
 
         select.value = initialValue;
 
-        return appendChildren(buildNode('div'),
-            buildNode('label', { for : 'markerTypeSelect' }, label),
-            select
-        );
+        return $plainDivHolder($label(label, 'markerTypeSelect'), select);
     }
 }
 

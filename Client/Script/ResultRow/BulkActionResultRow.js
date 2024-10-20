@@ -1,6 +1,6 @@
 import { ResultRow } from './ResultRow.js';
 
-import { appendChildren, buildNode } from '../Common.js';
+import { $append, $div } from '../HtmlHelpers.js';
 import { Attributes } from '../DataAttributes.js';
 import BulkAddOverlay from '../BulkAddOverlay.js';
 import BulkDeleteOverlay from '../BulkDeleteOverlay.js';
@@ -32,17 +32,17 @@ export class BulkActionResultRow extends ResultRow {
             return this.html();
         }
 
-        const titleNode = buildNode('div', { class : 'bulkActionTitle' }, 'Bulk Actions');
-        const row = buildNode('div', { class : 'resultRow bulkResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
+        const titleNode = $div({ class : 'bulkActionTitle' }, 'Bulk Actions');
+        const row = $div({ class : 'resultRow bulkResultRow' }, 0, { keydown : this.onRowKeydown.bind(this) });
         this.#bulkAddButton = ButtonCreator.textButton(
             'Bulk Add', this.#bulkAdd.bind(this), { style : 'margin-right: 10px', [Attributes.TableNav] : 'bulk-add' });
         this.#bulkShiftButton = ButtonCreator.textButton(
             'Bulk Shift', this.#bulkShift.bind(this), { style : 'margin-right: 10px', [Attributes.TableNav] : 'bulk-shift' });
         this.#bulkDeleteButton = ButtonCreator.textButton(
             'Bulk Delete', this.#bulkDelete.bind(this), { [Attributes.TableNav] : 'bulk-delete' });
-        appendChildren(row,
+        $append(row,
             titleNode,
-            appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
+            $append(row.appendChild($div({ class : 'goBack' })),
                 this.#bulkAddButton,
                 this.#bulkShiftButton,
                 this.#bulkDeleteButton));

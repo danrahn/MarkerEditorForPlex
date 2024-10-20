@@ -1,13 +1,5 @@
-import {
-    $,
-    $$,
-    appendChildren,
-    buildNode,
-    clearEle,
-    msToHms,
-    realMs,
-    timeInputShortcutHandler,
-    timeToMs } from './Common.js';
+import { $, $$, $append, $clear, $divHolder, $label, $option, $select, $span, $textInput } from './HtmlHelpers.js';
+import { msToHms, realMs, timeInputShortcutHandler, timeToMs } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
@@ -115,17 +107,14 @@ class MarkerEdit {
             initialValue = msToHms(isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         }
 
-        const input = buildNode('input',
-            {
-                type : 'text',
+        const input = $textInput(
+            {   type : 'text',
                 maxlength : 12,
                 class : `timeInput timeInput${isEnd ? 'End' : 'Start'}`,
                 placeholder : 'ms or mm:ss[.000]',
                 value : initialValue,
                 autocomplete : 'off',
-                [Attributes.TableNav] : `time-${isEnd ? 'end' : 'start'}`,
-            },
-            0,
+                [Attributes.TableNav] : `time-${isEnd ? 'end' : 'start'}`, },
             events,
             { thisArg : this });
 
@@ -221,15 +210,13 @@ class MarkerEdit {
      * Set the first column to be the type of marker (e.g. 'Intro' or 'Credits') */
     #buildMarkerType() {
         const span = this.markerRow.row().children[0];
-        clearEle(span);
-        const select = buildNode(
-            'select',
-            { class : 'inlineMarkerType', [Attributes.TableNav] : 'marker-type' },
-            0,
-            { change : this.#onMarkerTypeChanged.bind(this) });
+        $clear(span);
+        const select = $select(null,
+            this.#onMarkerTypeChanged.bind(this),
+            { class : 'inlineMarkerType', [Attributes.TableNav] : 'marker-type' });
         const initialValue = this.markerRow.forAdd() ? this.#stickyAddSettings.markerType() : this.markerRow.markerType();
         for (const [title, value] of Object.entries(MarkerType)) {
-            const option = buildNode('option', { value }, title);
+            const option = $option(title, value);
             if (value === initialValue) {
                 option.selected = true;
             }
@@ -267,11 +254,11 @@ class MarkerEdit {
      * Replace the static marker start/end times with editable text fields. */
     #buildTimeEdit() {
         const start = this.markerRow.row().children[1];
-        clearEle(start);
+        $clear(start);
         start.appendChild(this.getTimeInput(false));
 
         const end = this.markerRow.row().children[2];
-        clearEle(end);
+        $clear(end);
         end.appendChild(this.getTimeInput(true));
         $$('input', start).focus();
         $$('input', start).select();
@@ -288,8 +275,8 @@ class MarkerEdit {
         }
 
         const destination = this.markerRow.row().children[3];
-        clearEle(destination);
-        appendChildren(destination,
+        $clear(destination);
+        $append(destination,
             ButtonCreator.iconButton(
                 Icons.Confirm,
                 `Confirm ${operation}`,
@@ -489,15 +476,13 @@ class MarkerEdit {
             return base + post;
         })('chapterSelectContainer');
 
-        const select = buildNode(
-            'select',
+        const select = $select(null,
+            this.#onChapterInputChanged.bind(this),
             {
                 class : 'editByChapter',
                 [Attributes.ChapterFn] : end ? 'end' : 'start',
                 [Attributes.TableNav] : `time-${end ? 'end' : 'start'}`
-            },
-            0,
-            { change : this.#onChapterInputChanged.bind(this) });
+            });
 
         // If we're editing an exiting marker, start out with chapters that are closest to the original marker value.
         let currentValue = $$('.timeInput', this.markerRow.row().children[end ? 2 : 1]);
@@ -514,14 +499,14 @@ class MarkerEdit {
                 bestValue = index;
             }
 
-            select.appendChild(buildNode('option', { value : index }, displayTitle));
+            select.appendChild($option(displayTitle, index));
         }
 
         select.value = bestValue;
         select.title = select.children[bestValue].innerText;
 
-        return appendChildren(buildNode('span', { class : 'chapterSelect hidden' }),
-            buildNode('label', { for : id, class : 'hidden' }, end ? 'End Chapter' : 'Start Chapter'),
+        return $append($span(null, { class : 'chapterSelect hidden' }),
+            $label(end ? 'End Chapter' : 'Start Chapter', id, { class : 'hidden' }),
             select);
     }
 
@@ -667,7 +652,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
 
         const thumbnail = this.#thumbnails.buildThumbnail(isEnd);
-        return appendChildren(buildNode('div', { class : 'thumbnailTimeInput' }), input, thumbnail);
+        return $divHolder({ class : 'thumbnailTimeInput' }, input, thumbnail);
     }
 
     /**

@@ -1,4 +1,5 @@
-import { $, appendChildren, buildNode, pad0, toggleVisibility } from './Common.js';
+import { $, $append, $br, $div, $divHolder, $h, $hr, $span, $text } from './HtmlHelpers.js';
+import { pad0, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkDeleteStickySettings } from 'StickySettings';
@@ -43,14 +44,16 @@ class BulkDeleteOverlay {
      * Launch the bulk delete overlay.
      * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
     show(focusBack) {
-        const container = buildNode('div', { id : 'bulkActionContainer' });
-        const title = buildNode('h1', {}, `Delete All Markers`);
-        appendChildren(container,
+        const container = $div({ id : 'bulkActionContainer' });
+        const title = $h(1, `Delete All Markers`);
+        $append(container,
             title,
-            buildNode('hr'),
-            buildNode('h4', {}, `Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?<br>This cannot be undone.`),
+            $hr(),
+            $h(4, $append($span(),
+                $text(`Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?`), $br(),
+                $text(`This cannot be undone.`))),
             BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
-            appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
+            $divHolder({ id : 'bulkActionButtons' },
                 ButtonCreator.fullButton('Delete All',
                     Icons.Confirm,
                     ThemeColors.Green,

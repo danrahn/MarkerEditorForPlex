@@ -440,8 +440,8 @@ class ContextualLog extends ConsoleLog {
         return log;
     }
 
-    constructor(prefix) {
-        if (!ContextualLog.#createGuard) {
+    constructor(prefix, force=false) {
+        if (!force && !ContextualLog.#createGuard) {
             throw new Error('Contextual logs should only be created via ContextualLog.Create');
         }
 

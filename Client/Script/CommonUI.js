@@ -1,4 +1,4 @@
-import { appendChildren, buildNode } from './Common.js';
+import { $append, $checkbox, $div, $label } from './HtmlHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 
 /**
@@ -15,13 +15,13 @@ export function customCheckbox(attrs={}, events={}, labelProps={}, options={}) {
         delete attrs.checked;
     }
 
-    const checkbox = buildNode('input', { type : 'checkbox', ...attrs }, 0, events, options);
+    const checkbox = $checkbox(attrs, events, options);
     if (shouldCheck) {
         checkbox.checked = true;
     }
 
     // This is the "real" checkbox that can be styled however we see fit, unlike standard checkboxes.
-    const label = buildNode('label', { for : checkbox.getAttribute('id'), class : 'customCheckbox' });
+    const label = $label(null, checkbox.getAttribute('id'), { class : 'customCheckbox' });
     for (const [key, value] of Object.entries(labelProps)) {
         if (key === 'class') {
             value.split(' ').forEach(c => label.classList.add(c));
@@ -30,12 +30,7 @@ export function customCheckbox(attrs={}, events={}, labelProps={}, options={}) {
         }
     }
 
-    return appendChildren(
-        buildNode('div', { class : 'customCheckboxContainer' }),
-        appendChildren(
-            buildNode('div', { class : 'customCheckboxInnerContainer noSelect' }),
-            checkbox,
-            label
-        )
+    return $div({ class : 'customCheckboxContainer' },
+        $append($div({ class : 'customCheckboxInnerContainer noSelect' }), checkbox, label)
     );
 }

@@ -1,4 +1,4 @@
-import { appendChildren, buildNode, buildText } from '../Common.js';
+import { $append, $code, $divHolder, $hr, $li, $span, $text, $ul } from '../HtmlHelpers.js';
 import { ServerSettings } from '/Shared/ServerConfig.js';
 
 /** @type {{[key: string]: HTMLElement}} */
@@ -8,11 +8,11 @@ let SettingTooltips = null;
  * @param {string|HTMLElement} shortDescription
  * @param {string|HTMLElement} longDescription */
 function createTooltip(shortDescription, longDescription) {
-    const short = (shortDescription instanceof Element) ? shortDescription : buildText(shortDescription);
-    const long = (longDescription instanceof Element) ? longDescription : buildText(longDescription);
-    return appendChildren(buildNode('div', { class : 'serverSettingTooltip' }),
+    const short = (shortDescription instanceof Element) ? shortDescription : $text(shortDescription);
+    const long = (longDescription instanceof Element) ? longDescription : $text(longDescription);
+    return $divHolder({ class : 'serverSettingTooltip' },
         short,
-        buildNode('hr'),
+        $hr(),
         long
     );
 }
@@ -33,12 +33,12 @@ function initializeServerSettingsTooltips() {
         ),
         [ServerSettings.Database] : createTooltip(
             `Full path to the Plex database`,
-            appendChildren(buildNode('span'),
-                buildText(`Defaults to `),
-                buildNode('code', {}, 'com.plexapp.plugins.library.db'),
-                buildText(` within the `),
-                buildNode('code', {}, `Plug-in Support/Databases`),
-                buildText(` folder of the data directory above. Optional if said data path is valid. ` +
+            $append($span(),
+                $text(`Defaults to `),
+                $code('com.plexapp.plugins.library.db'),
+                $text(` within the `),
+                $code(`Plug-in Support/Databases`),
+                $text(` folder of the data directory above. Optional if said data path is valid. ` +
                 `Providing an explicit path can be useful for testing if you want to run this application on a copy of your ` +
                 `database to ensure nothing unexpected happens.`)
             )
@@ -132,22 +132,22 @@ function initializeServerSettingsTooltips() {
         ),
         [ServerSettings.FFmpegThumbnails] : createTooltip(
             `Determines how to retrieve preview thumbnails`,
-            appendChildren(buildNode('span'),
-                buildText('Can only be set if Preview Thumbnails are enabled. If they are, and this setting is:'),
-                appendChildren(buildNode('ul'),
-                    appendChildren(buildNode('li'),
-                        buildText(`Disabled: Use video preview thumbnails that Plex generates. This ` +
+            $append($span(),
+                $text('Can only be set if Preview Thumbnails are enabled. If they are, and this setting is:'),
+                $append($ul(),
+                    $append($li(),
+                        $text(`Disabled: Use video preview thumbnails that Plex generates. This ` +
                         `won't work if preview thumbnails are disabled, and can be very inaccurate depending on your `),
-                        buildNode('code', {}, 'GenerateBIFFrameInterval'),
-                        buildText(' and '),
-                        buildNode('code', {}, 'GenerateBIFKeyframesOnly'),
-                        buildText(' settings.')
+                        $code('GenerateBIFFrameInterval'),
+                        $text(' and '),
+                        $code('GenerateBIFKeyframesOnly'),
+                        $text(' settings.')
                     ),
-                    appendChildren(buildNode('li'),
-                        buildText(`Enabled: Use FFmpeg to generate thumbnails on-the-fly. These are much more ` +
+                    $append($li(),
+                        $text(`Enabled: Use FFmpeg to generate thumbnails on-the-fly. These are much more ` +
                             `accurate than Plex-generated thumbnails, but `),
-                        buildNode('code', {}, 'ffmpeg'),
-                        buildText(` must be on your path, and can take significantly longer to retrieve, ` +
+                        $code('ffmpeg'),
+                        $text(` must be on your path, and can take significantly longer to retrieve, ` +
                             `especially for large files.`)
                     ),
                 ),

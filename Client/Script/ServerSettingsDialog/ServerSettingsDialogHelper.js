@@ -1,4 +1,4 @@
-import { $$, appendChildren, buildNode, buildText } from '../Common.js';
+import { $$, $a, $append, $p, $span, $text } from '../HtmlHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 import ButtonCreator from '../ButtonCreator.js';
 import Icons from '../Icons.js';
@@ -43,30 +43,24 @@ export function settingHolder(setting, extra=null) {
  * @param {ServerConfigState} state
  * @returns {[string, HTMLElement]} */
 export function settingsDialogIntro(state) {
-    const footer = appendChildren(buildNode('p'),
-        buildText(`For more details about a setting, hover over the question mark icon, or visit `),
-        buildNode('a',
-            {
-                href : 'https://github.com/danrahn/MarkerEditorForPlex/wiki/configuration',
-                rel : 'noreferrer',
-                target : '_blank'
-            },
-            'the configuration wiki'),
-        buildText('.')
+    const footer = $append($p(),
+        $text(`For more details about a setting, hover over the question mark icon, or visit `),
+        $a('the configuration wiki', 'https://github.com/danrahn/MarkerEditorForPlex/wiki/configuration'),
+        $text('.')
     );
 
     switch (state) {
         case ServerConfigState.Valid:
             return ['Server Settings', footer];
         case ServerConfigState.DoesNotExist:
-            return ['Marker Editor Setup', appendChildren(buildNode('span'),
-                buildNode('p', {}, `Welcome to Marker Editor! It looks like you don't have a configuration file set up yet. ` +
+            return ['Marker Editor Setup', $append($span(),
+                $p(`Welcome to Marker Editor! It looks like you don't have a configuration file set up yet. ` +
                     `Please adjust the values below to your liking. If a value isn't provided, the default value listed will be used.`),
                 footer)
             ];
         case ServerConfigState.Invalid:
-            return ['Marker Editor Setup', appendChildren(buildNode('span'),
-                buildNode('p', {}, 'It looks like one or more values in config.json are no longer valid. Please correct them ' +
+            return ['Marker Editor Setup', $append($span(),
+                $p('It looks like one or more values in config.json are no longer valid. Please correct them ' +
                 'below before continuing.'),
                 footer)
             ];

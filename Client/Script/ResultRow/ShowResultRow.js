@@ -5,7 +5,7 @@ import { SectionOptionsResultRow } from './SectionOptionsResultRow.js';
 import { ShowResultRowBase } from './ShowResultRowBase.js';
 import { ShowTitleResultRow } from './ShowTitleResultRow.js';
 
-import { $$, buildNode, clearEle, plural } from '../Common.js';
+import { $$, $clear, $hr, $span } from '../HtmlHelpers.js';
 import { errorMessage, errorResponseOverlay } from '../ErrorHandling.js';
 import { FilterSettings, SortConditions, SortOrder } from '../FilterDialog.js';
 import { UISection, UISections } from '../ResultSections.js';
@@ -14,6 +14,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { CustomEvents } from '../CustomEvents.js';
 import Overlay from '../Overlay.js';
 import { PlexClientState } from '../PlexClientState.js';
+import { plural } from '../Common.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { SeasonData } from '/Shared/PlexTypes.js';
 import { ServerCommands } from '../Commands.js';
@@ -165,7 +166,7 @@ export class ShowResultRow extends ShowResultRowBase {
         this.#showTitle = new ShowTitleResultRow(this.show());
         addRow(this.#showTitle.buildRow());
         addRow(new BulkActionResultRow(this.show()).buildRow());
-        addRow(buildNode('hr', { style : 'margin-top: 0' }));
+        addRow($hr({ style : 'margin-top: 0' }));
         this.#seasonsFiltered = 0;
         /** @type {HTMLElement?} */
         let firstRow = undefined;
@@ -247,7 +248,7 @@ export class ShowResultRow extends ShowResultRowBase {
         addRow(this.#sectionTitle.html());
         addRow(this.#showTitle.html());
         addRow(new BulkActionResultRow(this.show()).buildRow());
-        addRow(buildNode('hr', { style : 'margin-top: 0' }));
+        addRow($hr({ style : 'margin-top: 0' }));
         const seasons = this.#sortedSeasons();
         this.#seasonsFiltered = 0;
         let anyShowing = false;
@@ -288,9 +289,9 @@ export class ShowResultRow extends ShowResultRowBase {
             seasons.innerHTML = baseText;
         } else {
             Tooltip.setTooltip(seasons, `Current filter is hiding ${plural(this.#seasonsFiltered, 'season')}.`);
-            clearEle(seasons);
+            $clear(seasons);
             seasons.appendChild(filteredListIcon());
-            seasons.appendChild(buildNode('span', {}, baseText));
+            seasons.appendChild($span(baseText));
         }
     }
 

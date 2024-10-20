@@ -1,4 +1,5 @@
-import { appendChildren, buildNode, msToHms } from './Common.js';
+import { $append, $br, $img, $plainDivHolder, $span, $td, $tr } from './HtmlHelpers.js';
+import { msToHms } from './Common.js';
 
 import * as DateUtil from './DateUtil.js';
 import Tooltip, { TooltipTextSize } from './Tooltip.js';
@@ -30,12 +31,12 @@ class TableElements {
      * @param {...[string|HTMLElement|CustomClassColumn]} tds The list of columns to add to the table row.
      */
     static rawTableRow(...tds) {
-        const tr = buildNode('tr');
+        const tr = $tr();
         for (const td of tds) {
             if (td instanceof CustomClassColumn) {
-                tr.appendChild(buildNode('td', td.properties, td.value));
+                tr.appendChild($td(td.value, td.properties));
             } else {
-                tr.appendChild(buildNode('td', {}, td));
+                tr.appendChild($td(td));
             }
         }
 
@@ -93,14 +94,12 @@ class TableElements {
      * @param {number} offset The offset, in milliseconds.
      * @param {TimestampThumbnails?} thumbnails */
     static timeData(time, addThumbPlaceholder, isEnd=false) {
-        const timeSpan = buildNode('span', { title : time }, msToHms(time));
+        const timeSpan = $span(msToHms(time), { title : time });
         if (!addThumbPlaceholder) {
             return timeSpan;
         }
 
-        return appendChildren(buildNode('div'),
-            timeSpan,
-            buildNode('img', { class : `staticThumb placeholder staticThumb${isEnd ? 'End' : 'Start'}` }));
+        return $plainDivHolder(timeSpan, $img({ class : `staticThumb placeholder staticThumb${isEnd ? 'End' : 'Start'}` }));
     }
 
     /**
@@ -109,7 +108,7 @@ class TableElements {
     static friendlyDate(marker) {
         const createDate = DateUtil.getDisplayDate(marker.createDate * 1000); // Seconds to ms
         const userModified = marker.modifiedDate !== null || marker.createdByUser;
-        const node = buildNode('span', { class : userModified ? 'userModifiedMarker' : '' }, createDate);
+        const node = $span(createDate, { class : userModified ? 'userModifiedMarker' : '' });
         Tooltip.setTooltip(node, TableElements.#dateTooltip(marker), { textSize : TooltipTextSize.Smaller });
         return node;
     }
@@ -118,7 +117,7 @@ class TableElements {
      * Create a table row that spans the entire length of the table.
      * @param {string|HTMLElement} column The content of the column. */
     static spanningTableRow(content, attributes={}) {
-        return appendChildren(buildNode('tr', attributes), buildNode('td', { colspan : 5, class : 'spanningTableRow' }, content));
+        return $tr(attributes, $td(content, { colspan : 5, class : 'spanningTableRow' }));
     }
 
     /**
@@ -135,12 +134,10 @@ class TableElements {
      * @param {MarkerData} marker */
     static #dateTooltip(marker) {
         const fullCreateDate = DateUtil.getFullDate(marker.createDate * 1000); // s to ms
-        const tooltip = appendChildren(buildNode('span'),
-            buildNode('span', {}, `${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`));
+        const tooltip = $append($span(),
+            $span(`${marker.createdByUser ? 'Manually added' : 'Automatically created'} on ${fullCreateDate}`));
         if (marker.modifiedDate !== null) {
-            appendChildren(tooltip,
-                buildNode('br'),
-                buildNode('span', {}, `Last modified on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`));
+            $append(tooltip, $br(), $span(`Last modified on ${DateUtil.getFullDate(marker.modifiedDate * 1000)}`));
         }
 
         return tooltip;

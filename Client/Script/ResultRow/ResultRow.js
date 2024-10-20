@@ -1,4 +1,5 @@
-import { $, $$, appendChildren, buildNode, buildText, clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
+import { $, $$, $append, $b, $br, $div, $hr, $i, $span, $text } from '../HtmlHelpers.js';
+import { clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import Tooltip, { TooltipTextSize } from '../Tooltip.js';
@@ -12,6 +13,7 @@ import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import { ThemeColors } from '../ThemeColors.js';
+import TooltipBuilder from '../TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('../Tooltip.js').TooltipOptions} TooltipOptions */
@@ -40,8 +42,7 @@ const Log = ContextualLog.Create('ResultRow');
  * Return a warning icon used to represent that a show/season/episode has purged markers.
  * @returns {HTMLImageElement} */
 export function purgeIcon() {
-    return appendChildren(buildNode('i', { tabindex : 0 }, 0, { keyup : clickOnEnterCallback }),
-        getSvgIcon(Icons.Warn, ThemeColors.Orange, { class : 'purgedIcon' }));
+    return $i({ tabindex : 0 }, getSvgIcon(Icons.Warn, ThemeColors.Orange, { class : 'purgedIcon' }), { keyup : clickOnEnterCallback });
 }
 
 /**
@@ -49,8 +50,7 @@ export function purgeIcon() {
  * entries due to the current filter.
  * @returns {HTMLImageElement} */
 export function filteredListIcon() {
-    return appendChildren(buildNode('i'),
-        getSvgIcon(Icons.Filter, ThemeColors.Orange, { width : 16, height : 16, class : 'filteredGroupIndicator' }));
+    return $i(null, getSvgIcon(Icons.Filter, ThemeColors.Orange, { width : 16, height : 16, class : 'filteredGroupIndicator' }));
 }
 
 /** Represents a single row of a show/season/episode in the results page. */
@@ -61,8 +61,7 @@ export class ResultRow {
      * the active filter is hiding all of them. Clicking the row displays the filter UI.
      * @returns {HTMLElement} */
     static NoResultsBecauseOfFilterRow() {
-        return buildNode(
-            'div',
+        return $div(
             { class : 'topLevelResult tabbableRow', tabindex : 0 },
             'No results with the current filter.',
             { click : () => new FilterDialog(PlexClientState.activeSectionType()).show(),
@@ -214,10 +213,10 @@ export class ResultRow {
         properties.class = className;
         titleColumn.classList.add('resultTitle');
 
-        return appendChildren(buildNode('div', properties, 0, events),
+        return $append($div(properties, 0, events),
             titleColumn,
             customColumn,
-            buildNode('div', { class : 'showResultEpisodes' }, this.episodeDisplay()));
+            $div({ class : 'showResultEpisodes' }, this.episodeDisplay()));
     }
 
     /**
@@ -381,7 +380,7 @@ export class ResultRow {
      * @param {() => void} callback The callback to invoke when the button is clicked. */
     addBackButton(row, buttonText, callback) {
         row.classList.add('selected');
-        appendChildren(row.appendChild(buildNode('div', { class : 'goBack' })),
+        $append(row.appendChild($div({ class : 'goBack' })),
             ButtonCreator.fullButton(buttonText, Icons.Back, ThemeColors.Primary, callback, { [Attributes.TableNav] : 'back' }));
     }
 
@@ -393,10 +392,10 @@ export class ResultRow {
     episodeDisplay() {
         const mediaItem = this.mediaItem();
         const baseText = plural(mediaItem.episodeCount, 'Episode');
-        const purgeTooltip = withStats => {
+        /** @type {(tt: TooltipBuilder) => void} */
+        const purgeTooltip = tt => {
             const purgeCount = this.getPurgeCount();
-            const markerText = purgeCount === 1 ? 'marker' : 'markers';
-            return `${withStats ? '' : '<span>'}<b>${purgeCount} purged ${markerText}</b><br>Click for details</span>`;
+            tt.addRaw($b(plural(purgeCount, 'purged marker')), $br(), 'Click for details');
         };
 
         /** @type {TooltipOptions} */
@@ -411,15 +410,17 @@ export class ResultRow {
 
             if (!this.hasPurgedMarkers()) {
                 // For episodeDisplay updating, be consistent and wrap base text in a div.
-                return buildNode('span', {}, baseText);
+                return $span(baseText);
             }
 
             // Still want purge icon if necessary
-            const purgeText = buildNode('span', {}, baseText);
+            const purgeText = $span(baseText);
             purgeText.appendChild(purgeIcon());
 
-            const mainText = buildNode('span', { class : 'episodeDisplayText' }, purgeText, { click : this.getPurgeEventListener() });
-            Tooltip.setTooltip(mainText, purgeTooltip(false /*withStats*/), ttOptions);
+            const mainText = $span(purgeText, { class : 'episodeDisplayText' }, purgeText, { click : this.getPurgeEventListener() });
+            const tt = new TooltipBuilder();
+            purgeTooltip(tt);
+            Tooltip.setTooltip(mainText, tt.get(), ttOptions);
             return mainText;
         }
 
@@ -427,7 +428,8 @@ export class ResultRow {
 
         // Tooltip should really handle more than plain text, but for now write the HTML itself to allow
         // for slightly larger text than the default.
-        let tooltipText = `<span>${baseText}<hr>`;
+        const tooltip = new TooltipBuilder(baseText);
+        tooltip.addRaw($hr());
         const breakdown = mediaItem.markerBreakdown();
         const intros = breakdown.itemsWithIntros();
         const credits = breakdown.itemsWithCredits();
@@ -435,53 +437,59 @@ export class ResultRow {
         const items = breakdown.totalItems();
         /** @type {(n: number) => 'has' | 'have'} */
         const hasHave = (n) => n === 1 ? 'has' : 'have';
-        tooltipText += `${intros} ${hasHave(intros)} intros (${(intros / items * 100).toFixed(0)}%)<br>`;
-        tooltipText += `${credits} ${hasHave(credits)} credits (${(credits / items * 100).toFixed(0)}%)${ads < 1 ? '<hr>' : '<br>'}`;
+        tooltip.addRaw(`${intros} ${hasHave(intros)} intros (${(intros / items * 100).toFixed(0)}%)`);
+        tooltip.addRaw(
+            $br(),
+            `${credits} ${hasHave(credits)} credits (${(credits / items * 100).toFixed(0)}%)`,
+            ads < 1 ? $hr() : $br());
 
         // Only add ad data if there's at least one, since the average user without a DVR won't have many/any.
-        if (ads > 0) tooltipText += `${ads} ${hasHave(ads)} ads (${(ads / items * 100).toFixed(0)}%)<hr>`;
+        if (ads > 0) tooltip.addRaw(`${ads} ${hasHave(ads)} ads (${(ads / items * 100).toFixed(0)}%)`, $hr());
         for (const [key, episodeCount] of Object.entries(mediaItem.markerBreakdown().collapsedBuckets())) {
-            tooltipText += `${episodeCount} ${episodeCount === 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}<br>`;
+            tooltip.addRaw(`${episodeCount} ${episodeCount === 1 ? 'has' : 'have'} ${plural(parseInt(key), 'marker')}`, $br());
             if (+key !== 0) {
                 atLeastOne += episodeCount;
             }
         }
 
         if (atLeastOne === 0) {
-            tooltipText = `<span class="largeTooltip">${baseText}<br>None have markers.</span>`;
+            tooltip.setRaw($append($span(null, { class : 'largeTooltip' }),
+                $text(baseText),
+                $br(),
+                $text('None have markers.')));
             ttOptions.noBreak = false;
         } else {
             const totalIntros = breakdown.totalIntros();
             const totalCredits = breakdown.totalCredits();
             const totalAds = breakdown.totalAds();
-            tooltipText += `<hr>${plural(totalIntros, 'total intro')}<br>`;
-            tooltipText += `${plural(totalCredits, 'total credit')}<br>`;
-            if (totalAds > 0) tooltipText += `${plural(totalAds, 'total ad')}<br>`;
-            tooltipText += this.hasPurgedMarkers() ? '<hr>' : '</span>';
+            tooltip.addRaw($hr(), plural(totalIntros, 'total intro'), $br());
+            tooltip.addRaw(plural(totalCredits, 'total credit'), $br());
+            if (totalAds > 0) tooltip.addRaw(plural(totalAds, 'total ad'), $br());
+            if (this.hasPurgedMarkers()) tooltip.addRaw($hr());
         }
 
         const smallScreen = isSmallScreen();
         const percent = (atLeastOne / mediaItem.episodeCount * 100).toFixed(smallScreen ? 0 : 2);
         let displayText = `${atLeastOne}/${mediaItem.episodeCount} `;
         if (smallScreen) {
-            displayText = appendChildren(buildNode('span', { class : 'episodeDisplayHolder' }),
-                buildText(displayText),
-                buildNode('i',
+            displayText = $append($span(null, { class : 'episodeDisplayHolder' }),
+                $text(displayText),
+                $i(
                     { class : 'markerInfoIcon' },
                     getSvgIcon(Icons.Info, ThemeColors.Primary, { height : 12 }),
                     { click : () => { if (Tooltip.active()) { Tooltip.dismiss(); } } }));
         } else {
             displayText += `(${percent}%)`;
-            displayText = buildNode('span', {}, displayText);
+            displayText = $span(displayText);
         }
 
         if (this.hasPurgedMarkers()) {
             displayText.appendChild(purgeIcon());
-            tooltipText += purgeTooltip(true /*withStats*/);
+            purgeTooltip(tooltip);
         }
 
-        const mainText = buildNode('span', { class : 'episodeDisplayText' }, displayText);
-        Tooltip.setTooltip(mainText, tooltipText, ttOptions);
+        const mainText = $span(displayText, { class : 'episodeDisplayText' });
+        Tooltip.setTooltip(mainText, tooltip.get(), ttOptions);
         if (this.hasPurgedMarkers()) {
             mainText.addEventListener('click', this.getPurgeEventListener());
         }

@@ -1,6 +1,6 @@
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { buildNode, buildNodeNS } from './Common.js';
+import { $div, $svg } from './HtmlHelpers.js';
 
 /** @typedef {!import('./Icons').IconKeys} IconKeys */
 /** @typedef {!import('./ThemeColors').ThemeColorKeys} ThemeColorKeys */
@@ -25,19 +25,15 @@ let staticPlaceholder;
 
 /**
  * Retrieve the placeholder SVG element. It's only a method because
- * adding buildNodeNS to the top-level scope causes my bad test infra
+ * adding HTML builders to the top-level scope causes my bad test infra
  * to fail attempting to call document.createElementNS */
 function getPlaceholder() {
-    return staticPlaceholder ??= buildNodeNS(
-        'http://www.w3.org/2000/svg',
-        'svg',
-        {
-            viewBox : `0 0 16 16`,
-            xmlns : 'http://www.w3.org/2000/svg',
-            x : 0,
-            y : 0
-        }
-    );
+    return staticPlaceholder ??= $svg({
+        viewBox : `0 0 16 16`,
+        xmlns : 'http://www.w3.org/2000/svg',
+        x : 0,
+        y : 0
+    });
 }
 
 /**
@@ -57,7 +53,7 @@ const svgFetchMap = new Map();
  * @param {string} iconName
  * @param {string} svgString */
 function setCache(iconName, svgString) {
-    svgCache.set(iconName, buildNode('div', 0, svgString).firstChild);
+    svgCache.set(iconName, $div(0, svgString).firstChild);
 }
 
 /**

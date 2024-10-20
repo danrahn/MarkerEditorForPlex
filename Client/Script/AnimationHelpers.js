@@ -1,5 +1,5 @@
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
-import { $$ } from './Common.js';
+import { $$ } from './HtmlHelpers.js';
 import { Attributes } from './DataAttributes.js';
 
 const Log = ContextualLog.Create('Animate');

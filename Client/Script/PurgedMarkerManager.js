@@ -1,5 +1,7 @@
-import { $, $$, appendChildren, buildNode, clearEle, pad0 } from './Common.js';
+import { $, $$, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $node, $option, $select, $span, $table, $tbody,
+    $td, $textSpan, $thead } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { pad0 } from './Common.js';
 
 import {
     AgnosticPurgeCache,
@@ -125,7 +127,7 @@ class PurgeOptions {
         this.#ignoreCancelInfo = ignoreCancelInfo;
         this.#getMarkersFn = getMarkersFn;
         const buttonFn = dynamicButtons ? ButtonCreator.dynamicButton : ButtonCreator.fullButton;
-        appendChildren(this.#parent,
+        $append(this.#parent,
             buttonFn(
                 restoreInfo.text,
                 restoreInfo.icon,
@@ -336,7 +338,7 @@ class PurgeRow {
 
     /** Creates the restore/ignore option buttons for this row. */
     #addPurgeOptions() {
-        const holder = buildNode('div', { class : 'purgeOptionsHolder' });
+        const holder = $div({ class : 'purgeOptionsHolder' });
         this.#purgeOptions = new PurgeOptions(holder);
         const ignoreConfirm = new PurgeActionInfo('Yes', Icons.Confirm, this.#onIgnoreSuccess.bind(this), this.#onIgnoreFailed.bind(this));
         const ignoreCancel = new PurgeNonActionInfo('No', Icons.Cancel, this.#onIgnoreCancel.bind(this));
@@ -383,7 +385,7 @@ class PurgeRow {
         this.#html.style.height = this.#html.getBoundingClientRect().height + 'px';
         flashBackground(this.#html, successColor, 750);
         animateOpacity(this.#html, 1, 0, { duration : 250, delay : 500 }, () => {
-            clearEle(this.#html);
+            $clear(this.#html);
             slideUp(this.#html, 250, this.#removeSelfAfterAnimation.bind(this));
         });
     }
@@ -458,7 +460,7 @@ class PurgeRow {
         }
 
         this.#html.insertBefore(
-            buildNode('td', { colspan : this.#backupLength(), class : 'spanningTableRow' }, message),
+            $td(message, { colspan : this.#backupLength(), class : 'spanningTableRow' }),
             this.#html.firstChild);
     }
 
@@ -526,8 +528,8 @@ class TVPurgeRow extends PurgeRow {
     customTableColumns() {
         const ep = this.markerAction().episodeData;
         return [
-            buildNode('span', {}, this.markerAction().marker_type),
-            buildNode('span', { title : ep.title }, `S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`),
+            $span(this.markerAction().marker_type),
+            $span(`S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`, { title : ep.title }),
         ];
     }
 
@@ -561,7 +563,7 @@ class MoviePurgeRow extends PurgeRow {
      * @returns {HTMLElement} */
     customTableColumns() {
         return  [
-            buildNode('span', {}, this.markerAction().marker_type),
+            $span(this.markerAction().marker_type),
         ];
     }
 
@@ -605,7 +607,7 @@ class BulkPurgeAction {
         this.#getMarkersFn = getMarkersFn;
         // Just create all four necessary buttons instead of dealing with overwriting/adding/removing
         // various button states. Just deal with hidden/visible.
-        this.#html = buildNode('div', { class : 'buttonContainer', id : id });
+        this.#html = $div({ class : 'buttonContainer', id : id });
         this.#options = new PurgeOptions(this.#html);
         this.#options.addButtons(
             new PurgeActionInfo(restoreText, Icons.Confirm, this.#onRestoreSuccess.bind(this), this.#onRestoreFail.bind(this)),
@@ -652,11 +654,11 @@ class BulkPurgeAction {
             //       all markers in the overlay are taken care of, and we don't want to interrupt with an overlay.
             // const arrLen = (x) => x ? Object.values(x).reduce((sum, arr) => sum + arr.length, 0) : 0;
 
-            // Overlay.show(`<h2>Restoration Succeeded</h2><hr>` +
-            //     `Restored Markers: ${arrLen(newMarkers)}<br>` +
-            //     `Edited Markers: ${arrLen(modifiedMarkers)}<br>` +
-            //     `Replaced Markers: ${arrLen(deletedMarkers)}<br>` +
-            //     `Ignored Markers: ${ignoredMarkers}`);
+            // Overlay.show($plainDivHolder($h(2, `Restoration Succeeded`), $hr(),
+            //     `Restored Markers: ${arrLen(newMarkers)}`, $br(),
+            //     `Edited Markers: ${arrLen(modifiedMarkers)}`, $br(),
+            //     `Replaced Markers: ${arrLen(deletedMarkers)}`, $br(),
+            //     `Ignored Markers: ${ignoredMarkers}`));
             this.#successCallback(newMarkers, deletedMarkers, modifiedMarkers);
         }.bind(this));
     }
@@ -719,13 +721,13 @@ class PurgeTable {
         const firstMarker = this.#purgedGroup.getAny();
         const typePrefix = (this.#purgedGroup instanceof PurgedShow) ? 'purgeshow' : 'purgemovie';
         const countPostfix = (this.#purgedGroup instanceof PurgedShow) ? firstMarker.show_id : firstMarker.parent_id;
-        const container = buildNode('div', { class : 'purgeGroupContainer', id : `${typePrefix}_${countPostfix}` });
+        const container = $div({ class : 'purgeGroupContainer', id : `${typePrefix}_${countPostfix}` });
         if (this.#displayType === DisplayType.All) {
             // <hr> to break up different shows if we're showing all purges in the section
-            container.appendChild(buildNode('hr'));
+            container.appendChild($hr());
         }
 
-        container.appendChild(buildNode('h2', {}, this.mainTitle()));
+        container.appendChild($h(2, this.mainTitle()));
         if (this.#showResolutionControl) {
             container.appendChild(PurgeConflictControl.GetControl());
         }
@@ -744,10 +746,10 @@ class PurgeTable {
                     this.markers.bind(this)).html());
         }
 
-        const table = buildNode('table', { class : 'markerTable' });
-        table.appendChild(appendChildren(buildNode('thead'), this.tableHeader()));
+        const table = $table({ class : 'markerTable' });
+        table.appendChild($thead(this.tableHeader()));
 
-        const tbody = buildNode('tbody');
+        const tbody = $tbody();
 
         /**
          * @param {MarkerAction} marker
@@ -767,7 +769,7 @@ class PurgeTable {
     /** @returns {string} */
     mainTitle() { Log.error(`mainTitle cannot be called on the base class.`); return ''; }
     /** @returns {HTMLElement} */
-    tableHeader() { Log.error(`tableHeader cannot be called on the base class.`); return buildNode('span'); }
+    tableHeader() { Log.error(`tableHeader cannot be called on the base class.`); return $span(); }
     /** @returns {PurgeRow} */
     getNewPurgedRow() { Log.error(`getNewPurgedRow cannot be called on the base class.`); }
     /** @returns {PurgedSection} */
@@ -894,9 +896,9 @@ class MoviePurgeTable extends PurgeTable {
 
 class PurgeConflictControl {
     static #resolutionDescriptions = {
-        [MarkerConflictResolution.Overwrite] :
-            `If any existing markers overlap with the restored marker, delete the existing marker.<br>` +
-            `This is useful if you previously tweaked Plex-generated markers and analyzing the item reset them.`,
+        [MarkerConflictResolution.Overwrite] : $textSpan(
+            `If any existing markers overlap with the restored marker, delete the existing marker.`, $br(),
+            `This is useful if you previously tweaked Plex-generated markers and analyzing the item reset them.`),
         [MarkerConflictResolution.Merge] :
             `If any existing markers overlap with the restored marker, merge them into one marker that spans ` +
             `the full length of both.`,
@@ -906,18 +908,19 @@ class PurgeConflictControl {
     };
 
     static GetControl() {
-        const selectContainer = buildNode('div', { id : 'purgeResolutionContainer' });
+        const selectContainer = $div({ id : 'purgeResolutionContainer' });
 
         const resolutionTypeChange = () => {
             const description = $$('#purgeResolutionDescription');
             if (description) {
-                description.innerHTML = PurgeConflictControl.#resolutionDescriptions[PurgeConflictControl.CurrentResolutionType()];
+                $clear(description);
+                description.appendChild($node(PurgeConflictControl.#resolutionDescriptions[PurgeConflictControl.CurrentResolutionType()]));
             }
         };
 
-        const select = buildNode('select', { id : 'purgeResolution' }, 0, { change : resolutionTypeChange });
+        const select = $select('purgeResolution', resolutionTypeChange);
         for (const [key, value] of Object.entries(MarkerConflictResolution)) {
-            select.appendChild(buildNode('option', { value }, key));
+            select.appendChild($option(key, value));
         }
 
         const showHideResolutionStrategy = () => {
@@ -927,19 +930,20 @@ class PurgeConflictControl {
             description.classList.toggle('hidden');
         };
 
-        appendChildren(selectContainer,
-            buildNode(
-                'label', {
+        $append(selectContainer,
+            $label(
+                $append($span(),
+                    getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'expandIcon collapsed' }),
+                    $span(' Resolve Strategy: ')),
+                'purgeResolution',
+                {
                     id : 'purgeResolutionLabel',
                     for : 'purgeResolution',
                     title : 'Click to show/hide resolve strategy descriptions'
                 },
-                appendChildren(buildNode('span'),
-                    getSvgIcon(Icons.Arrow, ThemeColors.Primary, { class : 'expandIcon collapsed' }),
-                    buildNode('span', {}, ' Resolve Strategy: ')),
                 { click : showHideResolutionStrategy }),
             select,
-            buildNode('div',
+            $div(
                 { id : 'purgeResolutionDescription', class : 'hidden' },
                 PurgeConflictControl.#resolutionDescriptions[MarkerConflictResolution.Overwrite]));
 
@@ -975,11 +979,11 @@ class PurgeOverlay {
      * @param {HTMLElement} focusBack The element to set focus back to after this overlay is dismissed. */
     show(focusBack) {
         // Main header + restore/ignore all buttons
-        const container = buildNode('div', { id : 'purgeContainer' });
+        const container = $div({ id : 'purgeContainer' });
         const purgeInfo = { purged : false, readd : false };
         this.#purgedSection.forEach(m => purgeInfo[m.readded ? 'readd' : 'purged'] = true);
-        appendChildren(container,
-            buildNode('h1', {}, 'Purged Markers'),
+        $append(container,
+            $h(1, 'Purged Markers'),
             PurgeConflictControl.GetControl(),
             new BulkPurgeAction('purge_all',
                 (purgeInfo.purged ? purgeInfo.readd ? 'Restore/Re-Delete' : 'Restore' : 'Re-Delete') + ' All Markers',
@@ -1033,10 +1037,9 @@ class PurgeOverlay {
 
     /** Clears out the now-useless overlay and lets the user know there are no more purged markers to handle. */
     #noMorePurges(emptyOnInit=false) {
-        const container = appendChildren(buildNode('div', { id : 'purgeContainer' }),
-            buildNode('h1', {}, emptyOnInit ? 'No Purged Markers Found' : 'No More Purged Markers'),
-            appendChildren(buildNode('div', { class : 'buttonContainer' }),
-                ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' })));
+        const container = $divHolder({ id : 'purgeContainer' },
+            $h(1, emptyOnInit ? 'No Purged Markers Found' : 'No More Purged Markers'),
+            $div({ class : 'buttonContainer' }, ButtonCreator.textButton('OK', Overlay.dismiss, { class : 'overlayInput overlayButton' })));
         Overlay.build({ dismissible : true, closeButton : true, focusBack : null }, container);
     }
 
@@ -1353,7 +1356,7 @@ class PurgedMarkerManager {
 
         const args = [purgedItem, Overlay.dismiss, displayType, true /*showResolutionControl*/];
         const table = purgedItem instanceof PurgedMovie ? new MoviePurgeTable(...args) : new TVPurgeTable(...args);
-        const html = appendChildren(buildNode('div', { id : 'purgeContainer' }), table.html());
+        const html = $div({ id : 'purgeContainer' }, table.html());
         Overlay.build({ dismissible : true, closeButton : true, focusBack : focusBack }, html);
     }
 

@@ -1,5 +1,6 @@
-import { $, appendChildren, buildNode, plural } from './Common.js';
+import { $, $br, $div, $divHolder, $h, $option, $plainDivHolder, $select } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { plural } from './Common.js';
 
 import { getPieChart, PieChartOptions } from './Chart.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
@@ -59,11 +60,11 @@ class MarkerBreakdownChart {
         MarkerBreakdownChart.#currentBreakdown = null;
         MarkerBreakdownChart.#focusBack = focusBack;
         Overlay.show(
-            appendChildren(buildNode('div'),
-                buildNode('h2', {}, 'Marker Breakdown'),
-                buildNode('br'),
-                buildNode('div', {}, 'Getting marker breakdown. This may take awhile...'),
-                buildNode('br'),
+            $plainDivHolder(
+                $h(2, 'Marker Breakdown'),
+                $br(),
+                $div({}, 'Getting marker breakdown. This may take awhile...'),
+                $br(),
                 getSvgIcon(Icons.Loading, ThemeColors.Primary, { width : 30, height : 30 })),
             'Cancel');
 
@@ -137,8 +138,8 @@ class MarkerBreakdownChart {
                 closeButton : true,
                 focusBack : MarkerBreakdownChart.#focusBack
             },
-            appendChildren(buildNode('div', { style : 'text-align: center' }),
-                appendChildren(buildNode('div', { style : 'padding-bottom: 20px' }), chartSelect),
+            $divHolder({ style : 'text-align: center' },
+                $div({ style : 'padding-bottom: 20px' }, chartSelect),
                 chart)
         );
     }
@@ -147,13 +148,9 @@ class MarkerBreakdownChart {
      * Build the dropdown that controls what specific chart is displayed.
      * @param {number} breakdownType */
     static #buildOptions(breakdownType) {
-        const sel = buildNode('select',
-            { id : 'chartBreakdownType', class : 'fancySelect' },
-            0,
-            { change : MarkerBreakdownChart.#onChartTypeChange });
-
+        const sel = $select('chartBreakdownType', MarkerBreakdownChart.#onChartTypeChange, { class : 'fancySelect' });
         for (const option of Object.values(BreakdownType)) {
-            const optNode = buildNode('option', { value : option }, BreakdownTitles[option]);
+            const optNode = $option(BreakdownTitles[option], option);
             if (option === breakdownType) {
                 optNode.setAttribute('selected', 'selected');
             }

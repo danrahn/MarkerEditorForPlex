@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode } from './Common.js';
+import { $, $$, $append, $div, $divHolder, $h, $hr, $label, $option, $select, $textInput } from './HtmlHelpers.js';
 
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -8,6 +8,7 @@ import { flashBackground } from './AnimationHelpers.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
 import Overlay from './Overlay.js';
 import { SectionType } from '/Shared/PlexTypes.js';
+import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/MarkerBreakdown').MarkerBreakdownMap} MarkerBreakdownMap */
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
@@ -137,30 +138,24 @@ class FilterSettings {
     /**
      * Returns a tooltip text that describes the current filter. */
     static filterTooltipText() {
-        let text = '';
+        const tt = new TooltipBuilder();
         if (FilterSettings.introLimit !== -1) {
-            text += `Intro count ${FilterConditionText[FilterSettings.introCondition]} ${FilterSettings.introLimit}`;
+            tt.addLine(`Intro count ${FilterConditionText[FilterSettings.introCondition]} ${FilterSettings.introLimit}`);
         }
 
         if (FilterSettings.creditsLimit !== -1) {
-            if (text.length !== 0) { text += '<br>'; }
-
-            text += `Credits count ${FilterConditionText[FilterSettings.creditsCondition]} ${FilterSettings.creditsLimit}`;
+            tt.addLine(`Credits count ${FilterConditionText[FilterSettings.creditsCondition]} ${FilterSettings.creditsLimit}`);
         }
 
         if (FilterSettings.adLimit !== -1) {
-            if (text.length !== 0) { text += '<br>'; }
-
-            text += `Ad count ${FilterConditionText[FilterSettings.adCondition]} ${FilterSettings.adLimit}`;
+            tt.addLine(`Ad count ${FilterConditionText[FilterSettings.adCondition]} ${FilterSettings.adLimit}`);
         }
 
         if (!FilterSettings.isDefaultSort()) {
-            if (text.length !== 0) { text += '<br>'; }
-
-            text += `Sorted by ${SortConditionText[FilterSettings.sortBy]} (${SortOrderText[FilterSettings.sortOrder]})`;
+            tt.addLine(`Sorted by ${SortConditionText[FilterSettings.sortBy]} (${SortOrderText[FilterSettings.sortOrder]})`);
         }
 
-        return text;
+        return tt.get();
     }
 
     static isDefaultSort() {
@@ -233,30 +228,29 @@ class FilterDialog {
     constructor(activeSectionType) {
         this.#libType = activeSectionType;
         const containerName = 'settingsContainer'; // 'sortFilterDialog'
-        const container = buildNode('div', { class : `${containerName} filterDialogContainer` });
+        const container = $div({ class : `${containerName} filterDialogContainer` });
 
         const buildSelect = (text, selected) => {
-            const sel = buildNode('select', { id : `${text}MarkerFilterType`, class : 'filterSelect' });
-            appendChildren(sel,
-                buildNode('option', { value : FilterConditions.LessThan }, '<'),
-                buildNode('option', { value : FilterConditions.Equals }, '='),
-                buildNode('option', { value : FilterConditions.GreaterThan }, '>'));
+            const sel = $select(`${text}MarkerFilterType`, null, { class : 'filterSelect' });
+            $append(sel,
+                $option('<', FilterConditions.LessThan),
+                $option('=', FilterConditions.Equals),
+                $option('>', FilterConditions.GreaterThan));
             sel.value = selected;
             return sel;
         };
 
         const filterRow = (text, selected, inputValue) =>
-            appendChildren(buildNode('div', { class : 'formInput' }),
-                buildNode('label', { for : `${text}MarkerFilterType` }, `${text} markers `),
-                appendChildren(buildNode('div', { class : 'filterMultiInput' }),
+            $divHolder({ class : 'formInput' },
+                $label(`${text} markers `, { for : `${text}MarkerFilterType` }),
+                $divHolder({ class : 'filterMultiInput' },
                     buildSelect(text, selected),
-                    buildNode('input', {
-                        type : 'text',
-                        placeholder : '#',
-                        id : `${text}MarkerFilterValue`,
-                        class : 'filterNumberInput',
-                        value : inputValue
-                    }, 0, { keydown : this.#onTextInput.bind(this) })));
+                    $textInput(
+                        { placeholder : '#', id : `${text}MarkerFilterValue`, class : 'filterNumberInput', value : inputValue },
+                        { keydown : this.#onTextInput.bind(this) }
+                    )
+                )
+            );
 
         const introLimit = FilterSettings.introLimit === -1 ? '' : FilterSettings.introLimit;
         const introCondition = introLimit === '' ? FilterConditions.Equals : FilterSettings.introCondition;
@@ -270,22 +264,22 @@ class FilterDialog {
         const adCondition = adLimit === '' ? FilterConditions.Equals : FilterSettings.adCondition;
         this.#adFilter = filterRow('Ad', adCondition, adLimit);
 
-        appendChildren(container,
-            buildNode('h2', {}, 'Sort and Filter'),
-            buildNode('hr'),
-            appendChildren(buildNode('div', { style : 'padding: 20px' }),
-                buildNode('h3', {}, 'Filter'),
-                buildNode('hr'),
+        $append(container,
+            $h(2, 'Sort and Filter'),
+            $hr(),
+            $divHolder({ style : 'padding: 20px' },
+                $h(3, 'Filter'),
+                $hr(),
                 this.#introFilter,
                 this.#creditsFilter,
                 this.#adFilter,
-                buildNode('hr')
+                $hr(),
             ),
             this.#sortOptions()
         );
 
-        appendChildren(container.appendChild(buildNode('div', { class : 'formInput flexKeepRight' })),
-            appendChildren(buildNode('div', { class : 'settingsButtons' }),
+        $append(container.appendChild($div({ class : 'formInput flexKeepRight' })),
+            $divHolder({ class : 'settingsButtons' },
                 ButtonCreator.textButton('Apply', this.#applyFilter.bind(this), { class : 'greenOnHover' }),
                 ButtonCreator.textButton('Reset', this.#resetFilter.bind(this), { id : 'resetFilter', class : 'yellowOnHover' }),
                 ButtonCreator.textButton('Cancel', Overlay.dismiss, { class : 'redOnHover' })
@@ -298,20 +292,15 @@ class FilterDialog {
     /**
      * Build the sort section of the dialog (sort by X, sort direction) */
     #sortOptions() {
-        const sortBy = appendChildren(buildNode('div', { class : 'formInput' }),
-            buildNode('label', { for : 'sortBy' }, 'Sort By'),
-            appendChildren(buildNode('div', { class : 'filterMultiInput' }),
-                appendChildren(
-                    buildNode(
-                        'select',
-                        { id : 'sortBy', class : 'filterSelect' },
-                        0,
-                        { change : this.#onSortByChanged.bind(this) }),
-                    buildNode('option', { value : SortConditions.Alphabetical }, 'Alphabetical'),
-                    buildNode('option', { value : SortConditions.MarkerCount }, 'Marker Count'),
-                    buildNode('option', { value : SortConditions.IntroMarkerCount }, 'Intro Marker Count'),
-                    buildNode('option', { value : SortConditions.CreditsMarkerCount }, 'Credits Marker Count'),
-                    buildNode('option', { value : SortConditions.AdMarkerCount }, 'Ad Marker Count'),
+        const sortBy = $divHolder({ class : 'formInput' },
+            $label('Sort By', 'sortBy'),
+            $divHolder({ class : 'filterMultiInput' },
+                $append($select('sortBy', this.#onSortByChanged.bind(this), { class : 'filterSelect' }),
+                    $option('Alphabetical', SortConditions.Alphabetical),
+                    $option('Marker Count', SortConditions.MarkerCount),
+                    $option('Intro Marker Count', SortConditions.IntroMarkerCount),
+                    $option('Credits Marker Count', SortConditions.CreditsMarkerCount),
+                    $option('Ad Marker Count', SortConditions.AdMarkerCount),
                 )
             )
         );
@@ -320,18 +309,18 @@ class FilterDialog {
 
         const optStr = FilterSettings.sortBy === SortConditions.Alphabetical ? [ 'A-Z', 'Z-A'] : ['Low to High', 'High to Low'];
         const options = [
-            buildNode('option', { value : SortOrder.Ascending, id : 'sortAsc' }, optStr[0]),
-            buildNode('option', { value : SortOrder.Descending, id : 'sortDesc' }, optStr[1])
+            $option(optStr[0], SortOrder.Ascending, { id : 'sortAsc' }),
+            $option(optStr[1], SortOrder.Descending, { id : 'sortDesc' })
         ];
 
         if (FilterSettings.sortBy !== SortConditions.Alphabetical && this.#libType === SectionType.TV) {
             options.push(...this.#percentageSortOptions());
         }
 
-        const sortOrder = appendChildren(buildNode('div', { class : 'formInput' }),
-            buildNode('label', { for : 'sortOrder' }, 'From'),
-            appendChildren(buildNode('div', { class : 'filterMultiInput' }),
-                appendChildren(buildNode('select', { id : 'sortOrder', class : 'filterSelect' }),
+        const sortOrder = $divHolder({ class : 'formInput' },
+            $label('From', 'sortOrder'),
+            $divHolder({ class : 'filterMultiInput' },
+                $append($select('sortOrder', null, { class : 'filterSelect' }),
                     ...options
                 )
             )
@@ -339,12 +328,12 @@ class FilterDialog {
 
         $$('select', sortOrder).value = FilterSettings.sortOrder;
 
-        return appendChildren(buildNode('div', { style : 'padding: 0 20px 20px 20px' }),
-            buildNode('h3', {}, 'Sort'),
-            buildNode('hr'),
+        return $divHolder({ style : 'padding: 0 20px 20px 20px' },
+            $h(3, 'Sort'),
+            $hr(),
             sortBy,
             sortOrder,
-            buildNode('hr')
+            $hr()
         );
     }
 
@@ -352,8 +341,8 @@ class FilterDialog {
      * Additional percentage-based sort order options when sorting by marker stats. */
     #percentageSortOptions() {
         return [
-            buildNode('option', { value : SortOrder.AscendingPercentage, id : 'sortAscP' }, 'Low to High (%)'),
-            buildNode('option', { value : SortOrder.DescendingPercentage, id : 'sortDescP' }, 'High to Low (%)'),
+            $option('Low to High (%)', SortOrder.AscendingPercentage, { id : 'sortAscP' }),
+            $option('High to Low (%)', SortOrder.DescendingPercentage, { id : 'sortDescP' }),
         ];
     }
 
@@ -380,7 +369,7 @@ class FilterDialog {
             $('#sortAsc').innerText = 'Low to High';
             $('#sortDesc').innerText = 'High to Low';
             if (!hasPercentageSorts && this.#libType === SectionType.TV) {
-                appendChildren(so, ...this.#percentageSortOptions());
+                $append(so, ...this.#percentageSortOptions());
             }
         }
     }

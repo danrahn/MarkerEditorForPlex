@@ -1,14 +1,6 @@
-import {
-    $,
-    appendChildren,
-    buildNode,
-    clearEle,
-    msToHms,
-    pad0,
-    realMs,
-    timeInputShortcutHandler,
-    timeToMs,
-    waitFor } from './Common.js';
+import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $option, $plainDivHolder, $select, $span,
+    $text, $textInput } from './HtmlHelpers.js';
+import { msToHms, pad0, realMs, timeInputShortcutHandler, timeToMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
@@ -27,6 +19,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
+import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('/Shared/PlexTypes').ChapterMap} ChapterMap */
@@ -86,8 +79,7 @@ class BulkAddOverlay {
     static #indexMatchingTooltip;
 
     static #getIndexMatchingTooltip() {
-        BulkAddOverlay.#indexMatchingTooltip ??= buildNode('span', {},
-            "When an exact chapter name match isn't available, " +
+        BulkAddOverlay.#indexMatchingTooltip ??= $span("When an exact chapter name match isn't available, " +
                 "use the chapter's index to find matching chapters, not the closest timestamp");
         return BulkAddOverlay.#indexMatchingTooltip;
     }
@@ -108,51 +100,40 @@ class BulkAddOverlay {
     show(focusBack) {
         // Any time we're showing the dialog we should reset any marker data we've accumulated
         this.#serverResponse = undefined;
-        const container = buildNode('div', { id : 'bulkActionContainer' });
-        const title = buildNode('h1', {}, 'Bulk Add Markers');
-        appendChildren(container,
+        const container = $div({ id : 'bulkActionContainer' });
+        const title = $h(1, 'Bulk Add Markers');
+        $append(container,
             title,
-            buildNode('hr'),
-            appendChildren(buildNode('div', { id : 'timeZone' }),
-                buildNode('label', { for : 'addStart' }, 'Start: '),
-                buildNode('input',
-                    {   type : 'text',
-                        placeholder : 'ms or ms:ss[.000]',
-                        name : 'addStart',
-                        id : 'addStart' },
-                    0,
-                    {   keyup : this.#onBulkAddInputChange.bind(this),
-                        keydown : timeInputShortcutHandler }
+            $hr(),
+            $divHolder({ id : 'timeZone' },
+                $label('Start: ', 'addStart'),
+                $textInput(
+                    { placeholder : 'ms or ms:ss[.000]', name : 'addStart', id : 'addStart' },
+                    { keyup : this.#onBulkAddInputChange.bind(this), keydown : timeInputShortcutHandler }
                 ),
-                buildNode('label', { for : 'addEnd' }, 'End: '),
-                buildNode('input',
-                    {   type : 'text',
-                        placeholder : 'ms or ms:ss[.000]',
-                        name : 'addEnd',
-                        id : 'addEnd' },
-                    0,
-                    { keyup : this.#onBulkAddInputChange.bind(this),
-                      keydown : timeInputShortcutHandler }
+                $label('End: ', 'addEnd'),
+                $textInput(
+                    { placeholder : 'ms or ms:ss[.000]', name : 'addEnd', id : 'addEnd' },
+                    { keyup : this.#onBulkAddInputChange.bind(this), keydown : timeInputShortcutHandler }
                 )
             ),
-            appendChildren(buildNode('div', { id : 'chapterZone', class : 'hidden' }),
-                buildNode('label', { for : 'baselineEpisode' }, 'Baseline: '),
-                buildNode('select', { id : 'baselineEpisode' }, 0, { change : this.#onChapterEpisodeBaselineChanged.bind(this) }),
-                buildNode('br'),
-                buildNode('label', { for : 'addStartChapter' }, 'Start: '),
-                buildNode('select', { id : 'addStartChapter' }, 0, { change : this.#onChapterChanged.bind(this) }),
-                buildNode('label', { for : 'addEndChapter' }, 'End: '),
-                buildNode('select', { id : 'addEndChapter' }, 0, { change : this.#onChapterChanged.bind(this) }),
-                buildNode('br'),
-                appendChildren(buildNode('span', { id : 'chapterIndexModeContainer' }),
-                    buildNode('label', { for : 'chapterIndexMode', id : 'chapterIndexModeLabel' }, 'Force index matching:'),
+            $divHolder({ id : 'chapterZone', class : 'hidden' },
+                $label('Baseline: ', 'baselineEpisode'),
+                $select('baselineEpisode', this.#onChapterEpisodeBaselineChanged.bind(this)),
+                $br(),
+                $label('Start: ', 'addStartChapter'),
+                $select('addStartChapter', this.#onChapterChanged.bind(this)),
+                $label('End: ', 'addEndChapter'),
+                $select('addEndChapter', this.#onChapterChanged.bind(this)),
+                $br(),
+                $append($span(null, { id : 'chapterIndexModeContainer' }),
+                    $label('Force index matching:', 'chapterIndexMode', { id : 'chapterIndexModeLabel' }),
                     customCheckbox({ id : 'chapterIndexMode' }, { change : this.#onChapterIndexModeChanged.bind(this) }),
-                    appendChildren(buildNode('span', { id : 'chapterIndexModeHelp' }),
-                        getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 15, height : 15 })
-                    )
+                    $span(getSvgIcon(Icons.Help, ThemeColors.Primary, { width : 15, height : 15 }),
+                        { id : 'chapterIndexModeHelp' })
                 )
             ),
-            appendChildren(buildNode('div', { id : 'bulkAddInputMethod' }),
+            $divHolder({ id : 'bulkAddInputMethod' },
                 ButtonCreator.fullButton(
                     'Chapter Mode',
                     Icons.Chapter,
@@ -165,23 +146,23 @@ class BulkAddOverlay {
                     }
                 )
             ),
-            appendChildren(buildNode('div', { id : 'bulkAddMarkerType' }),
-                buildNode('label', { for : 'markerTypeSelect' }, 'Marker Type: '),
-                appendChildren(buildNode('select', { id : 'markerTypeSelect' }, 0, { change : this.#onMarkerTypeChanged.bind(this) }),
-                    ...Object.entries(MarkerType).map(kv => buildNode('option', { value : kv[1] }, kv[0])))
+            $divHolder({ id : 'bulkAddMarkerType' },
+                $label('Marker Type: ', 'markerTypeSelect'),
+                $append($select('markerTypeSelect', this.#onMarkerTypeChanged.bind(this)),
+                    ...Object.entries(MarkerType).map(kv => $option(kv[0], kv[1])))
             ),
-            appendChildren(buildNode('div', { id : 'bulkAddApplyType' }),
-                buildNode('label', { for : 'applyTypeSelect' }, 'Apply Action: '),
-                appendChildren(
-                    buildNode('select', { id : 'applyTypeSelect' }, 0, { change : this.#onApplyTypeChange.bind(this) }),
-                    buildNode('option', { value : 1 }, 'Fail'),
-                    buildNode('option', { value : 4 }, 'Overwrite'),
-                    buildNode('option', { value : 2 }, 'Merge'),
-                    buildNode('option', { value : 3 }, 'Ignore')),
-                buildNode('div', { id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[this.#stickySettings.applyType()])
+            $divHolder({ id : 'bulkAddApplyType' },
+                $label('Apply Action: ', 'applyTypeSelect'),
+                $append(
+                    $select('applyTypeSelect', this.#onApplyTypeChange.bind(this)),
+                    $option('Fail', 1),
+                    $option('Overwrite', 4),
+                    $option('Merge', 2),
+                    $option('Ignore', 3)),
+                $div({ id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[this.#stickySettings.applyType()])
             ),
-            buildNode('hr'),
-            appendChildren(buildNode('div', { id : 'bulkActionButtons' }),
+            $hr(),
+            $divHolder({ id : 'bulkActionButtons' },
                 ButtonCreator.fullButton(
                     'Apply', Icons.Confirm, ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
                 ButtonCreator.fullButton(
@@ -278,13 +259,13 @@ class BulkAddOverlay {
         const endChapter = $('#addEndChapter');
         startChapter.setAttribute(Attributes.BulkAddUpdating, 1); // Don't fire a bunch of change events when reorganizing.
         endChapter.setAttribute(Attributes.BulkAddUpdating, 1);
-        clearEle(startChapter);
-        clearEle(endChapter);
+        $clear(startChapter);
+        $clear(endChapter);
         const displayTitle = (name, index, timestamp) => `${name || 'Chapter ' + (parseInt(index) + 1)} (${msToHms(timestamp)})`;
 
         for (const [index, chapter] of Object.entries(chapters)) {
-            startChapter.appendChild(buildNode('option', { value : index }, displayTitle(chapter.name, index, chapter.start)));
-            endChapter.appendChild(buildNode('option', { value : index }, displayTitle(chapter.name, index, chapter.end)));
+            startChapter.appendChild($option(displayTitle(chapter.name, index, chapter.start), index));
+            endChapter.appendChild($option(displayTitle(chapter.name, index, chapter.end), index));
         }
 
         this.#cachedChapterStart = chapters[startChapter.firstChild.value];
@@ -353,14 +334,14 @@ class BulkAddOverlay {
             }
         }
 
-        let tooltipText = 'Toggle between chapter input and timestamp input';
+        const tooltipText = new TooltipBuilder('Toggle between chapter input and timestamp input');
         if (allEmpty) {
-            tooltipText = 'No episodes have chapters, chapter mode unavailable';
+            tooltipText.set('No episodes have chapters, chapter mode unavailable');
         } else if (anyEmpty) {
-            tooltipText += '<br>WARN: Not all episodes have chapter data available';
+            tooltipText.addLine('WARN: Not all episodes have chapter data available');
         }
 
-        Tooltip.setText(this.#inputMode, tooltipText);
+        Tooltip.setText(this.#inputMode, tooltipText.get());
 
         if (!allEmpty) {
             this.#inputMode.classList.remove('disabled');
@@ -410,7 +391,7 @@ class BulkAddOverlay {
 
             const episode = entry.episodeData;
             const optionText = `S${pad0(episode.seasonIndex, 2)}E${pad0(episode.index, episodePad)} - ${episode.title}`;
-            select.appendChild(buildNode('option', { value : episode.metadataId }, optionText));
+            select.appendChild($option(optionText, episode.metadataId));
         }
 
         this.#onChapterEpisodeBaselineChanged();
@@ -568,11 +549,12 @@ class BulkAddOverlay {
         }
 
         BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Green, 500).then(() => {
-            Overlay.show(`<h2>Bulk Add Succeeded</h2><hr>` +
-                `Markers Added: ${addCount}<br>` +
-                `Markers Edited: ${editCount}<br>` +
-                `Markers Deleted: ${deleteCount}<br>` +
-                `Episodes Ignored: ${result.ignoredEpisodes.length}`);
+            Overlay.show($plainDivHolder(
+                $h(2, `Bulk Add Succeeded`), $hr(),
+                `Markers Added: ${addCount}`, $br(),
+                `Markers Edited: ${editCount}`, $br(),
+                `Markers Deleted: ${deleteCount}`, $br(),
+                `Episodes Ignored: ${result.ignoredEpisodes.length}`));
         });
 
 
@@ -844,6 +826,7 @@ class BulkAddRow extends BulkActionRow {
         }
 
         this.row.classList.remove('bulkActionInactive');
+        const tt = new TooltipBuilder();
 
         const startData = this.#calculateStart();
         const startTimeBase = startData.time;
@@ -856,22 +839,20 @@ class BulkAddRow extends BulkActionRow {
         let end = endTimeBase;
         let semiWarn = false;
         let isWarn = false;
-        let tooltip = '';
         if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
-            tooltip = 'Invalid start or end time.';
+            tt.addLine('Invalid start or end time.');
         } else if (startTimeBase >= endTimeBase) {
-            tooltip = `Start time is greater than end time:<br> ` +
-                `Start: ${msToHms(startTimeBase)}<br>End: ${msToHms(endTimeBase)}`;
+            tt.addLines(`Start time is greater than end time:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
         } else if (startTimeBase < 0 || endTimeBase < 0) {
-            tooltip = `Negative timestamp:<br>Start: ${msToHms(startTimeBase)}<br>End: ${msToHms(endTimeBase)}`;
+            tt.addLines(`Negative timestamp:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
         }
 
-        if (tooltip) {
+        if (!tt.empty()) {
             this.#startTd.innerText = '--:--:--.---';
             this.#endTd.innerText = '--:--:--.---';
             this.#setClassBoth(warnClass);
-            Tooltip.setTooltip(this.#startTd, tooltip);
-            Tooltip.setTooltip(this.#endTd, tooltip);
+            Tooltip.setTooltip(this.#startTd, tt.get());
+            Tooltip.setTooltip(this.#endTd, tt.get());
             return;
         }
 
@@ -885,7 +866,7 @@ class BulkAddRow extends BulkActionRow {
                     this.#setSingleClass(this.#endTd, warnClass);
                 }
 
-                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                tt.addLine(`Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`);
 
                 if (resolveType === BulkMarkerResolveType.Merge) {
                     start = existingMarker.start;
@@ -896,7 +877,7 @@ class BulkAddRow extends BulkActionRow {
                 isWarn = true;
                 semiWarn = false;
                 this.#setSingleClass(this.#endTd, warnClass);
-                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                tt.addLine(`Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`);
                 if (resolveType === BulkMarkerResolveType.Merge) {
                     start = Math.min(start, existingMarker.start);
                 }
@@ -907,7 +888,7 @@ class BulkAddRow extends BulkActionRow {
                 isWarn = true;
                 semiWarn = false;
                 this.#setClassBoth(warnClass);
-                tooltip += `<br>Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`;
+                tt.addLine(`Overlaps with existing marker [${msToHms(existingMarker.start)}-${msToHms(existingMarker.end)}]`);
 
                 this.#startTd.classList.add(warnClass);
             }
@@ -920,7 +901,7 @@ class BulkAddRow extends BulkActionRow {
                 this.#endTd.classList.add('bulkActionSemi');
             }
 
-            tooltip += `<br>End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`;
+            tt.addLine(`End exceeds episode duration of ${msToHms(this.#episodeInfo.duration)}.`);
             end = this.#episodeInfo.duration;
             start = Math.min(start, end);
         }
@@ -930,16 +911,15 @@ class BulkAddRow extends BulkActionRow {
             // setSingle instead of setBoth to ensure it overwrites anything set above.
             this.#setSingleClass(this.#startTd, 'bulkActionOff');
             this.#setSingleClass(this.#endTd, 'bulkActionOff');
-            tooltip = `<br>Marker is beyond the end of the episode.`;
+            tt.push($br(), $text(`Marker is beyond the end of the episode.`));
         }
 
-        if (tooltip.length === 0) {
+        if (tt.empty()) {
             Tooltip.removeTooltip(this.#startTd);
             Tooltip.removeTooltip(this.#endTd);
         } else {
-            tooltip = tooltip.substring(4);
-            Tooltip.setTooltip(this.#startTd, tooltip);
-            Tooltip.setTooltip(this.#endTd, tooltip);
+            Tooltip.setTooltip(this.#startTd, tt.get());
+            Tooltip.setTooltip(this.#endTd, tt.get());
         }
 
         if (!isWarn) {

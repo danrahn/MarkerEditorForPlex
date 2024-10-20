@@ -1,5 +1,5 @@
 
-import { $$, appendChildren, buildNode, clearEle } from './Common.js';
+import { $$, $append, $br, $clear, $div, $divHolder, $span, $td, $textSpan, $tr } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, flashBackground } from './AnimationHelpers.js';
@@ -131,7 +131,7 @@ class ExistingMarkerRow extends MarkerRow {
     reset() {
         const children = this.#tableData(!!$$('.markerOptionsHolder', this.html));
         for (let i = 0; i < children.length; ++i) {
-            clearEle(this.html.children[i]);
+            $clear(this.html.children[i]);
             if (typeof children[i] == 'string') {
                 this.html.children[i].innerText = children[i];
             } else {
@@ -145,18 +145,16 @@ class ExistingMarkerRow extends MarkerRow {
     /**
      * Builds the marker row based on the existing marker values. */
     buildRow() {
-        const tr = buildNode('tr', { class : 'markerRow' });
-
-        const td = (data, properties={}) => buildNode('td', properties, data);
+        const tr = $tr({ class : 'markerRow' });
 
         const tableData = this.#tableData(true);
         const timeAttrib = ClientSettings.useThumbnails() ? { class : 'topAlignedPlainText' } : {};
-        appendChildren(tr,
-            td(tableData[0]),
-            td(tableData[1], timeAttrib),
-            td(tableData[2], timeAttrib),
-            td(tableData[3], { class : 'centeredColumn timeColumn topAlignedPlainText' }),
-            td(tableData[4], { class : 'centeredColumn topAligned' }));
+        $append(tr,
+            $td(tableData[0]),
+            $td(tableData[1], timeAttrib),
+            $td(tableData[2], timeAttrib),
+            $td(tableData[3], { class : 'centeredColumn timeColumn topAlignedPlainText' }),
+            $td(tableData[4], { class : 'centeredColumn topAligned' }));
 
         this.html = tr;
         if (this.#markerData.isFinal) {
@@ -196,14 +194,14 @@ class ExistingMarkerRow extends MarkerRow {
         // Force icon buttons when we have 3+ options, otherwise make them dynamic.
         if (this.#thumbnails) {
             // Hacky, shouldn't rely on this behavior.
-            return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
+            return $divHolder({ class : 'markerOptionsHolder' },
                 this.#thumbnails.getToggleIcon(false /*dynamic*/),
                 ButtonCreator.iconButton(Icons.Edit, 'Edit Marker', ...editArgs),
                 ButtonCreator.iconButton(Icons.Delete, 'Delete Marker', ...delArgs),
             );
         }
 
-        return appendChildren(buildNode('div', { class : 'markerOptionsHolder' }),
+        return $divHolder({ class : 'markerOptionsHolder' },
             ButtonCreator.dynamicButton('Edit', Icons.Edit, ...editArgs),
             ButtonCreator.dynamicButton('Delete', Icons.Delete, ...delArgs),
         );
@@ -234,7 +232,7 @@ class ExistingMarkerRow extends MarkerRow {
                 () => options.children[0].classList.add('hidden')),
         ]);
 
-        const text = buildNode('span', { class : 'inlineMarkerDeleteConfirm' }, 'Are you sure? ');
+        const text = $span('Are you sure? ', { class : 'inlineMarkerDeleteConfirm' });
         dateAdded.appendChild(text);
 
         const cancel = ButtonCreator.dynamicButton(
@@ -243,8 +241,8 @@ class ExistingMarkerRow extends MarkerRow {
             ThemeColors.Red,
             this.#onMarkerDeleteCancel.bind(this),
             { [Attributes.TableNav] : 'cancel-del' });
-        const delOptions = appendChildren(
-            buildNode('div', { class : 'markerOptionsHolder inlineMarkerDeleteButtons' }),
+        const delOptions = $append(
+            $div({ class : 'markerOptionsHolder inlineMarkerDeleteButtons' }),
             ButtonCreator.dynamicButton('Yes',
                 Icons.Confirm,
                 ThemeColors.Green,
@@ -278,7 +276,7 @@ class ExistingMarkerRow extends MarkerRow {
             mediaItem.markerTable().deleteMarker(deletedMarker, this.row());
         } catch (err) {
             ButtonCreator.setIcon(confirmBtn, Icons.Confirm, ThemeColors.Red);
-            errorToast(`Failed to delete marker.<br>${err}`, 5000);
+            errorToast($textSpan(`Failed to delete marker.`, $br(), err), 5000);
             await flashBackground(confirmBtn, Theme.getHex(ThemeColors.Red, '6'), 500);
             this.#onMarkerDeleteCancel();
         }
@@ -318,9 +316,7 @@ class ExistingMarkerRow extends MarkerRow {
             this.editor().onWindowResize();
         } else {
             this.html?.children[3]?.replaceWith(
-                buildNode('td',
-                    { class : 'centeredColumn timeColumn topAlignedPlainText' },
-                    TableElements.friendlyDate(this.#markerData)));
+                $td(TableElements.friendlyDate(this.#markerData), { class : 'centeredColumn timeColumn topAlignedPlainText' }));
         }
     }
 
@@ -354,14 +350,12 @@ class NewMarkerRow extends MarkerRow {
      * Builds an empty row for a new marker. The creator should immediately invoke `editor().onEdit()`
      * after creating this row. */
     buildRow() {
-        const td = (data, properties={}) => buildNode('td', properties, data);
-
-        this.html = appendChildren(buildNode('tr', { class : 'markerRow' }),
-            td('-'),
-            td('-'),
-            td('-'),
-            td('-', { class : 'centeredColumn timeColumn topAlignedPlainText' }),
-            td('', { class : 'centeredColumn topAligned' }));
+        this.html = $append($tr({ class : 'markerRow' }),
+            $td('-'),
+            $td('-'),
+            $td('-'),
+            $td('-', { class : 'centeredColumn timeColumn topAlignedPlainText' }),
+            $td('', { class : 'centeredColumn topAligned' }));
     }
 
     forAdd() { return true; }

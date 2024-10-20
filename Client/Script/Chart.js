@@ -1,6 +1,6 @@
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { buildNodeNS } from './Common.js';
+import { $svg, $svgCircle, $svgPath, $svgPolyLine, $svgRect, $svgText } from './HtmlHelpers.js';
 
 import Tooltip from './Tooltip.js';
 
@@ -139,9 +139,8 @@ function sortData(data) {
 
 /** Adds a horizontally centered text node at the given y offset */
 function buildCenteredText(y, text, size) {
-    return buildNodeNS(
-        'http://www.w3.org/2000/svg',
-        'text',
+    return $svgText(
+        text,
         {
             x : '50%',
             y : y,
@@ -149,8 +148,7 @@ function buildCenteredText(y, text, size) {
             'text-anchor' : 'middle',
             'font-weight' : 'bold',
             'font-size' : size + 'pt'
-        },
-        text
+        }
     );
 }
 
@@ -163,20 +161,8 @@ function buildCenteredText(y, text, size) {
  * @param {string} fill The fill color, as a hex string.
  * @param {Object} [extra] Extra attributes to append to the SVG node.
  * @returns {SVGRectElement} An SVG rectangle. */
-function buildRect(x, y, width, height, fill, extra) {
-    const rect = buildNodeNS(
-        'http://www.w3.org/2000/svg',
-        'rect',
-        { x, y, width, height, fill }
-    );
-
-    if (extra) {
-        for (const [key, value] of Object.entries(extra)) {
-            rect.setAttribute(key, value);
-        }
-    }
-
-    return rect;
+function buildRect(x, y, width, height, fill, extra={}) {
+    return $svgRect({ x, y, width, height, fill, ...extra });
 }
 
 /**
@@ -185,20 +171,15 @@ function buildRect(x, y, width, height, fill, extra) {
  * @param {string} fill The fill color as a hex string.
  * @returns {SVGPathElement} An SVG sector of a pie chart. */
 function buildPieSlice(definition, fill) {
-    return buildNodeNS('http://www.w3.org/2000/svg',
-        'path',
-        {
-            d : definition,
-            fill : fill,
-            stroke : '#616161',
-            'pointer-events' : 'all',
-            xmlns : 'http://www.w3.org/2000/svg'
-        },
-        0,
-        {
-            mouseenter : highlightPieSlice,
-            mouseleave : function() { this.setAttribute('stroke', '#616161'); }
-        });
+    return $svgPath(
+        { d : definition,
+          fill : fill,
+          stroke : '#616161',
+          'pointer-events' : 'all',
+          xmlns : 'http://www.w3.org/2000/svg' },
+        { mouseenter : highlightPieSlice,
+          mouseleave : function() { this.setAttribute('stroke', '#616161'); } }
+    );
 }
 
 /**
@@ -208,22 +189,16 @@ function buildPieSlice(definition, fill) {
  * @param {string} fill The fill color as a hex string
  * @returns {SVGCircleElement} A SVG Circle for a pie chart with a single data point. */
 function buildPieCircle(radius, yOffset, fill) {
-    return buildNodeNS('http://www.w3.org/2000/svg',
-        'circle',
-        {
-            r : radius,
-            cx : radius,
-            cy : radius + yOffset,
-            fill : fill,
-            stroke : '#616161',
-            'pointer-events' : 'all',
-            xmlns : 'http://www.w3.org/2000/svg'
-        },
-        0,
-        {
-            mouseenter : highlightPieSlice,
-            mouseleave : function() { this.setAttribute('stroke', '#616161'); }
-        }
+    return $svgCircle(
+        { r : radius,
+          cx : radius,
+          cy : radius + yOffset,
+          fill : fill,
+          stroke : '#616161',
+          'pointer-events' : 'all',
+          xmlns : 'http://www.w3.org/2000/svg' },
+        { mouseenter : highlightPieSlice,
+          mouseleave : function() { this.setAttribute('stroke', '#616161'); } }
     );
 }
 
@@ -294,18 +269,14 @@ function getPoint(radius, value, total) {
  * @param {number} height The height of the container
  * @returns {SVGElement} An SVG `Element` */
 function makeSvg(width, height) {
-    return buildNodeNS(
-        'http://www.w3.org/2000/svg',
-        'svg',
-        {
-            width : width,
-            height : height,
-            viewBox : `0 0 ${width} ${height}`,
-            xmlns : 'http://www.w3.org/2000/svg',
-            x : 0,
-            y : 0
-        }
-    );
+    return $svg({
+        width : width,
+        height : height,
+        viewBox : `0 0 ${width} ${height}`,
+        xmlns : 'http://www.w3.org/2000/svg',
+        x : 0,
+        y : 0
+    });
 }
 
 /** Chart Exports */
@@ -378,11 +349,8 @@ export function getBarChart(data) {
     // Give 5% for the left/bottom labels (even though they aren't implemented yet, and 5% probably isn't enough)
     const fp = { x : data.width * 0.05, y : data.height * 0.05 };
     const axisWidth = Math.max(1, Math.round(data.height / 100));
-    const axis = buildNodeNS(
-        'http://www.w3.org/2000/svg',
-        'polyline',
-        {
-            /* eslint-disable-next-line max-len */
+    const axis = $svgPolyLine(
+        {   /* eslint-disable-next-line max-len */
             points : `${fp.x},${titleOffset} ${fp.x},${data.height - fp.y + titleOffset} ${data.width},${data.height - fp.y + titleOffset} `,
             stroke : '#616161',
             'stroke-width' : axisWidth,

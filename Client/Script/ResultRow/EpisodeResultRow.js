@@ -1,13 +1,15 @@
 import { BaseItemResultRow } from './BaseItemResultRow.js';
 import { purgeIcon } from './ResultRow.js';
 
-import { $$, appendChildren, buildNode, ctrlOrMeta, pad0, plural } from '../Common.js';
+import { $$, $append, $div, $divHolder, $hr, $span } from '../HtmlHelpers.js';
+import { ctrlOrMeta, pad0, plural } from '../Common.js';
 import { Attributes } from '../DataAttributes.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import { PlexClientState } from '../PlexClientState.js';
 import { PurgedMarkers } from '../PurgedMarkerManager.js';
 import Tooltip from '../Tooltip.js';
+import TooltipBuilder from '../TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import ('../ClientDataExtensions').ClientEpisodeData} ClientEpisodeData */
@@ -42,10 +44,10 @@ export class EpisodeResultRow extends BaseItemResultRow {
         const ep = this.episode();
         ep.createMarkerTable(this, markerData, chapters);
         const titleText = 'Click to expand/contract. Control+Click to expand/contract all';
-        const row = buildNode('div', { class : 'resultRow', [Attributes.MetadataId] : ep.metadataId });
-        appendChildren(row,
-            appendChildren(
-                buildNode('div',
+        const row = $div({ class : 'resultRow', [Attributes.MetadataId] : ep.metadataId });
+        $append(row,
+            $append(
+                $div(
                     {
                         class : 'baseItemResult tabbableRow',
                         title : titleText,
@@ -60,14 +62,14 @@ export class EpisodeResultRow extends BaseItemResultRow {
                         ],
                         longpress : this.showHideMarkerTablesAfterLongPress.bind(this),
                     }),
-                appendChildren(buildNode('div', { class : 'episodeName' }),
+                $divHolder({ class : 'episodeName' },
                     this.getExpandArrow(),
-                    buildNode('span', { class : 'episodeRowTitle' }, this.#displayTitle())
+                    $span(this.#displayTitle(), { class : 'episodeRowTitle' })
                 ),
                 this.#buildMarkerText()
             ),
             ep.markerTable().table(),
-            buildNode('hr', { class : 'episodeSeparator' })
+            $hr({ class : 'episodeSeparator' })
         );
 
         this.setHtml(row);
@@ -122,7 +124,7 @@ export class EpisodeResultRow extends BaseItemResultRow {
         const hasPurges = this.hasPurgedMarkers();
         const smallScreen = isSmallScreen();
         const markerCount = episode.markerTable().markerCount();
-        const text = buildNode('span', {}, smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
+        const text = $span(smallScreen ? markerCount.toString() : plural(markerCount, 'Marker'));
         if (smallScreen) {
             text.classList.add('smallScreenMarkerCount');
         }
@@ -131,14 +133,14 @@ export class EpisodeResultRow extends BaseItemResultRow {
             text.appendChild(purgeIcon());
         }
 
-        const main = buildNode('div', { class : 'episodeDisplayText' }, text);
+        const main = $div({ class : 'episodeDisplayText' }, text);
         if (!hasPurges) {
             return main;
         }
 
         const purgeCount = this.getPurgeCount();
         const markerText = purgeCount === 1 ? 'marker' : 'markers';
-        Tooltip.setTooltip(main, `Found ${purgeCount} purged ${markerText}.<br>Click for details.`);
+        Tooltip.setTooltip(main, new TooltipBuilder(`Found ${purgeCount} purged ${markerText}.`, `Click for details.`).get());
         main.addEventListener('click', this.#onEpisodePurgeClick.bind(this));
         // Explicitly set no title so it doesn't interfere with the tooltip
         main.title = '';

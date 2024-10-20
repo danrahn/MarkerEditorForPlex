@@ -1,4 +1,4 @@
-import { $, $$, appendChildren, buildNode } from '../Common.js';
+import { $, $$, $append, $table, $tbody, $td, $textInput, $thead, $tr } from '../HtmlHelpers.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
 import { ServerSettings, Setting } from '/Shared/ServerConfig.js';
 import ButtonCreator from '../ButtonCreator.js';
@@ -38,14 +38,14 @@ export class PathMappingsTable {
     /**
      * Build the path mappings table based on the initial mappings. */
     build() {
-        const tbody = buildNode('tbody');
-        const table = appendChildren(buildNode('table', { id : settingId(ServerSettings.PathMappings) }),
-            buildNode('thead', {}, appendChildren(buildNode('tr'),
-                buildNode('td', {}, 'From'),
-                buildNode('td', {}, 'To'),
-                buildNode('td',
-                    { class : 'deleteMappingHeader' },
-                    ButtonCreator.iconButton(Icons.Delete, 'Delete all mappings', ThemeColors.Red, this.#onDeleteAllMappings.bind(this))))
+        const tbody = $tbody();
+        const table = $append($table({ id : settingId(ServerSettings.PathMappings) }),
+            $thead($append($tr(),
+                $td('From'),
+                $td('To'),
+                $td(
+                    ButtonCreator.iconButton(Icons.Delete, 'Delete all mappings', ThemeColors.Red, this.#onDeleteAllMappings.bind(this)),
+                    { class : 'deleteMappingHeader' }))
             ),
             tbody
         );
@@ -62,8 +62,8 @@ export class PathMappingsTable {
             tbody.appendChild(this.#noPathMappingsRow());
         }
 
-        tbody.appendChild(appendChildren(buildNode('tr', { class : 'newMapping' }),
-            buildNode('td', { colspan : 3 }, ButtonCreator.textButton('New Mapping', this.#onNewMapping.bind(this)))
+        tbody.appendChild($append($tr({ class : 'newMapping' }),
+            $td(ButtonCreator.textButton('New Mapping', this.#onNewMapping.bind(this)), { colspan : 3 })
         ));
 
         this.#table = table;
@@ -72,7 +72,7 @@ export class PathMappingsTable {
     /**
      * Return a "no path mappings" spanning table row. */
     #noPathMappingsRow() {
-        return buildNode('tr', { class : 'noPathMappings' }, buildNode('td', { colspan : 3 }, 'No path mappings'));
+        return $tr('tr', { class : 'noPathMappings' }, $td('No path mappings', { colspan : 3 }));
     }
 
     /**
@@ -95,20 +95,10 @@ export class PathMappingsTable {
             this.#keyupTimer = setTimeout(this.#onPathMappingsChanged.bind(this), ValidationInputDelay);
         }.bind(this);
 
-        return appendChildren(buildNode('tr', { class : 'realPathMapping' }),
-            buildNode('td', {}, buildNode(
-                'input',
-                { type : 'text', placeholder : 'Map from', ...fromAttrib },
-                0,
-                { keyup : autoValidate })),
-            buildNode('td', {}, buildNode(
-                'input',
-                { type : 'text', placeholder : 'Map to', ...toAttrib },
-                0,
-                { keyup : autoValidate })),
-            buildNode('td', {},
-                ButtonCreator.iconButton(Icons.Delete, 'Delete mapping', ThemeColors.Red, this.#onDeleteMapping.bind(this))
-            ),
+        return $append($tr({ class : 'realPathMapping' }),
+            $td($textInput({ placeholder : 'Map from', ...fromAttrib }, { keyup : autoValidate })),
+            $td($textInput({ placeholder : 'Map to', ...toAttrib }, { keyup : autoValidate })),
+            $td(ButtonCreator.iconButton(Icons.Delete, 'Delete mapping', ThemeColors.Red, this.#onDeleteMapping.bind(this))),
         );
     }
 

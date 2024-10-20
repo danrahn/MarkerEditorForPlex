@@ -1,5 +1,6 @@
-import { $, $$, addEventsToElement, appendChildren, buildNode, toggleVisibility } from './Common.js';
+import { $, $$, $append, $div, $span, addEventsToElement  } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { toggleVisibility } from './Common.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
 import { Attributes } from './DataAttributes.js';
@@ -55,9 +56,9 @@ class ButtonCreator {
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static fullButton(text, icon, color, clickHandler, attributes={}) {
         const button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes);
-        return appendChildren(button,
+        return $append(button,
             getSvgIcon(icon, color),
-            buildNode('span', { class : 'buttonText' }, text));
+            $span(text, { class : 'buttonText' }));
     }
 
     /**
@@ -102,7 +103,7 @@ class ButtonCreator {
         }
 
         const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-        return appendChildren(button, getSvgIcon(icon, color));
+        return $append(button, getSvgIcon(icon, color));
     }
 
     /**
@@ -112,7 +113,7 @@ class ButtonCreator {
      * @param {AttributeMap} [attributes={}] Additional attributes to set on the button. */
     static textButton(text, clickHandler, attributes={}) {
         const button = ButtonCreator.#tableButtonHolder('buttonTextOnly', clickHandler, attributes);
-        return appendChildren(button, buildNode('span', { class : 'buttonText' }, text));
+        return $append(button, $span(text, { class : 'buttonText' }));
     }
 
     /**
@@ -171,8 +172,7 @@ class ButtonCreator {
      * @param {EventListener} clickHandler The callback function when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static #tableButtonHolder(className, clickHandler, attributes) {
-        const button = buildNode(
-            'div',
+        const button = $div(
             { class : `button noSelect ${className}`, tabindex : '0' },
             0,
             { keydown : ButtonCreator.#tableButtonKeydown });
