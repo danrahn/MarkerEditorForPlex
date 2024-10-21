@@ -56,9 +56,10 @@ export default class Sqlite3Store extends Store {
 
     /**
      * Sets this process's secret that will be used to validate new sessions.
-     * @param {string} newSecret */
-    static async setNewSecret(newSecret) {
-        await AuthDB.db().run(`INSERT INTO ${SessionSecretTableName} (key) VALUES (?)`, [newSecret]);
+     * @param {string} newSecret
+     * @param {string} https Whether this secret is associated with an HTTPS connection. */
+    static async setNewSecret(newSecret, https) {
+        await AuthDB.db().run(`INSERT INTO ${SessionSecretTableName} (key, https) VALUES (?, ?)`, [newSecret, https ? 1 : 0]);
     }
 
     /**

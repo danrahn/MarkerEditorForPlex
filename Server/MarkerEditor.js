@@ -460,7 +460,7 @@ async function initializeSessionStore(app, https=false) {
     // sessions to be validated by keeping around older secrets for a while.
     const newSecret = randomBytes(32).toString('hex');
     const oldSecrets = await Sqlite3Store.oldSecrets(https);
-    await Sqlite3Store.setNewSecret(newSecret);
+    await Sqlite3Store.setNewSecret(newSecret, https);
     app.use(
         session({
             secret : [newSecret, ...oldSecrets],
