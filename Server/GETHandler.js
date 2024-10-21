@@ -66,23 +66,23 @@ class GETHandler {
             return; // #requestAllowed handles writing the response.
         }
 
-        if (url === '/') {
-            url = '/index.html';
+        let urlStripped = url.split('?')[0];
+        if (urlStripped === '/') {
+            urlStripped = '/index.html';
         }
 
-        const urlPlain = url.split('?')[0].toLowerCase();
-
-        if (urlPlain === '/index.html') {
+        const urlLower = urlStripped.toLowerCase();
+        if (urlLower === '/index.html') {
             if (Config.useAuth() && !User.signedIn(req)) {
                 res.redirect(`${baseUrl}login.html`);
                 return;
             }
 
-            GETHandler.serveWithBaseUrl(url, baseUrl, res);
+            GETHandler.serveWithBaseUrl(urlStripped, baseUrl, res);
             return;
         }
 
-        if (urlPlain === '/login.html') {
+        if (urlLower === '/login.html') {
             if (!Config.useAuth() || User.signedIn(req)) {
                 res.redirect(baseUrl);
                 return;
@@ -111,9 +111,9 @@ class GETHandler {
             return await DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
         }
 
-        const mimetype = contentType(lookup(urlPlain));
+        const mimetype = contentType(lookup(urlStripped));
         if (!mimetype) {
-            res.writeHead(404).end(`Bad MIME type: ${urlPlain}`);
+            res.writeHead(404).end(`Bad MIME type: ${urlStripped}`);
             return;
         }
 
