@@ -18,8 +18,8 @@ import { User } from './Authentication/Authentication.js';
 
 const Log = ContextualLog.Create('GETHandler');
 
-/** The cache duration for cache-bustable files (30 days) */
-const StaticCacheAge = 86400 * 30;
+/** The cache duration for cache-bustable files (1 year - hash ensures it will never change) */
+const StaticCacheAge = 86400 * 365;
 
 /**
  * The cache duration for preview thumbnails.

@@ -35,7 +35,7 @@ async function validateConfigValue(setting, value) {
     let asJson;
     try {
         asJson = JSON.parse(value);
-    } catch (ex) {
+    } catch (_ex) {
         throw new ServerError(`Invalid configuration value. Expected JSON object, but couldn't parse it`, 400);
     }
 

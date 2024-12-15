@@ -397,16 +397,16 @@ async function createServer(host, port, ssl, resolve) {
             message : { Error : 'Too many requests' }
         };
 
-        app.use(`*/${PostCommands.Login}`, rateLimit(strictRateLimit));
-        app.use(`*/${PostCommands.NeedsPassword}`, rateLimit(strictRateLimit));
+        app.use(new RegExp(`.*/${PostCommands.Login}`), rateLimit(strictRateLimit));
+        app.use(new RegExp(`.*/${PostCommands.NeedsPassword}`), rateLimit(strictRateLimit));
 
         // Strict limit for other POST commands as well, but no limit for authenticated users.
-        app.post('*', rateLimit({ skip : (req, _res) => req.session?.authenticated, ...strictRateLimit }), serverPost);
+        app.post(/.*/, rateLimit({ skip : (req, _res) => req.session?.authenticated, ...strictRateLimit }), serverPost);
 
         // Pretty high limits for all GET requests. This should only affect loading everything
         // required for login.html, as the main page is only available after logging in.
         // Basically just prevents the user from constantly force-reloading the page.
-        app.get('*', rateLimit({
+        app.get(/.*/, rateLimit({
             windowMs : 10000,
             limit : isBinary() ? 25 : 200, // Binary bundles JS into a single file, source gets raw JS (>40 files)
             skip : (req, _res) => req.session?.authenticated
@@ -414,8 +414,8 @@ async function createServer(host, port, ssl, resolve) {
     } else {
         // Explicitly ignore rate limiting - the user has bigger problems than DoS if they're externally exposing an unauthenticated app.
         const noRateLimit = rateLimit({ windowMs : 5000, limit : 200, skip : () => true });
-        app.get('*', noRateLimit, serverGet);
-        app.post('*', noRateLimit, serverPost);
+        app.get(/.*/, noRateLimit, serverGet);
+        app.post(/.*/, noRateLimit, serverPost);
     }
 
     const listenerCallback = () => {
@@ -661,7 +661,7 @@ function shouldExitEarly(args) {
             try {
                 version = JSON.parse(readFileSync(packagePath).toString()).version;
                 console.log(`Marker Editor version ${version}`);
-            } catch (err) {
+            } catch (_err) {
                 console.log('Error retrieving version info.');
             }
         } else {

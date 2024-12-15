@@ -64,7 +64,8 @@ const rc = {
     LegalCopyright : 'MarkerEditor.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
 };
 
-const fallbackNodeVersion = '20.11.1'; // LTS as of 2024/03/07
+const fallbackNodeVersion = '20.18.1'; // Latest v20 as of 2024/12/15
+const nodeMajorMax = 20; // nexe does not appear to support LTS 22. Stick with 20 for now.
 
 const args = process.argv.map(a => a.toLowerCase());
 const verbose = args.includes('verbose');
@@ -339,11 +340,17 @@ async function getNodeVersion() {
             const versions = await (await fetch('https://nodejs.org/download/release/index.json')).json();
             versions.sort((a, b) => (!!a.lts === !!b.lts) ? (semver.lt(a.version, b.version) ? 1 : -1) : (a.lts ? -1 : 1));
 
-            const nodeVersion = versions[0].version.substring(1);
-            console.log(`Found latest LTS: ${nodeVersion}`);
+            let idx = 0;
+            // Just let OOB fall into the catch.
+            while (semver.major(versions[idx].version) > nodeMajorMax) {
+                ++idx;
+            }
+
+            const nodeVersion = versions[idx].version.substring(1);
+            console.log(`Found latest v${nodeMajorMax}: ${nodeVersion}`);
             return nodeVersion;
-        } catch (ex) {
-            console.warn(`Unable to find latest LTS version of Node.js, falling back to ${fallbackNodeVersion}`);
+        } catch (_ex) {
+            console.warn(`Unable to find latest v${nodeMajorMax} version of Node.js, falling back to ${fallbackNodeVersion}`);
         }
     }
 
@@ -358,7 +365,7 @@ function cleanBuild(oldOut) {
     const tryRm = out => {
         try {
             rmSync(out, { recursive : true, force : true });
-        } catch (ex) {
+        } catch (_ex) {
             console.warn(`\tUnable to clear output ${out}`);
         }
     };
@@ -708,10 +715,15 @@ async function build() {
         resolve(buildDir, '../dist/node_modules/sqlite3/package.json')
     );
 
-    // nexe doesn't support ESM modules either, like `read`
+    // nexe doesn't support ESM modules either, like `read` and `open`
     cpSync(
         resolve(buildDir, '../node_modules/read'),
         resolve(buildDir, '../dist/node_modules/read'),
+        { force : true, recursive : true });
+
+    cpSync(
+        resolve(buildDir, '../node_modules/open'),
+        resolve(buildDir, '../dist/node_modules/open'),
         { force : true, recursive : true });
 
     msg('Writing README');
