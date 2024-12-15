@@ -211,13 +211,13 @@ async function handleClose(signal, restart=false) {
     };
 
     let anyError = false;
-    const closeFn = r =>
+    const closeFn = (r, s) =>
         async (err) => {
             if (err) {
                 anyError = true;
-                Log.error(err, 'Failed to cleanly shut down HTTP server');
+                Log.error(err, `Failed to cleanly shut down ${s} server`);
             } else {
-                Log.info('Successfully shut down HTTP server.');
+                Log.info(`Successfully shut down ${s} server.`);
             }
 
             // Only close session DB after the server itself has shut down.
@@ -229,8 +229,8 @@ async function handleClose(signal, restart=false) {
         };
 
     await Promise.all([
-        new Promise(r => { if (Server) { Server.close(closeFn(r)); } else { r(); } }),
-        new Promise(r => { if (ServerSSL) { ServerSSL.close(closeFn(r)); } else { r(); } })
+        new Promise(r => { if (Server) { Server.close(closeFn(r, 'HTTP')); } else { r(); } }),
+        new Promise(r => { if (ServerSSL) { ServerSSL.close(closeFn(r, 'HTTPS')); } else { r(); } })
     ]);
 
     exitFn(anyError || (!Server && !ServerSSL), restart);

@@ -104,7 +104,7 @@ class LoginManager {
         this.#loggingIn = true;
         try {
             await ServerCommands.login(username, password);
-            window.location = 'login.html';
+            window.location = 'index.html';
         } catch (ex) {
             ++this.#failures;
             if (this.#failures > 3) {
