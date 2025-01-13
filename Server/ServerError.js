@@ -6,13 +6,17 @@ class ServerError extends Error {
     /** @type {number} HTTP response code. */
     code;
 
+    /** @type {boolean} Whether this is an expected error. */
+    expected;
+
     /**
      * Construct a new ServerError
      * @param {string} message
      * @param {number} code */
-    constructor(message, code) {
+    constructor(message, code, expected=false) {
         super(message);
         this.code = code;
+        this.expected = expected;
     }
 
     /**

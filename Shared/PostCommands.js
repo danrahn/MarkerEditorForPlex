@@ -83,3 +83,13 @@ export const PostCommands = {
     /** @readonly Check whether authentication is enabled, but a user password is not set. */
     NeedsPassword : 'check_password',
 };
+
+/**
+ * Set of commands allowed when the server is suspended. */
+export const SuspendedWhitelist = new Set([
+    PostCommands.ServerResume,
+    PostCommands.ServerShutdown,
+    PostCommands.NeedsPassword,
+    PostCommands.Login,
+    PostCommands.Logout
+]);

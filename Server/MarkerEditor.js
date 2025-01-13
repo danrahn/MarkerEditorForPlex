@@ -21,6 +21,7 @@ import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { Config, MarkerEditorConfig, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { isBinary, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import { PostCommands, SuspendedWhitelist } from '../Shared/PostCommands.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { User, UserAuthentication } from './Authentication/Authentication.js';
@@ -31,7 +32,6 @@ import GETHandler from './GETHandler.js';
 import LegacyMarkerBreakdown from './LegacyMarkerBreakdown.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
 import { PlexQueryManager } from './PlexQueryManager.js';
-import { PostCommands } from '../Shared/PostCommands.js';
 import { ServerConfigState } from '../Shared/ServerConfig.js';
 import ServerError from './ServerError.js';
 import { default as Sqlite3Store } from './Authentication/SqliteSessionStore.js';
@@ -572,10 +572,8 @@ async function handlePost(req, res) {
 
     const endpointIndex = url.indexOf('?');
     const endpoint = endpointIndex === -1 ? url.substring(1) : url.substring(1, endpointIndex);
-    if (GetServerState() === ServerState.Suspended
-        && (endpoint !== PostCommands.ServerResume
-        && endpoint !== PostCommands.ServerShutdown)) {
-        return sendJsonError(res, new ServerError('Server is suspended', 503));
+    if (GetServerState() === ServerState.Suspended && !SuspendedWhitelist.has(endpoint)) {
+        return sendJsonError(res, new ServerError('Server is suspended', 503, true /*expected*/));
     }
 
     try {

@@ -26,12 +26,19 @@ export function sendJsonError(res, error, code) {
         if (error.stack) { stack = error.stack; }
     }
 
+    let expected = false;
     if (error instanceof ServerError) {
         code = error.code;
+        expected = error.expected;
     }
 
-    Log.error(message);
-    Log.verbose(stack);
+    // No need for noisy logging if we hit an expected error, like querying for data when the server is suspended.
+    if (expected) {
+        Log.info(`Hit expected error: ${message}`);
+    } else {
+        Log.error(message);
+        Log.verbose(stack);
+    }
 
     if (!code || typeof code !== 'number' || code < 100 || code > 599) {
         Log.warn(`sendJsonError didn't receive a valid error code, defaulting to 500`);
@@ -101,7 +108,7 @@ export function testFfmpeg() {
     try {
         execFileSync('ffmpeg', ['-version']);
         return true;
-    } catch (err) {
+    } catch (_err) {
         return false;
     }
 }
