@@ -27,11 +27,7 @@ export default class TooltipBuilder {
      * @param  {...(string|Element)} items */
     addRaw(...items) {
         for (const item of items) {
-            if (item instanceof Element) {
-                this.#elements.push(item);
-            } else {
-                this.#elements.push($text(item));
-            }
+            this.#elements.push(item instanceof Element ? item : $text(item));
         }
     }
 
@@ -71,11 +67,7 @@ export default class TooltipBuilder {
                 this.#elements.push($br());
             }
 
-            if (line instanceof Element) {
-                this.#elements.push(line);
-            } else {
-                this.#elements.push($text(line));
-            }
+            this.#elements.push(line instanceof Element ? line : $text(line));
         }
     }
 

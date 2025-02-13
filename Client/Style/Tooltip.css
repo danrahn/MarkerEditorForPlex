@@ -1,11 +1,18 @@
 /* Taken from PlexWeb/style/tooltip.css */
 
+.tooltipSticky {
+  background-clip: content-box; /* Make sure padding doesn't inherit tooltip background color. */
+}
+
+#tooltipInner {
+  border: 1px solid #616161;
+  padding: 3px;
+}
+
 #tooltip {
   font-size: 11pt;
   display: none;
   border-radius: 3px;
-  border: 1px solid #616161;
-  padding: 3px;
   position: absolute;
   max-width: calc(min(80%, 350px));
   z-index: 99; /* always on top */

@@ -19,7 +19,7 @@
             "name": "First Launch (stdin enabled)",
             "skipFiles": [ "<node_internals>/**" ],
             "console": "integratedTerminal",
-            "program": "${workspaceFolder}\\app.js"
+            "program": "${workspaceFolder}/app.js"
         },
         {
             "type" : "node",

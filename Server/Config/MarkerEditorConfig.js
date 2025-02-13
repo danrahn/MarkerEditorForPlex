@@ -220,7 +220,7 @@ class MarkerEditorConfig extends ConfigBase {
         if (existsSync(packagePath)) {
             try {
                 this.#version = new Setting(JSON.parse(readFileSync(packagePath).toString()).version, '0.0.0');
-            } catch (err) {
+            } catch (_err) {
                 Log.warn(`Unable to parse package.json for version, can't check for updates.`);
             }
         } else {
@@ -325,6 +325,7 @@ class MarkerEditorConfig extends ConfigBase {
             authUsername : this.#pseudoSetting(User.username()),
             authPassword : this.#pseudoSetting(User.passwordSet() ? '' : null),
             state : this.#configState,
+            isDocker : !!process.env.IS_DOCKER,
         };
     }
 
@@ -1060,7 +1061,7 @@ class MarkerEditorConfig extends ConfigBase {
 
             createHttpsServer(opts, () => {}).close();
             return true;
-        } catch (err) {
+        } catch (_err) {
             return false;
         }
     }

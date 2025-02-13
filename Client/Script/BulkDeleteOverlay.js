@@ -1,4 +1,4 @@
-import { $, $append, $br, $div, $divHolder, $h, $hr, $span, $text } from './HtmlHelpers.js';
+import { $, $append, $br, $div, $divHolder, $h, $hr, $span } from './HtmlHelpers.js';
 import { pad0, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
@@ -50,8 +50,8 @@ class BulkDeleteOverlay {
             title,
             $hr(),
             $h(4, $append($span(),
-                $text(`Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?`), $br(),
-                $text(`This cannot be undone.`))),
+                `Are you sure you want to bulk delete markers for ${this.#mediaItem.title}?`, $br(),
+                `This cannot be undone.`)),
             BulkActionCommon.markerSelectType('Delete Marker Type(s): ', this.#onApplyToChanged.bind(this), this.#stickySettings.applyTo()),
             $divHolder({ id : 'bulkActionButtons' },
                 ButtonCreator.fullButton('Delete All',

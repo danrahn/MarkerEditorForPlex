@@ -1,20 +1,20 @@
-import { $append, $code, $divHolder, $hr, $li, $span, $text, $ul } from '../HtmlHelpers.js';
+import { $a, $append, $code, $divHolder, $hr, $li, $span, $ul } from '../HtmlHelpers.js';
 import { ServerSettings } from '/Shared/ServerConfig.js';
 
-/** @type {{[key: string]: HTMLElement}} */
+/** @typedef {{ tooltip: HTMLElement, sticky: boolean }} ServerSettingsTooltip */
+
+/** @type {{[key: string]: ServerSettingsTooltip}} */
 let SettingTooltips = null;
 
 /**
  * @param {string|HTMLElement} shortDescription
- * @param {string|HTMLElement} longDescription */
-function createTooltip(shortDescription, longDescription) {
-    const short = (shortDescription instanceof Element) ? shortDescription : $text(shortDescription);
-    const long = (longDescription instanceof Element) ? longDescription : $text(longDescription);
-    return $divHolder({ class : 'serverSettingTooltip' },
-        short,
-        $hr(),
-        long
-    );
+ * @param {string|HTMLElement} longDescription
+ * @param {boolean} sticky*/
+function createTooltip(shortDescription, longDescription, sticky=false) {
+    return {
+        tooltip : $divHolder({ class : 'serverSettingTooltip' }, shortDescription, $hr(), longDescription),
+        sticky : sticky
+    };
 }
 
 /**
@@ -34,20 +34,20 @@ function initializeServerSettingsTooltips() {
         [ServerSettings.Database] : createTooltip(
             `Full path to the Plex database`,
             $append($span(),
-                $text(`Defaults to `),
+                `Defaults to `,
                 $code('com.plexapp.plugins.library.db'),
-                $text(` within the `),
+                ` within the `,
                 $code(`Plug-in Support/Databases`),
-                $text(` folder of the data directory above. Optional if said data path is valid. ` +
+                ` folder of the data directory above. Optional if said data path is valid. ` +
                 `Providing an explicit path can be useful for testing if you want to run this application on a copy of your ` +
-                `database to ensure nothing unexpected happens.`)
+                `database to ensure nothing unexpected happens.`
             )
         ),
         [ServerSettings.Host] : createTooltip(
             `The interface to listen on`,
             `Defaults to localhost, but could be changed to e.g. the machine's LAN IP if you want to modify markers ` +
-            `on a different device on your local network, or 0.0.0.0 to listen on any interface. Note that this ` +
-            `this application has no authentication, so be careful about how widely you expose the application.`
+            `on a different device on your local network, or 0.0.0.0 to listen on any interface. If authentication is ` +
+            `not enabled (and even if it is), be careful about how widely you expose the application.`
         ),
         [ServerSettings.Port] : createTooltip(
             `The port the server will listen on`,
@@ -83,7 +83,8 @@ function initializeServerSettingsTooltips() {
         ),
         [ServerSettings.PfxPath] : createTooltip(
             `Path to a PKCS#12 certificate file.`,
-            ``
+            $append($span(), `See `, $a('PKCS #12 - Wikipedia', 'https://en.wikipedia.org/wiki/PKCS_12'), ' for more information.'),
+            true /*sticky*/
         ),
         [ServerSettings.PfxPassphrase] : createTooltip(
             `Passphrase for the PFX certificate.`,
@@ -91,7 +92,12 @@ function initializeServerSettingsTooltips() {
         ),
         [ServerSettings.PemCert] : createTooltip(
             `Path to a PEM certificate file`,
-            ``
+            $append($span(),
+                `See `,
+                $a('Privacy-Enhanced Mail - Wikipedia', 'https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail'),
+                ' for more information.'
+            ),
+            true /*sticky*/
         ),
         [ServerSettings.PemKey] : createTooltip(
             `Path to a PEM private key file.`,
@@ -138,22 +144,22 @@ function initializeServerSettingsTooltips() {
         [ServerSettings.FFmpegThumbnails] : createTooltip(
             `Determines how to retrieve preview thumbnails`,
             $append($span(),
-                $text('Can only be set if Preview Thumbnails are enabled. If they are, and this setting is:'),
+                'Can only be set if Preview Thumbnails are enabled. If they are, and this setting is:',
                 $append($ul(),
                     $append($li(),
-                        $text(`Disabled: Use video preview thumbnails that Plex generates. This ` +
-                        `won't work if preview thumbnails are disabled, and can be very inaccurate depending on your `),
+                        `Disabled: Use video preview thumbnails that Plex generates. This ` +
+                        `won't work if preview thumbnails are disabled, and can be very inaccurate depending on your `,
                         $code('GenerateBIFFrameInterval'),
-                        $text(' and '),
+                        ' and ',
                         $code('GenerateBIFKeyframesOnly'),
-                        $text(' settings.')
+                        ' settings.'
                     ),
                     $append($li(),
-                        $text(`Enabled: Use FFmpeg to generate thumbnails on-the-fly. These are much more ` +
-                            `accurate than Plex-generated thumbnails, but `),
+                        `Enabled: Use FFmpeg to generate thumbnails on-the-fly. These are much more ` +
+                            `accurate than Plex-generated thumbnails, but `,
                         $code('ffmpeg'),
-                        $text(` must be on your path, and can take significantly longer to retrieve, ` +
-                            `especially for large files.`)
+                        ` must be on your path, and can take significantly longer to retrieve, ` +
+                            `especially for large files.`
                     ),
                 ),
             ),

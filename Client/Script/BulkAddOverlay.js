@@ -1,5 +1,5 @@
 import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $option, $plainDivHolder, $select, $span,
-    $text, $textInput } from './HtmlHelpers.js';
+    $textInput } from './HtmlHelpers.js';
 import { msToHms, pad0, realMs, timeInputShortcutHandler, timeToMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
@@ -911,7 +911,7 @@ class BulkAddRow extends BulkActionRow {
             // setSingle instead of setBoth to ensure it overwrites anything set above.
             this.#setSingleClass(this.#startTd, 'bulkActionOff');
             this.#setSingleClass(this.#endTd, 'bulkActionOff');
-            tt.push($br(), $text(`Marker is beyond the end of the episode.`));
+            tt.addLines($br(), `Marker is beyond the end of the episode.`);
         }
 
         if (tt.empty()) {

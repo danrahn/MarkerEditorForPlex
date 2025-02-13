@@ -1,4 +1,4 @@
-import { $, $$, $append, $b, $br, $div, $hr, $i, $span, $text } from '../HtmlHelpers.js';
+import { $, $$, $append, $b, $br, $div, $hr, $i, $span } from '../HtmlHelpers.js';
 import { clickOnEnterCallback, plural, scrollAndFocus } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
@@ -454,9 +454,9 @@ export class ResultRow {
 
         if (atLeastOne === 0) {
             tooltip.setRaw($append($span(null, { class : 'largeTooltip' }),
-                $text(baseText),
+                baseText,
                 $br(),
-                $text('None have markers.')));
+                'None have markers.'));
             ttOptions.noBreak = false;
         } else {
             const totalIntros = breakdown.totalIntros();
@@ -473,7 +473,7 @@ export class ResultRow {
         let displayText = `${atLeastOne}/${mediaItem.episodeCount} `;
         if (smallScreen) {
             displayText = $append($span(null, { class : 'episodeDisplayHolder' }),
-                $text(displayText),
+                displayText,
                 $i(
                     { class : 'markerInfoIcon' },
                     getSvgIcon(Icons.Info, ThemeColors.Primary, { height : 12 }),

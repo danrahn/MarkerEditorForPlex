@@ -1,4 +1,4 @@
-import { $$, $a, $append, $p, $span, $text } from '../HtmlHelpers.js';
+import { $$, $a, $append, $p, $span } from '../HtmlHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 import ButtonCreator from '../ButtonCreator.js';
 import Icons from '../Icons.js';
@@ -44,9 +44,9 @@ export function settingHolder(setting, extra=null) {
  * @returns {[string, HTMLElement]} */
 export function settingsDialogIntro(state) {
     const footer = $append($p(),
-        $text(`For more details about a setting, hover over the question mark icon, or visit `),
+        `For more details about a setting, hover over the question mark icon, or visit `,
         $a('the configuration wiki', 'https://github.com/danrahn/MarkerEditorForPlex/wiki/configuration'),
-        $text('.')
+        '.'
     );
 
     switch (state) {

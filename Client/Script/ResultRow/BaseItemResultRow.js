@@ -1,4 +1,4 @@
-import { $$ } from '../HtmlHelpers.js';
+import { $$, toggleClass } from '../HtmlHelpers.js';
 import { Attributes } from '../DataAttributes.js';
 import { ClientMovieData } from '../ClientDataExtensions.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
@@ -273,7 +273,7 @@ export class BaseItemResultRow extends ResultRow {
      * Rotates the expand/contract arrow after showing/hiding the marker table.
      * @param {boolean} hide Whether the marker table is being hidden */
     updateExpandArrow(hide) {
-        $$('.expandIcon', this.html()).classList[hide ? 'add' : 'remove']('collapsed');
+        toggleClass($$('.expandIcon', this.html()), 'collapsed', hide);
     }
 
     /**

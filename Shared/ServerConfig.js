@@ -90,6 +90,7 @@ isDefault means value is the default value
  * @property {TypedSetting<string>?} authUsername The username, if authentication is enabled.
  * @property {TypedSetting<string>?} authPassword The user password. Used to authenticate requests to disable authentication.
  * @property {number} state
+ * @property {boolean} isDocker
  */
 
 /**

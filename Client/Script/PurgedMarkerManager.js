@@ -1,5 +1,5 @@
 import { $, $$, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $node, $option, $select, $span, $table, $tbody,
-    $td, $textSpan, $thead } from './HtmlHelpers.js';
+    $td, $textSpan, $thead, toggleClass } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { pad0 } from './Common.js';
 
@@ -926,7 +926,7 @@ class PurgeConflictControl {
         const showHideResolutionStrategy = () => {
             const description = $$('#purgeResolutionDescription');
             const show = description.classList.contains('hidden');
-            $$('.expandIcon', $('#purgeResolutionLabel')).classList[show ? 'remove' : 'add']('collapsed');
+            toggleClass($$('.expandIcon', $('#purgeResolutionLabel')), 'collapsed', !show);
             description.classList.toggle('hidden');
         };
 

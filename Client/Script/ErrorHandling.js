@@ -1,4 +1,4 @@
-import { $, $append, $br, $div, $text } from './HtmlHelpers.js';
+import { $, $append, $br, $div } from './HtmlHelpers.js';
 import { animate } from './AnimationHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import FetchError from './FetchError.js';
@@ -16,11 +16,11 @@ export function errorResponseOverlay(message, err, onDismiss = Overlay.dismiss) 
     Overlay.show(
         $append(
             $div(),
-            $text(message),
+            message,
             $br(), $br(),
-            $text(errType + ':'),
+            errType + ':',
             $br(),
-            $text(errorMessage(err))),
+            errorMessage(err)),
         'OK',
         onDismiss);
 }

@@ -410,7 +410,7 @@ export function $textSpan(...items) {
 export function $append(parent, ...elements) {
     for (const element of elements) {
         if (element) {
-            parent.appendChild(element);
+            parent.appendChild(typeof element === 'string' ? $text(element) : element);
         }
     }
 
@@ -553,5 +553,18 @@ export function $id(id, ele = document) {
 export function $clear(ele) {
     while (ele.firstChild) {
         ele.removeChild(ele.firstChild);
+    }
+}
+
+/**
+ * Adds/removes a class from the given element based on the given condition.
+ * @param {HTMLElement} ele
+ * @param {string} className
+ * @param {boolean} condition */
+export function toggleClass(ele, className, condition) {
+    if (condition) {
+        ele.classList.add(className);
+    } else {
+        ele.classList.remove(className);
     }
 }

@@ -1,4 +1,4 @@
-import { $, $clear, $div, $span } from './HtmlHelpers.js';
+import { $, $clear, $div, $span, toggleClass } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 const Log = ContextualLog.Create('Tooltip');
@@ -28,6 +28,7 @@ export const TooltipTextSize = {
  * @property {boolean} [centered=false] Determines whether the tooltip text is left or center aligned. Default=false
  * @property {number}  [textSize=0] Determines whether the text is normal, smaller, or larger. Default=0
  * @property {boolean} [noBreak=false] Determines whether we should avoid breaking tooltip text when possible. Default=false
+ * @property {boolean} [sticky=false] Determines whether the tooltip follows the cursor (false) or stays static (true). Default=false
  */
 
 /**
@@ -81,6 +82,7 @@ function optionsFromOptions(options={}, existing) {
         centered : valueOrDefault('centered', false),
         textSize : valueOrDefault('textSize', 0),
         noBreak : valueOrDefault('noBreak', false),
+        sticky : valueOrDefault('sticky', false),
     };
 }
 
@@ -95,6 +97,11 @@ export default class Tooltip {
      * The tooltip itself.
      * @type {HTMLElement} */
     static #tooltip;
+
+    /**
+     * An inner tooltip holder, useful for better mouseover interactions with sticky tooltips.
+     * @type {HTMLElement} */
+    static #tooltipInner;
 
     /**
      * @type {{ [elementId: string]: TooltipEntry }} */
@@ -123,7 +130,11 @@ export default class Tooltip {
 
         Tooltip.#initialized = true;
         const frame = $('#plexFrame');
-        Tooltip.#tooltip = $div({ id : 'tooltip' }, 0, { click : Tooltip.dismiss });
+        Tooltip.#tooltipInner = $div({ id : 'tooltipInner' });
+        Tooltip.#tooltip = $div(
+            { id : 'tooltip' },
+            Tooltip.#tooltipInner,
+            { click : Tooltip.dismiss, mouseleave : Tooltip.#onTooltipMouseLeave });
         frame.appendChild(Tooltip.#tooltip);
         frame.addEventListener('scroll', Tooltip.onScroll);
         frame.addEventListener('keydown', Tooltip.dismiss); // Any keyboard input dismisses tooltips.
@@ -157,7 +168,7 @@ export default class Tooltip {
 
         if (!hasTT) {
             element.addEventListener('mousemove', Tooltip.#onMouseMove);
-            element.addEventListener('mouseleave', Tooltip.dismiss);
+            element.addEventListener('mouseleave', Tooltip.#onMouseLeave);
             element.addEventListener('focusin', Tooltip.#onFocus);
             element.addEventListener('focusout', Tooltip.dismiss);
         }
@@ -169,6 +180,45 @@ export default class Tooltip {
     static #onMouseMove(e) {
         const options = Tooltip.#getOptions(this);
         Tooltip.showTooltip(e, options.tooltip, options.delay);
+    }
+
+    /**
+     * Handles potential tooltip dismissal when the mouse leaves the target element.
+     * @param {MouseEvent} e */
+    static #onMouseLeave(e) {
+        const options = Tooltip.#getOptions(this);
+        if (!options.sticky) {
+            Tooltip.dismiss();
+            return;
+        }
+
+        let newTarget = e.relatedTarget;
+        while (newTarget && newTarget.id !== 'tooltip') {
+            newTarget = newTarget.parentElement;
+        }
+
+        if (!newTarget) {
+            Tooltip.dismiss();
+        }
+    }
+
+    /**
+     * Handles potential tooltip dismissal when the mouse leaves the tooltip itself (for sticky tooltips).
+     * @param {MouseEvent} e */
+    static #onTooltipMouseLeave(e) {
+        if (!Tooltip.#ttTarget || !Tooltip.#getOptions(Tooltip.#ttTarget)?.sticky) {
+            Tooltip.dismiss();
+            return;
+        }
+
+        let newTarget = e.relatedTarget;
+        while (newTarget && newTarget !== Tooltip.#ttTarget) {
+            newTarget = newTarget.parentElement;
+        }
+
+        if (!newTarget) {
+            Tooltip.dismiss();
+        }
     }
 
     /**
@@ -218,12 +268,18 @@ export default class Tooltip {
 
         this.#tooltips[Tooltip.#ttId(element, true /*create*/)] = { targetRef : new WeakRef(element), tooltip : tooltip, ...options };
         if (Tooltip.#showingTooltip && Tooltip.#ttTarget === element) {
-            if (tooltip instanceof Element) {
-                $clear(Tooltip.#tooltip);
-                Tooltip.#tooltip.appendChild(tooltip);
-            } else {
-                Tooltip.#tooltip.innerText = tooltip;
-            }
+            this.#setText(tooltip);
+        }
+    }
+
+    /**
+     * @param {string|HTMLElement} tooltip */
+    static #setText(tooltip) {
+        if (tooltip instanceof Element) {
+            $clear(Tooltip.#tooltipInner);
+            Tooltip.#tooltipInner.appendChild(tooltip);
+        } else {
+            Tooltip.#tooltipInner.innerText = tooltip;
         }
     }
 
@@ -249,7 +305,7 @@ export default class Tooltip {
     static removeTooltip(element) {
         delete Tooltip.#tooltips[Tooltip.#ttId(element)];
         element.removeEventListener('mousemove', Tooltip.#onMouseMove);
-        element.removeEventListener('mouseleave', Tooltip.dismiss);
+        element.removeEventListener('mouseleave', Tooltip.#onMouseLeave);
         element.removeEventListener('focusin', Tooltip.#onFocus);
         element.removeEventListener('focusout', Tooltip.dismiss);
         if (Tooltip.#ttTarget === element) {
@@ -307,14 +363,18 @@ export default class Tooltip {
      * @param {MouseEvent} e The MouseEvent that triggered this function.
      * @param {HTMLElement} text The tooltip Element containing the tooltip text. */
     static #showTooltipCore(e, text) {
-        if (!Tooltip.#showingTooltip) {
+        const showing = Tooltip.#showingTooltip;
+        if (!showing) {
             Log.tmi(text, `Launching tooltip`);
         }
 
+        const targetOld = Tooltip.#ttTarget;
         Tooltip.#ttTarget = e.target;
         while (Tooltip.#ttTarget && !Tooltip.#ttTarget.hasAttribute(TooltipId)) {
             Tooltip.#ttTarget = Tooltip.#ttTarget.parentElement;
         }
+
+        const sameTarget = showing && Tooltip.#ttTarget === targetOld;
 
         Tooltip.#showingTooltip = true;
         const tooltip = Tooltip.#tooltip;
@@ -322,38 +382,47 @@ export default class Tooltip {
         const options = Tooltip.#tooltips[Tooltip.#ttId(Tooltip.#ttTarget)];
         const ttUpdated = options?.tooltip;
         const newText = ttUpdated || text;
-        if (newText instanceof Element) {
-            $clear(tooltip);
-            tooltip.appendChild(newText);
-        } else {
-            tooltip.innerText = newText;
-        }
+        Tooltip.#setText(newText);
 
         tooltip.style.display = 'inline';
         Tooltip.#setAttributes(tooltip);
 
-        const extraMargin = e.focusY ? 5 : 20; // Focus triggers don't need as much of a margin
-        const heightAdjust = tooltip.clientHeight + extraMargin + windowMargin;
-        const rawHeight = e.clientY + window.scrollY;
-        const maxHeight = document.body.clientHeight + window.scrollY - heightAdjust;
-        tooltip.style.top = (Math.min(rawHeight, maxHeight) + extraMargin) + 'px';
+        // For "sticky" tooltips, instead of extra 'top' pixels, we add padding to the outer tooltip container to
+        // ensure there's no gap between the target element and the tooltip itself, allowing the user to move the
+        // mouse into the tooltip without dismissing it. We can't use that for non-sticky tooltips though, because
+        // the 0 margin means the tooltip is instantly dismissed when shown, because it becomes the new mouse target.
+        toggleClass(tooltip, 'tooltipSticky', options.sticky);
 
-        const avoidOverlay = rawHeight > maxHeight ? 10 : 0;
-        // Border isn't included in clientWidth, which can cause us to slowly shrink a tooltip that's on the right edge.
-        const borderAdjust = Tooltip.#borderWidth(tooltip);
-        const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
-        const maxWidth = document.body.clientWidth + window.scrollX - widthAdjust;
-        const centered = options.centered;
-        if (centered) {
-            const centerAdjust = parseInt(tooltip.clientWidth / 2);
-            tooltip.style.left = Math.min(e.clientX + window.scrollX, e.clientX + window.scrollX - centerAdjust) + 'px';
-        } else {
-            tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + 'px';
-        }
+        if (!sameTarget || !options.sticky) {
+            const extraMargin = options.sticky ? 0 : e.focusY ? 5 : 20; // Focus triggers don't need as much of a margin
+            const stickyPadding = options.sticky ? e.focusY ? 5 : 20  : 0;
+            const heightAdjust = tooltip.clientHeight + extraMargin + windowMargin;
+            const rawHeight = e.clientY + window.scrollY;
+            const maxHeight = document.body.clientHeight + window.scrollY - heightAdjust;
+            tooltip.style.top = (Math.min(rawHeight, maxHeight) + extraMargin) + 'px';
 
-        if (maxWidth < e.clientX + window.scrollX && rawHeight + heightAdjust > document.body.clientHeight + window.scrollY) {
-            // Adjusting x & y, move tooltip completely above cursor
-            tooltip.style.top = (rawHeight - heightAdjust + extraMargin - (e.focusY ?? 0)) + 'px';
+            const avoidOverlay = rawHeight > maxHeight && !options.sticky ? 10 : 0;
+            // Border isn't included in clientWidth, which can cause us to slowly shrink a tooltip that's on the right edge.
+            const borderAdjust = Tooltip.#borderWidth(tooltip);
+            const widthAdjust = tooltip.clientWidth + windowMargin + avoidOverlay + borderAdjust;
+            const maxWidth = document.body.clientWidth + window.scrollX - widthAdjust;
+            const centered = options.centered;
+            if (centered) {
+                const centerAdjust = parseInt(tooltip.clientWidth / 2);
+                tooltip.style.left = Math.min(e.clientX + window.scrollX, e.clientX + window.scrollX - centerAdjust) + 'px';
+            } else {
+                tooltip.style.left = (Math.min(e.clientX + window.scrollX, maxWidth) + avoidOverlay) + 'px';
+            }
+
+            if (maxWidth < e.clientX + window.scrollX && rawHeight + heightAdjust > document.body.clientHeight + window.scrollY) {
+                // Adjusting x & y, move tooltip completely above cursor
+                tooltip.style.top = (rawHeight - heightAdjust + extraMargin - (e.focusY ?? 0)) + 'px';
+                tooltip.style.paddingBottom = stickyPadding + 'px';
+                tooltip.style.removeProperty('padding-top');
+            } else {
+                tooltip.style.paddingTop = stickyPadding + 'px';
+                tooltip.style.removeProperty('padding-bottom');
+            }
         }
 
         Tooltip.#tooltipTimer = null;
@@ -364,25 +433,24 @@ export default class Tooltip {
     static #setAttributes(tooltip) {
         const ttTarget = Tooltip.#ttTarget;
         const options = Tooltip.#getOptions(ttTarget);
-        const ar = a => options[a] ? 'add' : 'remove';
         if (options.maxWidth > 0) {
             tooltip.style.maxWidth = `calc(min(90%, ${options.maxWidth + 'px'}))`;
         } else {
             tooltip.style.removeProperty('max-width');
         }
 
-        tooltip.classList[ar('maxWidth')]('larger');
-        tooltip.classList[ar('centered')]('centered');
-        tooltip.classList[ar('noBreak')]('noBreak');
+        toggleClass(tooltip, 'larger', options.maxWidth);
+        toggleClass(tooltip, 'centered', options.centered);
+        toggleClass(tooltip, 'noBreak', options.noBreak);
         const textSize = options.textSize;
-        tooltip.classList[textSize <= 0 ? 'remove' : 'add']('largerText');
-        tooltip.classList[textSize >= 0 ? 'remove' : 'add']('smallerText');
+        toggleClass(tooltip, 'largerText', textSize > 0);
+        toggleClass(tooltip, 'smallerText', textSize < 0);
     }
 
     /** Dismisses the tooltip. */
     static dismiss() {
         if (Tooltip.#showingTooltip) {
-            Log.tmi(`Dismissing tooltip: ${Tooltip.#tooltip.innerHTML}`);
+            Log.tmi(`Dismissing tooltip: ${Tooltip.#tooltipInner.innerHTML}`);
         }
 
         Tooltip.#tooltip.style.display = 'none';

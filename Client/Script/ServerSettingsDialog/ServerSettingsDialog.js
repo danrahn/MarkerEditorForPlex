@@ -2,7 +2,7 @@ import { allServerSettings, ServerConfigState, ServerSettings, SslState } from '
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { $, $$, $append, $br, $buttonInput, $div, $divHolder, $h, $hr, $i, $id, $label, $numberInput, $option,
-    $passwordInput, $plainDivHolder, $select, $span, $text, $textInput, $textSpan } from '../HtmlHelpers.js';
+    $passwordInput, $plainDivHolder, $select, $span, $textInput, $textSpan, toggleClass } from '../HtmlHelpers.js';
 import { errorMessage, errorToast } from '../ErrorHandling.js';
 import { flashBackground, slideDown, slideUp } from '../AnimationHelpers.js';
 import { Theme, ThemeColors } from '../ThemeColors.js';
@@ -93,13 +93,36 @@ class ServerSettingsDialog {
         const config = this.#initialValues;
         const hostPortEnabled = !config.sslEnabled.value || !config.sslOnly.value;
         const hostPortClass = { class : hostPortEnabled ? '' : 'disabledSetting' };
+        const dockerDisabled = config.isDocker ? {
+            disabled : 1,
+            title : 'Value cannot be changed in Docker',
+            class : 'disabledSetting'
+        } : {};
+
+        const dockerAttrib = setting => {
+            if (!config.isDocker) {
+                return {};
+            }
+
+            switch (setting) {
+                case ServerSettings.DataPath:
+                    return { value : '/PlexDataDirectory', ...dockerDisabled };
+                case ServerSettings.Database:
+                    return { value : '/PlexDataDirectory/Plug-in Support/Databases/com.plexapp.plugins.library.db', ...dockerDisabled };
+                default:
+                    Log.warn(`Setting '${setting}' isn't disabled in Docker, we shouldn't be calling this.`);
+                    return {};
+            }
+        };
+
         $append(container,
             $divHolder({ id : 'serverSettingsScroll' },
                 $plainDivHolder($h(1, title), $span(description)),
                 $hr(),
                 $divHolder({ class : 'serverSettingsSettings' },
-                    this.#buildStringSetting(ServerSettings.DataPath, config.dataPath, this.#validateDataPath.bind(this)),
-                    this.#buildStringSetting(ServerSettings.Database, config.database),
+                    this.#buildStringSetting(
+                        ServerSettings.DataPath, config.dataPath, this.#validateDataPath.bind(this), dockerAttrib(ServerSettings.DataPath)),
+                    this.#buildStringSetting(ServerSettings.Database, config.database, null, dockerAttrib(ServerSettings.Database)),
                     this.#buildStringSetting(ServerSettings.Host, config.host, this.#validateHostPort.bind(this), hostPortClass),
                     this.#buildNumberSetting(
                         ServerSettings.Port, config.port, this.#validatePort.bind(this, false), 1, 65535, hostPortClass),
@@ -133,6 +156,21 @@ class ServerSettingsDialog {
     }
 
     /**
+     * Return the initial value for the given setting.
+     * @template T
+     * @param {TypedSetting<T>} settingInfo
+     * @param {Object} attributes */
+    #initialValue(settingInfo, attributes={}) {
+        if (attributes.value) {
+            const val = attributes.value;
+            delete attributes.value;
+            return val;
+        }
+
+        return settingInfo.value || '';
+    }
+
+    /**
      * Build the UI for a number input setting.
      * @param {HTMLInputElement} input
      * @param {string} setting
@@ -142,7 +180,7 @@ class ServerSettingsDialog {
      * @param {number} max
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildNumberSetting(setting, settingInfo, customValidate, min, max, attributes={}) {
-        const input = $numberInput({ min : min, max : max, value : settingInfo.value || '' });
+        const input = $numberInput({ min : min, max : max, value : this.#initialValue(settingInfo, attributes) });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -154,7 +192,7 @@ class ServerSettingsDialog {
      * @param {(setting: string, e: Event) => void} [customValidate]
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildStringSetting(setting, settingInfo, customValidate, attributes={}) {
-        const input = $textInput({ value : settingInfo.value || '' });
+        const input = $textInput({ value : this.#initialValue(settingInfo, attributes) });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -166,7 +204,7 @@ class ServerSettingsDialog {
      * @param {(setting: string, e: Event) => void} [customValidate]
      * @param {Object} attributes Custom attributes to apply to the setting/input. */
     #buildPasswordSetting(setting, settingInfo, customValidate, attributes={}) {
-        const input = $passwordInput({ value : settingInfo.value || '' });
+        const input = $passwordInput({ value : this.#initialValue(settingInfo, attributes) });
         return this.#buildInputSetting(input, setting, settingInfo, customValidate, attributes);
     }
 
@@ -190,6 +228,7 @@ class ServerSettingsDialog {
 
         applyInputAttr('disabled');
         applyInputAttr('maxlength');
+        applyInputAttr('value'); // Individual buildXSetting methods should take care of this, but this catches any direct calls.
 
         const validateFn = customValidate || this.#validateSingle.bind(this, setting, false /*successBackground*/);
         input.addEventListener('change', this.#timedChangeListener(validateFn));
@@ -496,7 +535,7 @@ class ServerSettingsDialog {
             } else {
                 setInvalid('Certificate and key do not match.');
             }
-        } catch (err) {
+        } catch (_err) {
             setInvalid('Error validating certificate.');
         }
 
@@ -777,11 +816,13 @@ class ServerSettingsDialog {
 
         const subSetting = attributes.class && /\bsubSetting\b/.test(attributes.class);
         const icon = $i({ class : 'labelHelpIcon' }, getSvgIcon(Icons.Help, ThemeColors.Primary, { height : subSetting ? 14 : 18 }));
+        const settingTooltip = GetTooltip(setting);
         Tooltip.setTooltip(icon,
-            GetTooltip(setting),
+            settingTooltip.tooltip,
             {
                 textSize : TooltipTextSize.Smaller,
                 maxWidth : 500,
+                sticky : settingTooltip.sticky,
             });
         if (attributes.class) {
             attributes.class += ' serverSetting';
@@ -926,9 +967,9 @@ class ServerSettingsDialog {
                         } catch (err) {
                             errorToast(
                                 $plainDivHolder(
-                                    $text('Failed to initialize authentication. Please try again later.'),
+                                    'Failed to initialize authentication. Please try again later.',
                                     $br(), $br(),
-                                    $text(`Error: ${err.message}`)
+                                    `Error: ${err.message}`
                                 )
                             );
 
@@ -1227,8 +1268,8 @@ class ServerSettingsDialog {
 
             /** @type {TypedSetting<any>} */
             const validSetting = await ServerCommands.validateConfigValue(setting, JSON.stringify(newSetting));
-            e.target.classList[validSetting.isValid ? 'remove' : 'add']('invalid');
-            if (successBackground) e.target.classList[validSetting.isValid ? 'add' : 'remove']('valid');
+            toggleClass(e.target, 'invalid', !validSetting.isValid);
+            if (successBackground) toggleClass(e.target, 'valid', validSetting.isValid);
             if (validSetting.isValid) {
                 Tooltip.removeTooltip(e.target);
                 return true;

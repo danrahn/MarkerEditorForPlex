@@ -1,4 +1,4 @@
-import { $$, $br, $plainDivHolder, $text } from './HtmlHelpers.js';
+import { $$, $br, $plainDivHolder } from './HtmlHelpers.js';
 import { BaseLog } from '/Shared/ConsoleLog.js';
 import { errorToast } from './ErrorHandling.js';
 import { ServerCommands } from './Commands.js';
@@ -47,7 +47,7 @@ class LoginManager {
     async #init() {
         try {
             this.#unset = (await ServerCommands.needsPassword()).value;
-        } catch (ex) {
+        } catch (_ex) {
             errorToast('Server Error, check your authentication settings.');
             return;
         }
@@ -111,10 +111,10 @@ class LoginManager {
                 // More than three failed attempts. Let the user know how to reset authentication
                 // if they have access to the server files.
                 errorToast($plainDivHolder(
-                    $text(`Login failed: ${ex.message}`),
+                    `Login failed: ${ex.message}`,
                     $br(), $br(),
-                    $text(`If you don't remember your username or password, exit this application, ` +
-                        `delete auth.db in the Backup directory, and restart.`)),
+                    `If you don't remember your username or password, exit this application, ` +
+                        `delete auth.db in the Backup directory, and restart.`),
                 5000);
             } else {
                 errorToast(`Login failed: ${ex.message}`, 8000);
