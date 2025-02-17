@@ -69,7 +69,7 @@ export default class SslConfig extends ConfigBase {
         this.pemKey = this.#getOrDefault('pemKey', '');
         this.sslOnly = this.#getOrDefault('sslOnly', false);
 
-        if (!this.enabled) {
+        if (!this.enabled.value()) {
             // Not enabled, we don't care if anything's invalid.
             return;
         }
