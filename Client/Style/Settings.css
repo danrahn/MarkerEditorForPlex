@@ -82,9 +82,16 @@
 
 #serverSettingsContainer {
   text-align: center;
-  width: calc(min(90%, 800px));
   margin: auto;
   padding: 0 0 20px 0; /* Override default for better scrollbar positioning. */
+
+  @media (min-width: 767px) {
+    width: calc(min(90%, 800px));
+  }
+
+  @media all and (max-width:767px) {
+    width: calc(min(100%, 800px)); /* No additional margin on phones, we want as much real estate as possible */
+  }
 
   & #serverSettingsScroll {
     padding: 20px;
