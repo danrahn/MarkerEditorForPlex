@@ -142,7 +142,7 @@ export function $passwordInput(attributes, events={}) {
 /**
  * Create a text input element.
  * @param {{[attribute: string]: string}} [attributes={}] Attributes to add to this input.
- * @param {{[event: string]: function}} events Map of event listeners to add to this input element.
+ * @param {{[event: string]: EventListener|EventListener[]}} events Map of event listeners to add to this input element.
  * @param {object} [options={}] Additional options
  * @returns {HTMLInputElement} */
 export function $textInput(attributes={}, events={}, options={}) {

@@ -1,5 +1,5 @@
-import { $, $append, $br, $div, $divHolder, $h, $hr, $label, $textInput, $textSpan } from './HtmlHelpers.js';
-import { msToHms, pad0, timeInputShortcutHandler, timeToMs, toggleVisibility } from './Common.js';
+import { $, $append, $br, $div, $divHolder, $h, $hr, $label, $textSpan, toggleClass } from './HtmlHelpers.js';
+import { msToHms, pad0, toggleVisibility } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { Attributes } from './DataAttributes.js';
@@ -14,6 +14,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
+import { TimeInput } from './TimeInput.js';
 import Tooltip from './Tooltip.js';
 import TooltipBuilder from './TooltipBuilder.js';
 
@@ -42,11 +43,11 @@ class BulkShiftOverlay {
     /** @type {ShowData|SeasonData} */
     #mediaItem;
 
-    /** @type {HTMLInputElement} */
-    #startTimeInput;
+    /** @type {TimeInput} */
+    #startTime;
 
-    /** @type {HTMLInputElement} */
-    #endTimeInput;
+    /** @type {TimeInput} */
+    #endTime;
 
     /** @type {HTMLSelectElement} */
     #appliesToDropdown;
@@ -86,14 +87,15 @@ class BulkShiftOverlay {
     show(focusBack) {
         const container = $div({ id : 'bulkActionContainer' });
         const title = $h(1, `Shift Markers for ${this.#mediaItem.title}`);
-        this.#startTimeInput = $textInput(
-            { placeholder : 'ms or mm:ss[.000]', name : 'shiftStartTime', id : 'shiftStartTime' },
-            { keyup : this.#onTimeShiftChange.bind(this), keydown : timeInputShortcutHandler });
+        this.#startTime = new TimeInput(null /*mediaItem*/, false /*isEnd*/,
+            { keyup : this.#onTimeShiftChange.bind(this) },
+            { placeholder : 'ms or mm:ss[.000]', name : 'shiftStartTime', id : 'shiftStartTime', customValidate : true });
 
         const endVisible = this.#stickySettings.separateShift();
-        this.#endTimeInput = $textInput(
-            { placeholder : 'ms or mm:ss[.000]', name : 'shiftEndTime', id : 'shiftEndTime', class : endVisible ? '' : 'hidden' },
-            { keyup : this.#onTimeShiftChange.bind(this), keydown : timeInputShortcutHandler });
+        this.#endTime = new TimeInput(null /*mediaItem*/, true /*isEnd*/,
+            { keyup : this.#onTimeShiftChange.bind(this) },
+            { placeholder : 'ms or mm:ss[.000]', name : 'shiftEndTime', id : 'shiftEndTime',
+              class : endVisible ? '' : 'hidden', customValidate : true  });
 
         const separateShiftCheckbox = customCheckbox(
             { id : 'separateShiftCheck', checked : endVisible },
@@ -105,9 +107,9 @@ class BulkShiftOverlay {
             $hr(),
             $divHolder({ id : 'shiftZone' },
                 $label('Time shift: ', 'shiftStartTime', { id : 'shiftStartTimeLabel' }),
-                this.#startTimeInput,
+                this.#startTime.input(),
                 $label('End shift: ', 'shiftEndTime', { class : endVisible ? '' : 'hidden', id : 'shiftEndTimeLabel' }),
-                this.#endTimeInput),
+                this.#endTime.input()),
             $divHolder({ id : 'expandShrinkCheck' },
                 $label('Shift start and end times separately:', 'separateShiftCheck'),
                 separateShiftCheckbox),
@@ -173,10 +175,10 @@ class BulkShiftOverlay {
         this.#stickySettings.setSeparateShift(checkbox.checked);
         const separateShift = this.#stickySettings.separateShift();
         toggleVisibility($('#shiftEndTimeLabel'), separateShift);
-        toggleVisibility(this.#endTimeInput, separateShift);
+        toggleVisibility(this.#endTime.input(), separateShift);
         if (separateShift) {
             $('#shiftStartTimeLabel').innerText = 'Start shift: ';
-            if (!this.#endTimeInput.value) { this.#endTimeInput.value = this.#startTimeInput.value; }
+            if (!this.#endTime.input().value) { this.#endTime.input().value = this.#startTime.input().value; }
 
             this.#checkShiftValue();
         } else {
@@ -412,20 +414,11 @@ class BulkShiftOverlay {
 
     /** Marks the time input red if the shift value is invalid. */
     #checkShiftValue() {
-        const checkTime = (val, input) => {
-            if (isNaN(val)) {
-                input.classList.add('badInput');
-            } else {
-                input.classList.remove('badInput');
-            }
-        };
-
-        this.#startShiftMs = timeToMs(this.#startTimeInput.value, true /*allowNegative*/);
-        checkTime(this.#startShiftMs, this.#startTimeInput);
+        this.#startShiftMs = this.#startTime.ms();
+        toggleClass(this.#startTime.input(), 'badInput', isNaN(this.#startShiftMs));
         if (this.#stickySettings.separateShift()) {
-            this.#endShiftMs = timeToMs(this.#endTimeInput.value, true /*allowNegative*/);
-            // If end is less than or equal to start, mark it invalid.
-            checkTime(this.#endShiftMs, this.#endTimeInput);
+            this.#endShiftMs = this.#endTime.ms();
+            toggleClass(this.#endTime.input(), 'badInput', isNaN(this.#endShiftMs));
         }
     }
 

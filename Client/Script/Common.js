@@ -16,16 +16,41 @@ export function pad0(val, pad) {
 }
 
 /**
- * Convert milliseconds to a user-friendly [h:]mm:ss.000 string.
+ * Returns the minimal text for the given number of thousandths.
  * @param {number} ms */
-export function msToHms(ms) {
+function minifiedThousandths(ms) {
+    if (ms === 0) {
+        return '';
+    }
+
+    const asStr = ms.toString();
+    if (ms % 100 === 0) {
+        return `.${asStr[0]}`;
+    } else if (ms % 10 === 0) {
+        return `.${asStr.substring(2)}`;
+    }
+
+    return `.${asStr}`;
+}
+
+/**
+ * Convert milliseconds to a user-friendly [h:]mm:ss.000 string.
+ * @param {number} ms
+ * @param {boolean} minify Whether to minify the output if possible, with single-digit minutes, and truncated thousandths. */
+export function msToHms(ms, minify=false) {
     const msAbs = Math.abs(ms);
     let seconds = msAbs / 1000;
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor(seconds / 60) % 60;
     seconds = Math.floor(seconds) % 60;
     const thousandths = msAbs % 1000;
-    let time = pad0(minutes, 2) + ':' + pad0(seconds, 2) + '.' + pad0(thousandths, 3);
+    let time = '';
+    if (minify) {
+        time = pad0(minutes, hours > 0 ? 2 : 1) + ':' + pad0(seconds, 2) + minifiedThousandths(thousandths);
+    } else {
+        time = pad0(minutes, 2) + ':' + pad0(seconds, 2) + '.' + pad0(thousandths, 3);
+    }
+
     if (hours > 0) {
         time = hours + ':' + time;
     }
@@ -116,149 +141,6 @@ export function timeToMs(value, allowNegative=false) {
     }
 
     return ms * (groups.negative ? -1 : 1);
-}
-
-/* eslint-disable quote-props */ // Quotes are cleaner here
-/**
- * Map of time input shortcut keys that will increase/decrease the time by specific values.
- *
- * Values are functions, as there are also two 'special' keys, '\' and '|' (Shift+\), which
- * rounds the current value to the nearest second/tenth of a second.
- *
- * The logic behind the values is that '-' and '=' are the "big" changes, and shift ('_', '+')
- * makes it even bigger, while '[' and ']' are the "small" changes, so shift ('{',  '}')
- * makes it even smaller. Combined with Alt, this gives us the ability to change the timings
- * by 5m, 1m, 50s, 10s, 5s, 1s, 0.5s, or .1s without manually typing specific numbers. */
-const adjustKeys = {
-    '_'  : -60000, // Shift+-
-    '+'  :  60000, // Shift+=
-    '-'  : -10000, // -
-    '='  :  10000, // +
-    '['  :  -1000, // [
-    ']'  :   1000,
-    '{'  :   -100,
-    '}'  :    100,
-};
-/* eslint-enable */
-
-/**
- * Round `c` to the nearest `f`, with a maximum value of `m`
- * @param {number} c Current ms value
- * @param {number} m Maximum value
- * @param {number} f Truncation factor
- * @returns {number} */
-export const roundDelta = (c, m, f, r=c % f) => r === 0 ? 0 : -r + ((m - c < f - r) || (r < (f / 2)) ? 0 : f);
-
-/**
- * Map of "special" time input shortcuts that requires additional parameters
- * @type {{[key: string]: (currentMs: number, maxValue: number, altKey: boolean) => number}} */
-const truncationKeys = {
-    '\\' : (c, m, a) => roundDelta(c, m, a ? 5000 : 1000),
-    '|'  : (c, m, a) => roundDelta(c, m, a ? 500 : 100)
-};
-
-/**
- * If we have a negative, it's valid if we're at the start of the input and
- * a negative isn't already present (or the negative is selected).
- * @param {KeyboardEvent} e */
-const validNegative = e =>
-    e.key === '-'
-    && e.target.selectionStart === 0
-    && (e.target.value[0] !== '-' || e.target.selectionEnd !== e.target.selectionStart);
-
-
-/**
- * Return the new time in milliseconds for the time input based on the given values.
- * Takes into account jumping between positive and negative offsets.
- * @param {KeyboardEvent} e The event that triggered this calculation
- * @param {number} previous The old time in milliseconds
- * @param {number} min The minimum value
- * @param {number} max The maximum value
- * @param {number} delta The baseline number of milliseconds to adjust previous */
-function getNewTime(e, previous, min, max, delta) {
-    const newTime = Math.min(max, Math.max(min, previous + delta));
-    if (min === 0) {
-        // Return early if negative values aren't allowed.
-        return newTime;
-    }
-
-    // If we're at zero and crossing the boundary, switch to the inverse (0 => -0, -0 => 0)
-    if (previous === 0) {
-        // Stay at whatever zero we're at if it's a repeat event (holding down the key)
-        if (e.repeat) {
-            return previous;
-        }
-
-        if (Object.is(previous, 0)) {
-            if (delta < 0) {
-                return -0;
-            }
-        } else if (delta > 0) {
-            return 0;
-        }
-    }
-
-    // If the default adjustment switches between negative and positive, first stop at the
-    // appropriate zero value (jumping positive stops at -0, jumping negative stops at 0).
-    if (Object.is(Math.abs(previous), previous) !== Object.is(Math.abs(newTime), newTime)) {
-        return (previous < 0 || Object.is(previous, -0)) ? -0 : 0;
-    }
-
-    return newTime;
-}
-
-/**
- * A common input handler that allows incremental
- * time changes with keyboard shortcuts.
- * @param {KeyboardEvent} e */
-export function timeInputShortcutHandler(e, maxDuration=NaN) {
-    if (e.key.length !== 1 || e.ctrlKey || /[\d:.]/.test(e.key)) {
-        return;
-    }
-
-    // Allow a negative sign, but only if we're at the start of the input and don't already have one.
-    if (validNegative(e)) {
-        return;
-    }
-
-    e.preventDefault();
-    if (!adjustKeys[e.key] && !truncationKeys[e.key]) {
-        return;
-    }
-
-    const simpleKey = e.key in adjustKeys;
-    const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
-    const min = (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
-    const currentValue = e.target.value === '-' ? '-0.0' : e.target.value;
-
-    // Default to HMS, but keep ms if that's what's currently being used
-    const needsHms = currentValue.length === 0 || /[.:]/.test(currentValue);
-
-    // Alt multiplies by 5, so 100ms becomes 500, 1 minutes becomes 5, etc.
-    const currentValueMs = timeToMs(currentValue || '0', true /*allowNegative*/);
-    if (isNaN(currentValueMs)) {
-        return; // Don't try to do anything with invalid input
-    }
-
-    let timeDiff = 0;
-    if (simpleKey) {
-        timeDiff = adjustKeys[e.key] * (e.altKey ? 5 : 1);
-    } else {
-        timeDiff = truncationKeys[e.key](currentValueMs, max, e.altKey);
-    }
-
-    const newTime = getNewTime(e, currentValueMs, min, max, timeDiff);
-
-    const newValue = needsHms ? msToHms(newTime) : newTime;
-
-    // execCommand will make this undo-able, but is deprecated.
-    // Fall back to direct substitution if necessary.
-    try {
-        e.target.select();
-        document.execCommand('insertText', false, newValue);
-    } catch (ex) {
-        e.target.value = needsHms ? msToHms(newTime) : newTime;
-    }
 }
 
 /**

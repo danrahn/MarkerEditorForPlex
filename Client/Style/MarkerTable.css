@@ -83,6 +83,10 @@ table .buttonIconAndText {
   width: 130px;
 }
 
+.timeInput.invalid {
+  background-color: var(--error-background);
+}
+
 .thumbnailTimeInput {
   text-align: center;
 }

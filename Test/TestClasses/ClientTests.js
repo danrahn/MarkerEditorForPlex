@@ -1,7 +1,7 @@
 import TestBase from '../TestBase.js';
 import TestHelpers from '../TestHelpers.js';
 
-import { roundDelta } from '../../Client/Script/Common.js';
+import { roundDelta } from '../../Client/Script/TimeInput.js';
 
 class ClientTests extends TestBase {
     constructor() {

@@ -1,5 +1,5 @@
-import { $, $$, $append, $clear, $divHolder, $label, $option, $select, $span, $textInput } from './HtmlHelpers.js';
-import { msToHms, realMs, timeInputShortcutHandler, timeToMs } from './Common.js';
+import { $, $$, $append, $clear, $divHolder, $label, $option, $select, $span } from './HtmlHelpers.js';
+import { msToHms, realMs, timeToMs } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
@@ -15,6 +15,7 @@ import { MarkerData } from '/Shared/PlexTypes.js';
 import Overlay from './Overlay.js';
 import { ServerCommands } from './Commands.js';
 import { ThemeColors } from './ThemeColors.js';
+import { TimeInput } from './TimeInput.js';
 import { TimestampThumbnails } from './TimestampThumbnails.js';
 import Tooltip from './Tooltip.js';
 
@@ -47,6 +48,12 @@ class MarkerEdit {
      * @type {MarkerAddStickySettings} */
     #stickyAddSettings;
 
+    /** @type {TimeInput} */
+    #startInput;
+
+    /** @type {TimeInput} */
+    #endInput;
+
     /**
      * @param {MarkerRow} markerRow The marker row to edit.
      * @param {ChapterData[]} chapters Chapter data (if any) for the media item associated with this marker. */
@@ -54,6 +61,9 @@ class MarkerEdit {
         this.markerRow = markerRow;
         this.#chapters = chapters;
     }
+
+    startInput() { return this.#startInput; }
+    endInput() { return this.#endInput; }
 
     /**
      * Start the edit process for a marker, switching out the static UI for editable elements,
@@ -84,18 +94,13 @@ class MarkerEdit {
      * Return a text input meant for time input. If this edit session isn't for an added marker,
      * set the input's initial value to the marker's corresponding value.
      * @param {boolean} [isEnd=false] Whether the time input is for the end of a marker.
-     * @returns {HTMLElement} A text input for a marker. */
-    getTimeInput(isEnd) {
+     * @returns {TimeInput} A TimeInput instance. */
+    buildTimeInput(isEnd) {
         const events = {
-            keydown : [
-                /** @this {MarkerEdit} */
-                function (_input, e) { timeInputShortcutHandler(e, this.markerRow.baseItemRow().mediaItem().duration); },
-                this.#timeInputEditShortcutHandler
-            ],
-            keyup : [
-                this.#timeInputEditKeyupShortcutHandler
-            ]
+            keydown : [this.#timeInputEditShortcutHandler.bind(this)],
+            keyup : [this.#timeInputEditKeyupShortcutHandler.bind(this)]
         };
+
         if (isEnd) {
             events.keydown.push(this.#onEndTimeInput);
         }
@@ -107,61 +112,34 @@ class MarkerEdit {
             initialValue = msToHms(isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         }
 
-        const input = $textInput(
-            {   type : 'text',
-                maxlength : 12,
-                class : `timeInput timeInput${isEnd ? 'End' : 'Start'}`,
-                placeholder : 'ms or mm:ss[.000]',
-                value : initialValue,
-                autocomplete : 'off',
-                [Attributes.TableNav] : `time-${isEnd ? 'end' : 'start'}`, },
+        const timeInput = new TimeInput(
+            this.markerRow.baseItemRow().mediaItem(),
+            isEnd,
             events,
-            { thisArg : this });
-
-        // The above keydown should catch most bad inputs, but the user can still
-        // paste something invalid in. This is overkill considering there's already
-        // validation before attempting to submit a timestamp, but it's better to
-        // prevent the user from doing something bad as early as possible.
-        /**
-         * @param {ClipboardEvent} e
-         * @this {HTMLInputElement} */
-        const pasteListener = (e) => {
-            const text = e.clipboardData.getData('text/plain');
-            const negative = text[0] === '-';
-            if (!/^-?[\d:.]*$/.test(text)) {
-                const newText = (negative ? '-' : '') + text.replace(/[^\d:.]/g, '');
-                e.preventDefault();
-
-                // Only attempt to insert if our transformed data can be interpreted
-                // as a valid timestamp.
-                if (isNaN(timeToMs(newText, true /*allowNegative*/)) && isNaN(parseInt(newText))) {
-                    return;
-                }
-
-                try {
-                    document.execCommand('insertText', false, newText);
-                } catch (ex) {
-                    Log.warn(ex, `Failed to execute insertText command`);
-                    // Most browsers still support execCommand even though it's deprecated, but if we did fail, try a direct replacement
-                    this.value = this.value.substring(0, this.selectionStart) + newText + this.value.substring(this.selectionEnd);
-                }
-            }
-        };
-
-        input.addEventListener('paste', pasteListener);
+            {
+                value : initialValue,
+                [Attributes.TableNav] : `time-${isEnd ? 'end' : 'start'}`,
+                class : `timeInput timeInput${isEnd ? 'End' : 'Start'}`
+            });
 
         if (isEnd) {
-            Tooltip.setTooltip(input, 'Ctrl+Shift+E to replace with the end of an episode.');
+            Tooltip.setTooltip(timeInput.input(), 'Ctrl+Shift+E to replace with the end of an episode.');
         }
 
-        return input;
+        if (isEnd) {
+            this.#endInput = timeInput;
+        } else {
+            this.#startInput = timeInput;
+        }
+
+        return timeInput.input();
     }
 
     /**
      * Handles MarkerEdit specific time input shortcuts, like committing an action
      * and changing the marker type.
      * @param {KeyboardEvent} e */
-    #timeInputEditShortcutHandler(_input, e) {
+    #timeInputEditShortcutHandler(e) {
         if (e.shiftKey || e.ctrlKey || e.altKey) {
             return;
         }
@@ -193,7 +171,7 @@ class MarkerEdit {
      * only fire on Keyup (i.e. committing the action)
      * @param {*} _input
      * @param {KeyboardEvent} e */
-    #timeInputEditKeyupShortcutHandler(_input, e) {
+    #timeInputEditKeyupShortcutHandler(e) {
         switch (e.key) {
             case 'Enter':
                 // Ctrl+Enter or Shift+Enter attempts to submit the operation
@@ -255,11 +233,11 @@ class MarkerEdit {
     #buildTimeEdit() {
         const start = this.markerRow.row().children[1];
         $clear(start);
-        start.appendChild(this.getTimeInput(false));
+        start.appendChild(this.buildTimeInput(false /*isEnd*/));
 
         const end = this.markerRow.row().children[2];
         $clear(end);
-        end.appendChild(this.getTimeInput(true));
+        end.appendChild(this.buildTimeInput(true /*isEnd*/));
         $$('input', start).focus();
         $$('input', start).select();
     }
@@ -374,12 +352,10 @@ class MarkerEdit {
      * @param {Event} e */
     #getCurrentValues(e) {
         const markerType = $$('.inlineMarkerType', this.markerRow.row()).value;
-        /** @type {HTMLInputElement[]} */
-        const inputs = $('input[type="text"]', this.markerRow.row());
         /** @type {MediaItemWithMarkerTable} */
         const mediaItem = this.markerRow.baseItemRow().mediaItem();
-        const startTime = realMs(timeToMs(inputs[0].value, true /*allowNegative*/), mediaItem.duration);
-        const endTime = realMs(timeToMs(inputs[1].value, true /*allowNegative*/), mediaItem.duration);
+        const startTime = realMs(this.#startInput.ms(true /*final*/), mediaItem.duration);
+        const endTime = realMs(this.#endInput.ms(true /*final*/), mediaItem.duration);
         const markerId = this.markerRow.markerId();
         const final = endTime === mediaItem.duration && markerType === MarkerType.Credits;
         const valid = mediaItem.markerTable().checkValues(markerId, startTime, endTime);
@@ -644,24 +620,22 @@ class ThumbnailMarkerEdit extends MarkerEdit {
     #autoloadTimeout;
 
     /**
-     * Builds on top of {@linkcode MarkerEdit.getTimeInput}, adding a thumbnail below the time input field.
+     * Builds on top of {@linkcode MarkerEdit.buildTimeInput}, adding a thumbnail below the time input field.
      * @param {boolean} isEnd Whether we're getting time input for the end of the marker. */
-    getTimeInput(isEnd) {
-        const input = super.getTimeInput(isEnd);
-        input.addEventListener('keydown', this.#thumbnailTimeInputShortcutHandler.bind(this));
-        input.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, input));
+    buildTimeInput(isEnd) {
+        const timeInput = super.buildTimeInput(isEnd);
+        timeInput.addEventListener('keydown', this.#thumbnailTimeInputShortcutHandler.bind(this));
+        timeInput.addEventListener('keyup', this.#onTimeInputKeyup.bind(this, timeInput));
 
         const thumbnail = this.#thumbnails.buildThumbnail(isEnd);
-        return $divHolder({ class : 'thumbnailTimeInput' }, input, thumbnail);
+        return $divHolder({ class : 'thumbnailTimeInput' }, timeInput, thumbnail);
     }
 
     /**
      * Retrieve the new timestamp for the given start/end thumbnail.
      * @param {boolean} isEnd */
     #getNewTimestamp(isEnd) {
-        const mediaItem = this.markerRow.baseItemRow().mediaItem();
-        const query = `.timeInput${isEnd ? 'End' : 'Start'}`;
-        return realMs(timeToMs($$(query, this.markerRow.html).value, true /*allowNegative*/), mediaItem.duration);
+        return realMs(isEnd ? this.endInput().ms() : this.startInput().ms(), this.markerRow.baseItemRow().mediaItem().duration);
     }
 
     /**

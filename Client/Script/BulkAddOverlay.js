@@ -1,6 +1,5 @@
-import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $option, $plainDivHolder, $select, $span,
-    $textInput } from './HtmlHelpers.js';
-import { msToHms, pad0, realMs, timeInputShortcutHandler, timeToMs, waitFor } from './Common.js';
+import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $option, $plainDivHolder, $select, $span } from './HtmlHelpers.js';
+import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
@@ -19,6 +18,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
+import { TimeInput } from './TimeInput.js';
 import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
@@ -64,6 +64,10 @@ class BulkAddOverlay {
     #cachedChapterEnd;
     /** @type {BulkAddStickySettings} Applicable settings that might "stick" depending on client settings. */
     #stickySettings = new BulkAddStickySettings();
+    /** @type {TimeInput} */
+    #startInput;
+    /** @type {TimeInput} */
+    #endInput;
 
     /**
      * List of descriptions for the various bulk marker resolution actions. */
@@ -102,20 +106,20 @@ class BulkAddOverlay {
         this.#serverResponse = undefined;
         const container = $div({ id : 'bulkActionContainer' });
         const title = $h(1, 'Bulk Add Markers');
+        this.#startInput = new TimeInput(undefined /*mediaItem*/, false /*isEnd*/,
+            { keyup : this.#onBulkAddInputChange.bind(this) },
+            { name : 'addStart', id : 'addStart', customValidate : true });
+        this.#endInput = new TimeInput(undefined /*mediaItem*/, true /*isEnd*/,
+            { keyup : this.#onBulkAddInputChange.bind(this) },
+            { name : 'addEnd', id : 'addEnd', customValidate : true });
         $append(container,
             title,
             $hr(),
             $divHolder({ id : 'timeZone' },
                 $label('Start: ', 'addStart'),
-                $textInput(
-                    { placeholder : 'ms or ms:ss[.000]', name : 'addStart', id : 'addStart' },
-                    { keyup : this.#onBulkAddInputChange.bind(this), keydown : timeInputShortcutHandler }
-                ),
+                this.#startInput.input(),
                 $label('End: ', 'addEnd'),
-                $textInput(
-                    { placeholder : 'ms or ms:ss[.000]', name : 'addEnd', id : 'addEnd' },
-                    { keyup : this.#onBulkAddInputChange.bind(this), keydown : timeInputShortcutHandler }
-                )
+                this.#endInput.input(),
             ),
             $divHolder({ id : 'chapterZone', class : 'hidden' },
                 $label('Baseline: ', 'baselineEpisode'),
@@ -194,12 +198,12 @@ class BulkAddOverlay {
      * Processes time input
      * @param {MouseEvent} e */
     #onBulkAddInputChange(e) {
-        const start = $('#addStart');
-        const end = $('#addEnd');
-        this.#cachedStart = timeToMs(start.value, true /*allowNegative*/);
-        this.#cachedEnd = timeToMs(end.value, true /*allowNegative*/);
-        isNaN(this.#cachedStart) ? start.classList.add('badInput') : start.classList.remove('badInput');
-        isNaN(this.#cachedEnd) ? end.classList.add('badInput') : end.classList.remove('badInput');
+        const start = this.#startInput;
+        const end = this.#endInput;
+        this.#cachedStart = start.ms();
+        this.#cachedEnd = end.ms();
+        isNaN(this.#cachedStart) ? start.input().classList.add('badInput') : start.input().classList.remove('badInput');
+        isNaN(this.#cachedEnd) ? end.input().classList.add('badInput') : end.input().classList.remove('badInput');
         clearTimeout(this.#inputTimer);
         if (e.key === 'Enter') {
             this.#updateTableStats();
