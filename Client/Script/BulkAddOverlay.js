@@ -3,7 +3,7 @@ import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
-import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
+import { errorResponseOverlay, errorToast, warnToast } from './ErrorHandling.js';
 import Tooltip, { TooltipTextSize } from './Tooltip.js';
 import { Attributes } from './DataAttributes.js';
 import { BulkAddStickySettings } from 'StickySettings';
@@ -18,6 +18,7 @@ import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import TableElements from './TableElements.js';
 import { ThemeColors } from './ThemeColors.js';
+import { TimeExpression } from './TimeExpression.js';
 import { TimeInput } from './TimeInput.js';
 import TooltipBuilder from './TooltipBuilder.js';
 
@@ -46,6 +47,9 @@ class BulkAddOverlay {
     /**
      * @type {SerializedBulkAddResult} */
     #serverResponse;
+
+    /** @type {Promise<void>?} */
+    #waitingForStats;
 
     /** @type {number} */
     #inputTimer = 0;
@@ -106,12 +110,14 @@ class BulkAddOverlay {
         this.#serverResponse = undefined;
         const container = $div({ id : 'bulkActionContainer' });
         const title = $h(1, 'Bulk Add Markers');
-        this.#startInput = new TimeInput(undefined /*mediaItem*/, false /*isEnd*/,
+        this.#startInput = new TimeInput(
+            { isEnd : false, plainOnly : false, customValidate : true },
             { keyup : this.#onBulkAddInputChange.bind(this) },
-            { name : 'addStart', id : 'addStart', customValidate : true });
-        this.#endInput = new TimeInput(undefined /*mediaItem*/, true /*isEnd*/,
+            { name : 'addStart', id : 'addStart' });
+        this.#endInput = new TimeInput(
+            { isEnd : true, plainOnly : false, customValidate : true },
             { keyup : this.#onBulkAddInputChange.bind(this) },
-            { name : 'addEnd', id : 'addEnd', customValidate : true });
+            { name : 'addEnd', id : 'addEnd' });
         $append(container,
             title,
             $hr(),
@@ -196,10 +202,23 @@ class BulkAddOverlay {
 
     /**
      * Processes time input
-     * @param {MouseEvent} e */
+     * @param {KeyboardEvent} e */
     #onBulkAddInputChange(e) {
         const start = this.#startInput;
         const end = this.#endInput;
+
+        // Advanced expressions require full episode data, so pull that in first.
+        if ((start.isAdvanced() || end.isAdvanced()) && !this.#serverResponse && !this.#waitingForStats) {
+            this.#waitingForStats = new Promise(r => {
+                this.#check().then(() => {
+                    r();
+                    this.#waitingForStats = null;
+                });
+            });
+
+            warnToast('Loading episode data...', this.#waitingForStats);
+        }
+
         this.#cachedStart = start.ms();
         this.#cachedEnd = end.ms();
         isNaN(this.#cachedStart) ? start.input().classList.add('badInput') : start.input().classList.remove('badInput');
@@ -629,6 +648,8 @@ class BulkAddOverlay {
 
     startTime() { return this.#cachedStart; }
     endTime() { return this.#cachedEnd; }
+    startInput() { return this.#startInput; }
+    endInput() { return this.#endInput; }
     resolveType() { return this.#stickySettings.applyType(); }
     /** @returns {string} */
     markerType() { return $('#markerTypeSelect').value; }
@@ -681,6 +702,10 @@ class BulkAddRow extends BulkActionRow {
     #existingMarkers;
     /** @type {ChapterData[]} */
     #chapters;
+    /** @type {TimeExpression} */
+    #startExpression;
+    /** @type {TimeExpression} */
+    #endExpression;
 
     /**
      * @param {BulkAddOverlay} parent
@@ -692,13 +717,15 @@ class BulkAddRow extends BulkActionRow {
         this.#episodeInfo = episodeInfo.episodeData;
         this.#existingMarkers = episodeInfo.existingMarkers;
         this.#chapters = chapters;
+        this.#startExpression = new TimeExpression(this.#existingMarkers, false /*isEnd*/);
+        this.#endExpression = new TimeExpression(this.#existingMarkers, true /*isEnd*/);
     }
 
     /** Create and return the table row.
      * @returns {HTMLTableRowElement} */
     build() {
-        const startTime = this.#parent.startTime();
-        const endTime = this.#parent.endTime();
+        const startTime = this.#startExpression.updateState(this.#parent.startInput().expressionState()).ms();
+        const endTime = this.#endExpression.updateState(this.#parent.endInput().expressionState()).ms();
         this.buildRow(
             this.createCheckbox(true, this.#episodeInfo.metadataId),
             `S${pad0(this.#episodeInfo.seasonIndex, 2)}E${pad0(this.#episodeInfo.index, 2)}`,
@@ -742,9 +769,13 @@ class BulkAddRow extends BulkActionRow {
      * @returns {{ mode : number, time : number }} */
     #calculateStartEnd(type, baseline, min=-1) {
         if (!this.#parent.chapterMode()) {
+            // Use 'final' mode to ensure there's no overlap with marker references.
+            const ms = type === 'start' ?
+                this.#startExpression.updateState(this.#parent.startInput().expressionState()).ms(true /*final*/) :
+                this.#endExpression.updateState(this.#parent.endInput().expressionState()).ms(true /*final*/);
             return {
                 mode : ChapterMatchMode.Disabled,
-                time : realMs(this.#parent[type + 'Time'](), this.#episodeInfo.duration),
+                time : realMs(ms, this.#episodeInfo.duration),
             };
         }
 
@@ -843,7 +874,17 @@ class BulkAddRow extends BulkActionRow {
         let end = endTimeBase;
         let semiWarn = false;
         let isWarn = false;
-        if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
+        const startState = this.#startExpression.state();
+        const endState = this.#endExpression.state();
+        if (!startState.valid || !endState.valid) {
+            if (!startState.valid) {
+                tt.addLine(`Bad start expression: ${startState.invalidReason}`);
+            }
+
+            if (!endState.valid) {
+                tt.addLine(`Bad end expression: ${endState.invalidReason}`);
+            }
+        } else if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
             tt.addLine('Invalid start or end time.');
         } else if (startTimeBase >= endTimeBase) {
             tt.addLines(`Start time is greater than end time:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);

@@ -1,7 +1,7 @@
 import { $textInput, toggleClass } from './HtmlHelpers.js';
-import { msToHms, timeToMs } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
-import { MarkerType } from '/Shared/MarkerType.js';
+import { msToHms } from './Common.js';
+import { TimeExpression } from './TimeExpression.js';
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
@@ -9,53 +9,17 @@ import { MarkerType } from '/Shared/MarkerType.js';
 const Log = ContextualLog.Create('TimeInput');
 
 /**
- * @typedef {Object} MarkerReference
- * @property {string} type
- * @property {number} index
- * @property {boolean} start
- * @property {boolean} implicit Whether 'start' was implied based on isEnd, not an explicit reference.
- * @property {MarkerData} marker The actual marker indicated by the above fields.
+ * @typedef {Object} TimeInputOptions
+ * @property {bool} [isEnd] Whether this input is for the end of a marker. Defaults to false.
+ * @property {bool} [customValidate] Whether the input has a separate validation function. Defaults to false.
+ * @property {bool} [plainOnly] Whether to only allow plain input, not complex expressions. Defaults to false.
+ * @property {MediaItemWithMarkerTable} [mediaItem]
 */
 
-// TODO: This should probably be a class
-/**
- * @typedef {Object} TimestampExpression
- * @property {boolean} plain Whether this is a "plain" input, versus an advanced expression that starts with '='
- * @property {boolean} valid
- * @property {string} [invalidReason] The reason this expression isn't valid
- * @property {boolean} hms Whether the time component is using HMS or millisecond based timestamps.
- * @property {MarkerReference} [markerRef] If a marker-based expression, the marker reference
- * @property {number} ms The number of ms represented, not including any potential markerRef
- * */
-
-
-const typeToKeyMap = {
-    any : 'M',
-    [MarkerType.Intro] : 'I',
-    [MarkerType.Credits] : 'C',
-    [MarkerType.Ad] : 'A'
-};
-
-/**
- * @param {'M'|'I'|'C'|'A'} key */
-function markerTypeFromKey(key) {
-    return Object.keys(typeToKeyMap).find(type => typeToKeyMap[type] === key);
-}
-
-/**
- * @param {string} markerType */
-function keyFromMarkerType(markerType) {
-    return typeToKeyMap[markerType];
-}
-
-const validTimeChars = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ':']);
 
 /* eslint-disable quote-props */ // Quotes are cleaner here
 /**
  * Map of time input shortcut keys that will increase/decrease the time by specific values.
- *
- * Values are functions, as there are also two 'special' keys, '\' and '|' (Shift+\), which
- * rounds the current value to the nearest second/tenth of a second.
  *
  * The logic behind the values is that '-' and '=' are the "big" changes, and shift ('_', '+')
  * makes it even bigger, while '[' and ']' are the "small" changes, so shift ('{',  '}')
@@ -107,35 +71,6 @@ const truncationKeys = {
     '|'  : (c, m, a) => roundDelta(c, m, a ? 500 : 100)
 };
 
-
-/**
- * @param {ClipboardEvent} e */
-function pasteListener(e) {
-    const text = e.clipboardData.getData('text/plain');
-
-    // TODO: Fine-tune this. Or I could just let paste do its thing even if the input is invalid.
-    if (!/^[-+\d:.ACIMSE]*$/.test(text)) {
-        const newText = text.replace(/[^-+\d:.ACIMSE]/g, '');
-        e.preventDefault();
-
-        // Only attempt to insert if our transformed data can be interpreted
-        // as a valid timestamp.
-        if (isNaN(timeToMs(newText, true /*allowNegative*/)) && isNaN(parseInt(newText))) {
-            return;
-        }
-
-        try {
-            document.execCommand('insertText', false, newText);
-        } catch (ex) {
-            /** @type {HTMLInputElement} */
-            const target = e.target;
-            Log.warn(ex, `Failed to execute insertText command`);
-            // Most browsers still support execCommand even though it's deprecated, but if we did fail, try a direct replacement
-            target.value = target.value.substring(0, target.selectionStart) + newText + target.value.substring(target.selectionEnd);
-        }
-    }
-}
-
 /**
  * Encapsulates the logic behind timestamp inputs. Two main input forms are allowed:
  *
@@ -163,33 +98,45 @@ export class TimeInput {
     /** @type {MediaItemWithMarkerTable} */
     #mediaItem;
     #isEnd = false;
+    #customValidate = false;
+    #plainOnly = false;
+
+    /** @type {TimeExpression} */
+    #expression;
+
 
     /**
-     * @param {MediaItemWithMarkerTable} mediaItem
+     * @param {TimeInputOptions} options
      * @param {{ [eventName: string]: Function[] }} events List of additional events to add to the input element.
      * @param {{ [attribute: string]: any }} Additional attributes to attach to the input element. */
-    constructor(mediaItem, isEnd=false, events={}, attributes={}) {
-        this.#mediaItem = mediaItem;
-        this.#isEnd = isEnd;
+    constructor(options, events={}, attributes={}) {
+        this.#mediaItem = options.mediaItem;
+        this.#isEnd = !!options.isEnd;
+        this.#customValidate = !!options.customValidate;
+        this.#plainOnly = 'plainOnly' in options && options.plainOnly;
+        this.#expression = new TimeExpression(this.#mediaItem?.markerTable().markers(), this.#isEnd, this.#plainOnly);
         if (this.#mediaItem && !this.#mediaItem.markerTable()) {
             this.#mediaItem = undefined;
             Log.error(`Media item does not have a marker table, can't use expression-based parsing!`);
         }
 
-        events.paste = [pasteListener, ...(events.paste || [])];
+        const iter = i => i ? i instanceof Array ? i : [i] : [];
+        events.paste = [this.#onPaste.bind(this), ...iter(events.paste)];
         events.keydown = [
             this.#handleSeek.bind(this),
-            ...(events.keydown || [])
+            ...iter(events.keydown)
         ];
 
-        if (attributes.customValidate) {
-            delete attributes.customValidate;
-        } else {
-            events.keyup = [
-                this.#validateInput.bind(this),
-                ...(events.keyup || [])
-            ];
-        }
+        events.keyup = [
+            this.#onKeyup.bind(this),
+            ...iter(events.keyup)
+        ];
+
+        // Ensure reparse also happens after losing focus
+        events.change = [
+            this.#onKeyup.bind(this),
+            ...iter(events.change),
+        ];
 
         this.#input = $textInput(
             {   type : 'text',
@@ -206,53 +153,76 @@ export class TimeInput {
     /** Retrieve the underlying timestamp represented by the current value, in milliseconds.
      * @param {boolean} final */
     ms(final=false) {
-        const exp = this.#parseExpression();
-        return this.#ms(exp, final);
+        // First verify the value has been parsed. Caching should ensure this is cheap when inputs are the same,
+        // but should be verified for large bulk operations (e.g. bulk adding for all one One Piece).
+        this.#expression.parse(this.#input.value);
+        return this.#expression.ms(final);
     }
+
+    /** Return the underlying text input element. */
+    input() { return this.#input; }
+
+    /** Return whether this expression is "advanced", i.e. contains more than just raw timestamps. */
+    isAdvanced() { return this.#expression.isAdvanced(); }
 
     /**
-     * Internal version that calculates the time from a cached expression.
-     * @param {TimestampExpression} expression */
-    #ms(expression, final=false) {
-        if (!expression.valid) {
-            return NaN;
-        }
-
-        const marker = expression.markerRef?.marker;
-        if (marker) {
-            let offset = 0;
-            if (final && expression.ms === 0) {
-                // With plain marker notation, +/- 0.001 to avoid overlap
-                offset = expression.markerRef.start ? -1 : 1;
-            }
-
-            return expression.ms + (expression.markerRef.start ? marker.start : marker.end) + offset;
-        }
-
-        return expression.ms;
-    }
-
-    input() { return this.#input; }
+     * Return the current state of the expression.
+     * @returns {ParseState} */
+    expressionState() { return this.#expression.state(); }
 
     /**
      * @param {KeyboardEvent} _e */
-    #validateInput(_e) {
-        // TODO: Should this be cached? It's not _too_ heavy, but we might be calculating it a lot.
-        const exp = this.#parseExpression();
-        toggleClass(this.#input, 'invalid', !exp.valid);
+    #onKeyup(_e) {
+        // TODO: Should this be cached? It's not heavy, but we might be calculating it a lot.
+        const result = this.#expression.parse(this.#input.value);
+        if (this.#customValidate) {
+            return;
+        }
+
+        toggleClass(this.#input, 'invalid', !result.valid);
         let title = '';
-        if (exp.valid) {
+        if (result.valid) {
             // No title for plain expressions that already use hms.
-            if (!exp.plain || !exp.hms) {
-                title = msToHms(this.#ms(exp), true /*minify*/);
+            if (!result.plain || !result.hms) {
+                // null is a sentinel indicating that a mediaItem is needed
+                // to get the real value. Set no title in that instance.
+                const ms = this.#expression.ms();
+                if (ms !== null) {
+                    title = msToHms(ms, true /*minify*/);
+                }
             }
         } else {
-            title = exp.invalidReason || 'Invalid input';
+            title = result.invalidReason || 'Invalid input';
         }
 
         this.#input.title = title;
     }
 
+    /**
+     * @param {ClipboardEvent} e */
+    #onPaste(e) {
+        const text = e.clipboardData.getData('text/plain');
+
+        const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSE ]$/;
+        const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSE ]/g;
+
+        if (!rgxFind.test(text)) {
+            e.preventDefault();
+            const newText = text.replace(rgxReplace, '');
+
+            // Even if the resulting text is invalid, paste in the valid characters anway,
+            // as someone might have wanted to paste a partial expression.
+            try {
+                document.execCommand('insertText', false, newText);
+            } catch (ex) {
+                /** @type {HTMLInputElement} */
+                const target = e.target;
+                Log.warn(ex, `Failed to execute insertText command`);
+                // Most browsers still support execCommand even though it's deprecated, but if we did fail, try a direct replacement
+                target.value = target.value.substring(0, target.selectionStart) + newText + target.value.substring(target.selectionEnd);
+            }
+        }
+    }
     /**
      * Handles seek keyboard shortcuts. Also ensures invalid
      * characters aren't entered.
@@ -275,7 +245,7 @@ export class TimeInput {
             return;
         }
 
-        const isExpression = this.#mediaItem && this.#input.value[0] === '=';
+        const isExpression = !this.#plainOnly && this.#input.value[0] === '=';
         if (isExpression) {
             // Allow some additional characters in expression mode
             if (/[MCIASE+ -]/.test(e.key)) {
@@ -287,10 +257,12 @@ export class TimeInput {
         // the character to be typed into the input
         e.preventDefault();
 
-        const currentExpression = this.#parseExpression();
+        // Should this be cached? Only if we can guarantee we have the latest state.
+        // TODO: Make sure all events are captured - paste, change, keyup, input, etc.
+        const parseState = this.#expression.parse(this.#input.value);
 
         // No need to do anything if the current expression isn't valid
-        if (!currentExpression.valid) {
+        if (!parseState.valid) {
             return;
         }
 
@@ -299,7 +271,7 @@ export class TimeInput {
             return;
         }
 
-        this.#calculateNewTimeInput(e, currentExpression, simpleKeys);
+        this.#calculateNewTimeInput(e, parseState, simpleKeys);
     }
 
     /**
@@ -329,176 +301,31 @@ export class TimeInput {
         }
 
         const input = this.#input;
-        return this.#mediaItem && input.selectionStart === 0 && (input.value[0] !== '=' || input.selectionEnd !== 0);
-    }
-
-    /**
-     * Parses the current input */
-    /* eslint-disable-next-line complexity */ // The switch of multiple characters overinflates the complexity
-    #parseExpression() {
-        /** @type {TimestampExpression} */
-        const expression = { plain : true, valid : true, ms : 0 };
-
-        const value = this.#input.value;
-        if (value.length === 0) {
-            expression.hms = true;
-            return expression;
-        }
-
-        if (value[0] !== '=') {
-            expression.ms = timeToMs(value, true /*allowNegative*/);
-            expression.valid = !isNaN(expression.ms);
-            if (!expression.valid) {
-                expression.invalidReason = 'Timestamp could not be parsed';
-            }
-
-            expression.hms = !/^\d+$/.test(value);
-            return expression;
-        }
-
-        if (!this.#mediaItem) {
-            expression.valid = false;
-            expression.invalidReason = `Only plain expressions are allowed, cannot use '=' syntax`;
-            return expression;
-        }
-
-        expression.plain = false;
-
-        let i = 1;
-        let negative = false;
-        while (i < value.length) {
-            const c = value[i];
-            switch (c) {
-                case 'M':
-                case 'I':
-                case 'C':
-                case 'A': {
-                    if (expression.markerRef) {
-                        expression.valid = false;
-                        expression.invalidReason = 'Expressions can only reference a single marker.';
-                        return expression;
-                    }
-
-                    if (negative) {
-                        expression.valid = false;
-                        expression.invalidReason = 'Marker references cannot be subtracted.';
-                        return expression;
-                    }
-
-                    const markerData = /^(?<type>\w)(?<index>-?\d+)(?<se>[SE])?\b/.exec(value.substring(i));
-                    if (!markerData) {
-                        expression.valid = false;
-                        expression.invalidReason = `Could not parse potential marker reference.`;
-                        return expression;
-                    }
-
-                    const se = markerData.groups.se;
-                    expression.markerRef = {
-                        type : markerTypeFromKey(c),
-                        index : parseInt(markerData.groups.index),
-                        start : se ? se === 'S' : this.#isEnd,
-                        implicit : !se
-                    };
-
-                    i += markerData.groups.index.length + (markerData.groups.se ? 1 : 0) + 1;
-                    break;
-                }
-                case '-':
-                case '+':
-                    negative = c === '-';
-                    i += 1;
-                    break;
-                case '0': case '1': case '2': case '3': case '4': case '5':
-                case '6': case '7': case '8': case '9': case '.': {
-                    const iStart = i;
-                    while (validTimeChars.has(value[i])) {
-                        ++i;
-                    }
-
-                    const timeString = value.substring(iStart, i);
-                    const ms = timeToMs(timeString);
-                    if (isNaN(ms)) {
-                        expression.valid = false;
-                        expression.invalidReason = `Could not parse "${timeString}" as a timestamp`;
-                        return expression;
-                    }
-
-                    // Need special handling for '=-0'
-                    const add = negative ? -ms : ms;
-                    expression.ms = expression.ms === 0 ? add : expression.ms + add;
-
-                    // HMS overrides any single ms instance
-                    expression.hms ||= !/^\d+$/.test(timeString);
-                    negative = false;
-                    break;
-                }
-                case ' ':
-                default:
-                    i += 1;
-                    break;
-            }
-        }
-
-        this.#validateMarkerReference(expression);
-        return expression;
-    }
-
-    /**
-     * Ensures the given expression's marker reference is valid.
-     * @param {TimestampExpression} expression */
-    #validateMarkerReference(expression) {
-        if (!expression.valid || !expression.markerRef) {
-            return;
-        }
-
-        const ref = expression.markerRef;
-        const absolute = Math.abs(ref.index);
-
-        if (absolute === 0) {
-            expression.valid = false;
-            expression.invalidReason = 'Marker index 0 is invalid, use 1-based indexing.';
-            return;
-        }
-
-        let markers = this.#mediaItem.markerTable().markers();
-        if (ref.index < 0) {
-            // We don't want an in-place reversal, since we'd be reversing the marker table's underlying references.
-            markers = markers.toReversed();
-        }
-
-        let idx = 0;
-        const isAny = ref.type === 'any';
-        for (const marker of markers) {
-            if (isAny || marker.markerType === ref.type) {
-                if (++idx === absolute) { // Prefixed ++ since user input is 1-based
-                    ref.marker = marker;
-                    return;
-                }
-            }
-        }
-
-        expression.valid = false;
-        expression.invalidReason = `Invalid marker index '${ref.index}': not enough ${ref.type === 'any' ? '' : ref.type + ' '}markers`;
-
-        // TODO: "Plain" inputs handle excessive timestamps gracefully. Make sure expressions do too.
+        return !this.#plainOnly && input.selectionStart === 0 && (input.value[0] !== '=' || input.selectionEnd !== 0);
     }
 
     /**
      * @param {KeyboardEvent} e
-     * @param {TimestampExpression} expression
+     * @param {ParseState} parseState
      * @param {{ [key: string]: number }} simpleKeys */
-    #calculateNewTimeInput(e, expression, simpleKeys) {
+    #calculateNewTimeInput(e, parseState, simpleKeys) {
         const simpleKey = e.key in simpleKeys;
-        const maxDuration = this.#mediaItem.duration;
+        const maxDuration = this.#mediaItem?.duration || NaN;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
 
         // Expressions with marker references can't use negative offsets.
-        const min = expression.markerRef ? 0 : (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
+        const min = parseState.markerRef ? 0 : (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
 
         // TODO: verify -0
-        const currentValue = this.#ms(expression);
+        let currentValue = this.#expression.ms();
         if (isNaN(currentValue)) {
             return;
+        }
+
+        if (currentValue === null) {
+            // Without a media item reference, ignore any state-based expressions and only use the raw milliseconds.
+            Log.assert(!this.#mediaItem, `We should only have a null current time when we don't have a baseline media item.`);
+            currentValue = parseState.ms;
         }
 
         let timeDiff = 0;
@@ -509,7 +336,7 @@ export class TimeInput {
         }
 
         const newTime = this.#getNewTime(e, currentValue, min, max, timeDiff);
-        const newValue = this.#addTimeToExpression(expression, newTime);
+        const newValue = this.#expression.setMs(newTime).toString();
 
         // execCommand will make this undo-able, but is deprecated.
         // Fall back to direct substitution if necessary.
@@ -559,56 +386,5 @@ export class TimeInput {
         }
 
         return newTime;
-    }
-
-    /**
-     * Modifies the existing expression such that it's underling value
-     * equals the given newTime.
-     * @param {TimestampExpression} expression
-     * @param {number} newTime */
-    #addTimeToExpression(expression, newTime) {
-        if (expression.plain) {
-            expression.ms = newTime;
-            return (expression.hms ? msToHms(newTime) : newTime).toString();
-        }
-
-        const ref = expression.markerRef;
-        const newMs = newTime - (ref ? ref.start ? ref.marker.start : ref.marker.end : 0);
-        if (ref && expression.ms === 0) {
-            expression.hms = true; // When coming from no time part, default to hms
-        }
-
-        expression.ms = newMs;
-        return this.#expressionToString(expression);
-    }
-
-    /**
-     * Converts a given expression to a human-readable string.
-     * Always uses '=MarkerRef+timestamp' notation, regardless of
-     * underlying input entry.
-     * @param {TimestampExpression} expression */
-    #expressionToString(expression) {
-        Log.assert(!expression.plain, '#expressionToString expects a complex expression');
-        let markerStr = '';
-        const ref = expression.markerRef;
-        if (ref) {
-            markerStr = keyFromMarkerType(ref.type) + ref.index.toString() + (ref.implicit ? '' : ref.start ? 'S' : 'E');
-        }
-
-        let timeStr = '';
-        if (expression.ms !== 0 || !ref) {
-            if (expression.hms) {
-                timeStr = msToHms(expression.ms, true /*minify*/);
-            } else {
-                timeStr = Object.is(expression.ms, -0) ? '-0' : expression.ms.toString();
-            }
-        }
-
-        let opStr = '';
-        if (markerStr && timeStr && expression.ms >= 0) {
-            opStr += '+';
-        }
-
-        return '=' + markerStr + opStr + timeStr;
     }
 }

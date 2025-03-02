@@ -637,13 +637,12 @@ input:focus-visible {
   z-index: 4; /* Show over nav/overlay */
 }
 
-.errorToast {
+
+.toast {
   clear: both;
-  padding: 15px; /* Keep in sync with errorToast() */
+  padding: 15px;
   margin-bottom: 10px;
   max-width: 300px;
-  background-color: var(--error-background);
-  border: 1px solid var(--error-border);
   border-radius: 3px;
   opacity: 0;
   font-size: smaller;
@@ -652,6 +651,20 @@ input:focus-visible {
     padding: 0;
     margin: 0;
   }
+}
+
+.toast.warnToast {
+  background-color: var(--warn-background);
+  border: 1px solid var(--warn-border);
+
+  & hr {
+    border-color: var(--warn-border);
+  }
+}
+
+.toast.errorToast {
+  background-color: var(--error-background);
+  border: 1px solid var(--error-border);
 
   & hr {
     border-color: var(--error-border);

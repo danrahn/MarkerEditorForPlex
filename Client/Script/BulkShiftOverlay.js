@@ -87,15 +87,17 @@ class BulkShiftOverlay {
     show(focusBack) {
         const container = $div({ id : 'bulkActionContainer' });
         const title = $h(1, `Shift Markers for ${this.#mediaItem.title}`);
-        this.#startTime = new TimeInput(null /*mediaItem*/, false /*isEnd*/,
+        this.#startTime = new TimeInput(
+            { isEnd : false, plainOnly : true, customValidate : true },
             { keyup : this.#onTimeShiftChange.bind(this) },
-            { placeholder : 'ms or mm:ss[.000]', name : 'shiftStartTime', id : 'shiftStartTime', customValidate : true });
+            { placeholder : 'ms or mm:ss[.000]', name : 'shiftStartTime', id : 'shiftStartTime' });
 
         const endVisible = this.#stickySettings.separateShift();
-        this.#endTime = new TimeInput(null /*mediaItem*/, true /*isEnd*/,
+        this.#endTime = new TimeInput(
+            { isEnd : true, plainOnly : true, customValidate : true },
             { keyup : this.#onTimeShiftChange.bind(this) },
             { placeholder : 'ms or mm:ss[.000]', name : 'shiftEndTime', id : 'shiftEndTime',
-              class : endVisible ? '' : 'hidden', customValidate : true  });
+              class : endVisible ? '' : 'hidden'  });
 
         const separateShiftCheckbox = customCheckbox(
             { id : 'separateShiftCheck', checked : endVisible },

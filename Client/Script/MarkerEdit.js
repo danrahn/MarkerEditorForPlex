@@ -102,7 +102,7 @@ class MarkerEdit {
         };
 
         if (isEnd) {
-            events.keydown.push(this.#onEndTimeInput);
+            events.keydown.push(this.#onEndTimeInput.bind(this));
         }
 
         let initialValue;
@@ -113,8 +113,7 @@ class MarkerEdit {
         }
 
         const timeInput = new TimeInput(
-            this.markerRow.baseItemRow().mediaItem(),
-            isEnd,
+            { mediaItem : this.markerRow.baseItemRow().mediaItem(), isEnd : isEnd, plainOnly : false },
             events,
             {
                 value : initialValue,
@@ -122,6 +121,7 @@ class MarkerEdit {
                 class : `timeInput timeInput${isEnd ? 'End' : 'Start'}`
             });
 
+        // TODO: this can probably be removed, but better in-app help that goes over shortcuts should probably be created first.
         if (isEnd) {
             Tooltip.setTooltip(timeInput.input(), 'Ctrl+Shift+E to replace with the end of an episode.');
         }
@@ -561,15 +561,14 @@ class MarkerEdit {
     /**
      * Processes input to the 'End time' input field, entering the end of the episode on Ctrl+Shift+E
      * @this {MarkerEdit}
-     * @param {HTMLInputElement} input
      * @param {KeyboardEvent} e */
-    #onEndTimeInput(input, e) {
+    #onEndTimeInput(e) {
         if (!e.shiftKey || !e.ctrlKey || e.key !== 'E') {
             return;
         }
 
         e.preventDefault();
-        input.value = msToHms(this.markerRow.baseItemRow().baseItem().duration);
+        this.#endInput.input().value = msToHms(-0, true /*minify*/);
 
         // Assume credits if they enter the end of the episode.
         $$('.inlineMarkerType', this.markerRow.row()).value = 'credits';

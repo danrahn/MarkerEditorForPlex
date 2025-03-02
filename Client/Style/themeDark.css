@@ -18,6 +18,11 @@
   --error-background-subtle: #9334;
   --error-border: #C44;
 
+  /* Warnings */
+  --warn-background: #9937;
+  --warn-background-subtle: #9934;
+  --warn-border: #CC4;
+
   /* Success */
   --success-background: #3934;
 

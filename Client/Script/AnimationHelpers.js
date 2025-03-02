@@ -241,7 +241,7 @@ function slide(ele, stops, options, callback) {
  * the animation is complete.
  * @param {HTMLElement} ele
  * @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
- * @param {number} duration
+ * @param {number|KeyframeAnimationOptions} duration
  * @param {(...any) => any} callback
  * @returns {Promise<void>} */
 export function animate(ele, keyframes, duration, callback) {
