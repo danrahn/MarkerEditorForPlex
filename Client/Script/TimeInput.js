@@ -12,6 +12,7 @@ const Log = ContextualLog.Create('TimeInput');
  * @typedef {Object} TimeInputOptions
  * @property {bool} [isEnd] Whether this input is for the end of a marker. Defaults to false.
  * @property {bool} [customValidate] Whether the input has a separate validation function. Defaults to false.
+ * @property {(newState: ParseState) => void} [onExpressionChanged] Callback to invoke when the expression has been re-parsed.
  * @property {bool} [plainOnly] Whether to only allow plain input, not complex expressions. Defaults to false.
  * @property {MediaItemWithMarkerTable} [mediaItem]
 */
@@ -104,6 +105,11 @@ export class TimeInput {
     /** @type {TimeExpression} */
     #expression;
 
+    /** @type {(newState: ParseState) => void} Callback to invoke when the expression has been reparsed. */
+    #onExpressionChanged;
+
+    /** @type {ParseState} */
+    #lastState;
 
     /**
      * @param {TimeInputOptions} options
@@ -113,8 +119,10 @@ export class TimeInput {
         this.#mediaItem = options.mediaItem;
         this.#isEnd = !!options.isEnd;
         this.#customValidate = !!options.customValidate;
+        this.#onExpressionChanged = options.onExpressionChanged;
         this.#plainOnly = 'plainOnly' in options && options.plainOnly;
         this.#expression = new TimeExpression(this.#mediaItem?.markerTable().markers(), this.#isEnd, this.#plainOnly);
+        this.#lastState = this.#expression.state();
         if (this.#mediaItem && !this.#mediaItem.markerTable()) {
             this.#mediaItem = undefined;
             Log.error(`Media item does not have a marker table, can't use expression-based parsing!`);
@@ -166,24 +174,31 @@ export class TimeInput {
     isAdvanced() { return this.#expression.isAdvanced(); }
 
     /**
-     * Return the current state of the expression.
-     * @returns {ParseState} */
+     * Return the current state of the expression. */
     expressionState() { return this.#expression.state(); }
 
     /**
      * @param {KeyboardEvent} _e */
     #onKeyup(_e) {
         // TODO: Should this be cached? It's not heavy, but we might be calculating it a lot.
-        const result = this.#expression.parse(this.#input.value);
+        const newState = this.#expression.parse(this.#input.value);
+
+        // TODO: What's faster, comparing the old and new state, or just re-parsing the returned state?
+        if (!this.#lastState.equals(newState)) {
+            this.#onExpressionChanged?.(newState);
+        }
+
+        this.#lastState = newState;
+
         if (this.#customValidate) {
             return;
         }
 
-        toggleClass(this.#input, 'invalid', !result.valid);
+        toggleClass(this.#input, 'invalid', !newState.valid);
         let title = '';
-        if (result.valid) {
+        if (newState.valid) {
             // No title for plain expressions that already use hms.
-            if (!result.plain || !result.hms) {
+            if (!newState.plain || !newState.hms) {
                 // null is a sentinel indicating that a mediaItem is needed
                 // to get the real value. Set no title in that instance.
                 const ms = this.#expression.ms();
@@ -192,7 +207,7 @@ export class TimeInput {
                 }
             }
         } else {
-            title = result.invalidReason || 'Invalid input';
+            title = newState.invalidReason || 'Invalid input';
         }
 
         this.#input.title = title;
@@ -203,8 +218,8 @@ export class TimeInput {
     #onPaste(e) {
         const text = e.clipboardData.getData('text/plain');
 
-        const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSE ]$/;
-        const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSE ]/g;
+        const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSE@ ]$/;
+        const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSE@ ]/g;
 
         if (!rgxFind.test(text)) {
             e.preventDefault();
@@ -248,7 +263,7 @@ export class TimeInput {
         const isExpression = !this.#plainOnly && this.#input.value[0] === '=';
         if (isExpression) {
             // Allow some additional characters in expression mode
-            if (/[MCIASE+ -]/.test(e.key)) {
+            if (/[MCIASE@+ -]/.test(e.key)) {
                 return;
             }
         }

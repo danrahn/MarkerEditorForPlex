@@ -111,7 +111,7 @@ class BulkAddOverlay {
         const container = $div({ id : 'bulkActionContainer' });
         const title = $h(1, 'Bulk Add Markers');
         this.#startInput = new TimeInput(
-            { isEnd : false, plainOnly : false, customValidate : true },
+            { isEnd : false, plainOnly : false, customValidate : true, onExpressionChanged : this.#onStartExpressionChanged.bind(this) },
             { keyup : this.#onBulkAddInputChange.bind(this) },
             { name : 'addStart', id : 'addStart' });
         this.#endInput = new TimeInput(
@@ -229,6 +229,21 @@ class BulkAddOverlay {
         }
 
         this.#inputTimer = setTimeout(this.#updateTableStats.bind(this), 250);
+    }
+
+    /**
+     * @param {ParseState} newState */
+    #onStartExpressionChanged(newState) {
+        const markerSelect = $('#markerTypeSelect');
+        if (newState.markerType) {
+            // Note: we don't adjust sticky settings here, since these changes are more likely to be temporary/one-offs.
+            markerSelect.value = newState.markerType;
+            markerSelect.setAttribute('disabled', 1);
+            Tooltip.setTooltip(markerSelect, 'Marker type is set by the expression.');
+        } else {
+            markerSelect.removeAttribute('disabled');
+            Tooltip.removeTooltip(markerSelect);
+        }
     }
 
     /**

@@ -27,6 +27,15 @@ class MarkerReference {
         if (implicit !== undefined) this.implicit = implicit;
     }
 
+    /**
+     * Determine whether the given marker reference is equal to this one.
+     * @param {MarkerReference} other The other reference to compare.
+     * @param {boolean} strict Whether to check for exact equality, not just fields that affect the underlying timestamp. */
+    equals(other, strict=false) {
+        return this.type === other.type && this.index === other.index && this.start === other.start
+            && (!strict || this.implicit === other.implicit);
+    }
+
     clone() {
         return new MarkerReference(this.type, this.index, this.start, this.implicit);
     }
@@ -72,21 +81,50 @@ export class ParseState {
     hms = null;
     /* The number of milliseconds, not including any marker references. */
     ms = 0;
+    /**
+     * The type of marker to add, if any.
+     * @type {'intro'|'credits'|'commercial'} */
+    markerType;
     /** @type {MarkerReference} */
     markerRef;
 
-    constructor(plain, valid, invalidReason, hms, ms, markerRef) {
+    constructor(plain, valid, invalidReason, hms, ms, markerType, markerRef) {
         if (plain !== undefined) this.plain = plain;
         if (valid !== undefined) this.valid = valid;
         if (invalidReason !== undefined) this.invalidReason = invalidReason;
         if (hms !== undefined) this.hms = hms;
         if (ms !== undefined) this.ms = ms;
+        if (markerType !== undefined) this.markerType = markerType;
         if (markerRef !== undefined) this.markerRef = markerRef.clone();
+    }
+
+    /**
+     * Determine whether the given state is equal to this one.
+     * @param {ParseState} other The other state to parse.
+     * @param {boolean} strict Whether to check for exact equality, not just fields that affect the underlying timestamp. */
+    equals(other, strict) {
+        if (this.plain !== other.plain || this.hms !== other.hms || this.ms !== other.ms || this.markerType !== other.markerType) {
+            return false;
+        }
+
+        if (strict && (this.valid !== other.valid || this.invalidReason !== other.invalidReason)) {
+            return false;
+        }
+
+        if (!!this.markerRef !== !!other.markerRef) {
+            return false;
+        }
+
+        if (this.markerRef && !this.markerRef.equals(other.markerRef, strict)) {
+            return false;
+        }
+
+        return true;
     }
 
     /** Return a copy of this parse state */
     clone() {
-        return new ParseState(this.plain, this.valid, this.invalidReason, this.hms, this.ms, this.markerRef);
+        return new ParseState(this.plain, this.valid, this.invalidReason, this.hms, this.ms, this.markerType, this.markerRef);
     }
 }
 
@@ -203,6 +241,11 @@ export class TimeExpression {
             return this.#setString((state.hms ? msToHms(state.ms) : state.ms).toString());
         }
 
+        let typeStr = '';
+        if (state.markerType) {
+            typeStr = keyFromMarkerType(state.markerType) + '@';
+        }
+
         let markerStr = '';
         const ref = state.markerRef;
         if (ref) {
@@ -223,7 +266,7 @@ export class TimeExpression {
             opStr += '+';
         }
 
-        return this.#setString('=' + markerStr + opStr + timeStr);
+        return this.#setString('=' + typeStr + markerStr + opStr + timeStr);
     }
 
     /**
@@ -260,6 +303,7 @@ export class TimeExpression {
     /**
      * @param {string} text */
     #parse(text, force=false) {
+        text = text.replace(/ /g, '');
         if (!force && text === this.#lastParse) {
             // This is expected when multiple callers want to ensure
             // the latest state.
@@ -320,7 +364,8 @@ export class TimeExpression {
                 continue;
             }
 
-            i += 1;
+            // If we're here, we didn't hit a valid start to a subexpression.
+            return this.#setInvalid(`Unexpected character '${c}' at position ${i}.`);
         }
 
         if (state.hms === null) {
@@ -336,11 +381,38 @@ export class TimeExpression {
     }
 
     /**
-     * Parses a potential marker reference in the given text, starting at character i
+     * Parses a potential marker reference in the given text, starting at character i.
+     * Also checks for explicit marker type references (e.g. 'I@XXX' to add an intro marker).
      * @param {string} text
      * @param {number} i
      * @returns {number} The new value of i */
     #parseMarkerReference(text, i, negative) {
+        const c = text[i];
+
+        // First check for a marker type reference. Relies on this only being called when
+        // a valid marker type character is at the current position.
+        if (c !== 'M' && text[i + 1] === '@') {
+            if (this.#isEnd) {
+                // Marker type references are only allowed for start times.
+                this.#setInvalid('Marker type references are only allowed for start times.');
+                return 0;
+            }
+
+            // Must be the first part of the expression. Relies on the caller removing whitespace.
+            if (i !== 1) {
+                this.#setInvalid('Marker type references must be the first part of the expression.');
+                return 0;
+            }
+
+            if (this.#state.markerType) {
+                this.#setInvalid('Expressions can only reference a single marker type.');
+                return 0;
+            }
+
+            this.#state.markerType = keyToTypeMap[c];
+            return i + 2;
+        }
+
         if (this.#state.markerRef) {
             this.#setInvalid('Expressions can only reference a single marker.');
             return 0;

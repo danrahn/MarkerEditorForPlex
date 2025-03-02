@@ -23,8 +23,15 @@ import Tooltip from './Tooltip.js';
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
+/** @typedef {!import('./TimeExpression').ParseState} ParseState */
 
 const Log = ContextualLog.Create('MarkerEdit');
+
+const markerTypeFromKey = {
+    i : MarkerType.Intro,
+    c : MarkerType.Credits,
+    a : MarkerType.Ad,
+};
 
 /**
  * Handles the editing of markers in the marker table.
@@ -112,8 +119,15 @@ class MarkerEdit {
             initialValue = msToHms(isEnd ? this.markerRow.endTime() : this.markerRow.startTime());
         }
 
+        const onExpressionChanged = isEnd ? undefined : this.#onStartExpressionChanged.bind(this);
+
         const timeInput = new TimeInput(
-            { mediaItem : this.markerRow.baseItemRow().mediaItem(), isEnd : isEnd, plainOnly : false },
+            {
+                mediaItem : this.markerRow.baseItemRow().mediaItem(),
+                isEnd : isEnd,
+                plainOnly : false,
+                onExpressionChanged : onExpressionChanged,
+            },
             events,
             {
                 value : initialValue,
@@ -146,14 +160,14 @@ class MarkerEdit {
 
         switch (e.key) {
             case 'i':
-                e.preventDefault();
-                return this.#setMarkerType(MarkerType.Intro);
             case 'c':
-                e.preventDefault();
-                return this.#setMarkerType(MarkerType.Credits);
             case 'a':
-                e.preventDefault();
-                return this.#setMarkerType(MarkerType.Ad);
+                // Marker type is locked in if it's part of the expression.
+                if (!this.#startInput.expressionState().markerType) {
+                    e.preventDefault();
+                    return this.#setMarkerType(markerTypeFromKey[e.key]);
+                }
+                break;
             case 'Enter':
                 // Only commit on Keyup to avoid any accidental double submissions
                 // that may result in confusing error UI. Left here for when my
@@ -166,10 +180,23 @@ class MarkerEdit {
         }
     }
 
+    /** @param {ParseState} newState */
+    #onStartExpressionChanged(newState) {
+        const markerSelect = this.markerRow.row().children[0].querySelector('select');
+        if (newState.markerType) {
+            // Note: we don't adjust sticky settings here, since these changes are more likely to be temporary/one-offs.
+            markerSelect.value = newState.markerType;
+            markerSelect.setAttribute('disabled', 1);
+            Tooltip.setTooltip(markerSelect, 'Marker type is set by the expression.');
+        } else {
+            markerSelect.removeAttribute('disabled');
+            Tooltip.removeTooltip(markerSelect);
+        }
+    }
+
     /**
      * Handles MarkerEdit specific time input shortcuts that should
      * only fire on Keyup (i.e. committing the action)
-     * @param {*} _input
      * @param {KeyboardEvent} e */
     #timeInputEditKeyupShortcutHandler(e) {
         switch (e.key) {

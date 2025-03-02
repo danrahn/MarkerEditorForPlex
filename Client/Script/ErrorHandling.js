@@ -80,7 +80,8 @@ function toast(message, className, timeout=2500) {
             if (customWait) {
                 // Opacity is reset after animation finishes, so make sure it stays visible.
                 msg.style.opacity = 1;
-                await timeout;
+                // Wait for at least 1 second, even if the promise resolves faster.
+                await Promise.all([new Promise(r => { setTimeout(r, 1000); }), timeout]);
                 const dismissSteps = [
                     { opacity : 1, height : height, overflow : 'hidden', padding : '15px' },
                     finalStep ];
