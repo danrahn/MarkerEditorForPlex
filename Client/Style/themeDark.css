@@ -23,8 +23,13 @@
   --warn-background-subtle: #9934;
   --warn-border: #CC4;
 
+  /* Info */
+  --info-background: #3397;
+  --info-border: #44C;
+
   /* Success */
   --success-background: #3934;
+  --success-border: #4C4;
 
   /* Main sections */
   --media-item-hover: rgba(0,0,0,0.5);

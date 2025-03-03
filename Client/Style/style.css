@@ -671,6 +671,24 @@ input:focus-visible {
   }
 }
 
+.toast.infoToast {
+  background-color: var(--info-background);
+  border: 1px solid var(--info-border);
+
+  & hr {
+    border-color: var(--info-border);
+  }
+}
+
+.toast.successToast {
+  background-color: var(--success-background);
+  border: 1px solid var(--success-border);
+
+  & hr {
+    border-color: var(--success-border);
+  }
+}
+
 /* Icons */
 .themeIconStandard {
   color: var(--theme-primary);

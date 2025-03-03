@@ -3,7 +3,8 @@ import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
-import { errorResponseOverlay, errorToast, warnToast } from './ErrorHandling.js';
+import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
+import { Toast, ToastType } from './Toast.js';
 import Tooltip, { TooltipTextSize } from './Tooltip.js';
 import { Attributes } from './DataAttributes.js';
 import { BulkAddStickySettings } from 'StickySettings';
@@ -216,7 +217,19 @@ class BulkAddOverlay {
                 });
             });
 
-            warnToast('Loading episode data...', this.#waitingForStats);
+            const toast = new Toast(ToastType.Warning, 'Loading episode data...');
+
+            const toastData = {
+                promise : this.#waitingForStats,
+                minDuration : 1000,
+                dismissDelay : 1000, // Wait a bit before dismissing the toast so the user can see the new message.
+                onResolve : () => {
+                    toast.changeType(ToastType.Success);
+                    toast.setMessage('Loading episode data... Done!');
+                },
+            };
+
+            toast.show(toastData);
         }
 
         this.#cachedStart = start.ms();
