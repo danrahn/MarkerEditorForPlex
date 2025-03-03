@@ -825,6 +825,15 @@ class MarkerTable {
         return this.#markers;
     }
 
+    chapters() {
+        if (this.#cachedMarkerCountKey !== undefined) {
+            Log.warn(`Attempting to grab MarkerTable chapters before the table has been initialized!`);
+            return [];
+        }
+
+        return this.#chapters;
+    }
+
     /** @returns {number} The number of markers this episode has (not including in-progress additions). */
     markerCount() {
         if (this.#cachedMarkerCountKey === undefined) {

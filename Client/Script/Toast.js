@@ -20,7 +20,6 @@ export const ToastType = {
 function getColor(toastType, colorProperty) {
     // TODO: getComputedStyle isn't cheap, so this should be optimized if it becomes a bottleneck.
     const fullProperty = `--${toastType.substring(0, toastType.length - 5)}-${colorProperty}`;
-    console.log(getComputedStyle(document.documentElement).getPropertyValue(fullProperty));
     return getComputedStyle(document.documentElement).getPropertyValue(fullProperty);
 }
 

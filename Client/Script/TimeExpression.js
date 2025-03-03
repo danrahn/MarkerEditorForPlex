@@ -4,16 +4,40 @@ import { MarkerType } from '/Shared/MarkerType.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
+/** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 
 const Log = ContextualLog.Create('TimestampExpression');
 
-class MarkerReference {
-    /**
-     * @type {'any'|'intro'|'credits'|'commercial'} */
-    type = 'any';
+class BaseReference {
     index = 0;
     start = false;
     implicit = false;
+
+    /**
+     * @param {number} [index]
+     * @param {boolean} [start]
+     * @param {boolean} [implicit] */
+    constructor(index, start, implicit) {
+        if (index !== undefined) this.index = index;
+        if (start !== undefined) this.start = start;
+        if (implicit !== undefined) this.implicit = implicit;
+    }
+
+    /**
+     * @param {BaseReference} other
+     * @param {boolean} strict */
+    equals(other, strict=false) {
+        return this.index === other.index && this.start === other.start
+            && (!strict || this.implicit === other.implicit);
+    }
+
+    toString() { Log.error('BaseReference::toString should be overridden.'); return ''; }
+}
+
+class MarkerReference extends BaseReference {
+    /**
+     * @type {'any'|'intro'|'credits'|'commercial'} */
+    type = 'any';
 
     /**
      * @param {string} [type]
@@ -21,23 +45,60 @@ class MarkerReference {
      * @param {boolean} [start]
      * @param {boolean} [implicit] */
     constructor(type, index, start, implicit) {
+        super(index, start, implicit);
         if (type !== undefined) this.type = type;
-        if (index !== undefined) this.index = index;
-        if (start !== undefined) this.start = start;
-        if (implicit !== undefined) this.implicit = implicit;
     }
 
     /**
      * Determine whether the given marker reference is equal to this one.
-     * @param {MarkerReference} other The other reference to compare.
+     * @param {BaseReference} other The other reference to compare.
      * @param {boolean} strict Whether to check for exact equality, not just fields that affect the underlying timestamp. */
     equals(other, strict=false) {
-        return this.type === other.type && this.index === other.index && this.start === other.start
-            && (!strict || this.implicit === other.implicit);
+        return (other instanceof MarkerReference) && super.equals(other, strict) && this.type === other.type;
     }
 
     clone() {
         return new MarkerReference(this.type, this.index, this.start, this.implicit);
+    }
+
+    toString() {
+        return keyFromMarkerType(this.type) + this.index.toString() + (this.implicit ? '' : this.start ? 'S' : 'E');
+    }
+}
+
+// TODO: (in other classes) - if end input is blank and there's a non-specific start/end chapter reference,
+// apply the same reference to the end input.
+
+// TODO: name-based chapter references (Ch='Opening', Ch="Ending", Ch='Chapter\'s Name').
+//       also need to account for paste/allowed characters. Basically means we either allow
+//       any character input, or add a specific handler that only allows arbitrary when we think we're
+//       in a chapter reference (invalid=true + extra flag indicating that state?).
+
+/**
+ * A reference to a chapter. Currently only supports index-based references, so no extra fields on top of the BaseReference.
+ */
+class ChapterReference extends BaseReference {
+    /**
+     * @param {number} [index]
+     * @param {boolean} [start]
+     * @param {boolean} [implicit] */
+    constructor(index, start, implicit) {
+        super(index, start, implicit);
+    }
+
+    /**
+     * @param {BaseReference} other
+     * @param {boolean} strict */
+    equals(other, strict=false) {
+        return (other instanceof ChapterReference) && super.equals(other, strict);
+    }
+
+    clone() {
+        return new ChapterReference(this.index, this.start, this.implicit);
+    }
+
+    toString() {
+        return 'Ch' + this.index.toString() + (this.implicit ? '' : this.start ? 'S' : 'E');
     }
 }
 
@@ -65,6 +126,7 @@ const validTimeChars = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
 const validMarkerTypeChars = new Set(['M', 'I', 'C', 'A']);
 const plusMinus = new Set(['+', '-']);
 const markerRefFormat = /^(?<type>\w)(?<index>-?\d+)(?<se>[SE])?\b/;
+const chapterRefFormat = /^Ch(?<index>-?\d+)(?<se>[SE])?\b/;
 const onlyDigits = /^\d+$/;
 
 /**
@@ -85,17 +147,20 @@ export class ParseState {
      * The type of marker to add, if any.
      * @type {'intro'|'credits'|'commercial'} */
     markerType;
-    /** @type {MarkerReference} */
-    markerRef;
 
-    constructor(plain, valid, invalidReason, hms, ms, markerType, markerRef) {
+    /**
+     * The "advanced" reference (marker/chapter), if any.
+     * @type {BaseReference} */
+    advRef;
+
+    constructor(plain, valid, invalidReason, hms, ms, markerType, reference) {
         if (plain !== undefined) this.plain = plain;
         if (valid !== undefined) this.valid = valid;
         if (invalidReason !== undefined) this.invalidReason = invalidReason;
         if (hms !== undefined) this.hms = hms;
         if (ms !== undefined) this.ms = ms;
         if (markerType !== undefined) this.markerType = markerType;
-        if (markerRef !== undefined) this.markerRef = markerRef.clone();
+        if (reference !== undefined) this.advRef = reference.clone();
     }
 
     /**
@@ -111,20 +176,17 @@ export class ParseState {
             return false;
         }
 
-        if (!!this.markerRef !== !!other.markerRef) {
+        if (!!this.advRef !== !!other.advRef) {
             return false;
         }
 
-        if (this.markerRef && !this.markerRef.equals(other.markerRef, strict)) {
-            return false;
-        }
-
-        return true;
+        return !this.advRef || this.advRef.equals(other.advRef, strict);
     }
 
     /** Return a copy of this parse state */
     clone() {
-        return new ParseState(this.plain, this.valid, this.invalidReason, this.hms, this.ms, this.markerType, this.markerRef);
+        return new ParseState(
+            this.plain, this.valid, this.invalidReason, this.hms, this.ms, this.markerType, this.advRef);
     }
 }
 
@@ -140,18 +202,22 @@ export class TimeExpression {
     #isEnd = false;
     /** @type {MarkerData[]|SerializedMarkerData[]} */
     #markers;
-    /** @type {MarkerData|SerializedMarkerData} */
-    #matchedMarker;
+    /** @type {ChapterData[]} */
+    #chapters;
+    /** @type {MarkerData|SerializedMarkerData|ChapterData} */
+    #matchedReference;
     /** @type {string} The last string that was parsed. */
     #lastParse = null;
 
     /**
      * @param {MarkerData[]|SerializedMarkerData[]} markers
+     * @param {ChapterData[]} chapters
      * @param {boolean} isEnd
      * @param {boolean} plainOnly */
-    constructor(markers, isEnd, plainOnly=false) {
+    constructor(markers, chapters, isEnd, plainOnly=false) {
         this.#isEnd = isEnd;
         this.#markers = markers;
+        this.#chapters = chapters;
         this.#plainOnly = plainOnly;
     }
 
@@ -173,7 +239,12 @@ export class TimeExpression {
         // Perf tests show that even with hundreds of bulk operation targets, UI updates
         // still take up the vast majority of the time, so the cost of cloning really doesn't matter.
         this.#state = state.clone();
-        this.#validateMarkerReference();
+        if (!this.#state.advRef) {
+            // No advanced ref means we should reset the matched reference.
+            this.#matchedReference = null;
+        }
+
+        this.#validateReferences();
         return this;
     }
 
@@ -186,19 +257,19 @@ export class TimeExpression {
             return NaN;
         }
 
-        const ref = this.#state.markerRef;
+        const ref = this.#state.advRef;
         if (!ref) {
             return this.#state.ms;
         }
 
-        if (!this.#matchedMarker) {
+        if (!this.#matchedReference) {
             // Cannot calculate timestamp if we don't have a media item reference.
             return null;
         }
 
-        const ms = this.#state.ms + (ref.start ? this.#matchedMarker.start : this.#matchedMarker.end);
+        const ms = this.#state.ms + (ref.start ? this.#matchedReference.start : this.#matchedReference.end);
 
-        if (!final || this.#state.ms !== 0) {
+        if (!final || this.#state.ms !== 0 || !(this.#state.advRef instanceof MarkerReference)) {
             return ms;
         }
 
@@ -211,7 +282,7 @@ export class TimeExpression {
      * Return whether the expression contains any references that require additional
      * data to be calculated (e.g. marker references). */
     isAdvanced() {
-        return !!this.#state.markerRef;
+        return !!this.#state.advRef;
     }
 
     /**
@@ -222,18 +293,18 @@ export class TimeExpression {
      * custom handling for -0.
      * @param {number} newMs */
     setMs(newMs) {
-        if (!this.#markers || !this.#state.markerRef) {
+        if (!this.#state.advRef || !this.#matchedReference) {
             this.#state.ms = newMs;
             return this;
         }
 
-        const ref = this.#state.markerRef;
-        this.#state.ms = newMs - (ref.start ? this.#matchedMarker.start : this.#matchedMarker.end);
+        const ref = this.#state.advRef;
+        this.#state.ms = newMs - (ref.start ? this.#matchedReference.start : this.#matchedReference.end);
         return this;
     }
 
     /**
-     * Converts this expression to a human-readable string. Always uses '=MarkerRef+timestamp'
+     * Converts this expression to a human-readable string. Always uses '=MarkerOrChapterRef+timestamp'
      * notation, regardless of underlying input entry. */
     toString() {
         const state = this.#state;
@@ -246,14 +317,10 @@ export class TimeExpression {
             typeStr = keyFromMarkerType(state.markerType) + '@';
         }
 
-        let markerStr = '';
-        const ref = state.markerRef;
-        if (ref) {
-            markerStr = keyFromMarkerType(ref.type) + ref.index.toString() + (ref.implicit ? '' : ref.start ? 'S' : 'E');
-        }
+        const refStr = state.advRef?.toString() || '';
 
         let timeStr = '';
-        if (state.ms !== 0 || !ref) {
+        if (state.ms !== 0 || !refStr) {
             if (state.hms || state.hms === null) {
                 timeStr = msToHms(state.ms, true /*minify*/);
             } else {
@@ -262,11 +329,11 @@ export class TimeExpression {
         }
 
         let opStr = '';
-        if (markerStr && timeStr && state.ms >= 0) {
+        if (refStr && timeStr && state.ms >= 0) {
             opStr += '+';
         }
 
-        return this.#setString('=' + typeStr + markerStr + opStr + timeStr);
+        return this.#setString('=' + typeStr + refStr + opStr + timeStr);
     }
 
     /**
@@ -286,6 +353,7 @@ export class TimeExpression {
         const wasHms = this.#state.hms;
         this.#state = new ParseState();
         this.#lastParse = null;
+        this.#matchedReference = null;
         if (!full) {
             this.#state.hms = wasHms;
         }
@@ -339,6 +407,12 @@ export class TimeExpression {
         let negative = false;
         while (i < text.length) {
             const c = text[i];
+            if (c === 'C' && text[i + 1] === 'h') {
+                i = this.#parseChapterReference(text, i, negative);
+                if (!i) return state;
+                continue;
+            }
+
             if (validMarkerTypeChars.has(c)) {
                 i = this.#parseMarkerReference(text, i, negative);
                 if (!i) return state;
@@ -372,12 +446,37 @@ export class TimeExpression {
             state.hms = true; // No standalone times means default to hms.
         }
 
-        // Validate markers immediately if cached values are available
-        if (this.#markers) {
-            this.#validateMarkerReference();
-        }
+        // Validate references immediately if cached values are available
+        this.#validateReferences();
 
         return state;
+    }
+
+    #parseChapterReference(text, i, negative) {
+        if (this.#state.advRef) {
+            this.#setInvalid('Expressions cannot have multiple marker/chapter references.');
+            return 0;
+        }
+
+        if (negative) {
+            this.#setInvalid('Chapter references cannot be subtracted.');
+            return 0;
+        }
+
+        const chapterData = chapterRefFormat.exec(text.substring(i));
+        if (!chapterData) {
+            this.#setInvalid('Could not parse potential chapter reference.');
+            return 0;
+        }
+
+        const se = chapterData.groups.se;
+        this.#state.advRef = new ChapterReference(
+            parseInt(chapterData.groups.index),
+            se ? se === 'S' : !this.#isEnd, // Opposite of marker reference, start timestamps use chapter start implicitly.
+            !se /*implicit*/
+        );
+
+        return i + chapterData.groups.index.length + (se ? 1 : 0) + 2;
     }
 
     /**
@@ -413,8 +512,8 @@ export class TimeExpression {
             return i + 2;
         }
 
-        if (this.#state.markerRef) {
-            this.#setInvalid('Expressions can only reference a single marker.');
+        if (this.#state.advRef) {
+            this.#setInvalid('Expressions cannot have multiple marker/chapter references.');
             return 0;
         }
 
@@ -430,7 +529,7 @@ export class TimeExpression {
         }
 
         const se = markerData.groups.se;
-        this.#state.markerRef = new MarkerReference(
+        this.#state.advRef = new MarkerReference(
             keyToTypeMap[markerData.groups.type],
             parseInt(markerData.groups.index),
             se ? se === 'S' : this.#isEnd,
@@ -465,40 +564,79 @@ export class TimeExpression {
     }
 
     /**
+     * If marker/chapter data is available, verify the reference points to a valid marker/chapter.
+     * If the reference is invalid, set the expression as invalid. */
+    #validateReferences() {
+        if (this.#markers) {
+            this.#validateMarkerReference();
+        }
+
+        if (this.#chapters) {
+            this.#validateChapterReference();
+        }
+
+        // With a marker/chapter reference, don't allow negative timestamps,
+        // as I don't see a use case for it.
+        if (this.#matchedReference && this.ms() < 0) {
+            this.#setInvalid('Negative timestamps are not allowed with marker/chapter references.');
+        }
+    }
+
+    /**
      * Matches an expression's marker reference to the actual marker, if it exists. */
     #validateMarkerReference() {
         if (!this.#markers) {
             throw new Error(`#validateMarkerReference - a media item is required to validate marker references.`);
         }
 
-        if (!this.#state.valid || !this.#state.markerRef) {
+        if (!this.#state.valid || !this.#state.advRef || !(this.#state.advRef instanceof MarkerReference)) {
             return;
         }
 
+        const ref = this.#state.advRef;
+        this.#matchedReference = this.#matchIndexReference(ref, this.#markers);
+        if (!this.#matchedReference) {
+            this.#setInvalid(`Invalid marker index '${ref.index}': not enough ${ref.type === 'any' ? '' : ref.type + ' '}markers`);
+        }
+    }
 
-        const ref = this.#state.markerRef;
+    /**
+     * Matches an expression's chapter reference to the actual chapter, if it exists. */
+    #validateChapterReference() {
+        if (!this.#chapters) {
+            throw new Error(`#validateChapterReference - chapters are required to validate chapter references.`);
+        }
+
+        if (!this.#state.valid || !this.#state.advRef || !(this.#state.advRef instanceof ChapterReference)) {
+            return;
+        }
+
+        this.#matchedReference = this.#matchIndexReference(this.#state.advRef, this.#chapters);
+        if (!this.#matchedReference) {
+            this.#setInvalid(`Invalid chapter index '${this.#state.advRef.index}': not enough chapters`);
+        }
+    }
+
+    /**
+     * @param {BaseReference} ref
+     * @param {MarkerData[]|SerializedMarkerData[]|ChapterData[]} items */
+    #matchIndexReference(ref, items) {
         const targetIndex = Math.abs(ref.index);
 
         if (targetIndex === 0) {
-            this.#setInvalid('Marker index 0 is invalid, use 1-based indexing.');
+            this.#setInvalid('Reference index 0 is invalid, use 1-based indexing.');
             return;
         }
 
         const inc = ref.index < 0 ? -1 : 1;
-        const loopEnd = inc < 0 ? -1 : this.#markers.length;
+        const loopEnd = inc < 0 ? -1 : items.length;
         let matchIndex = 0;
-        const isAny = ref.type === 'any';
-        for (let i = inc < 0 ? this.#markers.length - 1 : 0; i !== loopEnd; i += inc) {
-            const marker = this.#markers[i];
-            if (isAny || marker.markerType === ref.type) {
-                if (++matchIndex === targetIndex) {
-                    this.#matchedMarker = marker;
-                    return;
-                }
+        for (let i = inc < 0 ? items.length - 1 : 0; i !== loopEnd; i += inc) {
+            const item = items[i];
+            if (++matchIndex === targetIndex) {
+                return item;
             }
         }
-
-        this.#setInvalid(`Invalid marker index '${ref.index}': not enough ${ref.type === 'any' ? '' : ref.type + ' '}markers`);
     }
 
     /**

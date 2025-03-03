@@ -55,10 +55,6 @@ class BulkAddOverlay {
     /** @type {number} */
     #inputTimer = 0;
 
-    /** @type {number} Cached ms of the current start input to prevent repeated calculations. */
-    #cachedStart = NaN;
-    /** @type {number} Cached ms of the current end input to prevent repeated calculations. */
-    #cachedEnd = NaN;
     /** @type {HTMLElement} Cached chapter/manual mode toggle. */
     #inputMode;
     /** @type {ChapterMap} Chapter data for all individual episodes in this overlay. */
@@ -232,10 +228,8 @@ class BulkAddOverlay {
             toast.show(toastData);
         }
 
-        this.#cachedStart = start.ms();
-        this.#cachedEnd = end.ms();
-        isNaN(this.#cachedStart) ? start.input().classList.add('badInput') : start.input().classList.remove('badInput');
-        isNaN(this.#cachedEnd) ? end.input().classList.add('badInput') : end.input().classList.remove('badInput');
+        isNaN(start.ms()) ? start.input().classList.add('badInput') : start.input().classList.remove('badInput');
+        isNaN(end.ms()) ? end.input().classList.add('badInput') : end.input().classList.remove('badInput');
         clearTimeout(this.#inputTimer);
         if (e.key === 'Enter') {
             this.#updateTableStats();
@@ -479,8 +473,14 @@ class BulkAddOverlay {
             return this.#applyChapters();
         }
 
-        const startTime = this.startTime();
-        const endTime = this.endTime();
+        if (this.#startInput.isAdvanced() || this.#endInput.isAdvanced()) {
+            this.#applyAdvancedExpression();
+            return;
+        }
+
+        // No advanced references, so we have a static start/end for all markers.
+        const startTime = this.#startInput.ms();
+        const endTime = this.#endInput.ms();
         const resolveType = this.resolveType();
         const markerType = this.markerType();
         if (isNaN(startTime) || isNaN(endTime)) {
@@ -541,6 +541,78 @@ class BulkAddOverlay {
         }
 
         Log.info(`Attempt to bulk-add ${newMarkerCount} markers based on chapter data.`);
+        const resolveType = this.resolveType();
+        const markerType = this.markerType();
+        try {
+            const result = await ServerCommands.bulkAddCustom(
+                markerType,
+                this.#mediaItem.metadataId,
+                resolveType,
+                newMarkerMap
+            );
+
+            await this.#postProcessBulkAdd(result);
+        } catch (err) {
+            await BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red, 1000);
+            errorResponseOverlay('Unable to bulk add, please try again later', err, this.show.bind(this));
+        }
+    }
+
+    /**
+     * Adds new markers based on an advanced expression. This is similar to the pure chapter-based
+     * approach, but uses the expression to build up custom markers instead of the chapter dropdown.
+     * TODO: Share with #applyChapters. */
+    async #applyAdvancedExpression() {
+        if (this.chapterMode()) {
+            Log.error(`We shouldn't be applying advanced expressions in chapter mode.`);
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
+        }
+
+        if (!this.#serverResponse || !this.#table) {
+            // We should only be submitting chapter-based markers if we've queried for episode info.
+            Log.warn(`Attempting to add chapter-based markers without episode data. How did that happen?`);
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
+        }
+
+        if (!this.#startInput.isAdvanced() && !this.#endInput.isAdvanced()) {
+            Log.warn(`Both start and end expressions are advanced. This is not supported.`);
+        }
+
+        /** @type {CustomBulkAddMap} */
+        const newMarkerMap = {};
+        for (const row of this.#table.rows()) {
+            if (!(row instanceof BulkAddRow)) {
+                Log.warn(`Non-BulkAddRow found in BulkAdd table. How did that happen?`);
+                continue;
+            }
+
+            if (!row.enabled) {
+                continue;
+            }
+
+            const timestamp = row.timestamp();
+
+            // TODO: should the behavior change based on the apply action?
+            if (isNaN(timestamp.start) || isNaN(timestamp.end)) {
+                Log.warn(`Ignoring bulk add for ${row.id} - invalid timestamp.`);
+                continue;
+            }
+
+            if (timestamp.start >= timestamp.end) {
+                Log.warn(`Ignoring bulk add for ${row.id} - start timestamp greater than end timestamp.`);
+                continue;
+            }
+
+            newMarkerMap[row.id] = timestamp;
+        }
+
+        const newMarkerCount = Object.keys(newMarkerMap).length;
+        if (newMarkerCount === 0) {
+            Log.warn(`No new markers to add.`);
+            return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
+        }
+
+        Log.info(`Attempt to bulk-add ${newMarkerCount} markers based on advanced expression data.`);
         const resolveType = this.resolveType();
         const markerType = this.markerType();
         try {
@@ -674,8 +746,6 @@ class BulkAddOverlay {
         this.#updateTableStats();
     }
 
-    startTime() { return this.#cachedStart; }
-    endTime() { return this.#cachedEnd; }
     startInput() { return this.#startInput; }
     endInput() { return this.#endInput; }
     resolveType() { return this.#stickySettings.applyType(); }
@@ -745,8 +815,8 @@ class BulkAddRow extends BulkActionRow {
         this.#episodeInfo = episodeInfo.episodeData;
         this.#existingMarkers = episodeInfo.existingMarkers;
         this.#chapters = chapters;
-        this.#startExpression = new TimeExpression(this.#existingMarkers, false /*isEnd*/);
-        this.#endExpression = new TimeExpression(this.#existingMarkers, true /*isEnd*/);
+        this.#startExpression = new TimeExpression(this.#existingMarkers, chapters, false /*isEnd*/);
+        this.#endExpression = new TimeExpression(this.#existingMarkers, chapters, true /*isEnd*/);
     }
 
     /** Create and return the table row.
@@ -788,6 +858,9 @@ class BulkAddRow extends BulkActionRow {
             end : this.#calculateStartEnd('end', this.#parent.chapterEnd(), start).time
         };
     }
+
+    /** Return the start and end timestamp for this row. */
+    timestamp() { return { start : this.#calculateStart().time, end : this.#calculateEnd().time }; }
 
     /**
      * Find the best timestamp for this row based on the bulk add type (raw/chapter)

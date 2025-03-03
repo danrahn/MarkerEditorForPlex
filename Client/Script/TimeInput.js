@@ -5,6 +5,7 @@ import { TimeExpression } from './TimeExpression.js';
 
 /** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
+/** @typedef {!import('./TimeExpression').ParseState} ParseState */
 
 const Log = ContextualLog.Create('TimeInput');
 
@@ -121,7 +122,11 @@ export class TimeInput {
         this.#customValidate = !!options.customValidate;
         this.#onExpressionChanged = options.onExpressionChanged;
         this.#plainOnly = 'plainOnly' in options && options.plainOnly;
-        this.#expression = new TimeExpression(this.#mediaItem?.markerTable().markers(), this.#isEnd, this.#plainOnly);
+        this.#expression = new TimeExpression(
+            this.#mediaItem?.markerTable().markers(),
+            this.#mediaItem?.markerTable().chapters(),
+            this.#isEnd,
+            this.#plainOnly);
         this.#lastState = this.#expression.state();
         if (this.#mediaItem && !this.#mediaItem.markerTable()) {
             this.#mediaItem = undefined;
@@ -218,8 +223,8 @@ export class TimeInput {
     #onPaste(e) {
         const text = e.clipboardData.getData('text/plain');
 
-        const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSE@ ]$/;
-        const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSE@ ]/g;
+        const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSEh@ ]$/;
+        const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSEh@ ]/g;
 
         if (!rgxFind.test(text)) {
             e.preventDefault();
@@ -263,7 +268,7 @@ export class TimeInput {
         const isExpression = !this.#plainOnly && this.#input.value[0] === '=';
         if (isExpression) {
             // Allow some additional characters in expression mode
-            if (/[MCIASE@+ -]/.test(e.key)) {
+            if (/[MCIASEh@+ -]/.test(e.key)) {
                 return;
             }
         }
@@ -286,7 +291,7 @@ export class TimeInput {
             return;
         }
 
-        this.#calculateNewTimeInput(e, parseState, simpleKeys);
+        this.#calculateNewTimeInput(e, simpleKeys);
     }
 
     /**
@@ -321,26 +326,27 @@ export class TimeInput {
 
     /**
      * @param {KeyboardEvent} e
-     * @param {ParseState} parseState
      * @param {{ [key: string]: number }} simpleKeys */
-    #calculateNewTimeInput(e, parseState, simpleKeys) {
+    #calculateNewTimeInput(e, simpleKeys) {
         const simpleKey = e.key in simpleKeys;
         const maxDuration = this.#mediaItem?.duration || NaN;
         const max = isNaN(maxDuration) ? Number.MAX_SAFE_INTEGER : maxDuration;
 
-        // Expressions with marker references can't use negative offsets.
-        const min = parseState.markerRef ? 0 : (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration);
-
-        // TODO: verify -0
         let currentValue = this.#expression.ms();
         if (isNaN(currentValue)) {
             return;
         }
 
+        // Expressions with marker references can't use negative offsets (unless the full reference hasn't
+        // been computed, since the offset might go positive once the marker/chapter offset has been added).
+        const negativeAllowed = !this.#expression.isAdvanced() || currentValue === null;
+        const min = negativeAllowed ? (isNaN(maxDuration) ? Number.MIN_SAFE_INTEGER : -maxDuration) : 0;
+
+
         if (currentValue === null) {
             // Without a media item reference, ignore any state-based expressions and only use the raw milliseconds.
             Log.assert(!this.#mediaItem, `We should only have a null current time when we don't have a baseline media item.`);
-            currentValue = parseState.ms;
+            currentValue = this.#expression.state().ms;
         }
 
         let timeDiff = 0;
