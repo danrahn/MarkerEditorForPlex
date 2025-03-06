@@ -161,13 +161,21 @@ class MarkerEdit {
         switch (e.key) {
             case 'i':
             case 'c':
-            case 'a':
+            case 'a': {
+                const isStart = e.target.classList.contains('timeInputStart');
+                const thisInput = isStart ? this.#startInput : this.#endInput;
+                if (thisInput.inTextReference()) {
+                    // No marker type shortcuts when we're in the middle of an expression.
+                    return;
+                }
+
                 // Marker type is locked in if it's part of the expression.
                 if (!this.#startInput.expressionState().markerType) {
                     e.preventDefault();
                     return this.#setMarkerType(markerTypeFromKey[e.key]);
                 }
                 break;
+            }
             case 'Enter':
                 // Only commit on Keyup to avoid any accidental double submissions
                 // that may result in confusing error UI. Left here for when my
@@ -192,6 +200,8 @@ class MarkerEdit {
             markerSelect.removeAttribute('disabled');
             Tooltip.removeTooltip(markerSelect);
         }
+
+        this.#endInput.checkPlaceholder(newState);
     }
 
     /**
@@ -748,6 +758,7 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         }
 
         this.#thumbnails.refreshImage(input.classList.contains('timeInputEnd'));
+        this.#checkAutoEnd();
     }
 
     /**
@@ -763,7 +774,23 @@ class ThumbnailMarkerEdit extends MarkerEdit {
         if (e.key !== 'Enter') {
             this.#autoloadTimeout = setTimeout(/**@this {ThumbnailMarkerEdit}*/function() {
                 this.#thumbnails.refreshImage(input.classList.contains('timeInputEnd'));
+                this.#checkAutoEnd();
             }.bind(this), 250);
+        }
+    }
+
+    /**
+     * Checks whether the end input timestamp should be adjusted based on the start input.
+     * Note that this should be called even when it's the end input that's changed, in case
+     * the end input is cleared out and needs to transition to an implicit timestamp. */
+    #checkAutoEnd() {
+        if (this.endInput().input().value.length !== 0) {
+            return;
+        }
+
+        if (this.endInput().checkPlaceholder(this.startInput().expressionState())) {
+            // Might result in duplicate requests, but refreshImage takes care of that.
+            this.#thumbnails.refreshImage(true /*isEnd*/);
         }
     }
 

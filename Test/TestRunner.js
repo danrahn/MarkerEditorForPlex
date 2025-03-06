@@ -18,6 +18,7 @@ import DeleteAllTest from './TestClasses/DeleteAllTest.js';
 import ImportExportTest from './TestClasses/ImportExportTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
+import TimeExpressionTest from './TestClasses/TimeExpressionTest.js';
 
 
 /**
@@ -81,6 +82,7 @@ class TestRunner {
         ChapterTest,
         DateUtilTest,
         ConfigTest,
+        TimeExpressionTest,
     };
 
     constructor() {
@@ -91,16 +93,21 @@ class TestRunner {
      * Run all available test classes. */
     async runAll() {
         TestLog.info(`Running all tests`);
+        let needsShutdown = false;
         const totals = { success : 0, fail : 0 };
         for (const classDef of Object.values(TestRunner.TestClasses)) {
+            /** @type {TestBase} */
             const testClass = new classDef();
+            needsShutdown ||= testClass.requiresServer;
             const result = await testClass.runTests();
             totals.success += result.success;
             totals.fail += result.fail;
         }
 
         this.printResults(totals);
-        return this.#shutdown();
+        if (needsShutdown) {
+            return this.#shutdown();
+        }
     }
 
     /**
@@ -118,7 +125,9 @@ class TestRunner {
         const testClass = new TestRunner.TestClasses[className]();
         const result = await testClass.runTests(testMethods?.split(';'));
         this.printResults(result);
-        return this.#shutdown();
+        if (testClass.requiresServer) {
+            return this.#shutdown();
+        }
     }
 
     /**

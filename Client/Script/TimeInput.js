@@ -1,5 +1,5 @@
 import { $textInput, toggleClass } from './HtmlHelpers.js';
-import { ContextualLog } from '/Shared/ConsoleLog.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { msToHms } from './Common.js';
 import { TimeExpression } from './TimeExpression.js';
 
@@ -112,6 +112,8 @@ export class TimeInput {
     /** @type {ParseState} */
     #lastState;
 
+    static #defaultPlaceholder = 'ms or mm:ss[.000]';
+
     /**
      * @param {TimeInputOptions} options
      * @param {{ [eventName: string]: Function[] }} events List of additional events to add to the input element.
@@ -154,7 +156,7 @@ export class TimeInput {
         this.#input = $textInput(
             {   type : 'text',
                 maxlength : 24,
-                placeholder : 'ms or mm:ss[.000]',
+                placeholder : TimeInput.#defaultPlaceholder,
                 autocomplete : 'off',
                 ...attributes, },
             {
@@ -168,8 +170,38 @@ export class TimeInput {
     ms(final=false) {
         // First verify the value has been parsed. Caching should ensure this is cheap when inputs are the same,
         // but should be verified for large bulk operations (e.g. bulk adding for all one One Piece).
-        this.#expression.parse(this.#input.value);
+        // There's a special case where the input itself is blank, but the placeholder indicates the real value.
+        // This is used for implicit markers (e.g. end timestamp based on the start timestamp). In that case, parse
+        // the placeholder instead.
+        let value = this.#input.value;
+        if (value.length === 0 && this.#input.placeholder !== TimeInput.#defaultPlaceholder) {
+            value = this.#input.placeholder;
+        }
+
+        this.#expression.parse(value);
         return this.#expression.ms(final);
+    }
+
+    /**
+     * Helper that adjusts the placeholder if an implicit end time is being used.
+     * @param {ParseState} startState */
+    checkPlaceholder(startState) {
+        if (!this.#isEnd) {
+            return false;
+        }
+
+        const oldPlaceholder = this.#input.placeholder;
+        if (!startState.chapterReference()?.start || this.#input.value) {
+            this.#input.placeholder = TimeInput.#defaultPlaceholder;
+            return oldPlaceholder === TimeInput.#defaultPlaceholder;
+        }
+
+        const cloneState = startState.clone();
+        cloneState.chapterReference().start = false; // Ensure we're using the end time
+        cloneState.markerType = null; // End timestamps can't use M@ syntax
+        this.#expression.updateState(cloneState);
+        this.#input.placeholder = this.#expression.toString();
+        return oldPlaceholder === this.#input.placeholder;
     }
 
     /** Return the underlying text input element. */
@@ -223,6 +255,12 @@ export class TimeInput {
     #onPaste(e) {
         const text = e.clipboardData.getData('text/plain');
 
+        // With chapter name references, it's more trouble than it's worth to
+        // try to fix up complex expressions, so just paste it as-is and let the user figure it out.
+        if (!this.#plainOnly && text[0] === '=') {
+            return;
+        }
+
         const rgxFind = this.#plainOnly ? /^[\d:.]*$/ : /^=[-+\d:.ACIMSEh@ ]$/;
         const rgxReplace = this.#plainOnly ? /[^:\d.]/g : /[^-+=\d:.ACIMSEh@ ]/g;
 
@@ -230,7 +268,7 @@ export class TimeInput {
             e.preventDefault();
             const newText = text.replace(rgxReplace, '');
 
-            // Even if the resulting text is invalid, paste in the valid characters anway,
+            // Even if the resulting text is invalid, paste in the valid characters anyway,
             // as someone might have wanted to paste a partial expression.
             try {
                 document.execCommand('insertText', false, newText);
@@ -268,7 +306,7 @@ export class TimeInput {
         const isExpression = !this.#plainOnly && this.#input.value[0] === '=';
         if (isExpression) {
             // Allow some additional characters in expression mode
-            if (/[MCIASEh@+ -]/.test(e.key)) {
+            if (this.inTextReference() || /[MCIASEh@()+ -]/.test(e.key)) {
                 return;
             }
         }
@@ -292,6 +330,12 @@ export class TimeInput {
         }
 
         this.#calculateNewTimeInput(e, simpleKeys);
+    }
+
+    /**
+     * Returns whether the cursor is likely in a text reference (i.e. in the middle of a chapter name expression). */
+    inTextReference() {
+        return TimeExpression.InTextReference(this.#input.value, this.#input.selectionStart);
     }
 
     /**

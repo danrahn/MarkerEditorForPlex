@@ -201,8 +201,11 @@ class TestBase {
     /**
      * @param {() => Promise<any>} testMethod */
     async #runSingle(testMethod) {
-        await this.resetState();
-        await this.resume();
+        if (this.requiresServer) {
+            await this.resetState();
+            await this.resume();
+        }
+
         await this.testMethodSetup();
         let success = true;
         let response = '';

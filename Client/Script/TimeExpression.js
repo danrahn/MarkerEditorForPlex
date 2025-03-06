@@ -1,6 +1,6 @@
 import { msToHms, timeToMs } from './Common.js';
-import { ContextualLog } from '/Shared/ConsoleLog.js';
-import { MarkerType } from '/Shared/MarkerType.js';
+import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { MarkerType } from '../../Shared/MarkerType.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
@@ -8,6 +8,34 @@ import { MarkerType } from '/Shared/MarkerType.js';
 
 const Log = ContextualLog.Create('TimestampExpression');
 
+/**
+ * All possible parsing errors. This is really only here for test validation, so that any
+ * minor string updates won't result in test errors. */
+export const TimestampInvalidReason = { // Could make some strings directly, but making everything a function simplifies things.
+    PlainOnly : () => `Only plain expressions are allowed, cannot use '=' syntax.`,
+    DoubleOperator : (op) => `Double operators not supported, found '${op}'.`,
+    NoOperator : () => `No operator found between two expression parts.`,
+    InvalidCharacter : (c, i) => `Unexpected character '${c}' at position ${i}.`,
+    InvalidTimestamp : (t) => `Could not parse "${t}" as a timestamp.`,
+    MarkerTypeInEndInput : () => `Marker type references are only allowed for start times.`,
+    MarkerTypeNotAtStart : () => `Marker type references must be the first part of the expression`,
+    MultipleTypeReferences : () => `Expressions can only reference a single marker type,`,
+    MultipleReferences : () => `Expressions cannot have multiple marker/chapter references.`,
+    SubtractedReference : (t) => `${t} references cannot be subtracted.`,
+    InvalidRef : (t) => `Could not parse potential ${t} reference.`,
+    BadWildcardEscape : (c) => `Unexpected escape character in chapter reference: '${c}'`,
+    UnterminatedChapterRef : () => `Unterminated chapter name reference`,
+    BadWildcardConversion : (exm) => `Could not convert name reference to a regular expression: ${exm}`,
+    BadChapterRegex : (rgx, exm) => `Could not parse regular expression ${rgx}: ${exm}`,
+    NoChapterRegex : (rgx) => `No chapter match for regex ${rgx}.`,
+    NegativeTimestampWithRef : () => `Negative timestamps are not allowed with marker/chapter references.`,
+    BadRefIndex : (t, i, c) => `Invalid ${t} index '${i}': not enough ${c}.`,
+    ZeroRefIndex : () => `Reference index 0 is invalid, use 1-based indexing.`,
+};
+
+/**
+ * Shared class with common attributes for all reference types.
+ */
 class BaseReference {
     index = 0;
     start = false;
@@ -34,6 +62,9 @@ class BaseReference {
     toString() { Log.error('BaseReference::toString should be overridden.'); return ''; }
 }
 
+/**
+ * A reference to a marker, which includes a marker type and an index.
+ */
 class MarkerReference extends BaseReference {
     /**
      * @type {'any'|'intro'|'credits'|'commercial'} */
@@ -66,39 +97,121 @@ class MarkerReference extends BaseReference {
     }
 }
 
-// TODO: (in other classes) - if end input is blank and there's a non-specific start/end chapter reference,
-// apply the same reference to the end input.
-
-// TODO: name-based chapter references (Ch='Opening', Ch="Ending", Ch='Chapter\'s Name').
-//       also need to account for paste/allowed characters. Basically means we either allow
-//       any character input, or add a specific handler that only allows arbitrary when we think we're
-//       in a chapter reference (invalid=true + extra flag indicating that state?).
-
 /**
- * A reference to a chapter. Currently only supports index-based references, so no extra fields on top of the BaseReference.
+ * Encapsulates a named chapter reference, either via wildcard matching or a regular expression.
  */
-class ChapterReference extends BaseReference {
+class ChapterNameReference {
     /**
-     * @param {number} [index]
-     * @param {boolean} [start]
-     * @param {boolean} [implicit] */
-    constructor(index, start, implicit) {
-        super(index, start, implicit);
+     * The underlying regex for this chapter name reference.
+     * @type {RegExp} */
+    nameRegex;
+    /**
+     * The underlying text for this chapter name reference, used for display
+     * purposes (e.g. so we don't convert wildcard references to regex strings).
+     * @type {string} */
+    realText;
+    /**
+     * Whether this reference is a regular expression, or a wildcard-based reference.
+     * @type {boolean} */
+    isRegex;
+
+    constructor(nameRegex, realText, isRegex) {
+        this.nameRegex = nameRegex;
+        this.realText = realText;
+        this.isRegex = isRegex;
     }
 
     /**
-     * @param {BaseReference} other
+     * @param {any} other
      * @param {boolean} strict */
     equals(other, strict=false) {
-        return (other instanceof ChapterReference) && super.equals(other, strict);
+        return other instanceof ChapterNameReference
+            && this.nameRegex.source === other.nameRegex.source
+            && this.nameRegex.flags === other.nameRegex.flags
+            && (!strict || (this.isRegex === other.isRegex && this.realText === other.realText));
     }
 
     clone() {
-        return new ChapterReference(this.index, this.start, this.implicit);
+        return new ChapterNameReference(
+            new RegExp(this.nameRegex.source, this.nameRegex.flags),
+            this.realText,
+            this.isRegex
+        );
     }
 
     toString() {
-        return 'Ch' + this.index.toString() + (this.implicit ? '' : this.start ? 'S' : 'E');
+        return this.isRegex ? `(/${this.nameRegex.source}/${this.nameRegex.flags})` : `(${this.realText})`;
+    }
+}
+
+/**
+ * A reference to a chapter, either via a chapter index or a name.
+ */
+class ChapterReference extends BaseReference {
+    /** @type {ChapterNameReference} */
+    nameRef;
+
+    /**
+     * @param {number} [index]
+     * @param {ChapterNameReference} [nameRef]
+     * @param {boolean} [start]
+     * @param {boolean} [implicit] */
+    constructor(index, nameRef, start, implicit) {
+        super(index, start, implicit);
+        this.nameRef = nameRef;
+    }
+
+    /**
+     * Create an index-based ChapterReference.
+     * @param {number} index
+     * @param {boolean} start
+     * @param {boolean} implicit
+     * @returns {ChapterReference} */
+    static fromIndex(index, start, implicit) {
+        return new ChapterReference(index, undefined, start, implicit);
+    }
+
+    /**
+     * Create a name-based ChapterReference.
+     * @param {ChapterNameReference} nameRef
+     * @param {boolean} start
+     * @param {boolean} implicit
+     * @returns {ChapterReference} */
+    static fromRegex(nameRef, start, implicit) {
+        return new ChapterReference(undefined, nameRef, start, implicit);
+    }
+
+    /**
+     * Check if this ChapterReference equals another.
+     * @param {BaseReference} other
+     * @param {boolean} strict
+     * @returns {boolean} */
+    equals(other, strict = false) {
+        if (!(other instanceof ChapterReference) || !super.equals(other, strict)) {
+            return false;
+        }
+
+        return !this.nameRef && !other.nameRef || this.nameRef?.equals(other.nameRef, strict);
+    }
+
+    /**
+     * Clone this ChapterReference.
+     * @returns {ChapterReference} */
+    clone() {
+        return new ChapterReference(
+            this.index,
+            this.nameRef?.clone(),
+            this.start,
+            this.implicit
+        );
+    }
+
+    /**
+     * Convert this ChapterReference to a string.
+     * @returns {string} */
+    toString() {
+        const innerRef = this.nameRef ? this.nameRef.toString() : this.index.toString();
+        return 'Ch' + innerRef + (this.implicit ? '' : this.start ? 'S' : 'E');
     }
 }
 
@@ -125,6 +238,7 @@ function keyFromMarkerType(markerType) {
 const validTimeChars = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ':']);
 const validMarkerTypeChars = new Set(['M', 'I', 'C', 'A']);
 const plusMinus = new Set(['+', '-']);
+const startEnd = new Set (['S', 'E']);
 const markerRefFormat = /^(?<type>\w)(?<index>-?\d+)(?<se>[SE])?\b/;
 const chapterRefFormat = /^Ch(?<index>-?\d+)(?<se>[SE])?\b/;
 const onlyDigits = /^\d+$/;
@@ -168,19 +282,15 @@ export class ParseState {
      * @param {ParseState} other The other state to parse.
      * @param {boolean} strict Whether to check for exact equality, not just fields that affect the underlying timestamp. */
     equals(other, strict) {
-        if (this.plain !== other.plain || this.hms !== other.hms || this.ms !== other.ms || this.markerType !== other.markerType) {
+        if (this.plain !== other.plain || this.ms !== other.ms || this.markerType !== other.markerType) {
             return false;
         }
 
-        if (strict && (this.valid !== other.valid || this.invalidReason !== other.invalidReason)) {
+        if (strict && (this.hms !== other.hms || this.valid !== other.valid || this.invalidReason !== other.invalidReason)) {
             return false;
         }
 
-        if (!!this.advRef !== !!other.advRef) {
-            return false;
-        }
-
-        return !this.advRef || this.advRef.equals(other.advRef, strict);
+        return (!this.advRef && !other.advRef) || this.advRef?.equals(other.advRef, strict);
     }
 
     /** Return a copy of this parse state */
@@ -188,6 +298,27 @@ export class ParseState {
         return new ParseState(
             this.plain, this.valid, this.invalidReason, this.hms, this.ms, this.markerType, this.advRef);
     }
+
+    /** @returns The ChapterReference associated with this state, or null if there is no chapter reference. */
+    chapterReference() {
+        return this.advRef instanceof ChapterReference ? this.advRef : null;
+    }
+
+    /** @returns The MarkerReference associated with this state, or null if there is no marker reference. */
+    markerReference() {
+        return this.advRef instanceof MarkerReference ? this.advRef : null;
+    }
+}
+
+/**
+ * Small helper to determine if the character at the given index is escaped.
+ * Accounts for multiple escapes, so e.g. '\\)' isn't escaped, because the first \ escapes the second.
+ * @param {string} text
+ * @param {number} i */
+function isEscaped(text, i) {
+    let bs = 0;
+    while (i - bs > 0 && text[i - ++bs] === '\\');
+    return bs % 2 === 0; // Extra ++ means bs is off by one, so an even number means we are escaped.
 }
 
 /**
@@ -200,20 +331,27 @@ export class TimeExpression {
     #plainOnly = false;
     /** Whether this is expression is associated with a start or end timestamp. */
     #isEnd = false;
-    /** @type {MarkerData[]|SerializedMarkerData[]} */
+    /**
+     * The markers associated with this expression. Both MarkerData and SerializedMarkerData are allowed, since
+     * we only need the index and start/end time, which are accessed identically between the two types.
+     * @type {MarkerData[]|SerializedMarkerData[]} */
     #markers;
     /** @type {ChapterData[]} */
     #chapters;
-    /** @type {MarkerData|SerializedMarkerData|ChapterData} */
+    /**
+     * The marker/chapter associated with the current expression, if any.
+     * @type {MarkerData|SerializedMarkerData|ChapterData} */
     #matchedReference;
     /** @type {string} The last string that was parsed. */
     #lastParse = null;
 
     /**
-     * @param {MarkerData[]|SerializedMarkerData[]} markers
-     * @param {ChapterData[]} chapters
-     * @param {boolean} isEnd
-     * @param {boolean} plainOnly */
+     * @param {MarkerData[]|SerializedMarkerData[]|null} markers The markers associated with this item, or null if
+     *                                                           this expression isn't tied to a specific media item.
+     * @param {ChapterData[]|null} chapters The chapters associated with this item, or null if this expression isn't
+     *                                      tied to a specific media item.
+     * @param {boolean} isEnd Whether this expression is associated with an end timestamp.
+     * @param {boolean} plainOnly Whether this expression is only allowed to use plain (non-'=') expressions. */
     constructor(markers, chapters, isEnd, plainOnly=false) {
         this.#isEnd = isEnd;
         this.#markers = markers;
@@ -222,9 +360,35 @@ export class TimeExpression {
     }
 
     /**
+     * Returns whether the cursor is likely in a text reference (i.e. in the middle of a chapter name expression).
+     * Not necessarily exact, but given the allowed syntax, should be good enough.
+     * @param {string} text
+     * @param {number} selectionStart The start cursor position */
+    static InTextReference(text, selectionStart) {
+        const openParen = text.indexOf('(');
+        if (openParen === -1) {
+            return false;
+        }
+
+        let closeParen = text.indexOf(')', openParen);
+        if (closeParen === -1) {
+            return true;
+        }
+
+        while (isEscaped(text, closeParen)) {
+            closeParen = text.indexOf(')', closeParen + 1);
+            if (closeParen === -1) {
+                return true;
+            }
+        }
+
+        return selectionStart > openParen && selectionStart <= closeParen;
+    }
+
+    /**
      * @readonly Retrieve the underlying parsed expression state. */
     state() {
-        // Should .clone() so internal state can't be modified, but that's expensive.
+        // Should .clone() so internal state can't be modified, but that's more expensive for theoretical safety.
         // If I ever convert this project to TS, then I could probably use readonly for this.
         return this.#state;
     }
@@ -250,8 +414,8 @@ export class TimeExpression {
 
     /**
      * Retrieve the underlying millisecond timestamp for this expression.
-     * If the expression is invalid, returns NaN, and if there's a marker reference without
-     * a matched marker, return null. */
+     * @returns {number} The calculated timestamp, NaN if the expression is invalid, or null if there's
+     *                   a marker/chapter reference with no marker/chapter data available. */
     ms(final=false) {
         if (!this.#state.valid) {
             return NaN;
@@ -308,6 +472,12 @@ export class TimeExpression {
      * notation, regardless of underlying input entry. */
     toString() {
         const state = this.#state;
+
+        // If the state is invalid, just return the lastParse string
+        if (!state.valid) {
+            return this.#lastParse;
+        }
+
         if (state.plain) {
             return this.#setString((state.hms ? msToHms(state.ms) : state.ms).toString());
         }
@@ -371,7 +541,7 @@ export class TimeExpression {
     /**
      * @param {string} text */
     #parse(text, force=false) {
-        text = text.replace(/ /g, '');
+        text = text.trim();
         if (!force && text === this.#lastParse) {
             // This is expected when multiple callers want to ensure
             // the latest state.
@@ -380,33 +550,45 @@ export class TimeExpression {
         }
 
         this.#reset(!text.length);
+        this.#lastParse = text;
+        if (this.#checkPlain(text)) {
+            return this.#state;
+        }
+
         const state = this.#state;
-        if (!text || text.length === 0) {
-            state.hms = true;
-            return state;
-        }
-
-        if (text[0] !== '=') {
-            state.ms = timeToMs(text, true /*allowNegative*/);
-            state.valid = !isNaN(state.ms);
-            if (!state.valid) {
-                state.invalidReason = 'Timestamp could not be parsed';
-            }
-
-            state.hms = !onlyDigits.test(text);
-            return state;
-        }
-
-        if (this.#plainOnly) {
-            return this.#setInvalid(`Only plain expressions are allowed, cannot use '=' syntax`);
-        }
-
         state.plain = false;
+        let foundNumber = false;
+        let foundOp = false;
 
         let i = 1;
         let negative = false;
         while (i < text.length) {
             const c = text[i];
+
+            if (plusMinus.has(c)) {
+                Log.assert(!negative, 'Negative flag should always be false when starting expression parsing.');
+
+                negative = c === '-';
+                foundOp = true;
+                if (plusMinus.has(text[++i])) {
+                    // No double negatives or "1+-2"/"1-+2"/etc.
+                    return this.#setInvalid('DoubleOperator', c+text[i]);
+                }
+
+                continue;
+            }
+
+            if (/\s/.test(c)) {
+                // Skip whitespace
+                ++i;
+                continue;
+            }
+
+            if ((foundNumber || state.advRef) && !foundOp) {
+                // If we've already found a number, but no operator, then we're missing an operator.
+                this.#setInvalid('NoOperator');
+            }
+
             if (c === 'C' && text[i + 1] === 'h') {
                 i = this.#parseChapterReference(text, i, negative);
                 if (!i) return state;
@@ -420,26 +602,15 @@ export class TimeExpression {
             }
 
             if (validTimeChars.has(c)) {
-                i = this.#parseTimeReference(text, i, negative);
+                i = this.#parseTimeReference(text, i, negative, foundNumber, foundOp);
                 if (!i) return state;
                 negative = false;
-                continue;
-            }
-
-            if (plusMinus.has(c)) {
-                Log.assert(!negative, 'Negative flag should always be false when starting expression parsing.');
-
-                negative = c === '-';
-                if (plusMinus.has(text[++i])) {
-                    // No double negatives or "1+-2"/"1-+2"/etc.
-                    return this.#setInvalid(`Invalid operator sequence '${c+text[i]}'. Only a single operator is supported`);
-                }
-
+                foundNumber = true;
                 continue;
             }
 
             // If we're here, we didn't hit a valid start to a subexpression.
-            return this.#setInvalid(`Unexpected character '${c}' at position ${i}.`);
+            return this.#setInvalid('InvalidCharacter', c, i);
         }
 
         if (state.hms === null) {
@@ -452,25 +623,71 @@ export class TimeExpression {
         return state;
     }
 
+    /**
+     * Check for plain text input, returning true if plain text was handled.
+     * @param {string} text */
+    #checkPlain(text) {
+        if (!text || text.length === 0) {
+            this.#state.hms = true;
+            return true;
+        }
+
+        if (text[0] !== '=') {
+            this.#parsePlain(text);
+            return true;
+        }
+
+        if (this.#plainOnly) {
+            this.#setInvalid('PlainOnly');
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Parse plain (no leading '=') input, which can only be a single timestamp. */
+    #parsePlain(text) {
+        const state = this.#state;
+        state.ms = timeToMs(text, true /*allowNegative*/);
+        state.valid = !isNaN(state.ms);
+        if (!state.valid) {
+            this.#setInvalid('InvalidTimestamp', text);
+            return state;
+        }
+
+        state.hms = !onlyDigits.test(text);
+        return state;
+    }
+
+    /**
+     * Parse a potential chapter reference starting at text[i]
+     * @param {string} text
+     * @param {number} i
+     * @param {boolean} negative
+     * @returns The new value of i, or 0 if parsing failed. */
     #parseChapterReference(text, i, negative) {
         if (this.#state.advRef) {
-            this.#setInvalid('Expressions cannot have multiple marker/chapter references.');
+            this.#setInvalid('MultipleReferences');
             return 0;
         }
 
         if (negative) {
-            this.#setInvalid('Chapter references cannot be subtracted.');
+            this.#setInvalid('SubtractedReference', 'Chapter');
             return 0;
         }
 
         const chapterData = chapterRefFormat.exec(text.substring(i));
         if (!chapterData) {
-            this.#setInvalid('Could not parse potential chapter reference.');
+            if (text[i + 2] === '(') {
+                return this.#parseChapterTextReference(text, i);
+            }
+
+            this.#setInvalid('InvalidRef', 'chapter');
             return 0;
         }
 
         const se = chapterData.groups.se;
-        this.#state.advRef = new ChapterReference(
+        this.#state.advRef = ChapterReference.fromIndex(
             parseInt(chapterData.groups.index),
             se ? se === 'S' : !this.#isEnd, // Opposite of marker reference, start timestamps use chapter start implicitly.
             !se /*implicit*/
@@ -480,11 +697,121 @@ export class TimeExpression {
     }
 
     /**
+     * Parse a potential chapter name reference, starting at text[i].
+     * @param {string} text
+     * @param {number} i
+     * @returns The new value of i, or 0 if parsing failed. */
+    #parseChapterTextReference(text, i) {
+        // Two potential forms, Ch(Wildcard*Syntax?) or Ch(/Regex/).
+        if (text[i + 3] === '/') {
+            return this.#parseChapterRegex(text, i);
+        }
+
+        // Wildcard syntax. Replace '*' with '.*' and '?' with '.', and escape any other special characters.
+        const regexChars = new Set(['.', '*', '+', '?', '^', '=', '!', ':', '$', '{', '}', '(', ')', '|', '[', ']', '/', '\\']);
+        let wildcardToRegex = '';
+        i += 3; // Skip past the '(' in 'Ch('
+        const startI = i;
+
+        // This needs much more thorough testing, but it's a start.
+        while (i < text.length && text[i] !== ')') {
+            const c = text[i++];
+            if (c === '\\') {
+                // Only '*', '?', '\' and ')' need to be escaped, but also allow escaping regex characters to be friendlier.
+                if (regexChars.has(text[i])) {
+                    wildcardToRegex += '\\' + text[i++];
+                } else if (text[i] === 't') {
+                    // Don't allow most escape sequences, but allow '\t' for tabs.
+                    wildcardToRegex += '\\t';
+                    ++i;
+                } else {
+                    this.#setInvalid('BadWildcardEscape', text[i]);
+                    return 0;
+                }
+            } else if (c === '*') {
+                wildcardToRegex += '.*';
+            } else if (c === '?') {
+                wildcardToRegex += '.';
+            } else if (regexChars.has(c)) {
+                wildcardToRegex += '\\' + c;
+            } else {
+                wildcardToRegex += c;
+            }
+        }
+
+        if (i >= text.length) {
+            this.#setInvalid('UnterminatedChapterRef');
+            return 0;
+        }
+
+        const baseText = text.substring(startI, i);
+
+        const implicitSE = !startEnd.has(text[i + 1]);
+        const isStart = implicitSE ? !this.#isEnd : text[++i] === 'S';
+
+        let chapterRegex;
+        try {
+            chapterRegex = new RegExp('^' + wildcardToRegex + '$', 'i');
+        } catch (ex) {
+            this.#setInvalid('BadWildcardConversion', ex.message);
+            return 0;
+        }
+
+        const nameRef = new ChapterNameReference(chapterRegex, baseText, false /*isRegex*/);
+        this.#state.advRef = ChapterReference.fromRegex(nameRef, isStart, implicitSE);
+        return i + 1;
+    }
+
+    /**
+     * Attempt to parse a regex-based chapter name reference, starting at text[i].
+     * @param {string} text
+     * @param {number} i
+     * @returns The new value of i, or 0 if parsing failed. */
+    #parseChapterRegex(text, i) {
+        const startI = i + 4;
+        let endI = startI;
+        while (endI < text.length) {
+            if (text[endI] === '/' && !isEscaped(text, endI)) {
+                break;
+            }
+
+            ++endI;
+        }
+
+        if (endI >= text.length) {
+            this.#setInvalid('UnterminatedChapterRef');
+            return 0;
+        }
+
+        const flags = text[endI + 1] === 'i' ? 'i' : '';
+        if (text[endI + (flags ? 2 : 1)] !== ')') {
+            this.#setInvalid('UnterminatedChapterRef');
+            return 0;
+        }
+
+        const rgxStr = text.substring(startI, endI);
+        endI += flags ? 2 : 1;
+        let chapterRegex;
+        try {
+            chapterRegex = new RegExp(rgxStr, flags);
+        } catch (ex) {
+            this.#setInvalid('BadChapterRegex', `/${rgxStr}/${flags}`, ex.message);
+            return 0;
+        }
+
+        const implicitSE = !startEnd.has(text[endI + 1]);
+        const isStart = implicitSE ? !this.#isEnd : text[++endI] === 'S';
+        const nameRef = new ChapterNameReference(chapterRegex, rgxStr, true /*isRegex*/);
+        this.#state.advRef = ChapterReference.fromRegex(nameRef, isStart, implicitSE);
+        return endI + 1;
+    }
+
+    /**
      * Parses a potential marker reference in the given text, starting at character i.
      * Also checks for explicit marker type references (e.g. 'I@XXX' to add an intro marker).
      * @param {string} text
      * @param {number} i
-     * @returns {number} The new value of i */
+     * @returns {number} The new value of i, or 0 if parsing failed. */
     #parseMarkerReference(text, i, negative) {
         const c = text[i];
 
@@ -493,18 +820,23 @@ export class TimeExpression {
         if (c !== 'M' && text[i + 1] === '@') {
             if (this.#isEnd) {
                 // Marker type references are only allowed for start times.
-                this.#setInvalid('Marker type references are only allowed for start times.');
+                this.#setInvalid('MarkerTypeInEndInput');
                 return 0;
             }
 
-            // Must be the first part of the expression. Relies on the caller removing whitespace.
+            // Must be the first part of the expression (sans whitespace).
             if (i !== 1) {
-                this.#setInvalid('Marker type references must be the first part of the expression.');
-                return 0;
+                let j = i;
+                while (j > 1 && /\s/.test(text[--j]));
+                if (j > 1) {
+                    this.#setInvalid('MarkerTypeNotAtStart');
+                    return 0;
+                }
             }
 
             if (this.#state.markerType) {
-                this.#setInvalid('Expressions can only reference a single marker type.');
+                // TODO: is this possible?
+                this.#setInvalid('MultipleReferences');
                 return 0;
             }
 
@@ -513,18 +845,18 @@ export class TimeExpression {
         }
 
         if (this.#state.advRef) {
-            this.#setInvalid('Expressions cannot have multiple marker/chapter references.');
+            this.#setInvalid('MultipleReferences');
             return 0;
         }
 
         if (negative) {
-            this.#setInvalid('Marker references cannot be subtracted.');
+            this.#setInvalid('SubtractedReference', 'Marker');
             return 0;
         }
 
         const markerData = markerRefFormat.exec(text.substring(i));
         if (!markerData) {
-            this.#setInvalid('Could not parse potential marker reference.');
+            this.#setInvalid('InvalidRef', 'marker');
             return 0;
         }
 
@@ -546,11 +878,11 @@ export class TimeExpression {
      * @returns The new value of i, or 0 if parsing failed. */
     #parseTimeReference(text, i, negative) {
         const iStart = i;
-        while (validTimeChars.has(text[i++]));
+        while (validTimeChars.has(text[++i]));
         const timeString = text.substring(iStart, i);
         const ms = timeToMs(timeString);
         if (isNaN(ms)) {
-            this.#setInvalid(`Could not parse "${timeString}" as a timestamp.`);
+            this.#setInvalid('InvalidTimestamp', timeString);
             return 0;
         }
 
@@ -578,7 +910,7 @@ export class TimeExpression {
         // With a marker/chapter reference, don't allow negative timestamps,
         // as I don't see a use case for it.
         if (this.#matchedReference && this.ms() < 0) {
-            this.#setInvalid('Negative timestamps are not allowed with marker/chapter references.');
+            this.#setInvalid('NegativeTimestampWithRef');
         }
     }
 
@@ -589,14 +921,14 @@ export class TimeExpression {
             throw new Error(`#validateMarkerReference - a media item is required to validate marker references.`);
         }
 
-        if (!this.#state.valid || !this.#state.advRef || !(this.#state.advRef instanceof MarkerReference)) {
+        if (!this.#state.valid || !this.#state.markerReference()) {
             return;
         }
 
         const ref = this.#state.advRef;
         this.#matchedReference = this.#matchIndexReference(ref, this.#markers);
-        if (!this.#matchedReference) {
-            this.#setInvalid(`Invalid marker index '${ref.index}': not enough ${ref.type === 'any' ? '' : ref.type + ' '}markers`);
+        if (!this.#matchedReference && this.#state.valid) {
+            this.#setInvalid('BadRefIndex', 'marker', ref.index, (ref.type === 'any' ? '' : ref.type + ' ') + 'markers');
         }
     }
 
@@ -607,13 +939,19 @@ export class TimeExpression {
             throw new Error(`#validateChapterReference - chapters are required to validate chapter references.`);
         }
 
-        if (!this.#state.valid || !this.#state.advRef || !(this.#state.advRef instanceof ChapterReference)) {
+        const state = this.#state;
+        if (!state.valid || !state.chapterReference()) {
             return;
         }
 
-        this.#matchedReference = this.#matchIndexReference(this.#state.advRef, this.#chapters);
-        if (!this.#matchedReference) {
-            this.#setInvalid(`Invalid chapter index '${this.#state.advRef.index}': not enough chapters`);
+        const chapterRef = state.chapterReference();
+        if (chapterRef.nameRef) {
+            this.#matchedReference = this.#matchRegexReference(chapterRef, this.#chapters);
+        } else {
+            this.#matchedReference = this.#matchIndexReference(chapterRef, this.#chapters);
+            if (!this.#matchedReference && state.valid) {
+                this.#setInvalid('BadRefIndex', 'chapter', chapterRef.index, 'chapters');
+            }
         }
     }
 
@@ -622,30 +960,52 @@ export class TimeExpression {
      * @param {MarkerData[]|SerializedMarkerData[]|ChapterData[]} items */
     #matchIndexReference(ref, items) {
         const targetIndex = Math.abs(ref.index);
+        const isMarker = ref instanceof MarkerReference;
 
         if (targetIndex === 0) {
-            this.#setInvalid('Reference index 0 is invalid, use 1-based indexing.');
+            this.#setInvalid('ZeroRefIndex');
             return;
         }
 
         const inc = ref.index < 0 ? -1 : 1;
         const loopEnd = inc < 0 ? -1 : items.length;
         let matchIndex = 0;
+        const isAny = !isMarker || ref.type === 'any';
         for (let i = inc < 0 ? items.length - 1 : 0; i !== loopEnd; i += inc) {
             const item = items[i];
-            if (++matchIndex === targetIndex) {
-                return item;
+            if (isAny || item.markerType === ref.type) {
+                if (++matchIndex === targetIndex) {
+                    return item;
+                }
             }
         }
     }
 
     /**
+     * Matches an expression's chapter reference to the actual chapter using a regex, if it exists.
+     * @param {ChapterReference} ref The chapter reference containing the regex.
+     * @param {ChapterData[]} items The list of chapters to search through.
+     * @returns {ChapterData|null} The matched chapter if found, otherwise null. */
+    #matchRegexReference(ref, items) {
+        const rgx = ref.nameRef.nameRegex;
+        for (const item of items) {
+            if (rgx.test(item.name)) {
+                // TODO: handle multiple references.
+                return item;
+            }
+        }
+
+        this.#setInvalid('NoChapterRegex', `/${rgx.source}/${rgx.flags}`);
+    }
+
+    /**
      * Set this expression invalid with the given reason.
      * Return the parsed expression to make our lives easier in some places.
-     * @param {string} reason */
-    #setInvalid(reason) {
+     * @param {keyof TimestampInvalidReason} reason
+     * @param {...any} args Additional args to pass into the invalid reason function. */
+    #setInvalid(reason, ...args) {
         this.#state.valid = false;
-        this.#state.invalidReason = reason;
+        this.#state.invalidReason = TimestampInvalidReason[reason](...args);
         return this.#state;
     }
 }

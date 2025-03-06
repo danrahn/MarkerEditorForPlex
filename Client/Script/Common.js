@@ -23,11 +23,11 @@ function minifiedThousandths(ms) {
         return '';
     }
 
-    const asStr = ms.toString();
+    const asStr = pad0(ms.toString(), 3);
     if (ms % 100 === 0) {
         return `.${asStr[0]}`;
     } else if (ms % 10 === 0) {
-        return `.${asStr.substring(2)}`;
+        return `.${asStr.substring(0, 2)}`;
     }
 
     return `.${asStr}`;
@@ -77,12 +77,21 @@ const hmsRegex = new RegExp('' +
 */
 
 /**
+ * Regex to test for a valid ms number. Allow whitespace before/after, but not between.
+ * Needs a better localization story. */
+const digitOnly = /^\s*-?\d*(?:[.,]\d*)?\s*$/;
+
+/**
  * Parses [hh]:mm:ss.000 input into milliseconds (or the integer conversion of string milliseconds).
  * @param {string} value The time to parse
  * @returns The number of milliseconds indicated by `value`. */
 export function timeToMs(value, allowNegative=false) {
     let ms = 0;
     if (value.indexOf(':') === -1) {
+        if (!digitOnly.test(value)) {
+            return NaN;
+        }
+
         if (value.indexOf('.') === -1) {
             // Raw milliseconds
             return parseInt(value);

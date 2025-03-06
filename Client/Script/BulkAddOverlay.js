@@ -33,6 +33,7 @@ import TooltipBuilder from './TooltipBuilder.js';
 /** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('/Shared/PlexTypes').ShowData} ShowData */
+/** @typedef {!import('./TimeExpression').ParseState} ParseState */
 
 const Log = ContextualLog.Create('BulkAddOverlay');
 
@@ -569,7 +570,7 @@ class BulkAddOverlay {
         }
 
         if (!this.#serverResponse || !this.#table) {
-            // We should only be submitting chapter-based markers if we've queried for episode info.
+            // We should only be submitting reference-based markers if we've queried for episode info.
             Log.warn(`Attempting to add chapter-based markers without episode data. How did that happen?`);
             return BulkActionCommon.flashButton('bulkAddApply', ThemeColors.Red);
         }
@@ -759,6 +760,8 @@ class BulkAddOverlay {
 
     /** Update all items in the customization table, if present. */
     #updateTableStats() {
+        // Check for implicit chapter mode changes.
+        this.#endInput.checkPlaceholder(this.#startInput.expressionState());
         this.#table?.rows().forEach(row => row.update());
     }
 }

@@ -40,6 +40,7 @@ export default class ConfigTest extends TestBase {
             database : this.#testValue(null, join(dataPath, 'Plug-in Support', 'Databases', 'com.plexapp.plugins.library.db')),
             host : this.#testValue(null, 'localhost'),
             port : this.#testValue(null, 3232),
+            baseUrl : this.#testValue(null, '/'),
             logLevel : this.#testValue(null, 'Info'),
             sslEnabled : this.#testValue(null, false),
             sslOnly : this.#testValue(null, false),
