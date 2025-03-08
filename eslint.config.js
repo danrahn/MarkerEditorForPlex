@@ -74,7 +74,7 @@ export default [{
         'no-unused-vars' : ['error', {
             argsIgnorePattern : '^_',
             varsIgnorePattern : '^_',
-            caughtErrorsIgnorePattern : '^_',
+            caughtErrorsIgnorePattern : '^(_|e(rr|x)?)',
         }],
         'no-use-before-define' : 'off',
         'no-useless-call' : 'error',
