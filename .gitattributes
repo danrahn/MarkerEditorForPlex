@@ -1,0 +1,21 @@
+*      text=auto
+
+*.cjs  text
+*.css  text diff=css
+*.html text diff=html
+*.js   text
+*.json text
+*.md   text diff=markdown
+*.svg  text
+*.yml  text
+*.*rc  text
+
+*.ps1  text eol=crlf
+
+# Binary files
+*.ico   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+
+dist/*  binary
