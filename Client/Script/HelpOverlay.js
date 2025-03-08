@@ -1,30 +1,45 @@
-import { $, $append, $div, $h, $p } from './HtmlHelpers.js';
+import { $, $a, $append, $div, $h, $hr, $p } from './HtmlHelpers.js';
 import { clickOnEnterCallback } from './Common.js';
 
 import Overlay from './Overlay.js';
 
-/**
- * The text to display in the help overlay
- * @type {HTMLElement} */
-const helpText = $append(
+import { HelpSection, HelpSections } from './HelpSections.js';
+import ButtonCreator from './ButtonCreator.js';
+import { ThemeColors } from './ThemeColors.js';
+
+
+// Only create once we actually need it, but only create it once.
+/** @type {HTMLElement} */
+let helpText;
+
+const getText = () => helpText ??= $append(
     $div({ id : 'helpOverlayHolder' }),
-    $h(1, 'Welcome to Marker Editor for Plex'),
-    $p(`
-For help with the configuration and usage of ths app, see the 
-<a href="https://github.com/danrahn/MarkerEditorForPlex/wiki" target="_blank" rel="noreferrer">wiki on GitHub</a>.`),
-    $p(`
-Disclaimer: This interacts directly with your Plex database in a way that is not officially supported. While it should
-be safe to perform various create/update/delete actions, there are no guarantees that it won't break things now or in
-the future. The author is not responsible for any database corruption that may occur; use at your own risk.`,
-    { style : 'margin-top: 30px' }),
+    $append($div({ id : 'helpMain' }),
+        $h(1, 'Welcome to Marker Editor for Plex'),
+        $append($p(),
+            'For full configuration and usage instructions, see the ',
+            $a('wiki on GitHub', 'https://github.com/danrahn/MarkerEditorForPlex/wiki'))
+    ),
+    $hr(),
+    HelpSections.Get(HelpSection.TimeInput),
+    $hr(),
+    HelpSections.Get(HelpSection.KeyboardNavigation),
+    HelpSections.Get(HelpSection.Disclaimer),
+    ButtonCreator.fullButton('OK', 'confirm', ThemeColors.Green, Overlay.dismiss, { class : 'okButton' })
 );
 
 class HelpOverlay {
     static #setup = false;
     static #btn = $('#helpContainer');
     static ShowHelpOverlay() {
-        Overlay.show(helpText);
-        Overlay.setFocusBackElement(HelpOverlay.#btn);
+        // Note: don't call HelpSections.Reset here, because we want to keep the
+        // expand/collapsed state for the main help overlay.
+        Overlay.build(
+            {   closeButton : true,
+                dismissible : true,
+                forceFullscreen : true,
+                focusBack : HelpOverlay.#btn
+            }, getText());
     }
 
     static SetupHelperListeners() {

@@ -29,6 +29,7 @@
 
   /* Success */
   --success-background: #7F74;
+  --success-background-subtle: #7F72;
   --success-border: #4C4;
 
   /* Main sections */
@@ -62,6 +63,7 @@
   --button-disabled-border: rgba(93,93,93,.67);
   --button-disabled-shadow: #414141;
   --text-button-border: #333;
+  --code-background: #fff8;
 
   scrollbar-color: #A19171 #C1B191 !important;
 }

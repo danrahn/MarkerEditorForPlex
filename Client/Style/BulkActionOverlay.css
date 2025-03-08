@@ -115,5 +115,9 @@
     & #chapterIndexModeHelp svg {
       vertical-align: text-bottom;
     }
+
+    & #timeInputHelpIcon {
+      cursor: pointer;
+    }
   }
 }

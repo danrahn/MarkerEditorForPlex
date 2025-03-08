@@ -26,8 +26,6 @@ import Tooltip from './Tooltip.js';
 
 const Log = ContextualLog.Create('Overlay');
 
-/* eslint-disable no-invalid-this */ // Remove if Overlay becomes a proper class
-
 /**
  * Class to display overlays on top of a webpage.
  *
@@ -49,6 +47,8 @@ export default class Overlay {
     static #containerLock = null;
     /** @type {(value: void | PromiseLike<void>) => void} */
     static #containerUnlock = null;
+    /** @type {Promise<void>?} */
+    static #dismissing;
 
     /**
      * Creates a full-screen overlay with the given message, button text, and button function.
@@ -98,8 +98,13 @@ export default class Overlay {
      * Expects the overlay to exist. */
     static dismiss() {
         const main = Overlay.get();
-        const ret = animateOpacity(main, 1, 0, 250, () => {
-            main.parentElement.removeChild(main);
+        Overlay.#dismissing ??= animateOpacity(main, 1, 0, 250, () => {
+            // We don't want the overlay to be ripped out from under us if we're in the middle of replacing it.
+            if (!Overlay.#containerLock) {
+                main.parentElement.removeChild(main);
+            }
+
+            Overlay.#dismissing = null;
             Tooltip.clearStaleTooltips();
         });
 
@@ -109,17 +114,24 @@ export default class Overlay {
         // Dismiss after setting focus, as Tooltip's 'show on focus' behavior can be
         // annoying if it's not the user that's setting focus
         Tooltip.dismiss();
-        for (const dismiss of Overlay.#dismissCallbacks) {
-            dismiss();
-        }
 
-        Overlay.#dismissCallbacks = [];
+        while (Overlay.#dismissCallbacks.length > 0) {
+            // Remove the callback before invoking it, in case the callback awaits this initial dismissal.
+            Overlay.#dismissCallbacks.pop()();
+        }
 
         window.removeEventListener('keydown', Overlay.overlayKeyListener);
         /** @type {HTMLHtmlElement} */
         const html = $$('html');
         html.style.removeProperty('overscroll-behavior');
-        return ret;
+        return Overlay.#dismissing;
+    }
+
+    /**
+     * If the overlay is currently being dismissed, returns a promise that resolves when the dismissal is complete.
+     * Otherwise resolves immediately. */
+    static waitForDismiss() {
+        return Overlay.#dismissing || Promise.resolve();
     }
 
     /**

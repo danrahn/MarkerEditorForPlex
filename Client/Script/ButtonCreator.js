@@ -29,18 +29,20 @@ class ButtonCreator {
         addWindowResizedListener(() => {
             const small = isSmallScreen();
             $('.button.resizable').forEach((button) => {
+                const reverse = button.classList.contains('reverse');
+                const showText = small === reverse;
                 const buttonText = $$('.buttonText', button);
-                toggleVisibility(buttonText, !small);
+                toggleVisibility(buttonText, showText);
 
                 // Don't override the tooltip if it was user-set.
                 if (!button.hasAttribute(Attributes.UseDefaultTooltip)) {
                     return;
                 }
 
-                if (small) {
-                    Tooltip.setTooltip(button, buttonText.innerText);
-                } else {
+                if (showText) {
                     Tooltip.removeTooltip(button);
+                } else {
+                    Tooltip.setTooltip(button, buttonText.innerText);
                 }
 
             });
@@ -55,9 +57,10 @@ class ButtonCreator {
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
     static fullButton(text, icon, color, clickHandler, attributes={}) {
-        const button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, attributes);
+        const [mainAttrib, svgAttrib] = ButtonCreator.#extractAttributes(attributes);
+        const button = ButtonCreator.#tableButtonHolder('buttonIconAndText', clickHandler, mainAttrib);
         return $append(button,
-            getSvgIcon(icon, color),
+            getSvgIcon(icon, color, svgAttrib),
             $span(text, { class : 'buttonText' }));
     }
 
@@ -68,11 +71,12 @@ class ButtonCreator {
      * @param {keyof ThemeColorKeys} color The theme color of the icon.
      * @param {EventListener} clickHandler The callback to invoke when the button is clicked.
      * @param {AttributeMap} attributes Additional attributes to set on the button. */
-    static dynamicButton(text, icon, color, clickHandler, attributes={}) {
+    static dynamicButton(text, icon, color, clickHandler, attributes={}, reverse=false) {
+        const className = 'resizable' + (reverse ? ' reverse' : '');
         if (attributes.class) {
-            attributes.class += ' resizable';
+            attributes.class += ' ' + className;
         } else {
-            attributes.class = 'resizable';
+            attributes.class = className;
         }
 
         const button = ButtonCreator.fullButton(text, icon, color, clickHandler, attributes);
@@ -80,7 +84,7 @@ class ButtonCreator {
             button.setAttribute(Attributes.UseDefaultTooltip, 1);
         }
 
-        if (isSmallScreen()) {
+        if (isSmallScreen() !== reverse) {
             $$('.buttonText', button).classList.add('hidden');
             if (!attributes.tooltip) {
                 Tooltip.setTooltip(button, text);
@@ -102,8 +106,9 @@ class ButtonCreator {
             attributes.tooltip = altText;
         }
 
-        const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, attributes);
-        return $append(button, getSvgIcon(icon, color));
+        const [mainAttrib, svgAttrib] = ButtonCreator.#extractAttributes(attributes);
+        const button = ButtonCreator.#tableButtonHolder('buttonIconOnly', clickHandler, mainAttrib);
+        return $append(button, getSvgIcon(icon, color, svgAttrib));
     }
 
     /**
@@ -151,7 +156,8 @@ class ButtonCreator {
             Log.warn('Called setIcon on non-icon button!');
         }
 
-        svg.replaceWith(getSvgIcon(newIcon, theme));
+        const attrib = { width : svg.getAttribute('width') || 20, height : svg.getAttribute('height') || 20 };
+        svg.replaceWith(getSvgIcon(newIcon, theme, attrib));
     }
 
     /**
@@ -243,6 +249,29 @@ class ButtonCreator {
         });
 
         button.dispatchEvent(mouseEvent);
+    }
+
+    /**
+     * @param {AttributeMap} attributes */
+    static #extractAttributes(attributes={}) {
+        const mainAttrib = {};
+        const svgAttrib = {};
+        for (const [key, value] of Object.entries(attributes)) {
+            if (key.startsWith('svg-')) {
+                svgAttrib[key.slice(4)] = value;
+            } else {
+                mainAttrib[key] = value;
+            }
+        }
+
+        // Default to 20x20 if not specified
+        // A CSS approach would be better, but something like:
+        //   .button>svg { width: 20px; height: 20px; }
+        // overrides any direct <svg width="x" height="y"> attributes,
+        // so only use direct attributes.
+        svgAttrib.width ??= 20;
+        svgAttrib.height ??= 20;
+        return [mainAttrib, svgAttrib];
     }
 }
 

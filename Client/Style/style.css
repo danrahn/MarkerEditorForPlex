@@ -228,8 +228,6 @@ input:focus-visible {
 }
 
 .button>svg {
-  width: 20px;
-  height: 20px;
   vertical-align: middle;
 }
 
@@ -530,9 +528,116 @@ input:focus-visible {
 }
 
 #helpOverlayHolder {
+  margin: auto;
   text-align: center;
+
+  & .justify {
+    text-align: justify;
+  }
+  
+  & .expandableHeader {
+    cursor: pointer;
+    margin-top: 10px;
+    display: inline-block;
+  }
+
+  & .okButton {
+    padding: 10px 30px 10px 30px;
+    border: 1px solid var(--theme-border);
+    border-radius: 5px;
+  }
+
+  & .helpSubsection {
+    text-align: center;
+  }
+
+  & code.topAligned {
+    vertical-align: top;
+  }
+}
+
+#helpMain, #helpDisclaimer, #timeInputMethods {
   max-width: 600px;
   margin: auto;
+}
+
+.helpTable {
+  display: table;
+  border-collapse: collapse;
+  white-space: normal;
+  margin-top: 10px;
+
+  & th, td {
+    border: 2px solid var(--theme-border);
+    padding: 3px 5px 3px 5px;
+  }
+
+  & th {
+    background-color: var(--success-background-subtle);
+  }
+
+  & .tableReference {
+    text-decoration: none;
+  }
+}
+
+.wideHelpTableHolder {
+  overflow-x: auto;
+  margin: auto;
+}
+
+.wideHelpTable {
+  min-width: 600px;
+  max-width: 1200px;
+}
+
+.helpTableHolder {
+  & td {
+    text-align: left;
+  }
+
+  & .noteRow {
+    border: none;
+    padding: 2px 0 2px 0;
+    font-style: italic;
+    font-size: smaller;
+  }
+
+  & .helpTableDescription {
+    font-size: smaller;
+  }
+
+  & .helpTableSmaller {
+    font-size: smaller;
+  }
+}
+
+#timeInputMethods {
+  & ul {
+    list-style-position: inside;
+    text-align: left;
+    text-indent: -20px;
+    margin-left: 20px;
+
+    & li {
+      margin-bottom: 3px;
+    }
+
+    & .syntaxDescription {
+      font-size: smaller;
+    }
+  }
+
+  & ul.codeStart {
+    text-indent: -22px; /* Accounts for 2px <code> padding */
+  }
+
+  & code {
+    background-color: var(--code-background);
+    padding: 0 2px 0 2px;
+    border-radius: 2px;
+    margin: 2px 2px 0 2px;
+  }
 }
 
 .confirmDelete:hover {
@@ -752,6 +857,10 @@ input:focus-visible {
   .purgedIcon {
     height: 16px;
   }
+
+  .mobileBreak {
+    display: none;
+  }
 }
 
 @media all and (max-width: 767px) { /* Probably a phone */
@@ -794,5 +903,9 @@ input:focus-visible {
 
   .purgedIcon {
     height: 14px;
+  }
+
+  .mobileBreak {
+    display: block;
   }
 }

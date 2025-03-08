@@ -18,10 +18,17 @@ import { addLongPressListener } from './LongPressHandler.js';
  * Create a hyperlink (a) element
  * @param {string|HTMLElement} displayText The text to display
  * @param {string} href The link target
+ * @param {{[attribute: string]: string}} [attributes={}]
  * @param {{[event: string]: function }} [events ={}] A map of event listeners to attach to this element.
  * @returns {HTMLAnchorElement} */
-export function $a(displayText, href, events={}) {
-    return buildNode('a', { href : href, rel : 'noreferrer', target : '_blank' }, displayText, events);
+export function $a(displayText, href, attributes={}, events={}) {
+    const fullAttributes = { href, ...attributes };
+    if (href[0] !== '#') {
+        fullAttributes.rel = 'noreferrer';
+        fullAttributes.target = '_blank';
+    }
+
+    return buildNode('a', fullAttributes, displayText, events);
 }
 
 /**
@@ -74,10 +81,11 @@ export function $div(attributes, content, events, options={}) {
  * Create a header element.
  * @param {number} n The 'H' level (1-7)
  * @param {string} content
- * @param {Object} attributes
+ * @param {{[attribute: string]: string}} [attributes] Attributes to apply to the element (e.g. class, id, or custom attributes).
+ * @param {{[event: string]: EventListener|EventListener[]}} [events] Map of events (click/keyup/etc) to attach to the element.
  * @returns {HTMLHeadingElement} */
-export function $h(n, content, attributes={}) {
-    return buildNode(`h${n}`, attributes, content);
+export function $h(n, content, attributes={}, events={}) {
+    return buildNode(`h${n}`, attributes, content, events);
 }
 
 /**
@@ -237,6 +245,15 @@ export function $span(content, attributes={}, events={}) {
 }
 
 /**
+ * Create a SUPerscript element.
+ * @param {string|HTMLElement} content
+ * @param {{[attribute: string]: string}} [attributes={}]
+ * @param {{[event: string]: function}} [events={}] */
+export function $sup(content, attributes={}, events={}) {
+    return buildNode('sup', attributes, content, events);
+}
+
+/**
  * Create a Table element.
  * @param {{[attribute: string]: string}} [attributes={}]
  * @param {{[event: string]: function}} [events={}]
@@ -265,7 +282,17 @@ export function $td(content, attributes={}, events={}) {
 }
 
 /**
- * Create a table header element.
+ * Create a table header (th) element.
+ * @param {string|HTMLElement} content
+ * @param {{[attribute: string]: string}} [attributes={}]
+ * @param {{[event: string]: function}} [events={}]
+ * @returns {HTMLTableCellElement} */
+export function $th(content, attributes={}, events={}) {
+    return buildNode('th', attributes, content, events);
+}
+
+/**
+ * Create a table header section element.
  * @param {HTMLElement} [child=null]
  * @param {{[attribute: string]: string}} [attributes={}]
  * @param {{[event: string]: function}} [events={}]
@@ -567,4 +594,8 @@ export function toggleClass(ele, className, condition) {
     } else {
         ele.classList.remove(className);
     }
+}
+
+export function $mobileBreak() {
+    return $span(null, { class : 'mobileBreak' });
 }

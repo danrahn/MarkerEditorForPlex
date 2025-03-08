@@ -1,9 +1,11 @@
-import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $option, $plainDivHolder, $select, $span } from './HtmlHelpers.js';
+import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $mobileBreak, $option, $plainDivHolder,
+    $select, $span } from './HtmlHelpers.js';
 import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
+import { HelpSection, HelpSections } from './HelpSections.js';
 import { Toast, ToastType } from './Toast.js';
 import Tooltip, { TooltipTextSize } from './Tooltip.js';
 import { Attributes } from './DataAttributes.js';
@@ -122,8 +124,17 @@ class BulkAddOverlay {
             $divHolder({ id : 'timeZone' },
                 $label('Start: ', 'addStart'),
                 this.#startInput.input(),
+                $mobileBreak(),
                 $label('End: ', 'addEnd'),
                 this.#endInput.input(),
+                $mobileBreak(),
+                ButtonCreator.dynamicButton('Time input help',
+                    Icons.Help,
+                    ThemeColors.Primary,
+                    this.#onTimeInputHelpClick.bind(this),
+                    { id : 'timeInputHelpIcon', 'svg-width' : 15, 'svg-height' : 15 },
+                    true /*reverse*/
+                ),
             ),
             $divHolder({ id : 'chapterZone', class : 'hidden' },
                 $label('Baseline: ', 'baselineEpisode'),
@@ -174,7 +185,7 @@ class BulkAddOverlay {
                 ButtonCreator.fullButton(
                     'Apply', Icons.Confirm, ThemeColors.Green, this.#apply.bind(this), { id  : 'bulkAddApply' }),
                 ButtonCreator.fullButton(
-                    'Customize', Icons.Table, ThemeColors.Primary, this.#check.bind(this), { id : 'bulkAddCustomize' }),
+                    'Customize', Icons.Table, ThemeColors.Primary, this.#onCustomizeClick.bind(this), { id : 'bulkAddCustomize' }),
                 ButtonCreator.fullButton(
                     'Cancel', Icons.Cancel, ThemeColors.Red, Overlay.dismiss, { id : 'bulkAddCancel' })
             )
@@ -237,6 +248,31 @@ class BulkAddOverlay {
         }
 
         this.#inputTimer = setTimeout(this.#updateTableStats.bind(this), 250);
+    }
+
+    /**
+     * Show time input help sections when the help icon is clicked, returning
+     * back to this dialog when dismissed. */
+    #onTimeInputHelpClick() {
+        HelpSections.ExpandCollapse(HelpSection.TimeInputMethods, false /*collapse*/);
+        const reshow = async () => {
+            const newOverlay = new BulkAddOverlay(this.#mediaItem);
+            await Overlay.waitForDismiss();
+            newOverlay.show();
+        };
+
+        Overlay.build(
+            {
+                closeButton : true,
+                forceFullscreen : true,
+                dismissible : true,
+                onDismiss : reshow
+            },
+            $append($div({ id : 'helpOverlayHolder' }),
+                HelpSections.Get(HelpSection.TimeInput),
+                $hr(),
+                ButtonCreator.fullButton('OK', 'confirm', ThemeColors.Green, Overlay.dismiss, { class : 'okButton' }))
+        );
     }
 
     /**
@@ -696,6 +732,26 @@ class BulkAddOverlay {
     }
 
     /**
+     * Check whether we have customization data, and if we don't, grab it and show the customization table. */
+    #onCustomizeClick() {
+        this.#onCustomizeClickAsync();
+    }
+
+    /**
+     * The real implementation of onCustomizeClick. Because this can be expensive, we don't want
+     * to block event handlers from continuing, so the actual handler will just call this without
+     * awaiting. */
+    async #onCustomizeClickAsync() {
+        if (!this.#serverResponse) {
+            ButtonCreator.setIcon($('#bulkAddCustomize'), Icons.Loading, ThemeColors.Primary);
+            await this.#check();
+        }
+
+        await this.#showCustomizeTable();
+        ButtonCreator.setIcon($('#bulkAddCustomize'), Icons.Table, ThemeColors.Primary);
+    }
+
+    /**
      * Request current marker statistics for the given episode group to check whether
      * a bulk add will conflict with anything. */
     async #check() {
@@ -733,7 +789,9 @@ class BulkAddOverlay {
             try {
                 await waitFor(() => this.#chapterMap, 4000);
             } catch {
-                Log.error(`Chapter data took too long, cannot use chapter data for this customization table.`);
+                const msg = `Chapter data took too long, cannot use chapter data for this customization table.`;
+                new Toast(ToastType.Warning, msg).showSimple(2000);
+                Log.error(msg);
             }
 
             ButtonCreator.setIcon($('#bulkAddCustomize'), Icons.Table, ThemeColors.Primary);

@@ -60,7 +60,8 @@ function setCache(iconName, svgString) {
  * Set attributes on the SVG element.
  * @param {SVGElement} svg
  * @param {keyof ThemeColorKeys} color
- * @param {SVGAttributes} attributes */
+ * @param {SVGAttributes} attributes
+ * @param {SVGElement} placeholder */
 function setSvgAttributes(svg, color, attributes={}) {
     for (const [attribute, value] of Object.entries(attributes)) {
         switch (attribute) {
@@ -88,6 +89,22 @@ function setSvgAttributes(svg, color, attributes={}) {
  * @param {SVGElement} [placeholder] */
 async function getSvgAsync(iconName, color, attributes, placeholder) {
     Log.assert(!svgCache.has(iconName), `We should only be asking the server for data if it's not cached.`);
+
+    /**
+     * Intercept attribute changes on the placeholder so we can
+     * apply them to the real SVG once it's loaded.
+     * @type {MutationCallback} */
+    const mutationCallback = mutationList => {
+        for (const mutation of mutationList) {
+            const newValue = mutation.target.getAttribute(mutation.attributeName);
+            Log.verbose(`Placeholder attribute changed: ${mutation.attributeName}=${newValue}`);
+            attributes[mutation.attributeName] = newValue;
+        }
+    };
+
+    const observer = new MutationObserver(mutationCallback);
+    observer.observe(placeholder, { attributes : true });
+
     if (svgFetchMap.get(iconName)) {
         Log.tmi(`Already requesting data for "${iconName}", waiting...`);
     } else {
@@ -109,7 +126,8 @@ async function getSvgAsync(iconName, color, attributes, placeholder) {
     }
 
     const svg = svgCache.get(iconName).cloneNode(true /*deep*/);
-    setSvgAttributes(svg, color, attributes);
+    setSvgAttributes(svg, color, attributes, placeholder);
+    observer.disconnect();
 
     placeholder?.replaceWith(svg);
 }

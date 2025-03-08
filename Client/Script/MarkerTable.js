@@ -88,7 +88,7 @@ const Log = ContextualLog.Create('MarkerTable');
  * [1] Previous navigable item. It could be the last row of the previous base item's marker table,
        a bulk action, or another movie/episode row.
  * [2] Next navigable item, e.g. the first row of its own marker table, or the next movie/episode row.
- * [3] Visible marker table.`
+ * [3] Visible marker table.
  */
 class Nav {
     /**
