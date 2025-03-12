@@ -1,5 +1,5 @@
 import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $mobileBreak, $option, $plainDivHolder,
-    $select, $span } from './HtmlHelpers.js';
+    $select, $span, toggleClass } from './HtmlHelpers.js';
 import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
 import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
@@ -1014,16 +1014,8 @@ class BulkAddRow extends BulkActionRow {
 
     /**
      * Update the text/colors of this row. */
-    /* eslint-disable-next-line complexity */ // TODO: eslint is right, this needs to be broken up
     update() {
-        if (!this.enabled) {
-            this.row.classList.add('bulkActionInactive');
-            this.#clear(true /*clearText*/);
-            return;
-        }
-
-        this.row.classList.remove('bulkActionInactive');
-        const tt = new TooltipBuilder();
+        toggleClass(this.row, 'bulkActionInactive', !this.enabled);
 
         const startData = this.#calculateStart();
         const startTimeBase = startData.time;
@@ -1038,31 +1030,11 @@ class BulkAddRow extends BulkActionRow {
         let isWarn = false;
         const startState = this.#startExpression.state();
         const endState = this.#endExpression.state();
-        if (!startState.valid || !endState.valid) {
-            if (!startState.valid) {
-                tt.addLine(`Bad start expression: ${startState.invalidReason}`);
-            }
-
-            if (!endState.valid) {
-                tt.addLine(`Bad end expression: ${endState.invalidReason}`);
-            }
-        } else if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
-            tt.addLine('Invalid start or end time.');
-        } else if (startTimeBase >= endTimeBase) {
-            tt.addLines(`Start time is greater than end time:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
-        } else if (startTimeBase < 0 || endTimeBase < 0) {
-            tt.addLines(`Negative timestamp:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
-        }
-
-        if (!tt.empty()) {
-            this.#startTd.innerText = '--:--:--.---';
-            this.#endTd.innerText = '--:--:--.---';
-            this.#setClassBoth(warnClass);
-            Tooltip.setTooltip(this.#startTd, tt.get());
-            Tooltip.setTooltip(this.#endTd, tt.get());
+        if (this.#checkInvalidTimestamps(startState, endState, startTimeBase, endTimeBase, warnClass)) {
             return;
         }
 
+        const tt = new TooltipBuilder();
         for (const existingMarker of this.#existingMarkers) {
             // [Existing...{New++]---} or [Existing...{New++}...]
             if (start >= existingMarker.start && start <= existingMarker.end) {
@@ -1113,21 +1085,10 @@ class BulkAddRow extends BulkActionRow {
             start = Math.min(start, end);
         }
 
-        if (start >= this.#episodeInfo.duration) {
-            isWarn = true;
-            // setSingle instead of setBoth to ensure it overwrites anything set above.
-            this.#setSingleClass(this.#startTd, 'bulkActionOff');
-            this.#setSingleClass(this.#endTd, 'bulkActionOff');
-            tt.addLines($br(), `Marker is beyond the end of the episode.`);
-        }
+        isWarn = this.#checkDurationOverflow(start, isWarn, tt);
 
-        if (tt.empty()) {
-            Tooltip.removeTooltip(this.#startTd);
-            Tooltip.removeTooltip(this.#endTd);
-        } else {
-            Tooltip.setTooltip(this.#startTd, tt.get());
-            Tooltip.setTooltip(this.#endTd, tt.get());
-        }
+        // TODO: different tooltips for start and end
+        this.#setStartEndTooltip(tt);
 
         if (!isWarn) {
             this.#setClassBoth('bulkActionOn');
@@ -1135,13 +1096,84 @@ class BulkAddRow extends BulkActionRow {
 
         if (resolveType === BulkMarkerResolveType.Ignore && isWarn && !semiWarn) {
             this.row.classList.add('bulkActionInactive');
-        } else {
+        } else if (this.enabled) {
             this.row.classList.remove('bulkActionInactive');
         }
 
         this.#startTd.innerText = msToHms(start);
         this.#endTd.innerText = msToHms(end);
         this.#setChapterMatchModeText(startData.mode, endData.mode);
+    }
+
+    /**
+     * Checks some initial conditions for the start and end timestamps, and updates the tooltip if necessary.
+     * @param {ParseState} startState
+     * @param {ParseState} endState
+     * @param {number} startTimeBase
+     * @param {number} endTimeBase
+     * @param {string} warnClass
+     * @returns {boolean} True if we should return early after updating the tooltip, false to continue processing. */
+    #checkInvalidTimestamps(startState, endState, startTimeBase, endTimeBase, warnClass) {
+        const tt = new TooltipBuilder();
+        if (!startState.valid || !endState.valid) {
+            if (!startState.valid) {
+                tt.addLine(`Bad start expression: ${startState.invalidReason}`);
+            }
+
+            if (!endState.valid) {
+                tt.addLine(`Bad end expression: ${endState.invalidReason}`);
+            }
+        } else if (isNaN(startTimeBase) || isNaN(endTimeBase)) {
+            tt.addLine('Invalid start or end time.');
+        } else if (startTimeBase >= endTimeBase) {
+            tt.addLines(`Start time is greater than end time:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
+        } else if (startTimeBase < 0 || endTimeBase < 0) {
+            tt.addLines(`Negative timestamp:`, `Start: ${msToHms(startTimeBase)}`, `End: ${msToHms(endTimeBase)}`);
+        }
+
+        if (!tt.empty()) {
+            this.#startTd.innerText = '--:--:--.---';
+            this.#endTd.innerText = '--:--:--.---';
+            this.#setClassBoth(warnClass);
+            Tooltip.setTooltip(this.#startTd, tt.get());
+            Tooltip.setTooltip(this.#endTd, tt.get());
+            Tooltip.removeTooltip(this.#titleTd);
+            return true;
+        }
+
+        Tooltip.removeTooltip(this.#startTd);
+        Tooltip.removeTooltip(this.#endTd);
+        Tooltip.removeTooltip(this.#titleTd);
+        return false;
+    }
+
+    /**
+     * @param {TooltipBuilder} tt */
+    #setStartEndTooltip(tt) {
+        if (tt.empty()) {
+            Tooltip.removeTooltip(this.#startTd);
+            Tooltip.removeTooltip(this.#endTd);
+        } else {
+            Tooltip.setTooltip(this.#startTd, tt.get());
+            Tooltip.setTooltip(this.#endTd, tt.get());
+        }
+    }
+
+    /**
+     * @param {number} start
+     * @param {boolean} isWarn
+     * @param {TooltipBuilder} tt
+     * @returns {boolean} The new value of isWarn. */
+    #checkDurationOverflow(start, isWarn, tt) {
+        if (start < this.#episodeInfo.duration) {
+            return isWarn;
+        }
+
+        // setSingle instead of setBoth to ensure it overwrites anything set earlier in the update loop.
+        this.#setSingleClass(this.#startTd, 'bulkActionOff');
+        this.#setSingleClass(this.#endTd, 'bulkActionOff');
+        tt.addLines($br(), `Marker is beyond the end of the episode.`);
+        return true;
     }
 
     /**
@@ -1251,7 +1283,6 @@ class BulkAddRow extends BulkActionRow {
             td.classList.remove('bulkActionOn');
             td.classList.remove('bulkActionOff');
             td.classList.remove('bulkActionSemi');
-            Tooltip.removeTooltip(td);
         }
     }
 
