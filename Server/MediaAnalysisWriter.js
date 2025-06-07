@@ -254,7 +254,7 @@ INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id WHERE b.id=?;`;
         this.#finalizeExtraData(sorted);
         return {
             query : `UPDATE media_parts SET extra_data=$extraData WHERE id=$partId`,
-            parameters : { extraData : JSON.stringify(sorted), partId : partId }
+            parameters : { $extraData : JSON.stringify(sorted), $partId : partId }
         };
     }
 
