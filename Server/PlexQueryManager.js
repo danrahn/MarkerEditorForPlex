@@ -6,6 +6,7 @@ import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 
 import MarkerEditCache from './MarkerEditCache.js';
+import { MediaAnalysisWriter } from './MediaAnalysisWriter.js';
 import ServerError from './ServerError.js';
 import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
@@ -184,6 +185,9 @@ class PlexQueryManager {
 
     /** @type {SqliteDatabase} */
     #database;
+
+    /** @type {boolean} */
+    #writeExtraData;
 
     /** The default fields to return for an individual marker, which includes the episode/season/show/section id. */
     #extendedEpisodeMarkerFields = `
@@ -369,6 +373,16 @@ FROM taggings
 
     markerTagId() { return this.#markerTagId; }
     database() { return this.#database; }
+    async checkWriteExtraData(writeExtraData) {
+        if (writeExtraData && (ExtraData.isLegacy || !(await MediaAnalysisWriter.hasExpectedData(this.#database)))) {
+            this.#writeExtraData = false;
+            Log.error('Cannot enable writeExtraData with legacy extra_data format. Disabling.');
+            return false;
+        }
+
+        this.#writeExtraData = writeExtraData;
+        return true;
+    }
 
     /** Retrieve all movie and TV show libraries in the database.
      *
@@ -999,7 +1013,7 @@ ORDER BY e.\`index\` ASC;`;
         }
 
         const allMarkers = await this.getBaseTypeMarkers(metadataId);
-        const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs);
+        const newIndex = this.#reindexForAdd(allMarkers, startMs, endMs, markerType);
         if (newIndex === -1) {
             throw new ServerError('Overlapping markers. The existing marker should be expanded to include this range instead.', 400);
         }
@@ -1018,6 +1032,10 @@ ORDER BY e.\`index\` ASC;`;
             endMs,
             markerType,
             final);
+
+        if (this.#writeExtraData) {
+            await this.#addRewriteStatement(transaction, metadataId, allMarkers);
+        }
 
         await transaction.exec();
 
@@ -1088,6 +1106,20 @@ ORDER BY e.\`index\` ASC;`;
         };
 
         transaction.addStatement(addQuery, parameters);
+    }
+
+    /**
+     * @param {TransactionBuilder} transaction
+     * @param {number} metadataId
+     * @param {MarkerData[]} allMarkers */
+    async #addRewriteStatement(transaction, metadataId, allMarkers) {
+        if (ExtraData.isLegacy || !this.#writeExtraData) {
+            return;
+        }
+
+        for (const extraData of await (new MediaAnalysisWriter(metadataId, this.#database)).getExtraData(allMarkers)) {
+            transaction.addStatement(extraData.query, extraData.parameters);
+        }
     }
 
     /**
@@ -1434,9 +1466,10 @@ ORDER BY e.\`index\` ASC;`;
      * Is it worth ripping out?
      * @param {RawMarkerData[]} markers
      * @param {number} newStart The start time of the new marker, in milliseconds.
-     * @param {number} newEnd The end time of the new marker, in milliseconds.*/
-    #reindexForAdd(markers, newStart, newEnd) {
-        const pseudoData = { start : newStart, end : newEnd };
+     * @param {number} newEnd The end time of the new marker, in milliseconds.
+     * @returns {number} The new marker index, or -1 if the reindex results in overlap. */
+    #reindexForAdd(markers, newStart, newEnd, markerType) {
+        const pseudoData = { start : newStart, end : newEnd, marker_type : markerType };
         markers.push(pseudoData);
         markers.sort((a, b) => a.start - b.start).forEach((marker, index) => {
             marker.newIndex = index;

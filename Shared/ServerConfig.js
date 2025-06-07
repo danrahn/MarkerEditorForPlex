@@ -7,6 +7,7 @@
  * @property {boolean} isValid
  * @property {string?} invalidMessage If `isInvalid` is true, this may contain a descriptive error message.
  * @property {boolean} [unchanged] Whether this setting is unchanged from the currently loaded value. Not always present
+ * @property {boolean} [isDisabled] Whether this setting is disabled. Not always present
  */
 
 /**
@@ -36,6 +37,7 @@ isDefault means value is the default value
  * @typedef {Object} AuthenticationSettings
  * @property {TypedSetting<boolean>} enabled
  * @property {TypedSetting<number>} sessionTimeout
+ * @property {TypedSetting<boolean|string|number>} trustProxy
  */
 
 /**
@@ -44,6 +46,7 @@ isDefault means value is the default value
  * @property {TypedSetting<boolean>} extendedMarkerStats
  * @property {TypedSetting<boolean>} previewThumbnails Whether to enable preview thumbnails
  * @property {TypedSetting<boolean>} preciseThumbnails Whether to use FFmpeg thumbnails over the ones Plex generates
+ * @property {TypedSetting<boolean>} writeExtraData Whether to write extra_data to the Plex database
  */
 
 /**
@@ -81,10 +84,12 @@ isDefault means value is the default value
  * @property {TypedSetting<boolean>} sslOnly Only enable the HTTPS server
  * @property {TypedSetting<boolean>} authEnabled
  * @property {TypedSetting<number>} authSessionTimeout
+ * @property {TypedSetting<boolean|string|number>} trustProxy
  * @property {TypedSetting<boolean>} autoOpen Whether to open a browser window on boot
  * @property {TypedSetting<boolean>} extendedMarkerStats
  * @property {TypedSetting<boolean>} previewThumbnails Whether to enable preview thumbnails
  * @property {TypedSetting<boolean>} preciseThumbnails Whether to use FFmpeg thumbnails over the ones Plex generates
+ * @property {TypedSetting<boolean>} writeExtraData Whether to write extra_data to the Plex database
  * @property {TypedSetting<PathMapping[]>} pathMappings
  * @property {TypedSetting<string>} version
  * @property {TypedSetting<string>?} authUsername The username, if authentication is enabled.
@@ -107,6 +112,8 @@ export class Setting {
     #invalidMessage;
     /** @type {boolean} */
     #unchanged = true;
+    /** @type {boolean} */
+    #isDisabled = false; // Reuses #invalidMessage
 
     /**
      * @param {T?} value
@@ -123,6 +130,7 @@ export class Setting {
         this.#value = other.value;
         this.#defaultValue = other.defaultValue;
         this.#isValid = other.isValid;
+        this.#isDisabled = other.isDisabled;
         return this;
     }
 
@@ -151,6 +159,18 @@ export class Setting {
         return this;
     }
 
+    /** Mark a setting disabled (can't be enabled even if the user wants it). */
+    setDisabled(disabled, disabledMessage) {
+        this.#isDisabled = disabled;
+        if (disabled) {
+            // Disabled overrides invalid. Though in theory we shouldn't
+            // ever have a disabled setting that's in an invalid state.
+            this.#invalidMessage = disabledMessage;
+        }
+
+        return this;
+    }
+
     /**
      * Set whether this setting is unchanged from the currently loaded server setting.
      * @param {boolean} unchanged */
@@ -174,6 +194,7 @@ export class Setting {
             defaultValue : this.#defaultValue,
             isValid : this.#isValid,
             invalidMessage : this.#invalidMessage,
+            isDisabled : this.#isDisabled,
             ...extra
         };
     }
@@ -203,6 +224,8 @@ export const ServerSettings = {
     PreviewThumbnails : 'previewThumbnails',
     /** @readonly Whether to use FFmpeg to generate thumbnails. If false, uses Plex-generated preview thumbnails. */
     FFmpegThumbnails : 'preciseThumbnails',
+    /** @readonly Whether to write extra_data to the Plex database */
+    WriteExtraData : 'writeExtraData',
     /** @readonly Whether to enable simple single-user authentication. */
     UseAuthentication : 'authEnabled',
     /** @readonly Authentication username. This is a pseudo setting, as it's stored in auth.db, not config.json. */
@@ -211,6 +234,8 @@ export const ServerSettings = {
     Password : 'authPassword',
     /** @readonly How long in seconds a session will live without user interaction. */
     SessionTimeout : 'authSessionTimeout',
+    /** @readonly The 'trust proxy' settings to use for Express (https://expressjs.com/en/guide/behind-proxies.html). */
+    TrustProxy : 'trustProxy',
     /** @readonly List of mappings from paths in the Plex database to paths relative to the current system. */
     PathMappings : 'pathMappings',
     /** @readonly Whether to enable SSL (HTTPS) */
@@ -264,10 +289,12 @@ export function allServerSettings() {
         ServerSettings.UseAuthentication,
         ServerSettings.Username,
         ServerSettings.SessionTimeout,
+        ServerSettings.TrustProxy,
         ServerSettings.AutoOpen,
         ServerSettings.ExtendedStats,
         ServerSettings.PreviewThumbnails,
         ServerSettings.FFmpegThumbnails,
+        ServerSettings.WriteExtraData,
         ServerSettings.PathMappings,
     ];
 }
@@ -303,6 +330,7 @@ export function isAuthSetting(setting) {
         case ServerSettings.Username:
         case ServerSettings.Password:
         case ServerSettings.SessionTimeout:
+        case ServerSettings.TrustProxy:
             return true;
     }
 }
@@ -318,6 +346,7 @@ export function isFeaturesSetting(setting) {
         case ServerSettings.ExtendedStats:
         case ServerSettings.PreviewThumbnails:
         case ServerSettings.FFmpegThumbnails:
+        case ServerSettings.WriteExtraData:
             return true;
     }
 }

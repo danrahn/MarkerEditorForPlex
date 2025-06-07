@@ -5,6 +5,8 @@ import { join } from 'path';
 import { isAuthSetting, isFeaturesSetting, isSslSetting, ServerSettings } from '../../Shared/ServerConfig.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
+/** @typedef {!import('./MarkerEditorConfig').RawConfig} RawConfig */
+
 const Log = ContextualLog.Create('EditorConfig');
 
 /**

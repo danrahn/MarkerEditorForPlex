@@ -39,7 +39,7 @@
     background-color: var(--theme-input-background-subtle);
   }
 
-  & input[type=checkbox]:hover, select:hover {
+  & input[type=checkbox]:hover:not(:disabled), select:hover:not(:disabled) {
     border-color: #af4f00;
   }
 
@@ -95,9 +95,16 @@
 
   & #serverSettingsScroll {
     padding: 20px;
-    max-height: calc(100vh - 230px); /* 230 is fragile comes from various padding and margins. Something better should be done here. */
     min-height: 300px;
     overflow: auto;
+
+    /* Fragile max-height calculations based on Overlay.css's various padding and margins, should be improved. */
+    @media (min-width: 767px) {
+      max-height: calc(100vh - 260px);
+    }
+    @media all and (max-width:767px) {
+      max-height: calc(100vh - 230px);
+    }
   }
 
   & .serverSettingsSettings {

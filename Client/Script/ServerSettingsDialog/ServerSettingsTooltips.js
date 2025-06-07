@@ -1,5 +1,8 @@
-import { $a, $append, $code, $divHolder, $hr, $li, $span, $ul } from '../HtmlHelpers.js';
+import { $a, $append, $br, $code, $divHolder, $hr, $li, $span, $ul } from '../HtmlHelpers.js';
+import { getSvgIcon } from '../SVGHelper.js';
+import Icons from '../Icons.js';
 import { ServerSettings } from '/Shared/ServerConfig.js';
+import { ThemeColors } from '../ThemeColors.js';
 
 /** @typedef {{ tooltip: HTMLElement, sticky: boolean }} ServerSettingsTooltip */
 
@@ -15,6 +18,20 @@ function createTooltip(shortDescription, longDescription, sticky=false) {
         tooltip : $divHolder({ class : 'serverSettingTooltip' }, shortDescription, $hr(), longDescription),
         sticky : sticky
     };
+}
+
+/**
+ * Create a title span for an experimental feature.
+ * @param  {...[string|HTMLElement]} titleElements
+ * @returns A span with a warning icon prepended. */
+function experimentalTitle(...titleElements) {
+    return $append(
+        $span(),
+        getSvgIcon(Icons.Warn,
+            ThemeColors.Orange,
+            { class : 'warningIcon', height : '1em', width : '1em', style : `vertical-align : text-bottom;` }),
+        ` [Experimental] `,
+        ...titleElements);
 }
 
 /**
@@ -163,6 +180,16 @@ function initializeServerSettingsTooltips() {
                     ),
                 ),
             ),
+        ),
+        [ServerSettings.WriteExtraData] : createTooltip(
+            experimentalTitle(`Write extra data to the media part's `, $code('extra_data'), ` field`),
+            $append($span(),
+                `If enabled, the application will write additional data to the media part's extra_data field, ` +
+                `which isn't necessary for Plex to pick them up, but does result in a more consistent database.`,
+                $br(),
+                `However, it does mean there's another point of failure. If extra_data's schema changes, writing data in the now-old ` +
+                `format could result in database corruption.`
+            )
         ),
         [ServerSettings.PathMappings] : createTooltip(
             `Map paths first FFmpeg-based thumbnails`,

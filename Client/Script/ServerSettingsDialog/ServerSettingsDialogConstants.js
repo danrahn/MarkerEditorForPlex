@@ -29,5 +29,6 @@ export const SettingTitles = {
     [ServerSettings.ExtendedStats] : 'Extended Marker Statistics',
     [ServerSettings.PreviewThumbnails] : 'Use Preview Thumbnails',
     [ServerSettings.FFmpegThumbnails] : 'Use FFmpeg for Thumbnails',
+    [ServerSettings.WriteExtraData] : 'Write Extra Data',
     [ServerSettings.PathMappings] : 'Path Mappings',
 };

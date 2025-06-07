@@ -81,7 +81,7 @@ export default class ConfigBase {
             dt = defaultType;
         }
 
-        if (defaultValue === null || vt === dt) {
+        if (defaultValue === null || vt === dt || defaultType === 'any') {
             Log.verbose(`Setting ${key} to ${dt === 'object' ? JSON.stringify(value) : value}`);
             return new Setting(value, defaultValue);
         }
@@ -93,12 +93,12 @@ export default class ConfigBase {
         switch (dt) {
             case 'boolean':
                 // Intentionally don't allow for things like tRuE, just the standard lower- or title-case.
-                if (value === 'true' || value === 'True' || value === '1' || value === 1) {
+                if (new Set(['true', 'True', '1', 1]).has(value)) {
                     Log.warn(`${space}Coerced to boolean value 'true'`);
                     return new Setting(true, defaultValue);
                 }
 
-                if (value === 'false' || value === 'False' || value === '0' || value === 0) {
+                if (new Set(['false', 'False', '0', 0]).has(value)) {
                     Log.warn(`${space}Coerced to boolean value 'false'`);
                     return new Setting(false, defaultValue);
                 }

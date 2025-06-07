@@ -90,6 +90,10 @@ async function run() {
 
         // Set up the database, and make sure it's the right one.
         const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
+
+        // Some settings can only be validated once the database is up and running.
+        await config.validateDbSettings();
+
         await MarkerBackupManager.CreateInstance(IsTest ? join(dataRoot, 'Test') : dataRoot);
 
         ThumbnailManager.Create(queryManager.database(), config.metadataPath());
@@ -388,13 +392,22 @@ async function createServer(host, port, ssl, resolve) {
 
     const app = express();
     await initializeSessionStore(app, ssl);
+    const ignoreProxyErrors = Config.trustProxy() === 'ignore';
+    /** @type {import('express-rate-limit').EnabledValidations} */
+    let rateLimitValidate = { xForwardedForHeader : false, trustProxy : false };
+    if (!ignoreProxyErrors) {
+        app.set('trust proxy', Config.trustProxy());
+        rateLimitValidate = undefined;
+    }
 
     if (Config.useAuth()) {
         // One unauthenticated request per second, spread out over 5 seconds.
+        /** @type {Partial<import('express-rate-limit').Options>} */
         const strictRateLimit = {
             windowMs : 5000,
             limit : 5,
-            message : { Error : 'Too many requests' }
+            message : { Error : 'Too many requests' },
+            validate : rateLimitValidate,
         };
 
         app.use(new RegExp(`.*/${PostCommands.Login}`), rateLimit(strictRateLimit));
@@ -409,11 +422,12 @@ async function createServer(host, port, ssl, resolve) {
         app.get(/.*/, rateLimit({
             windowMs : 10000,
             limit : isBinary() ? 25 : 200, // Binary bundles JS into a single file, source gets raw JS (>40 files)
-            skip : (req, _res) => req.session?.authenticated
+            skip : (req, _res) => req.session?.authenticated,
+            validate : rateLimitValidate,
         }), serverGet);
     } else {
         // Explicitly ignore rate limiting - the user has bigger problems than DoS if they're externally exposing an unauthenticated app.
-        const noRateLimit = rateLimit({ windowMs : 5000, limit : 200, skip : () => true });
+        const noRateLimit = rateLimit({ windowMs : 5000, limit : 200, skip : () => true, validate : rateLimitValidate, });
         app.get(/.*/, noRateLimit, serverGet);
         app.post(/.*/, noRateLimit, serverPost);
     }
@@ -499,12 +513,22 @@ function shouldCreateServer() {
 }
 
 /**
+ * @param {ExpressRequest} request */
+function remoteAddr(request) {
+    if (request.headers['x-forwarded-for']) {
+        return request.headers['x-forwarded-for'].split(',')[0].trim();
+    }
+
+    return request.socket.remoteAddress || 'UNKNOWN';
+}
+
+/**
  * Entrypoint for incoming GET requests to the server.
  * @type {Http.RequestListener}
  * @param {ExpressRequest} req
  * @param {ExpressResponse} res */
 function serverGet(req, res) {
-    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) GET: ${req.url}`);
+    Log.verbose(`(${remoteAddr(req)}) GET: ${req.url}`);
     if (GetServerState() === ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');
         res.statusCode = 503;
@@ -526,7 +550,7 @@ function serverGet(req, res) {
  * @param {ExpressRequest} req
  * @param {ExpressResponse} res */
 function serverPost(req, res) {
-    Log.verbose(`(${req.socket.remoteAddress || 'UNKNOWN'}) POST: ${req.url}`);
+    Log.verbose(`(${remoteAddr(req)}) POST: ${req.url}`);
 
     if (GetServerState() === ServerState.ShuttingDown) {
         Log.warn('Got a request when attempting to shut down the server, returning 503.');

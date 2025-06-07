@@ -24,6 +24,8 @@ export default class AuthenticationConfig extends ConfigBase {
     enabled;
     /** @type {Setting<number>} */
     sessionTimeout;
+    /** @type {Setting<boolean|string|number>} */
+    trustProxy;
 
     constructor(json) {
         const baseClass = {};
@@ -35,6 +37,7 @@ export default class AuthenticationConfig extends ConfigBase {
 
         this.enabled = this.#getOrDefault('enabled', false);
         this.sessionTimeout = this.#getOrDefault('sessionTimeout', 86_400);
+        this.trustProxy = this.#getOrDefault('trustProxy', false, 'any');
         if (this.sessionTimeout < 300) {
             Log.warn(`Session timeout must be at least 300 seconds, found ${this.sessionTimeout}. Setting to 300.`);
             this.sessionTimeout = 300;
@@ -43,7 +46,7 @@ export default class AuthenticationConfig extends ConfigBase {
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`
      * @type {GetOrDefault} */
-    #getOrDefault(key, defaultValue=null) {
-        return this.#Base.getOrDefault(key, defaultValue);
+    #getOrDefault(key, defaultValue=null, defaultType=null) {
+        return this.#Base.getOrDefault(key, defaultValue, defaultType);
     }
 }

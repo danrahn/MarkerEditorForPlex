@@ -136,6 +136,7 @@ class ServerSettingsDialog {
                         config.previewThumbnails,
                         this.#onPreviewThumbnailsChanged.bind(this)),
                     this.#buildBooleanSetting(ServerSettings.FFmpegThumbnails, config.preciseThumbnails),
+                    this.#buildBooleanSetting(ServerSettings.WriteExtraData, config.writeExtraData),
                     this.#buildPathMappings(),
                 ),
             ),
@@ -329,6 +330,11 @@ class ServerSettingsDialog {
             $option('Disabled', 0),
             $option('Enabled', 1)
         );
+
+        if (settingInfo.isDisabled) {
+            select.setAttribute('disabled', 1);
+            Tooltip.setTooltip(select, `This setting cannot be changed: ${settingInfo.invalidMessage}`);
+        }
 
         const input = $span(select, { class : 'selectHolder' });
         const defaultValue = settingInfo.value === null ? (settingInfo.defaultValue ? 1 : 0) : (settingInfo.value ? 1 : 0);
@@ -830,6 +836,10 @@ class ServerSettingsDialog {
             attributes.class = 'serverSetting';
         }
 
+        if (settingInfo.isDisabled) {
+            attributes.class += ' disabledSetting';
+        }
+
         return $divHolder(attributes,
             $append($span(null, { class : 'serverSettingTitle' }),
                 $label(SettingTitles[setting], id),
@@ -1183,9 +1193,12 @@ class ServerSettingsDialog {
             case ServerSettings.ExtendedStats:
             case ServerSettings.PreviewThumbnails:
             case ServerSettings.FFmpegThumbnails:
+            case ServerSettings.WriteExtraData:
                 return this.#getCurrentBooleanSetting(setting);
             case ServerSettings.PathMappings:
                 return this.#pathMappings.getCurrentPathMappings();
+            case ServerSettings.TrustProxy: // Not adjustable in the client, but still needed when sending the new config to the server.
+                return this.#initialValues[ServerSettings.TrustProxy];
             default:
                 throw new Error(`Unexpected server setting "${setting}"`);
         }

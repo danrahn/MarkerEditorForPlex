@@ -11,6 +11,7 @@ import {
     Setting,
     SslState } from '../../Shared/ServerConfig.js';
 import { BaseLog, ConsoleLog, ContextualLog } from '../../Shared/ConsoleLog.js';
+import { ExtraData, PlexQueries, PlexQueryManager } from '../PlexQueryManager.js';
 import {
     flatToRaw,
     getDefaultPlexDataPath,
@@ -21,7 +22,6 @@ import {
     validSessionTimeout } from './ConfigHelpers.js';
 import { GetServerState, ServerState } from '../ServerState.js';
 import { isBinary, testFfmpeg, testHostPort } from '../ServerHelpers.js';
-import { PlexQueries, PlexQueryManager } from '../PlexQueryManager.js';
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
 import AuthenticationConfig from './AuthenticationConfig.js';
 import ConfigBase from './ConfigBase.js';
@@ -271,6 +271,12 @@ class MarkerEditorConfig extends ConfigBase {
         return this.#Base.getOrDefault(key, defaultValue, defaultType);
     }
 
+    /**
+     * Verify the database format to ensure we don't try to write old data to a new schema. */
+    async validateDbSettings() {
+        await this.#features.validateDbSettings();
+    }
+
     databasePath() { return this.#dbPath.value(); }
     host() { return this.#host.value(); }
     port() { return this.#port.value(); }
@@ -283,12 +289,14 @@ class MarkerEditorConfig extends ConfigBase {
     sslState() { return this.useSsl() ? (this.sslOnly() ? SslState.Forced : SslState.Enabled) : SslState.Disabled; }
     useAuth() { return this.#auth.enabled.value(); }
     authSessionTimeout() { return this.#auth.sessionTimeout.value(); }
+    trustProxy() { return this.#auth.trustProxy.value(); }
     autoOpen() { return this.#features.autoOpen.value(); }
     useThumbnails() { return this.#features.previewThumbnails.value(); }
     usePreciseThumbnails() { return this.#features.preciseThumbnails.value(); }
     metadataPath() { return this.#dataPath.value(); }
     extendedMarkerStats() { return this.#features.extendedMarkerStats.value(); }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
+    writeExtraData() { return this.#features.writeExtraData.value(); }
     appVersion() { return this.#version.value(); }
     pathMappings() { return this.#mappings.value(); }
     getValid() { return this.#configState; }
@@ -316,10 +324,12 @@ class MarkerEditorConfig extends ConfigBase {
             sslOnly : this.#ssl.sslOnly.serialize(),
             authEnabled : this.#auth.enabled.serialize(),
             authSessionTimeout : this.#auth.sessionTimeout.serialize(),
+            trustProxy : this.#auth.trustProxy.serialize(),
             autoOpen : this.#features.autoOpen.serialize(),
             extendedMarkerStats : this.#features.extendedMarkerStats.serialize(),
             previewThumbnails : this.#features.previewThumbnails.serialize(),
             preciseThumbnails : this.#features.preciseThumbnails.serialize(),
+            writeExtraData : this.#features.writeExtraData.serialize(),
             pathMappings : this.#mappings.serialize(),
             version : this.#version.serialize(),
             authUsername : this.#pseudoSetting(User.username()),
@@ -516,6 +526,10 @@ class MarkerEditorConfig extends ConfigBase {
                     this.#getPathMappingsCore(newValue);
                     await waitForThumbsReset();
                     break;
+                case ServerSettings.WriteExtraData:
+                    this.#features.writeExtraData.setValue(newValue);
+                    await this.#features.validateDbSettings();
+                    break;
                 default:
                     break;
             }
@@ -564,6 +578,8 @@ class MarkerEditorConfig extends ConfigBase {
             ServerSettings.ExtendedStats,
             ServerSettings.PreviewThumbnails,
             ServerSettings.FFmpegThumbnails,
+            ServerSettings.WriteExtraData,
+            ServerSettings.TrustProxy,
         ]) {
             await updateSingle(serverSetting);
         }
@@ -784,6 +800,14 @@ class MarkerEditorConfig extends ConfigBase {
                 setting.setUnchanged(setting.value() === this.authSessionTimeout());
                 return setting.setValid(
                     validSessionTimeout(setting.value()), `Session timeout must be at least 60 seconds.`);
+            case ServerSettings.TrustProxy:
+                setting.setUnchanged(setting.value() === this.trustProxy());
+                if (setting.value() === undefined || setting.value() === '') {
+                    setting.setValue(undefined);
+                }
+
+                setting.setValid(true);
+                return setting;
             case ServerSettings.Username:
             {
                 const val = setting.value();
@@ -821,6 +845,12 @@ class MarkerEditorConfig extends ConfigBase {
                 }
 
                 return setting;
+            case ServerSettings.WriteExtraData:
+                setting.setUnchanged(setting.value() === this.writeExtraData());
+                // Always valid, but might be disabled.
+                setting.setValid(true);
+                return setting.setDisabled(!setting.value() || !ExtraData.isLegacy,
+                    `Extra data can only be written for PMS >=1.40.`);
             case ServerSettings.PathMappings:
                 return validatePathMappings(setting, this.pathMappings());
             default:

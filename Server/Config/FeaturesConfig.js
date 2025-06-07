@@ -1,3 +1,4 @@
+import { ExtraData, PlexQueries } from '../PlexQueryManager.js';
 import ConfigBase from './ConfigBase.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { testFfmpeg } from '../ServerHelpers.js';
@@ -43,6 +44,14 @@ export default class PlexFeatures extends ConfigBase {
      * @type {Setting<boolean>} */
     preciseThumbnails;
 
+    /** Setting for updating the media part's extra_data when adjusting markers. While this isn't necessary
+     * for Plex to show marker indicators, it's technically more correct to do so, and can also help with
+     * "true" marker deletions that will allow reanalysis to start from scratch instead of using cached data.
+     * However, it does mean there's another point of failure if extra_data's schema changes, potentially resulting
+     * in a corrupted database.
+     * @type {Setting<boolean>} */
+    writeExtraData;
+
     /** Sets the application features based on the given json.
      * @param {RawConfigFeatures} json */
     constructor(json) {
@@ -57,6 +66,7 @@ export default class PlexFeatures extends ConfigBase {
         this.extendedMarkerStats = this.#getOrDefault('extendedMarkerStats', true);
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
         this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', false);
+        this.writeExtraData = this.#getOrDefault('writeExtraData', false);
 
         if (this.previewThumbnails.value() && this.preciseThumbnails.value()) {
             const canEnable = testFfmpeg();
@@ -65,6 +75,18 @@ export default class PlexFeatures extends ConfigBase {
                 Log.warn(`Precise thumbnails enabled, but ffmpeg wasn't found in your path! Falling back to BIF`);
             }
         }
+    }
+
+    /**
+     * If we want to write extra data, we need to make sure that extra data is in a format we expect. */
+    validateDbSettings() {
+        if (this.writeExtraData.value() && ExtraData.isLegacy) {
+            Log.warn('Extra data is in legacy format, but writeExtraData is enabled. Disabling.');
+            this.writeExtraData.setValue(false);
+            this.writeExtraData.setDisabled(true, 'Extra data can only be written for PMS >=1.40.');
+        }
+
+        return PlexQueries.checkWriteExtraData(this.writeExtraData.value());
     }
 
     /** Forwards to {@link ConfigBase}s `#getOrDefault`

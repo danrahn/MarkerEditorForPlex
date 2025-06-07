@@ -18,13 +18,15 @@
     },
     "authentication" : {
         "enabled" : false,
-        "sessionTimeout" : 86400
+        "sessionTimeout" : 86400,
+        "trustProxy" : false
     },
     "features" : {
         "autoOpen" : true,
         "extendedMarkerStats" : true,
         "previewThumbnails" : true,
-        "preciseThumbnails" : false
+        "preciseThumbnails" : false,
+        "writeExtraData" : false
     },
     "pathMappings": [
         {
