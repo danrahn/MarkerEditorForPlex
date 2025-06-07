@@ -19,7 +19,7 @@ import { MarkerType } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
-import TableElements from './TableElements.js';
+import { TableElements } from 'MarkerTable';
 import { ThemeColors } from './ThemeColors.js';
 import { TimeExpression } from './TimeExpression.js';
 import { TimeInput } from './TimeInput.js';

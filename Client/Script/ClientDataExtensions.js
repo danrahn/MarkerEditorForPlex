@@ -3,7 +3,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { EpisodeData, MarkerData, MovieData } from '/Shared/PlexTypes.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
-import MarkerTable from './MarkerTable.js';
+import { MarkerTable } from 'MarkerTable';
 
 /** @typedef {!import('/Shared/PlexTypes').PlexData} PlexData */
 /** @typedef {!import('./ResultRow/EpisodeResultRow').EpisodeResultRow} EpisodeResultRow */

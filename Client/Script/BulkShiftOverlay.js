@@ -12,7 +12,7 @@ import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
-import TableElements from './TableElements.js';
+import { TableElements } from 'MarkerTable';
 import { ThemeColors } from './ThemeColors.js';
 import { TimeInput } from './TimeInput.js';
 import Tooltip from './Tooltip.js';

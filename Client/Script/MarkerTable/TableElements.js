@@ -1,9 +1,9 @@
-import { $append, $br, $img, $plainDivHolder, $span, $td, $tr } from './HtmlHelpers.js';
-import { msToHms } from './Common.js';
+import { $append, $br, $img, $plainDivHolder, $span, $td, $tr } from '../HtmlHelpers.js';
+import { msToHms } from '../Common.js';
 
-import * as DateUtil from './DateUtil.js';
-import Tooltip, { TooltipTextSize } from './Tooltip.js';
-import { ClientSettings } from './ClientSettings.js';
+import * as DateUtil from '../DateUtil.js';
+import Tooltip, { TooltipTextSize } from '../Tooltip.js';
+import { ClientSettings } from '../ClientSettings.js';
 
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
@@ -24,7 +24,7 @@ class CustomClassColumn {
 /**
  * Static helper class for creating various elements of a marker table.
  */
-class TableElements {
+export class TableElements {
 
     /**
      * Creates a "free-form" table row using the list of columns to add
@@ -143,5 +143,3 @@ class TableElements {
         return tooltip;
     }
 }
-
-export default TableElements;

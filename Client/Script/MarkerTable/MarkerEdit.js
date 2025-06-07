@@ -1,29 +1,29 @@
-import { $, $$, $append, $clear, $divHolder, $label, $option, $select, $span } from './HtmlHelpers.js';
-import { msToHms, realMs, timeToMs } from './Common.js';
+import { $, $$, $append, $clear, $divHolder, $label, $option, $select, $span } from '../HtmlHelpers.js';
+import { msToHms, realMs, timeToMs } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { addWindowResizedListener, isSmallScreen } from './WindowResizeEventHandler.js';
+import { addWindowResizedListener, isSmallScreen } from '../WindowResizeEventHandler.js';
 import { MarkerType, supportedMarkerType } from '/Shared/MarkerType.js';
-import { animateOpacity } from './AnimationHelpers.js';
-import { Attributes } from './DataAttributes.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
-import { errorResponseOverlay } from './ErrorHandling.js';
-import Icons from './Icons.js';
+import { animateOpacity } from '../AnimationHelpers.js';
+import { Attributes } from '../DataAttributes.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { errorResponseOverlay } from '../ErrorHandling.js';
+import Icons from '../Icons.js';
 import { MarkerAddStickySettings } from 'StickySettings';
 import { MarkerData } from '/Shared/PlexTypes.js';
-import Overlay from './Overlay.js';
-import { ServerCommands } from './Commands.js';
-import { ThemeColors } from './ThemeColors.js';
-import { TimeInput } from './TimeInput.js';
+import Overlay from '../Overlay.js';
+import { ServerCommands } from '../Commands.js';
+import { ThemeColors } from '../ThemeColors.js';
+import { TimeInput } from '../TimeInput.js';
 import { TimestampThumbnails } from './TimestampThumbnails.js';
-import Tooltip from './Tooltip.js';
+import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
-/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
+/** @typedef {!import('../ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
-/** @typedef {!import('./TimeExpression').ParseState} ParseState */
+/** @typedef {!import('../TimeExpression').ParseState} ParseState */
 
 const Log = ContextualLog.Create('MarkerEdit');
 

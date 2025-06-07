@@ -24,7 +24,7 @@ import Icons from './Icons.js';
 import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
-import TableElements from './TableElements.js';
+import { TableElements } from 'MarkerTable';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Server/PlexQueryManager').RawMarkerData} RawMarkerData */

@@ -12,7 +12,7 @@ import { ServerCommands } from './Commands.js';
 import ServerPausedOverlay from './ServerPausedOverlay.js';
 import { SetupWindowResizeEventHandler } from './WindowResizeEventHandler.js';
 import { StickySettingsBase } from 'StickySettings';
-import { ThumbnailMarkerEdit } from './MarkerEdit.js';
+import { ThumbnailMarkerEdit } from 'MarkerTable';
 import Tooltip from './Tooltip.js';
 import VersionManager from './VersionManager.js';
 

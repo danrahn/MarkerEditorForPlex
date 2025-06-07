@@ -1,17 +1,16 @@
-import { $, $$, $img } from './HtmlHelpers.js';
-import { ctrlOrMeta, msToHms } from './Common.js';
-import { slideDown, slideUp } from './AnimationHelpers.js';
-import { Attributes } from './DataAttributes.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
+import { $, $$, $img } from '../HtmlHelpers.js';
+import { ctrlOrMeta, msToHms } from '../Common.js';
+import { slideDown, slideUp } from '../AnimationHelpers.js';
+import { Attributes } from '../DataAttributes.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
-import Icons from './Icons.js';
-import { isSmallScreen } from './WindowResizeEventHandler.js';
-import { ThemeColors } from './ThemeColors.js';
-import Tooltip from './Tooltip.js';
+import Icons from '../Icons.js';
+import { isSmallScreen } from '../WindowResizeEventHandler.js';
+import { ThemeColors } from '../ThemeColors.js';
+import Tooltip from '../Tooltip.js';
 
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
-/** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
 
 const Log = ContextualLog.Create('TimestampThumbs');
 

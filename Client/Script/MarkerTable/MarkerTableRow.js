@@ -1,27 +1,27 @@
 
-import { $$, $append, $br, $clear, $div, $divHolder, $span, $td, $textSpan, $tr } from './HtmlHelpers.js';
+import { $$, $append, $br, $clear, $div, $divHolder, $span, $td, $textSpan, $tr } from '../HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { animateOpacity, flashBackground } from './AnimationHelpers.js';
-import { Attributes, TableNavDelete } from './DataAttributes.js';
+import { animateOpacity, flashBackground } from '../AnimationHelpers.js';
+import { Attributes, TableNavDelete } from '../DataAttributes.js';
 import { MarkerEdit, ThumbnailMarkerEdit } from './MarkerEdit.js';
-import { Theme, ThemeColors } from './ThemeColors.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
-import { errorToast } from './ErrorHandling.js';
-import Icons from './Icons.js';
+import { Theme, ThemeColors } from '../ThemeColors.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { errorToast } from '../ErrorHandling.js';
+import Icons from '../Icons.js';
 import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerType } from '/Shared/MarkerType.js';
-import { ServerCommands } from './Commands.js';
-import TableElements from './TableElements.js';
+import { ServerCommands } from '../Commands.js';
+import { TableElements } from './TableElements.js';
 import { TimestampThumbnails } from './TimestampThumbnails.js';
-import Tooltip from './Tooltip.js';
+import Tooltip from '../Tooltip.js';
 
 
 const Log = ContextualLog.Create('MarkerTableRow');
 
-/** @typedef {!import('./ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
-/** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
+/** @typedef {!import('../ClientDataExtensions').MediaItemWithMarkerTable} MediaItemWithMarkerTable */
+/** @typedef {!import('../ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
 
 class MarkerRow {
     /**

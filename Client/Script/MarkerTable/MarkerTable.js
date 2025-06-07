@@ -1,21 +1,21 @@
-import { $, $$, $append, $br, $clear, $div, $h, $hr, $plainDivHolder, $table, $tbody, $textSpan, $thead } from './HtmlHelpers.js';
-import { msToHms, scrollAndFocus, toggleVisibility } from './Common.js';
+import { $, $$, $append, $br, $clear, $div, $h, $hr, $plainDivHolder, $table, $tbody, $textSpan, $thead } from '../HtmlHelpers.js';
+import { msToHms, scrollAndFocus, toggleVisibility } from '../Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
-import { animateOpacity, slideDown, slideUp } from './AnimationHelpers.js';
-import { Attributes, TableNavDelete } from './DataAttributes.js';
+import { animateOpacity, slideDown, slideUp } from '../AnimationHelpers.js';
+import { Attributes, TableNavDelete } from '../DataAttributes.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
-import ButtonCreator from './ButtonCreator.js';
-import { ClientSettings } from './ClientSettings.js';
-import { errorToast } from './ErrorHandling.js';
-import { isSmallScreen } from './WindowResizeEventHandler.js';
+import ButtonCreator from '../ButtonCreator.js';
+import { ClientSettings } from '../ClientSettings.js';
+import { errorToast } from '../ErrorHandling.js';
+import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
-import TableElements from './TableElements.js';
+import { TableElements } from './TableElements.js';
 
 /** @typedef {!import('/Shared/PlexTypes').ChapterData} ChapterData */
 /** @typedef {!import('/Shared/PlexTypes').MarkerData} MarkerData */
 /** @typedef {!import('./MarkerTableRow').MarkerRow} MarkerRow */
-/** @typedef {!import('./ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
+/** @typedef {!import('../ResultRow/BaseItemResultRow').BaseItemResultRow} BaseItemResultRow */
 
 /**
  * @typedef {{
@@ -567,7 +567,7 @@ class Nav {
 /**
  * The UI representation of an episode's markers. Handles adding, editing, and removing markers for a single episode.
  */
-class MarkerTable {
+export class MarkerTable {
     /**
      * The raw HTML of this table, including its container.
      * @type {HTMLElement} */
@@ -1194,5 +1194,3 @@ class MarkerTable {
         return promises;
     }
 }
-
-export default MarkerTable;

@@ -7,7 +7,7 @@ import { flashBackground } from './AnimationHelpers.js';
 import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
-import TableElements from './TableElements.js';
+import { TableElements } from 'MarkerTable';
 import { Theme } from './ThemeColors.js';
 
 /** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */

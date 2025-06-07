@@ -11,6 +11,7 @@ function webpackConfig(js) {
         entry : resolve(cd, `./Client/Script/${js}.js`),
         resolve : {
             alias : {
+                MarkerTable : resolve(cd, 'Client/Script/MarkerTable/index.js'),
                 ResultRow : resolve(cd, 'Client/Script/ResultRow/index.js'),
                 StickySettings : resolve(cd, 'Client/Script/StickySettings/index.js'),
                 ServerSettingsDialog : resolve(cd, 'Client/Script/ServerSettingsDialog/index.js'),
