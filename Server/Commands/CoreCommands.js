@@ -326,9 +326,8 @@ async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType
         }
     }
 
-    /** @type {number[]} */
-    const episodeIds = new Set(Object.keys(seen).map(k => parseInt(k)));
-    const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
+    const episodeIds = Object.keys(seen).map(k => parseInt(k));
+    const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
     const foundOverflow = checkOverflow(seen, rawEpisodeData, startShift, endShift);
 
     if (applyType === ShiftApplyType.DontApply || foundOverflow || (applyType === ShiftApplyType.TryApply && foundConflict)) {
@@ -429,7 +428,7 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
 
         /** @type {{ [episodeId: number]: EpisodeData }} */
         const serializedEpisodeData = {};
-        const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds, metadataId);
+        const rawEpisodeData = await PlexQueries.getEpisodesFromList(Array.from(episodeIds));
         rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
         return {
             markers : serializedMarkers,

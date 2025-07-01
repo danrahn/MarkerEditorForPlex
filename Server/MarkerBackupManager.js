@@ -256,7 +256,6 @@ ${ciine('sectionid', 'section_id')};
 ${ciine('markertype', 'marker_type')};
 `;
 
-/* eslint-disable indent */
 // Queries to execute when upgrading from SchemaUpgrades[version] to SchemaUpgrades[version + 1]
 const SchemaUpgrades = [
     // New database. Create the full table and its indexes. (and drop the existing actions table as a precaution)
@@ -317,7 +316,6 @@ const SchemaUpgrades = [
     UPDATE schema_version SET version=7;`,
     /* eslint-enable */
 ];
-/* eslint-enable */
 
 /**
  * Singleton backup manager instance
@@ -893,7 +891,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             return;
         }
 
-        const episodes = await PlexQueries.getEpisodesFromList(new Set(Object.keys(episodeMap).map(k => parseInt(k))));
+        const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap).map(k => parseInt(k)));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
                 Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
