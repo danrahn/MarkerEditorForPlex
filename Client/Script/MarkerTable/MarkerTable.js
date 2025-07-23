@@ -4,12 +4,11 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { animateOpacity, slideDown, slideUp } from '../AnimationHelpers.js';
 import { ExistingMarkerRow, NewMarkerRow } from './MarkerTableRow.js';
-import { Attributes } from '../DataAttributes.js';
-import ButtonCreator from '../ButtonCreator.js';
 import { ClientSettings } from '../ClientSettings.js';
 import { errorToast } from '../ErrorHandling.js';
 import { isSmallScreen } from '../WindowResizeEventHandler.js';
 import MarkerBreakdown from '/Shared/MarkerBreakdown.js';
+import { MarkerTableActionsRow } from './MarkerTableActionsRow.js';
 import { TableNavigation as Nav } from './MarkerTableNavigation.js';
 import { TableElements } from './TableElements.js';
 
@@ -57,6 +56,11 @@ export class MarkerTable {
      * The episode/movie UI that this table is attached to.
      * @type {BaseItemResultRow} */
     #parentRow;
+
+    /**
+     * The bottom row of the table that contains the 'Add Marker' button and other actions.
+     * @type {MarkerTableActionsRow} */
+    #actionsRow;
 
     /**
      * The array of existing markers for this item.
@@ -164,9 +168,8 @@ export class MarkerTable {
             rows.appendChild(markerRow.row());
         }
 
-        rows.appendChild(TableElements.spanningTableRow(
-            ButtonCreator.textButton('Add Marker', this.#onMarkerAdd.bind(this), { [Attributes.TableNav] : 'new-marker' }),
-            { class : 'markerRow' }));
+        this.#actionsRow = new MarkerTableActionsRow(this.#parentRow, this);
+        rows.appendChild(this.#actionsRow.build());
         table.appendChild(rows);
 
         this.#visibilityControl = $div({ class : 'hidden markerTableVisibility' });
@@ -414,6 +417,7 @@ export class MarkerTable {
         this.#markers.splice(newIndex, 0, newMarker);
         tableBody.insertBefore(newRow.row(), tableBody.children[newIndex]);
         this.#parentRow.updateMarkerBreakdown();
+        this.#actionsRow.onMarkersUpdated();
     }
 
     /**
@@ -461,6 +465,7 @@ export class MarkerTable {
         this.#rows.splice(newIndex, 0, this.#rows.splice(oldIndex, 1)[0]);
         this.#markers.splice(newIndex, 0, updatedItem);
         this.#parentRow.updateMarkerBreakdown(); // This edit might update the purge status.
+        this.#actionsRow.onMarkersUpdated();
     }
 
     /**
@@ -504,6 +509,7 @@ export class MarkerTable {
         this.#markers.splice(oldIndex, 1);
         this.#rows.splice(oldIndex, 1);
         this.#parentRow.updateMarkerBreakdown();
+        this.#actionsRow.onMarkersUpdated();
     }
 
     /**
@@ -543,7 +549,7 @@ export class MarkerTable {
     /**
      * Callback invoked when 'Add Marker' is clicked, creating a new temporary marker row.
      * @param {KeyboardEvent|MouseEvent} e */
-    #onMarkerAdd(e) {
+    onMarkerAdd(e) {
         const addRow = new NewMarkerRow(this.#parentRow, this.#chapters);
         const tbody = this.#tbody();
         tbody.insertBefore(addRow.row(), tbody.lastChild);

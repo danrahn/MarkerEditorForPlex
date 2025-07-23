@@ -85,7 +85,7 @@ class BulkShiftOverlay {
      * Launch the bulk shift overlay.
      * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
     show(focusBack) {
-        const container = $div({ id : 'bulkActionContainer' });
+        const container = $div({ id : 'bulkShiftContainer', class : 'bulkActionContainer' });
         const title = $h(1, `Shift Markers for ${this.#mediaItem.title}`);
         this.#startTime = new TimeInput(
             { isEnd : false, plainOnly : true, customValidate : true },
@@ -253,7 +253,7 @@ class BulkShiftOverlay {
             node = $h(4, message, attributes);
         }
 
-        const container = $('#bulkActionContainer');
+        const container = $('#bulkShiftContainer');
         const currentNode = $('#resolveShiftMessage');
         if (currentNode) {
             currentNode.replaceWith(node);
@@ -536,7 +536,7 @@ class BulkShiftOverlay {
 
         this.#table.rows().forEach(row => row.update());
 
-        $('#bulkActionContainer').appendChild(this.#table.html());
+        $('#bulkShiftContainer').appendChild(this.#table.html());
     }
 
     /**

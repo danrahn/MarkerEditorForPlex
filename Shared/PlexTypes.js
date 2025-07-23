@@ -30,6 +30,8 @@ import { MarkerType } from './MarkerType.js';
  * @typedef {{metadataId: number, markerBreakdown: MarkerBreakdownMap, title: string, index: number,
  *            seasonName: string, seasonIndex: number, showName: string, duration: number}} SerializedEpisodeData
  *
+ * @typedef {SerializedEpisodeData & { markers: SerializedMarkerData[] }} SerializedEpisodeAndMarkerData
+ *
  * @typedef {{applied: boolean, conflict: boolean, overflow: boolean, allMarkers: SerializedMarkerData[],
  *            episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
@@ -589,6 +591,22 @@ class MarkerData extends PlexData {
 }
 
 /**
+ * Encapsulates both the main episode data and the markers associated with it. */
+class EpisodeAndMarkerData extends EpisodeData {
+    /**
+     * The markers associated with this episode.
+     * @type {MarkerData[]} */
+    markers = [];
+
+    constructor(episode, markers=[]) {
+        super(episode);
+        for (const marker of markers) {
+            this.markers.push(new MarkerData(marker));
+        }
+    }
+}
+
+/**
  * Behavior of bulk marker actions that might conflict with existing markers.
  * TODO: Share with MarkerConflictResolution, potentially ShiftApplyType as well. */
 const BulkMarkerResolveType = {
@@ -635,6 +653,7 @@ export {
     ShowData,
     SeasonData,
     EpisodeData,
+    EpisodeAndMarkerData,
     MovieData,
     MarkerConflictResolution,
     MarkerData,

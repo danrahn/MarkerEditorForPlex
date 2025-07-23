@@ -157,6 +157,13 @@ async function getEpisodes(metadataId) {
 }
 
 /**
+ * Retrieve all episodes and markers for the show specified by the given metadataId (which might be a show, season, or episode id).
+ * @param {number} metadataId */
+function getShowEpisodes(metadataId) {
+    return PlexQueries.getAllEpisodes(metadataId);
+}
+
+/**
  * Check whether the item with the given metadata has thumbnails associated with it.
  * Only applicable to episode and movie ids.
  * @param {number} metadataId */
@@ -289,6 +296,7 @@ export function registerQueryCommands() {
     registerCommand(PostCommands.GetLibrary, q => getLibrary(q.i('id')));
     registerCommand(PostCommands.GetSeasons, q => getSeasons(q.i('id')));
     registerCommand(PostCommands.GetEpisodes, q => getEpisodes(q.i('id')));
+    registerCommand(PostCommands.GetShowEpisodes, q => getShowEpisodes(q.i('id')));
     registerCommand(PostCommands.CheckThumbs, q => checkForThumbs(q.i('id')));
     registerCommand(PostCommands.GetStats, q => allStats(q.i('id')));
     registerCommand(PostCommands.GetBreakdown, q => getMarkerBreakdownTree(...q.is('id', 'includeSeasons')));

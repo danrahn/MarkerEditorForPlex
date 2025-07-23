@@ -44,7 +44,7 @@ class BulkDeleteOverlay {
      * Launch the bulk delete overlay.
      * @param {HTMLElement} focusBack The element to set focus back to after the bulk overlay is dismissed. */
     show(focusBack) {
-        const container = $div({ id : 'bulkActionContainer' });
+        const container = $div({ id : 'bulkDeleteContainer', class : 'bulkActionContainer' });
         const title = $h(1, `Delete All Markers`);
         $append(container,
             title,
@@ -165,7 +165,7 @@ class BulkDeleteOverlay {
             this.#table.addRow(new BulkDeleteRow(this.#table, marker, data.episodeData[marker.parentId]));
         }
 
-        $('#bulkActionContainer').appendChild(this.#table.html());
+        $('#bulkDeleteContainer').appendChild(this.#table.html());
         this.#onApplyToChanged();
     }
 

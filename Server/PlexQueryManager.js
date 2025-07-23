@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { statSync } from 'fs';
 
-import { BulkMarkerResolveType, EpisodeData, MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
+import { BulkMarkerResolveType, EpisodeAndMarkerData, EpisodeData, MarkerConflictResolution, MarkerData } from '../Shared/PlexTypes.js';
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 
@@ -474,6 +474,43 @@ ORDER BY seasons.\`index\` ASC;`;
      * @returns {Promise<RawEpisodeData[]>} */
     getEpisodes(seasonMetadataId) {
         return this.#getEpisodesCore(seasonMetadataId, `p.id`);
+    }
+
+    /**
+     * Retrieve all episodes in the show associated with the given show, season, or episode id, along with their marker information.
+     * @param {number} metadataId */
+    async getAllEpisodes(metadataId) {
+        const typeInfo = await this.#mediaTypeFromId(metadataId);
+        let showId = metadataId;
+        switch (typeInfo.metadata_type) {
+            case MetadataType.Show:
+                break;
+            case MetadataType.Season:
+                showId = await this.#database.get(`SELECT parent_id FROM metadata_items WHERE id=?;`, [metadataId]);
+                break;
+            case MetadataType.Episode:
+                showId = (await this.#database.get(
+                    `SELECT p.parent_id AS show_id FROM metadata_items p
+                     INNER JOIN metadata_items e on e.parent_id=p.id WHERE e.id=?;`, [metadataId])).show_id;
+                break;
+            default:
+                throw new ServerError(`Item ${metadataId} is not an episode, season, or series`, 400);
+        }
+
+        const episodes = await this.getEpisodesAuto(showId);
+        const markerInfo = await this.getMarkersAuto(showId);
+        const markerMap = {};
+        for (const marker of markerInfo.markers) {
+            (markerMap[marker.parent_id] ??= []).push(marker);
+        }
+
+        const result = [];
+        for (const episode of episodes) {
+            const serialized = new EpisodeAndMarkerData(episode, markerMap[episode.id] ?? []);
+            result.push(serialized);
+        }
+
+        return result;
     }
 
     /**

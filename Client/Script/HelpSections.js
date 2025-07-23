@@ -477,8 +477,8 @@ function buildTimeInputMethods() {
         $append($span(), 'Have more than one marker or chapter reference in an expression - ', $code('=M1+M2'), ', ',
             $code('=Ch1+Ch2'), ', and ', $code('=M1+Ch1'), ' are not valid.'),
         $append($span(), 'Subtract marker/chapter references - ', $code('=1:00-M1'), ' is not valid.'),
-        $append($span(), `Create a negative timestamp if there's a marker/chapter reference. If chapter 1 starts at `,
-            $code('=Ch1S-1:00'), ', the expression not invalid. However, ', $code('=-1:00'), ' is valid, as there are no references.'),
+        $append($span(), `Create a negative timestamp if there's a marker/chapter reference. If chapter 1 starts at 0, `,
+            $code('=Ch1S-1:00'), ' is not valid. However, ', $code('=-1:00'), ' is valid, as there are no references.'),
     ];
 
     const expressionLimitsList = $append($ul(),

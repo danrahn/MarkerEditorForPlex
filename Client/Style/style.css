@@ -395,7 +395,7 @@ input:focus-visible {
   }
 
   & tr:nth-child(even):hover {
-    background-color: var(--table-even-hover);
+    background-color: var(--table-even-row-hover);
   }
 }
 

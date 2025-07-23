@@ -39,6 +39,8 @@ export class MovieResultRow extends BaseItemResultRow {
      * @returns {ClientMovieData} */
     movie() { return this.mediaItem(); }
 
+    isMovie() { return true; }
+
     /**
      * Builds a row for an episode of the form '> MovieName (year) | X Marker(s)'
      * with a collapsed marker table that appears when this row is clicked. */
@@ -317,6 +319,5 @@ export class MovieResultRow extends BaseItemResultRow {
 
         breakdown.delta(oldKey, newKey - oldKey);
         this.setCurrentKey(newKey);
-
     }
 }

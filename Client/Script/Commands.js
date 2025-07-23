@@ -13,6 +13,7 @@ import { PostCommands } from '/Shared/PostCommands.js';
 /** @typedef {!import('/Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('/Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
 /** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
+/** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeAndMarkerData} SerializedEpisodeAndMarkerData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMarkerData} SerializedMarkerData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedMovieData} SerializedMovieData */
 /** @typedef {!import('/Shared/PlexTypes').SerializedSeasonData} SerializedSeasonData */
@@ -218,6 +219,12 @@ export const ServerCommands = {
      * @param {number} id
      * @returns {Promise<SerializedEpisodeData[]>} */
     getEpisodes : (id) => jsonRequest(PostCommands.GetEpisodes, { id }),
+
+    /**
+     * Retrieve all episodes for the show associated with the given show,season, or episode id.
+     * @param {number} id
+     * @returns {Promise<SerializedEpisodeAndMarkerData[]>} */
+    getAllEpisodes : (id) => jsonRequest(PostCommands.GetShowEpisodes, { id }),
 
     /**
      * Return whether the given metadata item has thumbnails associated with it.

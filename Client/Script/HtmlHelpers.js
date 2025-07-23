@@ -566,7 +566,7 @@ export function $$(selector, ele = document) {
 }
 
 /**
- * Helper that returns the element w ith the given id. Useful for scenarios where the id is statically
+ * Helper that returns the element with the given id. Useful for scenarios where the id is statically
  * defined and you want to use the same value to get said element.
  * @param {string} id */
 export function $id(id, ele = document) {

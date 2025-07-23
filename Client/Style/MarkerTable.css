@@ -150,6 +150,11 @@ table .buttonIconAndText {
   margin-top: 0;
 }
 
+.markerTableActionButton {
+  margin-left: 5px;
+  margin-right: 5px;
+}
+
 @media (min-width: 767px) { /* Probably not a phone */
   .tableHolder::-webkit-scrollbar {
     width: 0;

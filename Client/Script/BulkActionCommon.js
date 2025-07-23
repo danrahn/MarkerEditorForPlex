@@ -1,13 +1,14 @@
-import { $, $$, $append, $div, $label, $option, $plainDivHolder, $select, $span, $table, $tbody, $thead } from './HtmlHelpers.js';
+import { $, $$, $append, $div, $divHolder, $id, $label, $option, $plainDivHolder, $select, $span, $table,
+    $tbody, $thead } from './HtmlHelpers.js';
 import { clickOnEnterCallback, ctrlOrMeta, scrollAndFocus, toggleVisibility } from './Common.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 
+import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { customCheckbox } from './CommonUI.js';
 import { flashBackground } from './AnimationHelpers.js';
-import { MarkerData } from '/Shared/PlexTypes.js';
 import { MarkerEnum } from '/Shared/MarkerType.js';
 import Overlay from './Overlay.js';
-import { TableElements } from 'MarkerTable';
+import { TableElements } from './MarkerTable/TableElements.js';
 import { Theme } from './ThemeColors.js';
 
 /** @typedef {!import('/Shared/PlexTypes').SerializedEpisodeData} SerializedEpisodeData */
@@ -24,14 +25,14 @@ const Log = ContextualLog.Create('BulkAction');
 class BulkActionRow {
     /** @type {number} */
     id;
-    /** @type {HTMLTableElement} */
-    table;
-    /** @type {boolean} */
+    /** Whether this row is checked/unchecked. */
     enabled = false;
-    /** @type {boolean} */
+    /** Whether this row is selected for a bulk select action. */
     selected = false;
+    /** Whether this row is currently filtered from the table (and is excluded from any selection operations). */
+    filtered = false;
     /**
-     * @type {HTMLElement} */
+     * @type {HTMLTableRowElement} */
     row;
     /** @type {BulkActionTable} */
     parent;
@@ -46,6 +47,11 @@ class BulkActionRow {
      * process that as a direct checkbox click. Otherwise, select the row for multiselect
      * @param {MouseEvent} e */
     onRowClick(e) {
+        // If the row is filtered, don't do anything.
+        if (this.filtered) {
+            return;
+        }
+
         const checkbox = $$('input[type=checkbox]', this.row);
         if (e.target === checkbox) {
             // Just let the checkbox change event do its thing.
@@ -65,7 +71,7 @@ class BulkActionRow {
 
     /**
      * Common helper for constructing a table row.
-     * @param  {...HTMLElement} columns */
+     * @param  {...(HTMLElement|CustomClassColumn)} columns */
     buildRow(...columns) {
         this.row = TableElements.rawTableRow(...columns);
         this.row.addEventListener('click', this.onRowClick.bind(this));
@@ -104,9 +110,25 @@ class BulkActionRow {
     }
 
     /**
+     * Set whether this row is filtered (hidden) from the table.
+     * @param {boolean} filtered */
+    setFiltered(filtered) {
+        const changed = this.filtered !== filtered;
+        toggleVisibility(this.row, !filtered);
+        this.filtered = filtered;
+        if (changed) {
+            this.update();
+        }
+    }
+
+    /**
      * @param {HTMLInputElement} checkbox
      * @param {KeyboardEvent} e */
     onCheckboxKeydown(checkbox, e) {
+        if (this.filtered) {
+            return; // This row isn't visible, but some event propagation might still reach us.
+        }
+
         switch (e.key) {
             case 'Enter':
                 if (!e.ctrlKey && !e.shiftKey && !e.altKey && (e.target instanceof HTMLInputElement)) {
@@ -118,13 +140,13 @@ class BulkActionRow {
                 this.parent.onRowClicked(new MouseEvent('click', { ctrlKey : true }), this, true /*fromKeyboard*/);
                 break;
             case 'c':
-                this.parent.toggleAllSelected(this.selected ? !this.enabled : undefined);
+                this.parent.toggleAllChecked(this.selected ? !this.enabled : undefined);
                 break;
             case 'C':
             {
-                const mainCheck = $('#selAllCheck', this.table);
+                const mainCheck = $$('.selAllCheck', this.parent.html());
                 mainCheck.checked = !mainCheck.checked;
-                BulkActionCommon.selectUnselectAll();
+                this.parent.checkUncheckAll();
                 break;
             }
             case 'ArrowUp':
@@ -210,10 +232,13 @@ class BulkActionTable {
      * @type {() => void} */
     #boundMultiCheckboxListener = null;
 
-    constructor() {
+    #id = 'bulkActionCustomizeTable';
+
+    constructor(id) {
         // If this changes, I'll need to find another bottleneck for removing window event listeners.
         Log.assert(Overlay.showing(), 'The overlay should be showing if we\'re showing a customization table.');
         Overlay.addDismissEvent(this.#removeEventListeners.bind(this));
+        if (id) { this.#id = id; }
     }
 
     /**
@@ -263,14 +288,15 @@ class BulkActionTable {
             !this.#html,
             `BulkActionTable.buildTableHead: We should only be building a table header if the table doesn't already exist!`);
 
-        this.#html = $table({ class : 'markerTable', id : 'bulkActionCustomizeTable' });
+        this.#html = $table({ class : 'markerTable', id : this.#id });
         const mainCheckbox = customCheckbox({
             title : 'Select/unselect all',
             name : 'selAllCheck',
-            id : 'selAllCheck',
+            id : `selAllCheck_${this.#id}`,
+            class : 'selAllCheck',
             checked : 'checked'
         },
-        { change : BulkActionCommon.selectUnselectAll,
+        { change : this.checkUncheckAll.bind(this),
           keydown : [ clickOnEnterCallback, this.#onMainCheckboxKeydown.bind(this) ] });
 
         this.#html.appendChild($thead(TableElements.rawTableRow(mainCheckbox, ...columns)));
@@ -331,19 +357,50 @@ class BulkActionTable {
      * @param {MouseEvent} e */
     #onMultiSelectClick(checkbox, e) {
         e.preventDefault(); // Don't change the check state
-        this.toggleAllSelected(checkbox.id === 'multiSelectSelect');
+        this.toggleAllChecked(checkbox.id === 'multiSelectSelect');
+    }
+
+    /**
+     * Bulk check/uncheck all items in this table based on the checkbox state. */
+    checkUncheckAll() {
+        const table = $id(this.#id);
+        if (!table) {
+            Log.assert(false, `How did we hit selectUnselectAll without a customization table?`);
+            return;
+        }
+
+        const checkbox = $$('.selAllCheck', table);
+        if (!checkbox) {
+            Log.assert(false, `Why doesn't the selectUnselectAll checkbox exist if we're in selectUnselectAll?`);
+            return;
+        }
+
+        $('tbody input[type=checkbox]', table).forEach(c => { c.checked = checkbox.checked; c.dispatchEvent(new Event('change')); });
     }
 
     /**
      * Check/Uncheck all selected markers. If check is undefined,
      * toggle based on the first selected item's checked state.
      * @param {boolean?} check */
-    toggleAllSelected(check) {
+    toggleAllChecked(check) {
         let setChecked = check;
         for (const row of this.#selected.values()) {
             setChecked ??= !row.enabled;
             row.setChecked(setChecked);
         }
+    }
+
+    /**
+     * Remove the current selection from the table. */
+    removeSelection() {
+        for (const row of this.#selected.values()) {
+            row.setSelected(false);
+        }
+
+        this.#selected.clear();
+        this.#lastSelected = null;
+        this.#lastSelectedWasDeselect = false;
+        this.#repositionMultiSelectCheckboxes();
     }
 
     /**
@@ -496,7 +553,7 @@ class BulkActionTable {
         const thisIndex = this.#rowMap[currentRow.id].rowIndex;
         if (up && thisIndex === 0) {
             // Just set focus to the table head checkbox and return.
-            const thead = $$('#bulkActionCustomizeTable thead');
+            const thead = $$(`#${this.#id} thead`);
             if (thead) {
                 scrollAndFocus(e, thead, $$('input[type="checkbox"]', thead));
             }
@@ -564,25 +621,6 @@ class BulkActionCommon {
     }
 
     /**
-     * Bulk check/uncheck all items in the given table based on the checkbox state.
-     * @param {Event} _e */
-    static selectUnselectAll(_e) {
-        const table = $(`#bulkActionCustomizeTable`);
-        if (!table) {
-            Log.assert(false, `How did we hit selectUnselectAll without a customization table?`);
-            return;
-        }
-
-        const checkbox = $('#selAllCheck', table);
-        if (!checkbox) {
-            Log.assert(false, `Why doesn't the selectUnselectAll checkbox exist if we're in selectUnselectAll?`);
-            return;
-        }
-
-        $('tbody input[type=checkbox]', table).forEach(c => { c.checked = checkbox.checked; c.dispatchEvent(new Event('change')); });
-    }
-
-    /**
      * Converts a flat list of serialized markers to a hierarchical map of MarkerData.
      * @param {SerializedMarkerData[]} markers */
     static markerMapFromList(markers) {
@@ -625,6 +663,91 @@ class BulkActionCommon {
     }
 }
 
+/** Descriptions for different marker conflict resolution strategies. */
+const conflictResolutionStrings = {
+    [BulkMarkerResolveType.Fail]  : `If any {VERB} marker conflicts with existing markers, fail the entire operation`,
+    [BulkMarkerResolveType.Merge] : `If any {VERB} markers conflict with existing markers, merge them with into the existing marker(s)`,
+    [BulkMarkerResolveType.Ignore] : `If any {VERB} marker conflicts with existing markers, don't add the marker to the episode`,
+    [BulkMarkerResolveType.Overwrite] : `If any {VERB} marker conflicts with existing markers, overwrite the existing marker(s)`,
+};
+
+/**
+ * Encapsulates the UI/logic for selecting a conflict resolution strategy.
+ */
+class ConflictResolutionSelection {
+    #id = '';
+    #label = '';
+    #verb = '';
+    /** @type {((applyType: number) => any)} */
+    #userChange = null;
+    #initialValue = BulkMarkerResolveType.Fail;
+
+    /**
+     * Create a conflict resolution selection element.
+     * @param {string} id The id of the element
+     * @param {string} label The label for the select element
+     * @param {string} verb The verb to use in the description
+     * @param {(e: Event) => void} onChange The function to call when the value changes
+     * @param {number} initialValue The initial value to select in the dropdown. Defaults to Fail. */
+    constructor(id, label, verb, onChange, initialValue=BulkMarkerResolveType.Fail) {
+        this.#id = id;
+        this.#label = label;
+        this.#verb = verb;
+        this.#userChange = onChange;
+        this.#initialValue = initialValue;
+    }
+
+    /**
+     * Creates and returns the conflict resolution selection element with auto-adjusting descriptions. */
+    build() {
+        const holder = $divHolder({ id : this.#id },
+            $label(`${this.#label}: `, 'applyTypeSelect'),
+            $append(
+                $select('applyTypeSelect', this.#onChange.bind(this)),
+                $option('Fail', 1),
+                $option('Overwrite', 4),
+                $option('Merge', 2),
+                $option('Ignore', 3)),
+            $div({ id : 'applyTypeDescription' }, this.#getDescription(this.#initialValue))
+        );
+
+        $id('applyTypeSelect', holder).value = this.#initialValue;
+        return holder;
+    }
+
+    /**
+     * Callback invoked when the select value changes. */
+    #onChange() {
+        const select = $id('applyTypeSelect');
+        if (!select) {
+            Log.error(`ConflictResolutionSelection: Unable to find select element with id 'applyTypeSelect'!`);
+            return;
+        }
+
+        const description = $id('applyTypeDescription');
+        if (!description) {
+            Log.error(`ConflictResolutionSelection: Unable to find description element with id 'applyTypeDescription'!`);
+            return;
+        }
+
+        const applyType = parseInt(select.value);
+        description.innerText = this.#getDescription(applyType);
+        this.#userChange(applyType);
+    }
+
+    /**
+     * Retrieve the description for the given apply type.
+     * @param {number} applyType */
+    #getDescription(applyType) {
+        if (applyType < BulkMarkerResolveType.Fail || applyType > BulkMarkerResolveType.Max) {
+            Log.error(`Invalid apply type ${applyType} for conflict resolution description!`);
+            return '';
+        }
+
+        return conflictResolutionStrings[applyType].replace('{VERB}', this.#verb);
+    }
+}
+
 /** Enum of bulk actions */
 const BulkActionType = {
     Shift  : 0,
@@ -632,4 +755,10 @@ const BulkActionType = {
     Delete : 2,
 };
 
-export { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType };
+export {
+    BulkActionCommon,
+    BulkActionRow,
+    BulkActionTable,
+    BulkActionType,
+    ConflictResolutionSelection
+};

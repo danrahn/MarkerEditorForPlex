@@ -54,10 +54,12 @@ export default class ConfigTest extends TestBase {
             authEnabled : this.#testValue(null, false),
             authUsername : this.#testValue(null, ''),
             authSessionTimeout : this.#testValue(null, 86_400),
+            trustProxy : this.#testValue(null, false),
             autoOpen : this.#testValue(null, true),
             extendedMarkerStats : this.#testValue(null, true),
             previewThumbnails : this.#testValue(null, true),
             preciseThumbnails : this.#testValue(null, false),
+            writeExtraData : this.#testValue(null, true),
             pathMappings : this.#testValue(null, [])
         };
 

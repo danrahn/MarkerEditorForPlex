@@ -29,6 +29,8 @@ export const PostCommands = {
     GetSeasons : 'get_seasons',
     /** @readonly Get episode information for a single season of a show. */
     GetEpisodes : 'get_episodes',
+    /** @readonly Get all episodes for a single show, accepting an episode, season, or show ID. */
+    GetShowEpisodes : 'get_show_episodes',
     /** @readonly Check whether thumbnails exist for a single movie/episode. */
     CheckThumbs : 'check_thumbs',
     /** @readonly Get marker statistics for an entire library. */

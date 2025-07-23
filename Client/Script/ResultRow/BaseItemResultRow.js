@@ -43,6 +43,8 @@ export class BaseItemResultRow extends ResultRow {
     /** @returns {MediaItemWithMarkerTable} */
     baseItem() { return this.mediaItem(); }
 
+    isMovie() { return false; }
+
     currentKey() { return this.#markerCountKey; }
     /** @param {number} key */
     setCurrentKey(key) { this.#markerCountKey = key; }

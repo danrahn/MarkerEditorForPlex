@@ -276,6 +276,34 @@ export default class Overlay {
     }
 
     /**
+     * Replace all the contents of the current overlay with something else (keeping all main overlay settings the same).
+     * Also handles things like setting up tab navigation so the new content can't escape the overlay.
+     * @param {HTMLOrSVGElement|string} newContent */
+    static replace(newContent) {
+        if (!Overlay.showing()) {
+            Log.warn('Tried to replace overlay content, but no overlay is currently showing.');
+            return;
+        }
+
+        const container = $('#overlayContainer', Overlay.get());
+        $clear(container);
+        if (newContent instanceof HTMLElement || newContent instanceof SVGElement) {
+            container.appendChild(newContent);
+        } else {
+            container.innerHTML = newContent;
+        }
+
+        // If we have a close button, remove and re-add it to ensure tab navigation gets reset.
+        const closeButton = $$('.overlayCloseButton', Overlay.get());
+        if (closeButton) {
+            closeButton.remove();
+            Overlay.#addCloseButton();
+        }
+
+        Overlay.#setupTabInputs(Overlay.get());
+    }
+
+    /**
      * Create the main overlay element based on the given options.
      * @param {OverlayOptions} options The options for the overlay. See `build` for details.
      * @returns The main overlay Element. */

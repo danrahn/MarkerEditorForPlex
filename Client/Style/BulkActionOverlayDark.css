@@ -11,7 +11,7 @@
   --bulk-action-button-border: rgba(133,133,133,.67);
 }
 
-#bulkActionContainer {
+.bulkActionContainer {
   /* Make the permanently disabled checkbox a bit more noticeable, but it's not needed in light mode */
   & .multiSelectContainer input[type=checkbox]:not(:checked) ~ .customCheckbox {
     border-color: var(--theme-border-hover);

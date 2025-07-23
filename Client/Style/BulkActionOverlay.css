@@ -1,4 +1,4 @@
-#bulkActionContainer {
+.bulkActionContainer {
   text-align: center;
 
   & h1, h2, h3 {
@@ -119,5 +119,17 @@
     & #timeInputHelpIcon {
       cursor: pointer;
     }
+  }
+
+  & .inlineIcon {
+    & svg {
+      height : 1em;
+      vertical-align: text-bottom;
+      margin-right: 3px;
+    }
+  }
+
+  & .markerCopyStatusCell {
+    text-align: left;
   }
 }

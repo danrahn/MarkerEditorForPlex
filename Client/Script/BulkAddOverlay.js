@@ -2,7 +2,7 @@ import { $, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $mobileBrea
     $select, $span, toggleClass } from './HtmlHelpers.js';
 import { msToHms, pad0, realMs, waitFor } from './Common.js';
 
-import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType } from './BulkActionCommon.js';
+import { BulkActionCommon, BulkActionRow, BulkActionTable, BulkActionType, ConflictResolutionSelection } from './BulkActionCommon.js';
 import { BulkMarkerResolveType, MarkerData } from '/Shared/PlexTypes.js';
 import { errorResponseOverlay, errorToast } from './ErrorHandling.js';
 import { HelpSection, HelpSections } from './HelpSections.js';
@@ -73,16 +73,6 @@ class BulkAddOverlay {
     /** @type {TimeInput} */
     #endInput;
 
-    /**
-     * List of descriptions for the various bulk marker resolution actions. */
-    static #descriptions = [
-        '',
-        'If any added marker conflicts with existing markers, fail the entire operation',
-        'If any added markers conflict with existing markers, merge them with into the existing marker(s)',
-        'If any added marker conflicts with existing markers, don\'t add the marker to the episode',
-        'If any added marker conflicts with existing markers, delete the existing markers',
-    ];
-
     /** @type {Element?} */
     static #indexMatchingTooltip;
 
@@ -108,7 +98,7 @@ class BulkAddOverlay {
     show(focusBack) {
         // Any time we're showing the dialog we should reset any marker data we've accumulated
         this.#serverResponse = undefined;
-        const container = $div({ id : 'bulkActionContainer' });
+        const container = $div({ id : 'bulkAddContainer', class : 'bulkActionContainer' });
         const title = $h(1, 'Bulk Add Markers');
         this.#startInput = new TimeInput(
             { isEnd : false, plainOnly : false, customValidate : true, onExpressionChanged : this.#onStartExpressionChanged.bind(this) },
@@ -170,16 +160,13 @@ class BulkAddOverlay {
                 $append($select('markerTypeSelect', this.#onMarkerTypeChanged.bind(this)),
                     ...Object.entries(MarkerType).map(kv => $option(kv[0], kv[1])))
             ),
-            $divHolder({ id : 'bulkAddApplyType' },
-                $label('Apply Action: ', 'applyTypeSelect'),
-                $append(
-                    $select('applyTypeSelect', this.#onApplyTypeChange.bind(this)),
-                    $option('Fail', 1),
-                    $option('Overwrite', 4),
-                    $option('Merge', 2),
-                    $option('Ignore', 3)),
-                $div({ id : 'applyTypeDescription' }, BulkAddOverlay.#descriptions[this.#stickySettings.applyType()])
-            ),
+            new ConflictResolutionSelection(
+                'bulkAddApplyType',
+                'Apply Action',
+                'added',
+                this.#onApplyTypeChange.bind(this),
+                this.#stickySettings.applyType()
+            ).build(),
             $hr(),
             $divHolder({ id : 'bulkActionButtons' },
                 ButtonCreator.fullButton(
@@ -482,14 +469,10 @@ class BulkAddOverlay {
     }
 
     /**
-     * Processes bulk marker resolution type change. */
-    #onApplyTypeChange() {
-        const sel = $('#applyTypeSelect');
-        if (!sel) { return; }
-
-        const val = parseInt(sel.value);
-        this.#stickySettings.setApplyType(val);
-        $('#applyTypeDescription').innerText = BulkAddOverlay.#descriptions[val];
+     * Processes bulk marker resolution type change.
+     * @param {number} newType */
+    #onApplyTypeChange(newType) {
+        this.#stickySettings.setApplyType(newType);
         this.#updateTableStats();
     }
 
@@ -801,7 +784,7 @@ class BulkAddOverlay {
             this.#table.addRow(new BulkAddRow(this, episodeInfo, this.#chapterMap?.[episodeInfo.episodeData.metadataId] ?? []));
         }
 
-        $('#bulkActionContainer').appendChild(this.#table.html());
+        $('#bulkAddContainer').appendChild(this.#table.html());
         this.#updateTableStats();
     }
 
