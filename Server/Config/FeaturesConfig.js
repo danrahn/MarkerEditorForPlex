@@ -1,7 +1,9 @@
 import { ExtraData, PlexQueries } from '../PlexQueryManager.js';
 import ConfigBase from './ConfigBase.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
+import { MaxAutoSuspendTimeout } from '/Shared/ServerConfig';
 import { testFfmpeg } from '../ServerHelpers.js';
+import { validAutoSuspendTimeout } from './ConfigHelpers.js';
 
 /** @typedef {!import('./ConfigBase').ConfigBaseProtected} ConfigBaseProtected */
 /** @typedef {!import('./ConfigBase').GetOrDefault} GetOrDefault */
@@ -52,6 +54,15 @@ export default class PlexFeatures extends ConfigBase {
      * @type {Setting<boolean>} */
     writeExtraData;
 
+    /** Setting to automatically suspend the connection to the database after a specific amount of time.
+     * @type {Setting<boolean>} */
+    autoSuspend;
+
+    /** Setting that determines the amount of time (in seconds) to wait before automatically suspending the
+     * connection to the database.
+     * @type {Setting<number>} */
+    autoSuspendTimeout;
+
     /** Sets the application features based on the given json.
      * @param {RawConfigFeatures} json */
     constructor(json) {
@@ -67,12 +78,24 @@ export default class PlexFeatures extends ConfigBase {
         this.previewThumbnails = this.#getOrDefault('previewThumbnails', true);
         this.preciseThumbnails = this.#getOrDefault('preciseThumbnails', false);
         this.writeExtraData = this.#getOrDefault('writeExtraData', false);
+        this.autoSuspend = this.#getOrDefault('autoSuspend', false);
+        this.autoSuspendTimeout = this.#getOrDefault('autoSuspendTimeout', 60 * 15); // Default to 15 minutes
 
         if (this.previewThumbnails.value() && this.preciseThumbnails.value()) {
             const canEnable = testFfmpeg();
             if (!canEnable) {
                 this.preciseThumbnails.setValue(false);
                 Log.warn(`Precise thumbnails enabled, but ffmpeg wasn't found in your path! Falling back to BIF`);
+            }
+        }
+
+        if (this.autoSuspend.value() && !validAutoSuspendTimeout(this.autoSuspendTimeout.value())) {
+            if (!this.autoSuspendTimeout.value() || this.autoSuspendTimeout.value() < 60) {
+                Log.warn(`Auto-suspend is enabled, but the timeout is less than 60 seconds. Setting to default of 15 minutes.`);
+                this.autoSuspendTimeout.setValue(60 * 15);
+            } else if (this.autoSuspendTimeout.value() > MaxAutoSuspendTimeout) {
+                Log.warn(`Auto-suspend timeout is greater than ${MaxAutoSuspendTimeout} seconds, setting to max.`);
+                this.autoSuspendTimeout.setValue(MaxAutoSuspendTimeout);
             }
         }
     }

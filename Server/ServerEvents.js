@@ -5,6 +5,10 @@ export const ServerEvents = {
     SoftRestart : 'softRestart',
     /** @readonly Event triggered when a full restart has been initiated. */
     HardRestart : 'hardRestart',
+    /** @readonly Event triggered when the server is suspended due to inactivity. */
+    AutoSuspend : 'autoSuspend',
+    /** @readonly Event triggered when the auto-suspend setting is changed. */
+    AutoSuspendChanged : 'autoSuspendChanged',
     /** @readonly Event triggered when we want to clear out our thumbnail cache. */
     ReloadThumbnailManager : 'reloadThumbs',
     /** @readonly Event triggered when we should reload (or clear) cached marker stats. */

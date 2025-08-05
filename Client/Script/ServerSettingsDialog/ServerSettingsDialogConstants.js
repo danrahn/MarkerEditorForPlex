@@ -30,5 +30,7 @@ export const SettingTitles = {
     [ServerSettings.PreviewThumbnails] : 'Use Preview Thumbnails',
     [ServerSettings.FFmpegThumbnails] : 'Use FFmpeg for Thumbnails',
     [ServerSettings.WriteExtraData] : 'Write Extra Data',
+    [ServerSettings.AutoSuspend] : 'Auto-Suspend Database Connection',
+    [ServerSettings.AutoSuspendTimeout] : 'Auto-Suspend Timeout',
     [ServerSettings.PathMappings] : 'Path Mappings',
 };

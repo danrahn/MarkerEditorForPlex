@@ -90,6 +90,8 @@ isDefault means value is the default value
  * @property {TypedSetting<boolean>} previewThumbnails Whether to enable preview thumbnails
  * @property {TypedSetting<boolean>} preciseThumbnails Whether to use FFmpeg thumbnails over the ones Plex generates
  * @property {TypedSetting<boolean>} writeExtraData Whether to write extra_data to the Plex database
+ * @property {TypedSetting<boolean>} autoSuspend Whether to automatically suspend the connection to the Plex database due to user inactivity
+ * @property {TypedSetting<number>} autoSuspendTimeout The time to wait before automatically suspending the connection to the database.
  * @property {TypedSetting<PathMapping[]>} pathMappings
  * @property {TypedSetting<string>} version
  * @property {TypedSetting<string>?} authUsername The username, if authentication is enabled.
@@ -97,6 +99,9 @@ isDefault means value is the default value
  * @property {number} state
  * @property {boolean} isDocker
  */
+
+/** setTimeout's max value is 2^31 - 1, but that's in milliseconds. So the max integer timeout is that value divided by 1000. */
+export const MaxAutoSuspendTimeout = 2_147_483;
 
 /**
  * @template T
@@ -226,6 +231,10 @@ export const ServerSettings = {
     FFmpegThumbnails : 'preciseThumbnails',
     /** @readonly Whether to write extra_data to the Plex database */
     WriteExtraData : 'writeExtraData',
+    /** @readonly Whether to automatically suspend the connection to the Plex database due to user inactivity. */
+    AutoSuspend : 'autoSuspend',
+    /** @readonly The time (in seconds) to wait before automatically suspending the connection to the database. */
+    AutoSuspendTimeout : 'autoSuspendTimeout',
     /** @readonly Whether to enable simple single-user authentication. */
     UseAuthentication : 'authEnabled',
     /** @readonly Authentication username. This is a pseudo setting, as it's stored in auth.db, not config.json. */
@@ -295,6 +304,8 @@ export function allServerSettings() {
         ServerSettings.PreviewThumbnails,
         ServerSettings.FFmpegThumbnails,
         ServerSettings.WriteExtraData,
+        ServerSettings.AutoSuspend,
+        ServerSettings.AutoSuspendTimeout,
         ServerSettings.PathMappings,
     ];
 }
@@ -347,6 +358,8 @@ export function isFeaturesSetting(setting) {
         case ServerSettings.PreviewThumbnails:
         case ServerSettings.FFmpegThumbnails:
         case ServerSettings.WriteExtraData:
+        case ServerSettings.AutoSuspend:
+        case ServerSettings.AutoSuspendTimeout:
             return true;
     }
 }

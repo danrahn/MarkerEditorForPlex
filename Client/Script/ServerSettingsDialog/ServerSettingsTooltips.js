@@ -191,6 +191,27 @@ function initializeServerSettingsTooltips() {
                 `format could result in database corruption.`
             )
         ),
+        [ServerSettings.AutoSuspend] : createTooltip(
+            `Automatically suspend the connection to the Plex database after a period of inactivity`,
+            $append($span(),
+                `If enabled, Marker Editor will automatically suspend the connection to the Plex database after a period of inactivity. `,
+                $br(), $br(),
+                `This can be useful in scenarios where you run this application alongside Plex (which isn't recommended, ` +
+                `but is okay on some systems). Marker Editor assumes that nothing else is modifying the database while it's ` +
+                `running, so new markers aren't picked up if they're added after this application has started. Enabling this ` +
+                `setting can help pick up those new markers, because resuming the server after it's been suspended will ` +
+                `re-read all markers from the database.`
+            )
+        ),
+        [ServerSettings.AutoSuspendTimeout] : createTooltip(
+            `The time (in seconds) to wait before automatically suspending the connection to the Plex database`,
+            $append($span(),
+                `If auto-suspend is enabled, this setting determines how long Marker Editor will wait before suspending the connection. ` +
+                `Must be at least 60 seconds.`,
+                $br(),
+                `Time postfixes (d/h/m/s) can also be used, e.g. 1h30m for 1 hour and 30 minutes.`
+            )
+        ),
         [ServerSettings.PathMappings] : createTooltip(
             `Map paths first FFmpeg-based thumbnails`,
             `A list of "from" and "to" mappings that can map paths in your database to paths to local paths. This ` +

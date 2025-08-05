@@ -20,7 +20,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { Config, MarkerEditorConfig, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
-import { isBinary, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
+import { isBinary, resetAutoSuspendTimeout, sendJsonError, sendJsonSuccess } from './ServerHelpers.js';
 import { PostCommands, SuspendedWhitelist } from '../Shared/PostCommands.js';
 import { registerPostCommands, runPostCommand } from './PostCommands.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
@@ -307,7 +307,11 @@ async function userSuspend(res) {
     SetServerState(ServerState.Suspended);
     await cleanupForShutdown(false /*fullShutdown*/, false /*resetConfig*/);
     Log.info('Server successfully suspended.');
-    sendJsonSuccess(res);
+
+    // We won't have a response for auto-suspend.
+    if (res) {
+        sendJsonSuccess(res);
+    }
 }
 
 /**
@@ -363,6 +367,21 @@ async function userReload(res, data) {
     ResumeResponse = res;
     ResumeData = data;
     run();
+}
+
+/**
+ * Automatically resumes the server after it was previously suspended due to inactivity. */
+async function autoResume() {
+    if (GetServerState() !== ServerState.AutoSuspended) {
+        Log.verbose(`autoResume: Server isn't auto-suspended (${GetServerState()})`);
+        return;
+    }
+
+    // TODO: Do we need to handle any potential issues with ResumeResponse/ResumeData?
+    SetServerState(ServerState.Suspended);
+    MarkerEditorConfig.Close();
+    await run();
+    Log.info('Server automatically resumed after inactivity.');
 }
 
 /** Creates the server. Called after verifying the config file and database.
@@ -583,6 +602,14 @@ ServerEventHandler.on(ServerEvents.SoftRestart, async (response, data, resolve) 
     resolve();
 });
 
+ServerEventHandler.on(ServerEvents.AutoSuspend, async (resolve) => {
+    // It's fine to just go through the normal suspend process, we just need to set the right state afterwards.
+    await userSuspend();
+    SetServerState(ServerState.AutoSuspended);
+    Log.info('Server auto-suspended due to inactivity.');
+    resolve();
+});
+
 /**
  * Handle POST requests, used to return JSON data queried by the client.
  * @param {ExpressRequest} req
@@ -599,6 +626,13 @@ async function handlePost(req, res) {
     if (GetServerState() === ServerState.Suspended && !SuspendedWhitelist.has(endpoint)) {
         return sendJsonError(res, new ServerError('Server is suspended', 503, true /*expected*/));
     }
+
+    if (GetServerState() === ServerState.AutoSuspended && !SuspendedWhitelist.has(endpoint)) {
+        Log.info('Resuming server after auto-suspended.');
+        await autoResume();
+    }
+
+    resetAutoSuspendTimeout();
 
     try {
         if (Object.prototype.hasOwnProperty.call(ServerActionMap, endpoint)

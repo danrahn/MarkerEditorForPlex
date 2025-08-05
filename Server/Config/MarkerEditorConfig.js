@@ -18,6 +18,7 @@ import {
     mapNameToRaw,
     settingValue,
     validatePathMappings,
+    validAutoSuspendTimeout,
     validPort,
     validSessionTimeout } from './ConfigHelpers.js';
 import { GetServerState, ServerState } from '../ServerState.js';
@@ -297,6 +298,8 @@ class MarkerEditorConfig extends ConfigBase {
     extendedMarkerStats() { return this.#features.extendedMarkerStats.value(); }
     disableExtendedMarkerStats() { this.#features.extendedMarkerStats = false; }
     writeExtraData() { return this.#features.writeExtraData.value(); }
+    autoSuspend() { return this.#features.autoSuspend.value(); }
+    autoSuspendTimeout() { return this.#features.autoSuspendTimeout.value(); }
     appVersion() { return this.#version.value(); }
     pathMappings() { return this.#mappings.value(); }
     getValid() { return this.#configState; }
@@ -330,6 +333,8 @@ class MarkerEditorConfig extends ConfigBase {
             previewThumbnails : this.#features.previewThumbnails.serialize(),
             preciseThumbnails : this.#features.preciseThumbnails.serialize(),
             writeExtraData : this.#features.writeExtraData.serialize(),
+            autoSuspend : this.#features.autoSuspend.serialize(),
+            autoSuspendTimeout : this.#features.autoSuspendTimeout.serialize(),
             pathMappings : this.#mappings.serialize(),
             version : this.#version.serialize(),
             authUsername : this.#pseudoSetting(User.username()),
@@ -530,6 +535,14 @@ class MarkerEditorConfig extends ConfigBase {
                     this.#features.writeExtraData.setValue(newValue);
                     await this.#features.validateDbSettings();
                     break;
+                case ServerSettings.AutoSuspend:
+                    this.#features.autoSuspend.setValue(newValue);
+                    await waitForServerEvent(ServerEvents.AutoSuspendChanged);
+                    break;
+                case ServerSettings.AutoSuspendTimeout:
+                    this.#features.autoSuspendTimeout.setValue(newValue);
+                    await waitForServerEvent(ServerEvents.AutoSuspendChanged);
+                    break;
                 default:
                     break;
             }
@@ -579,6 +592,7 @@ class MarkerEditorConfig extends ConfigBase {
             ServerSettings.PreviewThumbnails,
             ServerSettings.FFmpegThumbnails,
             ServerSettings.WriteExtraData,
+            ServerSettings.AutoSuspend,
             ServerSettings.TrustProxy,
         ]) {
             await updateSingle(serverSetting);
@@ -673,6 +687,13 @@ class MarkerEditorConfig extends ConfigBase {
                 setting => isSslSetting(setting)
                     && !(setting in [ServerSettings.UseSsl, ServerSettings.PfxPassphrase])));
             newConfig[ServerSettings.PfxPassphrase] = pfxPass;
+        }
+
+        if (settingValue(newConfig[ServerSettings.AutoSuspend])) {
+            await updateSingle(ServerSettings.AutoSuspendTimeout);
+        } else {
+            // Just keep the value the same.
+            copyExisting(ServerSettings.AutoSuspendTimeout);
         }
 
         return newConfig;
@@ -851,6 +872,13 @@ class MarkerEditorConfig extends ConfigBase {
                 setting.setValid(true);
                 return setting.setDisabled(!setting.value() || !ExtraData.isLegacy,
                     `Extra data can only be written for PMS >=1.40.`);
+            case ServerSettings.AutoSuspend:
+                setting.setUnchanged(setting.value() === this.autoSuspend());
+                return setValidBoolean(setting);
+            case ServerSettings.AutoSuspendTimeout:
+                setting.setUnchanged(setting.value() === this.autoSuspendTimeout());
+                return setting.setValid(
+                    validAutoSuspendTimeout(setting.value()), `Auto-suspend timeout must be between 60 and 2,147,483 seconds.`);
             case ServerSettings.PathMappings:
                 return validatePathMappings(setting, this.pathMappings());
             default:

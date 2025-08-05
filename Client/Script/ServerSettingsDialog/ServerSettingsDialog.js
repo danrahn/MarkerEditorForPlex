@@ -1,4 +1,4 @@
-import { allServerSettings, ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
+import { allServerSettings, MaxAutoSuspendTimeout, ServerConfigState, ServerSettings, SslState } from '/Shared/ServerConfig.js';
 import { ConsoleLog, ContextualLog } from '/Shared/ConsoleLog.js';
 
 import { $, $$, $append, $br, $buttonInput, $div, $divHolder, $h, $hr, $i, $id, $label, $numberInput, $option,
@@ -49,6 +49,8 @@ const EleIds = {
     AuthSettings  : 'authSettingsHolder',
     /** @readonly Container for password change confirmations. */
     ChangePassHolder : 'changePasswordHolder',
+    /** @readonly Auto-suspend timeout setting. */
+    autoSuspendTimeout : 'autoSuspendTimeout',
     /** @readonly 'Apply' button */
     ApplyChanges : 'applyServerSettings',
 };
@@ -137,6 +139,7 @@ class ServerSettingsDialog {
                         this.#onPreviewThumbnailsChanged.bind(this)),
                     this.#buildBooleanSetting(ServerSettings.FFmpegThumbnails, config.preciseThumbnails),
                     this.#buildBooleanSetting(ServerSettings.WriteExtraData, config.writeExtraData),
+                    ...this.#buildAutoSuspendSettings(),
                     this.#buildPathMappings(),
                 ),
             ),
@@ -761,6 +764,113 @@ class ServerSettingsDialog {
     }
 
     /**
+     * Build the UI for the auto-suspend settings.
+     * This includes the auto-suspend toggle and the timeout input (whose visibility depends on whether it's enabled). */
+    #buildAutoSuspendSettings() {
+        const config = this.#initialValues;
+        const enabled = config.autoSuspend.value === null ? config.autoSuspend.defaultValue : config.autoSuspend.value;
+
+        const subAttributes = {
+            class : 'subSetting',
+        };
+
+        if (!enabled) {
+            subAttributes.disabled = 1;
+            subAttributes.class += ' disabledSetting';
+        }
+
+        return [
+            this.#buildBooleanSetting(ServerSettings.AutoSuspend, config.autoSuspend, this.#onAutoSuspendChanged.bind(this)),
+            $divHolder({ id : EleIds.autoSuspendTimeout, class : enabled ? '' : 'hidden' },
+                this.#buildStringSetting(ServerSettings.AutoSuspendTimeout,
+                    config.autoSuspendTimeout,
+                    this.#validateAutoSuspendTimeout.bind(this),
+                    { class : 'subSetting' })
+            ),
+        ];
+    }
+
+    /**
+     * Show/hide the auto-suspend timeout input based on whether auto-suspend is enabled. */
+    #onAutoSuspendChanged() {
+        const autoSuspendTimeout = $id(EleIds.autoSuspendTimeout);
+        const value = +settingInput(ServerSettings.AutoSuspend).value;
+        if (value) {
+            autoSuspendTimeout.classList.remove('hidden');
+            slideDown(autoSuspendTimeout, autoSuspendTimeout.getBoundingClientRect().height + 'px', 250);
+        } else {
+            slideUp(autoSuspendTimeout, 250, () => autoSuspendTimeout.classList.add('hidden'));
+        }
+    }
+
+    /**
+     * Adjust the auto-suspend timeout input background based on whether it's a valid value. */
+    #validateAutoSuspendTimeout() {
+        const input = settingInput(ServerSettings.AutoSuspendTimeout);
+        const timeout = this.#autoSuspendTimeoutValue();
+
+        // Timeout must fit within a signed 32-bit number
+        toggleClass(input, 'invalid', isNaN(timeout) || timeout < 60 || timeout > MaxAutoSuspendTimeout);
+        if (isNaN(timeout)) {
+            Tooltip.setTooltip(input, `Invalid time expression. Use a number or d/h/m/s notation.`);
+        } else if (timeout < 60) {
+            Tooltip.setTooltip(input, 'Auto-suspend timeout must be at least 60 seconds.');
+        } else if (timeout > MaxAutoSuspendTimeout) {
+            // Don't over-estimate
+            const days = (Math.floor(MaxAutoSuspendTimeout / 8640) / 10).toFixed(1);
+            Tooltip.setTooltip(input,
+                `Auto-suspend timeout cannot exceed ${MaxAutoSuspendTimeout} seconds (~${days} days).`);
+        } else {
+            Tooltip.removeTooltip(input);
+        }
+    }
+
+    /**
+     * Retrieve the underlying value of the auto-suspend timeout setting, in seconds.
+     * @returns {number|boolean} The auto-suspend timeout value in seconds, false if auto-suspend is disabled,
+     *                           and NaN if the value is invalid. */
+    #autoSuspendTimeoutValue() {
+        // false indicates auto-suspend is disabled
+        if (!+settingInput(ServerSettings.AutoSuspend).value) {
+            return false;
+        }
+
+        const input = settingInput(ServerSettings.AutoSuspendTimeout);
+        const value = input.value.replace(/ /g, '').toLowerCase();
+        if (/^\d+$/.test(value)) {
+            return +value;
+        }
+
+        // Otherwise look for d/h/m/s notation. Logically we should expect units in descending order, but it's
+        // simpler to not make that a limitation, and it's somewhat arbitrary anyway.
+        let totalSeconds = 0;
+        const matches = [...value.matchAll(/(?<num>\d+)(?<unit>[dhms])/g)];
+        if (matches.length === 0) {
+            return NaN;
+        }
+
+        for (const match of matches) {
+            const num = parseInt(match.groups.num, 10);
+            switch (match.groups.unit) {
+                case 'd':
+                    totalSeconds += num * 86400;
+                    break;
+                case 'h':
+                    totalSeconds += num * 3600;
+                    break;
+                case 'm':
+                    totalSeconds += num * 60;
+                    break;
+                case 's':
+                    totalSeconds += num;
+                    break;
+            }
+        }
+
+        return totalSeconds;
+    }
+
+    /**
      * Build the UI for the log level selection dropdown. */
     #buildLogLevelSetting() {
         const options = [];
@@ -1194,11 +1304,21 @@ class ServerSettingsDialog {
             case ServerSettings.PreviewThumbnails:
             case ServerSettings.FFmpegThumbnails:
             case ServerSettings.WriteExtraData:
+            case ServerSettings.AutoSuspend:
                 return this.#getCurrentBooleanSetting(setting);
             case ServerSettings.PathMappings:
                 return this.#pathMappings.getCurrentPathMappings();
             case ServerSettings.TrustProxy: // Not adjustable in the client, but still needed when sending the new config to the server.
                 return this.#initialValues[ServerSettings.TrustProxy];
+            case ServerSettings.AutoSuspendTimeout:
+            {
+                const autoSuspendTimeout = this.#autoSuspendTimeoutValue();
+                return {
+                    value : autoSuspendTimeout === false ? this.#initialValues.autoSuspendTimeout.value : autoSuspendTimeout,
+                    defaultValue : this.#initialValues.autoSuspendTimeout.defaultValue,
+                    isValid : true, // We'll validate this server-side
+                };
+            }
             default:
                 throw new Error(`Unexpected server setting "${setting}"`);
         }

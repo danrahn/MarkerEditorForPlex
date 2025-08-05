@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { isAuthSetting, isFeaturesSetting, isSslSetting, ServerSettings } from '../../Shared/ServerConfig.js';
+import { isAuthSetting, isFeaturesSetting, isSslSetting, MaxAutoSuspendTimeout, ServerSettings } from '../../Shared/ServerConfig.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
 /** @typedef {!import('./MarkerEditorConfig').RawConfig} RawConfig */
@@ -110,6 +110,14 @@ export function validPort(port) {
 export function validSessionTimeout(timeout) {
     const timeoutInt = parseInt(timeout);
     return !isNaN(timeoutInt) && timeoutInt > 59 && timeoutInt.toString() === timeout.toString();
+}
+
+/**
+ * Ensure the given auto-suspend timeout is a valid integer between 60 and MaxAutoSuspendTimeout seconds.
+ * @param {number} timeout */
+export function validAutoSuspendTimeout(timeout) {
+    const timeoutInt = parseInt(timeout);
+    return !isNaN(timeoutInt) && timeoutInt >= 60 && timeout <= MaxAutoSuspendTimeout && timeoutInt.toString() === timeout.toString();
 }
 
 /**

@@ -8,6 +8,9 @@ import { gzip } from 'zlib';
 
 import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 
+import { ServerEventHandler, ServerEvents, waitForServerEvent } from './ServerEvents.js';
+import { ServerState, SetServerState } from './ServerState.js';
+import { Config } from './Config/MarkerEditorConfig.js';
 import ServerError from './ServerError.js';
 
 
@@ -188,3 +191,32 @@ const looksLikeBinary = process.argv[1]?.includes('built.cjs');
 export function isBinary() {
     return looksLikeBinary;
 }
+
+/** @type {NodeJS.Timeout|null} */
+let autoSuspendTimeout = null;
+function autoSuspend() {
+    Log.info('Auto-suspending server due to inactivity');
+    waitForServerEvent(ServerEvents.AutoSuspend).then(() => {
+        Log.info('Server auto-suspend event completed, setting server state to AutoSuspended');
+        SetServerState(ServerState.AutoSuspended);
+    }).catch(err => {
+        Log.error('Error while waiting for AutoSuspend event:', err);
+    });
+}
+
+/**
+ * Resets the auto-suspend timeout after server activity is detected (if auto-suspend is enabled). */
+export function resetAutoSuspendTimeout() {
+    if (autoSuspendTimeout) {
+        clearTimeout(autoSuspendTimeout);
+    }
+
+    if (Config.autoSuspend()) {
+        autoSuspendTimeout = setTimeout(autoSuspend, Config.autoSuspendTimeout() * 1000);
+    }
+}
+
+ServerEventHandler.on(ServerEvents.AutoSuspendChanged, resolve => {
+    resetAutoSuspendTimeout();
+    resolve();
+});

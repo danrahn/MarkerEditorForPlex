@@ -60,6 +60,8 @@ export default class ConfigTest extends TestBase {
             previewThumbnails : this.#testValue(null, true),
             preciseThumbnails : this.#testValue(null, false),
             writeExtraData : this.#testValue(null, true),
+            autoSuspend : this.#testValue(null, false),
+            autoSuspendTimeout : this.#testValue(null, 300),
             pathMappings : this.#testValue(null, [])
         };
 
