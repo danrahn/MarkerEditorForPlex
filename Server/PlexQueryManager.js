@@ -740,8 +740,8 @@ ORDER BY e.\`index\` ASC;`;
         const markerQuery =
             `SELECT ${fields} WHERE taggings.tag_id=$tagId AND section_id=$sectionId ORDER BY taggings.time_offset ASC;`;
         const parameters = {
-            $tagId : this.#markerTagId,
-            $sectionId : sectionId,
+            tagId : this.#markerTagId,
+            sectionId : sectionId,
         };
 
         return this.#database.all(markerQuery, parameters);
@@ -1020,17 +1020,17 @@ ORDER BY e.\`index\` ASC;`;
 
         /** @type {DbDictParameters} */
         const parameters = {
-            $metadataId : episodeId,
-            $tagId : this.#markerTagId,
-            $index : newIndex,
-            $text : markerType,
-            $startMs : startMs,
-            $endMs : endMs,
-            $extraData : ExtraData.get(markerType, final),
+            metadataId : episodeId,
+            tagId : this.#markerTagId,
+            index : newIndex,
+            text : markerType,
+            startMs : startMs,
+            endMs : endMs,
+            extraData : ExtraData.get(markerType, final),
         };
 
         if (!addCurrentTimestamp) {
-            parameters.$createdAt = createdAt;
+            parameters.createdAt = createdAt;
         }
 
         transaction.addStatement(addQuery, parameters);

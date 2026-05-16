@@ -151,7 +151,7 @@ export class DatabaseImportExport {
         db.exec(ExportTable);
 
         /** @type {DbDictParameters} */
-        const params = { $tagId : PlexQueries.markerTagId() };
+        const params = { tagId : PlexQueries.markerTagId() };
         let query =
 `SELECT t.id AS id,
         t.text AS marker_type,
@@ -166,7 +166,7 @@ WHERE t.tag_id=$tagId`;
 
         if (sectionId !== -1) {
             query += ` AND m.library_section_id=$sectionId`;
-            params.$sectionId = sectionId;
+            params.sectionId = sectionId;
         }
 
         /** @type {BackupRow[]} */
@@ -203,13 +203,13 @@ WHERE t.tag_id=$tagId`;
                     (marker_type, start, end, modified_at, created_at, extra, guid) VALUES
                     ($markerType, $start, $end, $modifiedAt, $createdAt, $extra, $guid)`,
                 {
-                    $markerType : marker.marker_type,
-                    $start : marker.start,
-                    $end : marker.end,
-                    $modifiedAt : modifiedAt,
-                    $createdAt : marker.created_at,
-                    $extra : marker.extra,
-                    $guid : marker.guid,
+                    markerType : marker.marker_type,
+                    start : marker.start,
+                    end : marker.end,
+                    modifiedAt : modifiedAt,
+                    createdAt : marker.created_at,
+                    extra : marker.extra,
+                    guid : marker.guid,
                 });
         }
 
@@ -329,7 +329,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
 
         if (sectionId !== -1) {
             allMedia += ' AND base.library_section_id=$sectionId';
-            params.$sectionId = sectionId;
+            params.sectionId = sectionId;
         }
 
         allMedia += ';';

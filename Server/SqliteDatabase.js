@@ -156,7 +156,13 @@ class SqliteDatabase {
         }
 
         if (parameters !== null && typeof parameters === 'object') {
-            return fn(SqliteDatabase.#normalizeNamedParameters(parameters));
+            /** @type {DbDictParameters} */
+            const normalized = {};
+            for (const [parameter, value] of Object.entries(parameters)) {
+                normalized[parameter] = SqliteDatabase.#normalizeParameterValue(value);
+            }
+
+            return fn(normalized);
         }
 
         return fn(SqliteDatabase.#normalizeParameterValue(parameters));
@@ -172,26 +178,6 @@ class SqliteDatabase {
         }
 
         return value;
-    }
-
-    /**
-     * better-sqlite3 expects named parameter object keys without a prefix,
-     * while existing call sites generally provide '$name'.
-     * TODO: Fixup call sites and remove this normalization step.
-     * @param {DbDictParameters} parameters
-     * @returns {{ [parameter: string]: number|string|boolean|null }} */
-    static #normalizeNamedParameters(parameters) {
-        /** @type {{ [parameter: string]: number|string|null }} */
-        const normalized = {};
-        for (const [parameter, value] of Object.entries(parameters)) {
-            if (/^[$@:]/.test(parameter)) {
-                normalized[parameter.substring(1)] = SqliteDatabase.#normalizeParameterValue(value);
-            } else {
-                normalized[parameter] = SqliteDatabase.#normalizeParameterValue(value);
-            }
-        }
-
-        return normalized;
     }
 }
 
