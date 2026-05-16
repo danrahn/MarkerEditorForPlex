@@ -401,9 +401,9 @@ class TestBase {
         // Create a single TV, Movie, and Music library.
         const sectionInsert = `
         INSERT INTO library_sections (library_id, name, section_type, uuid)
-        VALUES                       (1,          "TV", 2,            "94319c6e-16c0-11ed-861d-0242ac120002"),
-                                     (2,      "Movies", 1,            "dbdf1795-0f3c-4a9b-956b-6f10edb6eccc"),
-                                     (3,       "Music", 8,            "27465ca2-2a7f-48b5-b5a2-d70da84f1cd9");`;
+        VALUES                       (1,          'TV', 2,            '94319c6e-16c0-11ed-861d-0242ac120002'),
+                                     (2,      'Movies', 1,            'dbdf1795-0f3c-4a9b-956b-6f10edb6eccc'),
+                                     (3,       'Music', 8,            '27465ca2-2a7f-48b5-b5a2-d70da84f1cd9');`;
 
         // TODO: Have a "base" set of shows/seasons/episodes that cover many scenarios, with the option to override
         //       what's added to accommodate any scenario. Also have a map that indicates what's available
@@ -412,33 +412,33 @@ class TestBase {
         // inserting id isn't necessary, just helpful for tracking
         const metadataInsert = `
         INSERT INTO metadata_items (id, library_section_id, metadata_type, parent_id, title,     \`index\`, guid)
-        VALUES                     (1,  1,                  2,             NULL,      "Show1",    1,        "0"),
-                                   (2,  1,                  3,             1,         "Season1",  1,        "1"),
-                                   (3,  1,                  4,             2,         "Episode1", 1,        "2"),
-                                   (4,  1,                  4,             2,         "Episode2", 2,        "3"),
-                                   (5,  1,                  4,             2,         "Episode3", 3,        "4"),
-                                   (6,  1,                  3,             1,         "Season2",  2,        "5"),
-                                   (7,  1,                  4,             6,         "Episode1", 1,        "6"),
-                                   (8,  1,                  2,             NULL,      "Show2",    1,        "7"),
-                                   (9,  1,                  3,             8,         "Season1",  1,        "8"),
-                                   (10, 1,                  4,             9,         "Episode1", 1,        "9"),
-                                   (11, 1,                  2,             NULL,      "Show3",    1,        "a"),
-                                   (12, 1,                  3,             11,        "Season1",  1,        "b"),
-                                   (13, 1,                  4,             12,        "Episode1", 1,        "c"),
-                                   (14, 1,                  4,             12,        "Episode2", 2,        "d"),
-                                   (15, 1,                  3,             11,        "Season2",  2,        "e"),
-                                   (16, 1,                  4,             15,        "Episode1", 1,        "f"),
-                                   (17, 1,                  2,             NULL,      "Show1_1",  1,        "0"),
-                                   (18, 1,                  3,             17,        "Season1",  1,        "1"),
-                                   (19, 1,                  4,             18,        "Episode1", 1,        "2"),
+        VALUES                     (1,  1,                  2,             NULL,      'Show1',    1,        '0'),
+                                   (2,  1,                  3,             1,         'Season1',  1,        '1'),
+                                   (3,  1,                  4,             2,         'Episode1', 1,        '2'),
+                                   (4,  1,                  4,             2,         'Episode2', 2,        '3'),
+                                   (5,  1,                  4,             2,         'Episode3', 3,        '4'),
+                                   (6,  1,                  3,             1,         'Season2',  2,        '5'),
+                                   (7,  1,                  4,             6,         'Episode1', 1,        '6'),
+                                   (8,  1,                  2,             NULL,      'Show2',    1,        '7'),
+                                   (9,  1,                  3,             8,         'Season1',  1,        '8'),
+                                   (10, 1,                  4,             9,         'Episode1', 1,        '9'),
+                                   (11, 1,                  2,             NULL,      'Show3',    1,        'a'),
+                                   (12, 1,                  3,             11,        'Season1',  1,        'b'),
+                                   (13, 1,                  4,             12,        'Episode1', 1,        'c'),
+                                   (14, 1,                  4,             12,        'Episode2', 2,        'd'),
+                                   (15, 1,                  3,             11,        'Season2',  2,        'e'),
+                                   (16, 1,                  4,             15,        'Episode1', 1,        'f'),
+                                   (17, 1,                  2,             NULL,      'Show1_1',  1,        '0'),
+                                   (18, 1,                  3,             17,        'Season1',  1,        '1'),
+                                   (19, 1,                  4,             18,        'Episode1', 1,        '2'),
 
-                                   (100,2,                  1,             NULL,      "Movie1",   1,        "00"),
-                                   (101,2,                  1,             NULL,      "Movie2",   1,        "01"),
-                                   (102,2,                  1,             NULL,      "Movie3",   1,        "02"),
+                                   (100,2,                  1,             NULL,      'Movie1',   1,        '00'),
+                                   (101,2,                  1,             NULL,      'Movie2',   1,        '01'),
+                                   (102,2,                  1,             NULL,      'Movie3',   1,        '02'),
 
-                                   (200,3,                  8,             NULL,      "Artist1",  1,        "03"),
-                                   (201,3,                  9,             200,       "Album1",   1,        "04"),
-                                   (202,3,                  10,            201,       "Track1",   1,        "05");`;
+                                   (200,3,                  8,             NULL,      'Artist1',  1,        '03'),
+                                   (201,3,                  9,             200,       'Album1',   1,        '04'),
+                                   (202,3,                  10,            201,       'Track1',   1,        '05');`;
 
         // Need existing media, but only the id, metadata_item_id and duration field (for now). id isn't
         // necessary, but makes it easier to correlate values at a glance.
@@ -495,13 +495,13 @@ class TestBase {
 
         const mediaPartInsert = `
         INSERT INTO media_parts (media_item_id, extra_data)
-        VALUES                  (1, "${tc(1)}"),
-                                (2, "${containerData}&${tc(2)}"),
-                                (3, "${containerData}&${tc(3)}&${daDate}"),
-                                (4, "${tc(4)}&${daDate}"),
-                                (5, "${tc(5)}"),
-                                (6, "${tc(6)}"),
-                                (7, "${tc(7)}");`;
+        VALUES                  (1, '${tc(1)}'),
+                                (2, '${containerData}&${tc(2)}'),
+                                (3, '${containerData}&${tc(3)}&${daDate}'),
+                                (4, '${tc(4)}&${daDate}'),
+                                (5, '${tc(5)}'),
+                                (6, '${tc(6)}'),
+                                (7, '${tc(7)}');`;
 
         return this.testDb.exec(
             tables +
@@ -532,7 +532,7 @@ class TestBase {
             INSERT INTO taggings
                 (metadata_item_id, tag_id, "index", text, time_offset, end_time_offset, created_at, extra_data)
             VALUES
-                (${metadataId}, 1, ${index}, "${markerType}", ${start}, ${end}, (strftime('%s','now')), "${ExtraData.get(markerType, isFinal)}");\n`;
+                (${metadataId}, 1, ${index}, '${markerType}', ${start}, ${end}, (strftime('%s','now')), '${ExtraData.get(markerType, isFinal)}');\n`;
 
 
         let insertString = '';
@@ -651,12 +651,12 @@ class TestBase {
         await this.testDb?.exec(`
             DELETE FROM taggings;
             VACUUM;
-            UPDATE sqlite_sequence SET seq=0 WHERE name="taggings";
+            UPDATE sqlite_sequence SET seq=0 WHERE name='taggings';
             ${this.defaultMarkers()}`);
         await this.backupDb?.exec(`
             DELETE FROM actions;
             VACUUM;
-            UPDATE sqlite_sequence SET seq=0 WHERE name="actions";`);
+            UPDATE sqlite_sequence SET seq=0 WHERE name='actions';`);
     }
 }
 

@@ -631,6 +631,61 @@ cd "\`dirname "$0"\`"
     writeFileSync(resolve(buildDir, '../dist/start.sh'), startSh, { mode : 0o755 });
 }
 
+function copyNativeModules(arch) {
+    const nativeModules = [{
+        name : 'better-sqlite3',
+        binary : 'better_sqlite3.node',
+    }];
+
+    for (const nativeModule of nativeModules) {
+        const nativeModuleName = nativeModule.name;
+        const nativeBinaryName = nativeModule.binary;
+        let nativeModuleVersion = dependencies[nativeModuleName];
+        if (!nativeModuleVersion) {
+            throw new Error(`Unable to determine ${nativeModuleName} version from package.json dependencies.`);
+        }
+
+        if (/^[~^]/.test(nativeModuleVersion)) {
+            // Always use the exact version listed
+            nativeModuleVersion = nativeModuleVersion.substring(1);
+        }
+
+        const cacheDir = resolve(buildDir, '../dist/archCache');
+        if (!existsSync(cacheDir)) {
+            mkdirSync(cacheDir);
+        }
+
+        mkdirSync(resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release`), { recursive : true });
+        if (process.arch === arch) {
+            // destination arch is the same as the system arch. Just copy the existing node_modules dir
+
+            copyFileSync(
+                resolve(buildDir, `../node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`),
+                resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`));
+        } else {
+            const cacheVersion = join(cacheDir, `${nativeModuleName}-${nativeModuleVersion}-${arch}`);
+
+            // Cross-compilation (e.g. --dest-cpu=ia32 on a 64-bit OS).
+            // Instead of creating the infra to support downloading and un-taring native module
+            // binaries, it's required to manually build the dist/archCache structure using self/pre-built
+            // binaries, using the naming outlined above in cacheVersion.
+            if (!existsSync(cacheVersion) || !statSync(cacheVersion).isDirectory()) {
+                throw new Error(`Unable to copy native module ${nativeModuleName}, archCache folder "${cacheVersion}" does not exist.`);
+            }
+
+            copyFileSync(
+                join(cacheVersion, nativeBinaryName),
+                resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`)
+            );
+        }
+
+        copyFileSync(
+            resolve(buildDir, `../node_modules/${nativeModuleName}/package.json`),
+            resolve(buildDir, `../dist/node_modules/${nativeModuleName}/package.json`)
+        );
+    }
+}
+
 /**
  * Full pipeline to create MarkerEditor. */
 async function build() {
@@ -672,48 +727,8 @@ async function build() {
     await toExe();
 
     msg('Copying native modules');
-
-    let sqlite3Version = dependencies.sqlite3;
-    if (/^[^~]/.test(sqlite3Version)) {
-        // Always use the exact version listed
-        sqlite3Version = sqlite3Version.substring(1);
-    }
-
-    const cacheDir = resolve(buildDir, '../dist/archCache');
-    if (!existsSync(cacheDir)) {
-        mkdirSync(cacheDir);
-    }
-
     const arch = getArch();
-
-    mkdirSync(resolve(buildDir, '../dist/node_modules/sqlite3/build/Release'), { recursive : true });
-    if (process.arch === arch) {
-        // destination arch is the same as the system arch. Just copy the existing node_modules dir
-
-        copyFileSync(
-            resolve(buildDir, '../node_modules/sqlite3/build/Release/node_sqlite3.node'),
-            resolve(buildDir, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node'));
-    } else {
-        const cacheVersion = join(cacheDir, `sqlite3-${sqlite3Version}-${arch}`);
-
-        // Cross-compilation (e.g. --dest-cpu=ia32 on a 64-bit OS).
-        // Instead of creating the infra to support downloading and un-taring sqlite3
-        // binaries, it's required to manually build the dist/archCache structure using self/pre-built
-        // binaries, using the naming outlined above in cacheVersion.
-        if (!existsSync(cacheVersion) || !statSync(cacheVersion).isDirectory()) {
-            throw new Error(`Unable to copy native sqlite3 module, archCache folder "${cacheVersion}" does not exist.`);
-        }
-
-        copyFileSync(
-            join(cacheVersion, 'node_sqlite3.node'),
-            resolve(buildDir, '../dist/node_modules/sqlite3/build/Release/node_sqlite3.node')
-        );
-    }
-
-    copyFileSync(
-        resolve(buildDir, '../node_modules/sqlite3/package.json'),
-        resolve(buildDir, '../dist/node_modules/sqlite3/package.json')
-    );
+    copyNativeModules(arch);
 
     // nexe doesn't support ESM modules either, like `read` and `open`
     cpSync(

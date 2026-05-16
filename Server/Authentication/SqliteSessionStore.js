@@ -27,9 +27,10 @@ const doNothing = () => {};
 const ExpireCheckDefaultInterval = 600_000;
 
 /**
- * A simple sqlite3 session store. Based on better-sqlite3-session-store, but I don't want
- * to have dependencies on multiple sqlite3 implementations and I'm too lazy to convert
- * existing usage to better-sqlite3.
+ * A simple sqlite-backed session store.
+ *
+ * This is loosely based on better-sqlite3-session-store, but was written before
+ * moving to better-sqlite3, so is kept around for now.
  */
 export default class Sqlite3Store extends Store {
     /** @type {SessionStoreOptions} */

@@ -31,10 +31,10 @@ npm run build [arch] [pack] [version [VERSION]] [verbose]
 
 ## Cross-Compiling
 
-Cross-compiling (e.g. building an ARM64 package from an AMD64 machine) is possible, but does require some manual setup. Because this project relies on native modules (sqlite3), those modules must also target the correct architecture, in addition to building the node binary itself that target. To get around this, the compiled `*.node` file should be placed in an `archCache` directory inside of `dist`, following the structure, `dist/archCache/{module}-{version}-{arch}/node_{module}.node`, e.g. `dist/archCache/sqlite3-5.1.7-arm64/node_sqlite3.node`. There are several ways to potentially obtain the right `*.node` files:
+Cross-compiling (e.g. building an ARM64 package from an AMD64 machine) is possible, but does require some manual setup. Because this project relies on native modules (better-sqlite3), those modules must also target the correct architecture, in addition to building the node binary itself that target. To get around this, the compiled `*.node` file should be placed in an `archCache` directory inside of `dist`, following the structure, `dist/archCache/{module}-{version}-{arch}/{module_binary}.node`, e.g. `dist/archCache/better-sqlite3-12.10.0-arm64/better_sqlite3.node`. There are several ways to potentially obtain the right `*.node` files:
 
 1. Pre-built binaries from the module maintainer.
 2. Install the module on a system running the target architecture, and copying the binary to your build system.
 3. Explicitly install the "wrong" version on the current system, and copy that output to the `archCache` folder.
 
-It's likely possible to make things work without this manual setup by reinstalling sqlite3 using different `--target_arch` flags and `--build-from-source`, and copying that build output, but the above process is good enough for me, so probably won't change any time soon.
+It's likely possible to make things work without this manual setup by reinstalling better-sqlite3 using different `--target_arch` flags and `--build-from-source`, and copying that build output, but the above process is good enough for me, so probably won't change any time soon.

@@ -286,7 +286,7 @@ const SchemaUpgrades = [
 	UPDATE actions SET user_created=1 WHERE substr(modified_at, length(modified_at))='*';
     ${ciine('markertype', 'marker_type')};
     PRAGMA writable_schema = TRUE;
-    UPDATE sqlite_schema SET sql = replace(replace(replace(sql, 'modified_at  VARCHAR(255)', 'modified_at  INTEGER'), 'DATETIME', 'INTEGER'), 'CURRENT_TIMESTAMP', "(strftime('%s', 'now'))") WHERE name='actions' AND type='table';
+    UPDATE sqlite_schema SET sql = replace(replace(replace(sql, 'modified_at  VARCHAR(255)', 'modified_at  INTEGER'), 'DATETIME', 'INTEGER'), 'CURRENT_TIMESTAMP', '(strftime(''%s'', ''now''))') WHERE name='actions' AND type='table';
     PRAGMA writable_schema = RESET;
     UPDATE actions SET modified_at = iif(typeof(modified_at) in ('datetime', 'text'), CAST(strftime('%s', modified_at) as INTEGER), modified_at);
     UPDATE actions SET created_at  = iif(typeof(created_at)  in ('datetime', 'text'), CAST(strftime('%s', created_at)  as INTEGER), created_at );

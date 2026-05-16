@@ -1022,7 +1022,7 @@ ORDER BY e.\`index\` ASC;`;
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `($metadataId, $tagId, $index, $text, $startMs, $endMs, "", $createdAt, $extraData);`;
+                `($metadataId, $tagId, $index, $text, $startMs, $endMs, '', $createdAt, $extraData);`;
 
         /** @type {DbDictParameters} */
         const parameters = {
@@ -1884,7 +1884,7 @@ WHERE metadata_item_id in (SELECT id FROM metadata_items WHERE library_section_i
         const hackCountQuery = `SELECT COUNT(*) AS count FROM taggings WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
         const count = (await this.#database.get(hackCountQuery, [this.#markerTagId])).count;
         Log.info(`removeThumbUrlHack - Removing ${count} hacked thumb_url entries.`);
-        const query = `UPDATE taggings SET thumb_url="" WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
+        const query = `UPDATE taggings SET thumb_url='' WHERE tag_id=? AND LENGTH(thumb_url) > 0;`;
         await this.#database.run(query, [this.#markerTagId]);
     }
 

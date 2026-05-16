@@ -1,35 +1,32 @@
-import Sqlite3 from 'sqlite3';
+import BetterSqlite3 from 'better-sqlite3';
 
 import ServerError from './ServerError.js';
 
 /**
+ * @typedef {number|string|boolean|null} DbScalarParameter
  * @typedef {(number|string|boolean|null)[]} DbArrayParameters
  * @typedef {{ _asRaw: Set<string>?, [parameter: string]: number|string|boolean|null }} DbDictParameters
- * @typedef {DbArrayParameters|DbDictParameters} DbQueryParameters
+ * @typedef {DbArrayParameters|DbDictParameters|DbScalarParameter} DbQueryParameters
  */
 
-/** @typedef {Sqlite3.Database} Database */
+/** @typedef {import('better-sqlite3').Database} Database */
 
 /**
- * Create and return a connection to an Sqlite3 database.
+ * Create and return a connection to an sqlite database.
  * @param {string} path The path to the database.
  * @param {boolean} allowCreate Determines whether we're okay with creating a new database if it doesn't exist.
- * @returns {Promise<SqliteDatabase>} */
-function OpenSqlite3Database(path, allowCreate) {
-    const openFlags = Sqlite3.OPEN_READWRITE | (allowCreate ? Sqlite3.OPEN_CREATE : 0);
-    return new Promise((resolve, _) => {
-        const db = new Sqlite3.Database(path, openFlags, (err) => {
-            if (err) { throw new ServerError(err.message, 500); }
-
-            resolve(db);
-        });
-    });
+ * @returns {Database} */
+function OpenSqliteDatabase(path, allowCreate) {
+    try {
+        return new BetterSqlite3(path, { fileMustExist : !allowCreate });
+    } catch (err) {
+        throw ServerError.FromDbError(err);
+    }
 }
 
 /**
- * A wrapper around a Sqlite3 database that allows for async/await interaction,
- * something that can't be done with the base database as it's async
- * implementation is callback-based.
+ * A wrapper around an sqlite database that preserves an async/await API
+ * for callers while using a synchronous driver internally.
  */
 class SqliteDatabase {
     /**
@@ -37,8 +34,8 @@ class SqliteDatabase {
      * @param {string} path The path to the database.
      * @param {boolean} allowCreate Determines whether we're okay with create a new database if it doesn't exist.
      * @returns {Promise<SqliteDatabase>} */
-    static async OpenDatabase(path, allowCreate) {
-        return new SqliteDatabase(await OpenSqlite3Database(path, allowCreate));
+    static OpenDatabase(path, allowCreate) {
+        return Promise.resolve(new SqliteDatabase(OpenSqliteDatabase(path, allowCreate)));
     }
 
     /** @type {Database} */
@@ -57,7 +54,7 @@ class SqliteDatabase {
      * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<void>} */
     run(query, parameters=[]) {
-        return this.#action(this.#db.run.bind(this.#db), query, parameters);
+        return this.#action(query, parameters, 'run');
     }
 
     /**
@@ -66,7 +63,7 @@ class SqliteDatabase {
      * @param {DbQueryParameters} [parameters=[]]
      * @returns {Promise<any>} */
     get(query, parameters=[]) {
-        return this.#action(this.#db.get.bind(this.#db), query, parameters);
+        return this.#action(query, parameters, 'get');
     }
 
     /**
@@ -75,7 +72,7 @@ class SqliteDatabase {
      * @param {DbQueryParameters} parameters
      * @returns {Promise<any[]>} */
     all(query, parameters=[]) {
-        return this.#action(this.#db.all.bind(this.#db), query, parameters);
+        return this.#action(query, parameters, 'all');
     }
 
     /**
@@ -83,40 +80,88 @@ class SqliteDatabase {
      * @param {string} query
      * @returns {Promise<undefined>} */
     exec(query) {
-        return this.#action(this.#db.exec.bind(this.#db), query, null /*parameters*/);
+        return this.#action(query, null /*parameters*/, 'exec');
     }
 
     /** Closes the underlying database connection. */
     close() {
-        return new Promise((resolve, _) => {
-            this.#db.close((err) => {
-                if (err) { throw ServerError.FromDbError(err); }
+        try {
+            this.#db.close();
+            return Promise.resolve();
+        } catch (err) {
+            return Promise.reject(ServerError.FromDbError(err));
+        }
+    }
 
-                resolve();
-            });
+    /**
+     * Perform a database action and return a Promise, which was helpful when we were
+     * using the callback-based node-sqlite, but now is just to preserve promise semantics for callers.
+     * TODO: Consider removing the promise wrapper, since better-sqlite3 is synchronous and this just adds overhead.
+     * @param {string} query
+     * @param {DbQueryParameters|null} parameters
+     * @param {'run'|'get'|'all'|'exec'} action
+     * @returns {Promise<any>} */
+    #action(query, parameters, action) {
+        return new Promise((resolve, reject) => {
+            try {
+                if (action === 'exec') {
+                    this.#db.exec(query);
+                    resolve(undefined);
+                    return;
+                }
+
+                const statement = this.#db.prepare(query);
+                const execute = statement[action].bind(statement);
+                const result = this.#invoke(execute, parameters);
+                resolve(action === 'run' ? undefined : result);
+            } catch (err) {
+                reject(ServerError.FromDbError(err));
+            }
         });
     }
 
     /**
-     * Perform a database action and return a Promise
-     * instead of dealing with callbacks.
-     * @param {(sql : string, ...args : any) => Database} fn
-     * @param {string} query
-     * @param {DbQueryParameters|null} parameters
-     * @returns {Promise<any>} */
-    #action(fn, query, parameters=null) {
-        return new Promise((resolve, reject) => {
-            const callback = (err, result) => {
-                // Note: don't throw here. That may result in crashing the entire application since the standard
-                // try { await X() } catch (ex) {} won't catch it. Rejecting this with the error ensures our
-                // explicit catch handlers see this, and it's not bubbled up to the uncaught exception filter.
-                if (err) { reject(ServerError.FromDbError(err)); return; }
+     * Invoke the given statement with normalized parameter input.
+     * @param {(...args: any[]) => any} fn
+     * @param {DbQueryParameters|null} parameters */
+    #invoke(fn, parameters) {
+        if (parameters === null || parameters === undefined) {
+            return fn();
+        }
 
-                resolve(result);
-            };
+        if (parameters instanceof Array) {
+            return fn(...parameters);
+        }
 
-            parameters === null ? fn(query, callback) : fn(query, parameters, callback);
-        });
+        if (typeof parameters === 'object') {
+            return fn(SqliteDatabase.#normalizeNamedParameters(parameters));
+        }
+
+        return fn(parameters);
+    }
+
+    /**
+     * better-sqlite3 expects named parameter object keys without a prefix,
+     * while existing call sites generally provide '$name'.
+     * TODO: Fixup call sites and remove this normalization step.
+     * @param {DbDictParameters} parameters
+     * @returns {{ [parameter: string]: number|string|boolean|null }} */
+    static #normalizeNamedParameters(parameters) {
+        /** @type {{ [parameter: string]: number|string|boolean|null }} */
+        const normalized = {};
+        for (const [parameter, value] of Object.entries(parameters)) {
+            if (parameter === '_asRaw') {
+                continue;
+            }
+
+            if (/^[$@:]/.test(parameter)) {
+                normalized[parameter.substring(1)] = value;
+            } else {
+                normalized[parameter] = value;
+            }
+        }
+
+        return normalized;
     }
 
     /**
@@ -154,7 +199,7 @@ class SqliteDatabase {
 
             newQuery += query.substring(startSearch, idx);
             if (typeof parameter === 'string') {
-                newQuery += `"${parameter.replaceAll('"', '""')}"`;
+                newQuery += `'${parameter.replaceAll("'", "''")}'`;
             } else if (typeof parameter === 'number') {
                 newQuery += parameter.toString();
             } else if (typeof parameter === 'boolean') {
@@ -204,7 +249,7 @@ class SqliteDatabase {
             let escapedValue = value;
             if (!asRaw.has(parameter)) {
                 if (typeof value === 'string') {
-                    escapedValue = `"${value.replaceAll('"', '""')}"`;
+                    escapedValue = `'${value.replaceAll("'", "''")}'`;
                 } else if (typeof value === 'number') {
                     escapedValue = value.toString();
                 } else if (typeof value === 'boolean') {
