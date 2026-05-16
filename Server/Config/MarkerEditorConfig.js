@@ -72,18 +72,28 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * Create the singleton config instance.
      * @param {*} testData
-     * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker. */
-    static async Create(testData, dataRoot) {
-        if (Instance) {
+     * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker.
+     * @param {boolean} recreateOkay Whether to allow recreating the instance if it already exists. */
+    static async Create(testData, dataRoot, recreateOkay=false) {
+        if (Instance && !recreateOkay) {
+            // We'll still recreate it, but should be investigated if this warning shows up.
             Log.warn(`Singleton MarkerEditorConfig already exists, we shouldn't be creating it again!`);
         }
 
-        Instance = new MarkerEditorConfig(testData, dataRoot);
-        await Instance.#init();
+        // Since creating the instance is async, there are some potential race conditions where we're
+        // resuming the server and web requests come in that require config settings that might not have
+        // been parsed yet. Attempt to mitigate this by setting up the new instance completely before
+        // destroying and replacing the old one.
+        const newConfig = new MarkerEditorConfig(testData, dataRoot);
+        await newConfig.#init();
+        MarkerEditorConfig.Close();
+        MarkerEditorConfig.#SetConfig(newConfig);
         return Instance;
     }
 
     static Close() { Instance = null; }
+
+    static #SetConfig(config) { Instance = config; }
 
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
@@ -203,7 +213,6 @@ class MarkerEditorConfig extends ConfigBase {
 
         this.#baseUrl = this.#getOrDefault('baseUrl', '/');
         this.#fixupBaseUrl(this.#baseUrl, false /*setUnchanged*/);
-        await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
         this.#ssl = new SslConfig(this.#Base.json.ssl);
         this.#auth = new AuthenticationConfig(this.#Base.json.authentication);
         this.#features = new PlexFeatures(this.#Base.json.features);
@@ -227,6 +236,9 @@ class MarkerEditorConfig extends ConfigBase {
         } else {
             Log.warn(`Unable to find package.json, can't check for new version.`);
         }
+
+        // Do anything we need to await for last, after we've done all synchronous validation.
+        await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
 
         // Always override configState if we didn't have a config file.
         if (!configExists) {
