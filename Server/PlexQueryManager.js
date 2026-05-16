@@ -327,7 +327,7 @@ FROM taggings
         try {
             const db = await SqliteDatabase.OpenDatabase(databasePath, false /*fAllowCreate*/);
             const row = await db.get('SELECT id FROM tags WHERE tag_type=12;');
-            db.close();
+            await db.close();
             if (!row) {
                 return false;
             }
@@ -1012,17 +1012,14 @@ ORDER BY e.\`index\` ASC;`;
             throw new ServerError(`Unable to add one or more markers, invalid marker type given (${markerType})`, 500);
         }
 
-        const asRaw = new Set();
-        const created_at = isNaN(createdAt) ? `(strftime('%s','now'))` : createdAt;
-        if (isNaN(createdAt)) {
-            asRaw.add('$createdAt');
-        }
+        const addCurrentTimestamp = isNaN(createdAt);
+        const createdAtReal = addCurrentTimestamp ? `(strftime('%s','now'))` : `$createdAt`;
 
         const addQuery =
             'INSERT INTO taggings ' +
                 '(metadata_item_id, tag_id, `index`, text, time_offset, end_time_offset, thumb_url, created_at, extra_data) ' +
             'VALUES ' +
-                `($metadataId, $tagId, $index, $text, $startMs, $endMs, '', $createdAt, $extraData);`;
+                `($metadataId, $tagId, $index, $text, $startMs, $endMs, '', ${createdAtReal}, $extraData);`;
 
         /** @type {DbDictParameters} */
         const parameters = {
@@ -1032,10 +1029,12 @@ ORDER BY e.\`index\` ASC;`;
             $text : markerType,
             $startMs : startMs,
             $endMs : endMs,
-            $createdAt : created_at,
             $extraData : ExtraData.get(markerType, final),
-            _asRaw : asRaw,
         };
+
+        if (!addCurrentTimestamp) {
+            parameters.$createdAt = createdAt;
+        }
 
         transaction.addStatement(addQuery, parameters);
     }
@@ -1303,7 +1302,7 @@ ORDER BY e.\`index\` ASC;`;
         Log.tmi('Built full restore query:\n' + transaction.toString());
 
         try {
-            transaction.exec();
+            await transaction.exec();
         } catch (err) {
             throw ServerError.FromDbError(err);
         }

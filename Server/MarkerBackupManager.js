@@ -644,28 +644,21 @@ class MarkerBackupManager {
      * @param {{start: number|null, end: number|null}?} oldTimings
      * @param {MarkerAction?} restoresAction */
     #recordOp(transaction, markerOp, marker, oldTimings=null, restoresAction=null) {
-        const query = `INSERT INTO actions (
-op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at,
-extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES (
-$op, $id, $pid, $seasonId, $showId, $sectionId, $start, $end, $oldStart, $oldEnd, $modifiedAt, $createdAt,
-$extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCreated);`;
-
         let modifiedAt;
         let createdAt;
-        const asRaw = new Set();
+        let modifiedAtValue = '$modifiedAt';
+        let createdAtValue = '$createdAt';
         oldTimings ||= { start : null, end : null };
         const nowTime = `(strftime('%s', 'now'))`;
         switch (markerOp) {
             case MarkerOp.Add:
                 modifiedAt = null;
-                createdAt = nowTime;
-                asRaw.add('$createdAt');
+                createdAtValue = nowTime;
                 break;
             case MarkerOp.Edit:
             case MarkerOp.Delete:
-                modifiedAt = nowTime;
+                modifiedAtValue = nowTime;
                 createdAt = marker.createDate;
-                asRaw.add('$modifiedAt');
                 break;
             case MarkerOp.Restore:
                 modifiedAt = restoresAction?.modified_at || null;
@@ -703,6 +696,12 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             }
         }
 
+        const query = `INSERT INTO actions (
+op, marker_id, parent_id, season_id, show_id, section_id, start, end, old_start, old_end, modified_at, created_at,
+extra_data, section_uuid, restores_id, parent_guid, marker_type, final, user_created) VALUES (
+$op, $id, $pid, $seasonId, $showId, $sectionId, $start, $end, $oldStart, $oldEnd, ${modifiedAtValue}, ${createdAtValue},
+$extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCreated);`;
+
         /** @type {DbDictParameters} */
         const parameters = {
             $op : markerOp,
@@ -715,8 +714,6 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             $end : marker.end,
             $oldStart : oldTimings.start,
             $oldEnd : oldTimings.end,
-            $modifiedAt : modifiedAt,
-            $createdAt : createdAt,
             $extraData : ExtraData.get(marker.markerType, marker.isFinal),
             $sectionUUID : this.#uuids[marker.sectionId],
             $restoresId : restoresAction?.marker_id ?? null,
@@ -724,8 +721,15 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
             $markerType : marker.markerType,
             $final : marker.isFinal ? 1 : 0,
             $userCreated : marker.createdByUser,
-            _asRaw : asRaw,
         };
+
+        if (modifiedAtValue === '$modifiedAt') {
+            parameters.$modifiedAt = modifiedAt;
+        }
+
+        if (createdAtValue === '$createdAt') {
+            parameters.$createdAt = createdAt;
+        }
 
         transaction.addStatement(query, parameters);
     }

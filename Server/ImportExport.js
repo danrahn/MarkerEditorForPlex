@@ -217,7 +217,7 @@ WHERE t.tag_id=$tagId`;
         await txn.exec();
 
         // All items have been added, close the db for writing and pipe it to the user.
-        db.close();
+        await db.close();
 
         const stats = statSync(backupFullPath);
         if (!stats.isFile()) {
@@ -305,7 +305,7 @@ WHERE t.tag_id=$tagId`;
         // transform them into something that bulkRestore can reason with.
         /** @type {BackupRow[]} */
         const backupMarkers = await db.all('SELECT * FROM markers;');
-        db.close(); // We don't need this once we've read all rows.
+        await db.close(); // We don't need this once we've read all rows.
 
         /** @type {{[guid: string]: BackupRow[]}} */
         const backupGuidMap = {};
