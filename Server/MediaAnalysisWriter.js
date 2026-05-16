@@ -110,24 +110,22 @@ export class MediaAnalysisWriter {
         this.#db = db;
     }
 
-    /** @type {Promise<[boolean, boolean, boolean]>} */
-    static #validating;
+    /** @type {boolean} */
+    static #validated = false;
 
     /**
      * Checks if the database has the expected data for intros, credits, and commercials.
      * @param {SqliteDatabase} db */
-    static async hasExpectedData(db) {
+    static hasExpectedData(db) {
         // Only validate once per session.
-        if (!MediaAnalysisWriter.#validating) {
-            MediaAnalysisWriter.#validating = Promise.all([
-                MediaAnalysisWriter.#validateMarkerType(db, 'intros', AttributeKeys.Intro, 'pv:intros":"{'),
-                MediaAnalysisWriter.#validateMarkerType(db, 'credits', AttributeKeys.Credits, 'pv:credits":"{'),
-                MediaAnalysisWriter.#validateMarkerType(db, 'commercials', AttributeKeys.Ads, 'pv:commercials":"{')
-            ]);
+        if (MediaAnalysisWriter.#validated) {
+            return;
         }
 
-        const result = await MediaAnalysisWriter.#validating;
-        return result.every(r => r);
+        MediaAnalysisWriter.#validated = true;
+        return MediaAnalysisWriter.#validateMarkerType(db, 'intros', AttributeKeys.Intro, 'pv:intros":"{')
+            && MediaAnalysisWriter.#validateMarkerType(db, 'credits', AttributeKeys.Credits, 'pv:credits":"{')
+            && MediaAnalysisWriter.#validateMarkerType(db, 'commercials', AttributeKeys.Ads, 'pv:commercials":"{');
     }
 
     /**
@@ -138,9 +136,9 @@ export class MediaAnalysisWriter {
      * @param {string} markerType
      * @param {string} attributeKey
      * @param {string} likeClause */
-    static async #validateMarkerType(db, markerType, attributeKey, likeClause) {
+    static #validateMarkerType(db, markerType, attributeKey, likeClause) {
         const query = `SELECT extra_data FROM media_parts WHERE extra_data LIKE '%${likeClause}%' ORDER BY RANDOM() LIMIT 10`;
-        const markerTypeData = await db.all(query);
+        const markerTypeData = db.all(query);
         if (markerTypeData.length === 0) {
             Log.verbose(`No ${markerType} found, cannot validate intro extra_data`);
             return true;
@@ -207,18 +205,18 @@ export class MediaAnalysisWriter {
 
     /**
      * @param {RawMarkerData[]} markers */
-    async getExtraData(markers) {
-        const data = await this.#getExtraData();
-        /** @type {Promise<DbQuery>[]} */
-        const promises = [];
+    getExtraData(markers) {
+        const data = this.#getExtraData();
+        /** @type {DbQuery[]} */
+        const queries = [];
         for (const extraData of data) {
-            promises.push(this.#getUpdateStatement(extraData.extra_data, extraData.part_id, markers));
+            queries.push(this.#getUpdateStatement(extraData.extra_data, extraData.part_id, markers));
         }
 
-        return Promise.all(promises);
+        return queries;
     }
 
-    async #getExtraData() {
+    #getExtraData() {
 
         const query = `
 SELECT media_parts.extra_data AS extra_data, b.id AS part_id FROM media_parts
@@ -226,7 +224,7 @@ INNER JOIN media_items ON media_parts.media_item_id=media_items.id
 INNER JOIN metadata_items b ON media_items.metadata_item_id=b.id WHERE b.id=?;`;
 
         /** @type {{ extra_data: string, part_id: number }} */
-        const data = (await this.#db.all(query, [this.#metadataId]));
+        const data = (this.#db.all(query, [this.#metadataId]));
         if (!data) {
             throw new ServerError(`No underlying media items found for metadata id ${this.#metadataId}`, 400);
         }

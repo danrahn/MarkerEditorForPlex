@@ -46,21 +46,21 @@ export default class Sqlite3Store extends Store {
     /**
      * Retrieve a list of ~recent session secrets, used to validate sessions that were created
      * outside of the current process.
-     * @returns {Promise<string[]>} */
-    static async oldSecrets(https) {
+     * @returns {string[]} */
+    static oldSecrets(https) {
         // Only grab secrets from the last 7 days (and opportunistically prune them). This will
         // invalidate older sessions if the server has restarted, but that's not the end of the world.
         const oneWeekAgo = Math.floor(new Date().getTime() / 1000) - (86_400 * 7);
-        await AuthDB.db().run(`DELETE FROM ${SessionSecretTableName} WHERE created_at < ?;`, [oneWeekAgo]);
-        return (await AuthDB.db().all(`SELECT key FROM ${SessionSecretTableName} WHERE https=?;`, https ? 1 : 0)).map(secret => secret.key);
+        AuthDB.db().run(`DELETE FROM ${SessionSecretTableName} WHERE created_at < ?;`, [oneWeekAgo]);
+        return AuthDB.db().all(`SELECT key FROM ${SessionSecretTableName} WHERE https=?;`, https ? 1 : 0).map(secret => secret.key);
     }
 
     /**
      * Sets this process's secret that will be used to validate new sessions.
      * @param {string} newSecret
      * @param {string} https Whether this secret is associated with an HTTPS connection. */
-    static async setNewSecret(newSecret, https) {
-        await AuthDB.db().run(`INSERT INTO ${SessionSecretTableName} (key, https) VALUES (?, ?)`, [newSecret, https ? 1 : 0]);
+    static setNewSecret(newSecret, https) {
+        AuthDB.db().run(`INSERT INTO ${SessionSecretTableName} (key, https) VALUES (?, ?)`, [newSecret, https ? 1 : 0]);
     }
 
     /**
@@ -86,11 +86,11 @@ export default class Sqlite3Store extends Store {
      * @param {string} sessionId
      * @param {Session} session
      * @param {EmptyStoreCallback} callback */
-    async set(sessionId, session, callback=doNothing) {
+    set(sessionId, session, callback=doNothing) {
         const maxAge = session.cookie?.maxAge || this.#expire(); // One day default
         const expireTime = Math.floor(new Date(new Date().getTime() + maxAge).getTime() / 1000);
         try {
-            await this.#db().run(`INSERT OR REPLACE INTO sessions VALUES(?, ?, ?)`, [sessionId, JSON.stringify(session), expireTime ]);
+            this.#db().run(`INSERT OR REPLACE INTO sessions VALUES(?, ?, ?)`, [sessionId, JSON.stringify(session), expireTime]);
         } catch (ex) {
             callback(ex);
             return;
@@ -103,10 +103,10 @@ export default class Sqlite3Store extends Store {
      * Retrieve an existing session
      * @param {string} sessionId
      * @param {(err?: any, session?: SessionData| null) => null} callback */
-    async get(sessionId, callback=doNothing) {
+    get(sessionId, callback=doNothing) {
         let session;
         try {
-            session = await this.#db().get(
+            session = this.#db().get(
                 `SELECT session FROM sessions WHERE session_id=? AND strftime('%s', 'now') < expire`, [sessionId]);
         } catch (ex) {
             callback(ex);
@@ -119,9 +119,9 @@ export default class Sqlite3Store extends Store {
      * Destroy the session with the given sessionId
      * @param {string} sessionId
      * @param {EmptyStoreCallback} callback */
-    async destroy(sessionId, callback=doNothing) {
+    destroy(sessionId, callback=doNothing) {
         try {
-            await this.#db().run(`DELETE FROM sessions WHERE session_id=?`, [sessionId]);
+            this.#db().run(`DELETE FROM sessions WHERE session_id=?`, [sessionId]);
         } catch (ex) {
             callback(ex);
             return;
@@ -133,10 +133,10 @@ export default class Sqlite3Store extends Store {
     /**
      * Retrieve all sessions, valid or otherwise.
      * @param {(err?: any, obj?: SessionData[] | { [sid: string]: SessionData} | null) => void} callback */
-    async all(callback=doNothing) {
+    all(callback=doNothing) {
         let sessions;
         try {
-            sessions = await this.#db().all(`SELECT * from sessions`);
+            sessions = this.#db().all(`SELECT * from sessions`);
         } catch (ex) {
             callback(ex);
             return;
@@ -148,10 +148,10 @@ export default class Sqlite3Store extends Store {
     /**
      * Retrieve the current number of sessions in the database, valid or otherwise.
      * @param {(err?: any, length?: number) => void} callback */
-    async length(callback=doNothing) {
+    length(callback=doNothing) {
         let result;
         try {
-            result = await this.#db().get(`SELECT COUNT(*) as count FROM sessions;`);
+            result = this.#db().get(`SELECT COUNT(*) as count FROM sessions;`);
         } catch (ex) {
             callback(ex);
             return;
@@ -163,9 +163,9 @@ export default class Sqlite3Store extends Store {
     /**
      * Delete all sessions, valid or otherwise.
      * @param {EmptyStoreCallback} callback */
-    async clear(callback=doNothing) {
+    clear(callback=doNothing) {
         try {
-            await this.#db().run(`DELETE FROM sessions;`);
+            this.#db().run(`DELETE FROM sessions;`);
         } catch (ex) {
             callback(ex);
             return;
@@ -179,10 +179,10 @@ export default class Sqlite3Store extends Store {
      * @param {string} sessionId
      * @param {SessionData} session
      * @param {EmptyStoreCallback} callback */
-    async touch(sessionId, session, callback=doNothing) {
+    touch(sessionId, session, callback=doNothing) {
         const expireTime = new Date(session?.cookie?.expires || (new Date().getTime() + this.#expire())).getTime();
         try {
-            await this.#db().run(
+            this.#db().run(
                 `UPDATE sessions SET expire=? WHERE session_id=? AND strftime('%s', 'now') < expire;`,
                 [sessionId, Math.floor(expireTime / 1000)]
             );
@@ -195,13 +195,13 @@ export default class Sqlite3Store extends Store {
 
     /**
      * Delete all sessions in the database that have expired. */
-    async #clearExpiredSessions() {
+    #clearExpiredSessions() {
         if (!this.#db()) {
             return;
         }
 
         try {
-            await this.#db().run(`DELETE FROM sessions WHERE strftime('%s', 'now') > expire`);
+            this.#db().run(`DELETE FROM sessions WHERE strftime('%s', 'now') > expire`);
         } catch (ex) {
             Log.warn(`Failed to clear expired sessions: ${ex.message}`);
         }

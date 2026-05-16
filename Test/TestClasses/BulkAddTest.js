@@ -507,7 +507,7 @@ class BulkAddTest extends TestBase {
      * @param {any[]} markersToCheck
      * @param {{[episodeId: number]: any[]}} expectedDeletes */
     async #verifyBulkAdd(metadataId, start, end, resolveType, ignored, expectApply, expectConflict, markersToCheck, expectedDeletes={}) {
-        /** @type {SerializedBulkAddResult} // TODO: credits */
+        /** @type {SerializedBulkAddResult} */ // TODO: credits
         const result = await this.send('bulk_add', {
             id : metadataId,
             start : start,
@@ -527,7 +527,7 @@ class BulkAddTest extends TestBase {
         form.append('resolveType', resolveType);
         form.append('markers', JSON.stringify(markerData));
 
-        /** @type {SerializedBulkAddResult} // TODO: credits */
+        /** @type {SerializedBulkAddResult} */ // TODO: credits
         const response = await new Promise(resolve => {
             form.submit('http://localhost:3233/add_custom', (err, res) => {
                 if (err) throw err;
@@ -547,7 +547,7 @@ class BulkAddTest extends TestBase {
 
     /**
      * @param {SerializedBulkAddResult} result */
-    async #verifyBulkAddCore(result, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes) {
+    #verifyBulkAddCore(result, resolveType, expectApply, expectConflict, markersToCheck, expectedDeletes) {
         /* eslint-disable max-len */
         const expectedMarkerCount = markersToCheck.reduce((sum, marker) => sum + (marker.deleted ? 0 : 1), 0);
         TestHelpers.verify(result, `Expected success response from bulk_add, found ${result}.`);
@@ -579,7 +579,7 @@ class BulkAddTest extends TestBase {
         TestHelpers.verify(totalMarkerCount === expectedMarkerCount, `Expected to find ${expectedMarkerCount} markers after bulk action, found ${totalMarkerCount}`);
 
         for (const marker of markersToCheck) {
-            await TestHelpers.validateMarker(marker, null, null, null, null, marker.start, marker.end, marker.index, null, this.testDb, marker.deleted);
+            TestHelpers.validateMarker(marker, null, null, null, null, marker.start, marker.end, marker.index, null, this.testDb, marker.deleted);
         }
         /* eslint-enable */
     }

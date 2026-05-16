@@ -91,19 +91,19 @@ class TestBase {
         TestBase.Cleanup();
         if (this.requiresServer) {
             try {
-                this.testDb = await SqliteDatabase.OpenDatabase(TestBase.testDbPath, true /*allowCreate*/);
+                this.testDb = SqliteDatabase.OpenDatabase(TestBase.testDbPath, true /*allowCreate*/);
             } catch (err) {
                 TestLog.error(err, `Failed to create test database, cannot run ${this.className()}!`);
                 throw err;
             }
 
-            await this.setupPlexDbTestTables();
+            this.setupPlexDbTestTables();
 
             this.setupConfig();
             await this.startService();
 
             // Wait until after the service starts, as it will populate the empty backup database if necessary.
-            await this.connectToBackupDatabase();
+            this.connectToBackupDatabase();
         }
 
         if (methods) {
@@ -171,8 +171,8 @@ class TestBase {
 
         const result = { success : successCount, fail : failureCount };
 
-        await this.testDb?.close();
-        await this.backupDb?.close();
+        this.testDb?.close();
+        this.backupDb?.close();
         return result;
     }
 
@@ -193,8 +193,8 @@ class TestBase {
             ++totals[result ? 'success' : 'fail'];
         }
 
-        await this.testDb?.close();
-        await this.backupDb?.close();
+        this.testDb?.close();
+        this.backupDb?.close();
         return totals;
     }
 
@@ -202,7 +202,7 @@ class TestBase {
      * @param {() => Promise<any>} testMethod */
     async #runSingle(testMethod) {
         if (this.requiresServer) {
-            await this.resetState();
+            this.resetState();
             await this.resume();
         }
 
@@ -515,14 +515,14 @@ class TestBase {
 
     /**
      * Connect to (and create if necessary) a marker backup database for tests. */
-    async connectToBackupDatabase() {
+    connectToBackupDatabase() {
         const testBackupPath = join(TestBase.root, 'Backup');
         if (!existsSync(testBackupPath)) {
             TestLog.verbose('Creating test backup directory');
             mkdirSync(testBackupPath);
         }
 
-        this.backupDb = await SqliteDatabase.OpenDatabase(TestBase.backupDbPath, true /*allowCreate*/);
+        this.backupDb = SqliteDatabase.OpenDatabase(TestBase.backupDbPath, true /*allowCreate*/);
     }
 
     /** @returns The INSERT statements that will add the default markers to the test database. */
@@ -647,13 +647,13 @@ class TestBase {
 
     /**
      * Clear out the test databases and re-enter the default data. */
-    async resetState() {
-        await this.testDb?.exec(`
+    resetState() {
+        this.testDb?.exec(`
             DELETE FROM taggings;
             VACUUM;
             UPDATE sqlite_sequence SET seq=0 WHERE name='taggings';
             ${this.defaultMarkers()}`);
-        await this.backupDb?.exec(`
+        this.backupDb?.exec(`
             DELETE FROM actions;
             VACUUM;
             UPDATE sqlite_sequence SET seq=0 WHERE name='actions';`);

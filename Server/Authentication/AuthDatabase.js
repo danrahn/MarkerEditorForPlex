@@ -18,21 +18,21 @@ export class AuthDatabase {
     /**
      * Create a connection to the authentication database, creating the database if it does not exist.
      * @param {string} dataRoot The path to the root of this application. */
-    static async Initialize(dataRoot) {
+    static Initialize(dataRoot) {
         if (AuthDB) {
             return AuthDB;
         }
 
         AuthDB = new AuthDatabase();
-        await AuthDB.#init(dataRoot);
+        AuthDB.#init(dataRoot);
     }
 
     /**
      * Close the connection to the authentication DB. */
-    static async Close() {
+    static Close() {
         const auth = AuthDB;
         AuthDB = null;
-        await auth?.db()?.close();
+        auth?.db()?.close();
     }
 
     /** @type {SqliteDatabase} */
@@ -41,9 +41,9 @@ export class AuthDatabase {
     /**
      * Initialize (and create if necessary) the authentication database.
      * @param {string} dataRoot */
-    async #init(dataRoot) {
+    #init(dataRoot) {
         if (this.#db) {
-            await this.#db.close();
+            this.#db.close();
         }
 
         const dbRoot = join(dataRoot, 'Backup');
@@ -52,25 +52,25 @@ export class AuthDatabase {
         }
 
         const dbPath = join(dbRoot, 'auth.db');
-        const db = await SqliteDatabase.OpenDatabase(dbPath, true /*allowCreate*/);
+        const db = SqliteDatabase.OpenDatabase(dbPath, true /*allowCreate*/);
         this.#db = db;
         let version = 0;
         try {
-            version = (await db.get('SELECT version FROM schema_version;'))?.version || 0;
+            version = db.get('SELECT version FROM schema_version;')?.version || 0;
         } catch (err) {
             Log.info('Version information not found in auth DB, starting from scratch.');
         }
 
-        await this.#upgradeSchema(version);
+        this.#upgradeSchema(version);
     }
 
     /**
      * Attempts to upgrade the database schema if it's not the latest version.
      * @param {number} currentSchema */
-    async #upgradeSchema(currentSchema) {
+    #upgradeSchema(currentSchema) {
         while (currentSchema < authSchemaVersion) {
             Log.info(`Upgrade auth db schema from ${currentSchema} to ${currentSchema + 1}`);
-            await this.#db.exec(authSchemaUpgrades[currentSchema]);
+            this.#db.exec(authSchemaUpgrades[currentSchema]);
             if (currentSchema === 0) {
                 return;
             }

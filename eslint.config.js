@@ -3,6 +3,8 @@ import { FlatCompat } from '@eslint/eslintrc';
 import globals from 'globals';
 import js from '@eslint/js';
 import path from 'node:path';
+import tsEslintParser from '@typescript-eslint/parser';
+import tsEslintPlugin from '@typescript-eslint/eslint-plugin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,5 +119,20 @@ export default [{
         'sort-imports' : ['error', { ignoreCase : true, allowSeparatedGroups : true }],
         'space-in-parens' : ['error', 'never'],
         yoda : ['error', 'never'],
+    },
+}, {
+    files : ['**/*.js'],
+    languageOptions : {
+        parser : tsEslintParser,
+        parserOptions : {
+            projectService : true,
+            tsconfigRootDir : __dirname,
+        },
+    },
+    plugins : {
+        '@typescript-eslint' : tsEslintPlugin,
+    },
+    rules : {
+        '@typescript-eslint/await-thenable' : 'error',
     },
 }];

@@ -167,7 +167,7 @@ class ShiftTest extends TestBase {
         const shift = 345000;
         const result = await this.#verifyJoinedShift(episode.Id, shift, 1, MarkerEnum.All, [episode.Marker2.Id, episode.Marker3.Id]);
         const newMarker = result.allMarkers[0];
-        await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, episode.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(newMarker, episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 1, episode.Marker1.Final, this.testDb);
 
         // Fake marker data to verify that the second marker wasn't changed
         const marker2 = episode.Marker2;
@@ -187,8 +187,8 @@ class ShiftTest extends TestBase {
 
         // Order not guaranteed.
         const sorted = newMarkers.sort((a, b) => a.id - b.id);
-        await TestHelpers.validateMarker(sorted[0], episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, episode.Marker1.Final, this.testDb);
-        await TestHelpers.validateMarker(sorted[1], episode.Marker2.Type, episode.Id, null, null, episode.Marker2.Start + shift, episode.Marker2.End + shift, 1, episode.Marker2.Final, this.testDb);
+        TestHelpers.validateMarker(sorted[0], episode.Marker1.Type, episode.Id, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, episode.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(sorted[1], episode.Marker2.Type, episode.Id, null, null, episode.Marker2.Start + shift, episode.Marker2.End + shift, 1, episode.Marker2.Final, this.testDb);
     }
 
     /**
@@ -203,8 +203,8 @@ class ShiftTest extends TestBase {
 
         // Order not guaranteed.
         const sorted = newMarkers.sort((a, b) => a.id - b.id);
-        await TestHelpers.validateMarker(sorted[0], season.Episode1.Marker1.Type, null, season.Id, null, season.Episode1.Marker1.Start + shift, season.Episode1.Marker1.End + shift, 0, season.Episode1.Marker1.Final, this.testDb);
-        await TestHelpers.validateMarker(sorted[1], season.Episode2.Marker1.Type, null, season.Id, null, season.Episode2.Marker1.Start + shift, season.Episode2.Marker1.End + shift, 0, season.Episode2.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(sorted[0], season.Episode1.Marker1.Type, null, season.Id, null, season.Episode1.Marker1.Start + shift, season.Episode1.Marker1.End + shift, 0, season.Episode1.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(sorted[1], season.Episode2.Marker1.Type, null, season.Id, null, season.Episode2.Marker1.Start + shift, season.Episode2.Marker1.End + shift, 0, season.Episode2.Marker1.Final, this.testDb);
 
         // Fake marker data to verify that the ignored marker wasn't changed
         const marker2 = season.Episode2.Marker2;
@@ -231,9 +231,9 @@ class ShiftTest extends TestBase {
 
         // Order not guaranteed.
         const sorted = newMarkers.sort((a, b) => a.id - b.id);
-        await TestHelpers.validateMarker(sorted[0], null, null, null, show.Id, show.Season1.Episode1.Marker1.Start + shift, show.Season1.Episode1.Marker1.End + shift, 0, null, this.testDb);
-        await TestHelpers.validateMarker(sorted[1], null, null, null, show.Id, show.Season1.Episode2.Marker2.Start + shift, show.Season1.Episode2.Marker2.End + shift, 1, null, this.testDb);
-        await TestHelpers.validateMarker(sorted[2], null, null, null, show.Id, show.Season2.Episode1.Marker1.Start + shift, show.Season2.Episode1.Marker1.End + shift, 0, null, this.testDb);
+        TestHelpers.validateMarker(sorted[0], null, null, null, show.Id, show.Season1.Episode1.Marker1.Start + shift, show.Season1.Episode1.Marker1.End + shift, 0, null, this.testDb);
+        TestHelpers.validateMarker(sorted[1], null, null, null, show.Id, show.Season1.Episode2.Marker2.Start + shift, show.Season1.Episode2.Marker2.End + shift, 1, null, this.testDb);
+        TestHelpers.validateMarker(sorted[2], null, null, null, show.Id, show.Season2.Episode1.Marker1.Start + shift, show.Season2.Episode1.Marker1.End + shift, 0, null, this.testDb);
 
         // Fake marker data to verify that the ignored marker wasn't changed
         const marker1 = show.Season1.Episode2.Marker1;
@@ -261,8 +261,8 @@ class ShiftTest extends TestBase {
         const shift = 3000;
         const result = await this.#verifyJoinedShift(episode.Id, shift, 1, MarkerEnum.Intro);
         const newMarker = result.allMarkers[0];
-        await TestHelpers.validateMarker(newMarker, episode.Marker1.Type, null, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, episode.Marker1.Final, this.testDb);
-        await TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker2), episode.Marker2.Type, null, null, null, episode.Marker2.Start, episode.Marker2.End, 1, episode.Marker2.Final, this.testDb);
+        TestHelpers.validateMarker(newMarker, episode.Marker1.Type, null, null, null, episode.Marker1.Start + shift, episode.Marker1.End + shift, 0, episode.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker2), episode.Marker2.Type, null, null, null, episode.Marker2.Start, episode.Marker2.End, 1, episode.Marker2.Final, this.testDb);
         return TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker3), episode.Marker3.Type, null, null, null, episode.Marker3.Start, episode.Marker3.End, 2, episode.Marker3.Final, this.testDb);
     }
 
@@ -271,8 +271,8 @@ class ShiftTest extends TestBase {
         const episode = TestBase.DefaultMetadata.Show3.Season1.Episode2;
         const shift = -3000;
         const result = await this.#verifyJoinedShift(episode.Id, shift, 2, MarkerEnum.Credits, [], true /*expectConflict*/, 1 /*force*/);
-        await TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker1), episode.Marker1.Type, null, null, null, episode.Marker1.Start, episode.Marker1.End, 0, episode.Marker1.Final, this.testDb);
-        await TestHelpers.validateMarker(result.allMarkers[0], episode.Marker2.Type, episode.Id, null, null, episode.Marker2.Start + shift, episode.Marker2.End + shift, 1, episode.Marker2.Final, this.testDb);
+        TestHelpers.validateMarker(this.#testMarkerFromTestData(episode.Marker1), episode.Marker1.Type, null, null, null, episode.Marker1.Start, episode.Marker1.End, 0, episode.Marker1.Final, this.testDb);
+        TestHelpers.validateMarker(result.allMarkers[0], episode.Marker2.Type, episode.Id, null, null, episode.Marker2.Start + shift, episode.Marker2.End + shift, 1, episode.Marker2.Final, this.testDb);
         return TestHelpers.validateMarker(result.allMarkers[1], episode.Marker3.Type, episode.Id, null, null, episode.Marker3.Start + shift, episode.Marker3.End + shift, 2, episode.Marker3.Final, this.testDb);
     }
 

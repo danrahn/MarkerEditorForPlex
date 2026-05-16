@@ -200,12 +200,12 @@ async function setupUserPass() {
 
         const replace = await askUserYesNo('Do you want to change the existing username/password', false);
         if (replace) {
-            existingPass = await askUserPrivate('Current password', null, async (pass) => {
+            existingPass = await askUserPrivate('Current password', null, (pass) => {
                 if (pass === '-1') {
                     return true;
                 }
 
-                return await User.loginInternal(pass);
+                return User.loginInternal(pass);
             }, 'Passwords do not match (-1 to abort)'); // Assume the user doesn't want '-1' as their password.
 
             if (existingPass === '-1') {
@@ -267,7 +267,7 @@ async function setupUserPass() {
         return false;
     }
 
-    if (!await User.changePassword(username, password, password)) {
+    if (!User.changePassword(username, password, password)) {
         console.log('\n!!! ERROR - auth setup failed !!!\n');
         if (await askUserYesNo('Would you like to continue setup with auth disabled', false)) {
             return false;

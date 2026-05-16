@@ -32,13 +32,13 @@ export let User;
  */
 export class UserAuthentication {
     /** Create the singleton UserAuthentication object. */
-    static async Initialize() {
+    static Initialize() {
         if (User) {
             return User;
         }
 
         User = new UserAuthentication();
-        await User.#init();
+        User.#init();
         return User;
     }
 
@@ -47,13 +47,13 @@ export class UserAuthentication {
 
     /**
      * Verify authorization management. */
-    async #init() {
+    #init() {
         if (!AuthDB || !AuthDB.db()) {
             throw new ServerError(`UserAuthentication initialized before authentication database. Cannot continue.`, 500);
         }
 
         /** @type {DBUser[]} */
-        const allUsers = await AuthDB.db().all(`SELECT * FROM ${UserTableName};`);
+        const allUsers = AuthDB.db().all(`SELECT * FROM ${UserTableName};`);
 
         // We only expect one user (for now?)
         if (allUsers.length > 1) {
@@ -88,13 +88,13 @@ export class UserAuthentication {
      * Verify that the given password matches our single user's password.
      * If there is ever a need for multiple users, this _must_ go away.
      * @param {string} password */
-    async loginInternal(password) {
+    loginInternal(password) {
         if (!password) {
             return false;
         }
 
         /** @type {DBUser} */
-        const userInfo = await AuthDB.db().get(`SELECT * FROM ${UserTableName} WHERE user_norm=?;`, this.usernameNorm());
+        const userInfo = AuthDB.db().get(`SELECT * FROM ${UserTableName} WHERE user_norm=?;`, this.usernameNorm());
 
         const [salt, iterations, algorithm, hash] = userInfo.password.split('/');
 
@@ -107,8 +107,8 @@ export class UserAuthentication {
      * @param {string} username
      * @param {string} oldPassword
      * @param {string} newPassword
-     * @returns {Promise<boolean>} False if the old password does not match.*/
-    async changePassword(username, oldPassword, newPassword) {
+     * @returns {boolean} False if the old password does not match.*/
+    changePassword(username, oldPassword, newPassword) {
         if (this.passwordSet() && !this.login(username, oldPassword)) {
             return false;
         }
@@ -119,11 +119,11 @@ export class UserAuthentication {
         const pass = `${salt}/${iterations}/${HASH_ALG}/${hash}`;
 
         if (this.passwordSet()) {
-            await AuthDB.db().run(`UPDATE ${UserTableName} SET password=? WHERE user_norm=?`, [pass, this.usernameNorm()]);
+            AuthDB.db().run(`UPDATE ${UserTableName} SET password=? WHERE user_norm=?`, [pass, this.usernameNorm()]);
         } else {
             // Initial setup.
             this.#username = username;
-            await AuthDB.db().run(
+            AuthDB.db().run(
                 `INSERT INTO ${UserTableName} (username, user_norm, password) VALUES (?, ?, ?)`,
                 [username, this.usernameNorm(), pass]
             );
@@ -134,9 +134,9 @@ export class UserAuthentication {
 
     /**
      * Remove the current user's password. This will result in the user being asked to (re-)set up a username/password. */
-    async removePassword() {
+    removePassword() {
         // Just wipe out the table, since we should only have one user anyway.
-        await AuthDB.db().run(`DELETE FROM ${UserTableName};`);
+        AuthDB.db().run(`DELETE FROM ${UserTableName};`);
         this.#username = '';
     }
 

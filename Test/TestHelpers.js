@@ -24,7 +24,7 @@ class TestHelpers {
      * @throws if the marker is not valid.
      * TODO: indexRemove: replace index with order for all callers.
      */
-    static async validateMarker(
+    static validateMarker(
         markerData,
         expectedType=null,
         expectedEpisodeId=null,
@@ -72,7 +72,7 @@ class TestHelpers {
             return;
         }
 
-        const rows = await database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`);
+        const rows = database.all(`SELECT * FROM taggings WHERE id=${markerData.id};`);
 
         if (isDeleted) {
             TestHelpers.verify(rows.length === 0, `Found a marker with id ${markerData.id} that should be deleted!`);

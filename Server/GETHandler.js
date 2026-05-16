@@ -45,7 +45,7 @@ class GETHandler {
      * Handle the given GET request.
      * @param {ExpressRequest} req
      * @param {ExpressResponse} res */
-    static async handleRequest(req, res) {
+    static handleRequest(req, res) {
         let url = req.url;
 
         // Even if a baseUrl is set, also parse baseless requests.
@@ -102,13 +102,13 @@ class GETHandler {
             case '/i/':
                 return ImageHandler.GetSvgIcon(url, res, cacheable);
             case '/t/':
-                return await ImageHandler.GetThumbnail(url, res);
+                return ImageHandler.GetThumbnail(url, res);
             default:
                 break;
         }
 
         if (url.startsWith('/export/')) {
-            return await DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
+            return DatabaseImportExport.exportDatabase(res, parseInt(url.substring('/export/'.length)));
         }
 
         const mimetype = contentType(lookup(urlStripped));
@@ -226,7 +226,7 @@ class ImageHandler {
      * Retrieve a thumbnail for the episode and timestamp denoted by the url, /t/metadataId/timestampInSeconds.
      * @param {string} url Thumbnail url
      * @param {ExpressResponse} res */
-    static async GetThumbnail(url, res) {
+    static GetThumbnail(url, res) {
         const badRequest = (msg, errorCode=400) => {
             Log.error(msg, `Unable to retrieve thumbnail`);
             res.writeHead(errorCode).end(msg);
@@ -275,7 +275,7 @@ class ImageHandler {
         }
 
         try {
-            const data = await Thumbnails.getThumbnail(metadataId, timestamp);
+            const data = Thumbnails.getThumbnail(metadataId, timestamp);
             res.writeHead(200, {
                 'Content-Type' : 'image/jpeg',
                 'Content-Length' : data.length,

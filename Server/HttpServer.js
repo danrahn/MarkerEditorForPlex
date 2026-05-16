@@ -48,14 +48,14 @@ export function launchServer() {
  * @param {number} port
  * @param {boolean} ssl
  * @param {() => void} resolve */
-async function createServer(host, port, ssl, resolve) {
+function createServer(host, port, ssl, resolve) {
     if (ssl ? !Config.useSsl() : Config.sslOnly()) {
         resolve();
         return;
     }
 
     const app = express();
-    await initializeSessionStore(app, ssl);
+    initializeSessionStore(app, ssl);
     const ignoreProxyErrors = Config.trustProxy() === 'ignore';
     /** @type {import('express-rate-limit').EnabledValidations} */
     let rateLimitValidate = { xForwardedForHeader : false, trustProxy : false };
@@ -105,7 +105,9 @@ async function createServer(host, port, ssl, resolve) {
 
         if (!ssl && Config.autoOpen() && GetServerState() === ServerState.FirstBoot) {
             Log.info('Launching browser...');
-            Open(url);
+            void Open(url).catch(err => {
+                Log.warn(`Unable to auto-open browser: ${err.message}`);
+            });
         }
 
         SetServerState(ServerState.Running);
@@ -123,7 +125,7 @@ async function createServer(host, port, ssl, resolve) {
  * Initialize session information.
  * @param {ExpressApp} app
  * @param {boolean} [https=false] */
-async function initializeSessionStore(app, https = false) {
+function initializeSessionStore(app, https = false) {
     // Don't deal with session management is auth is disabled.
     // Enabling auth forces a full server restart anyway.
     if (!Config.useAuth()) {
@@ -139,8 +141,8 @@ async function initializeSessionStore(app, https = false) {
     // On each boot, create a new session secret, but still allow older
     // sessions to be validated by keeping around older secrets for a while.
     const newSecret = randomBytes(32).toString('hex');
-    const oldSecrets = await Sqlite3Store.oldSecrets(https);
-    await Sqlite3Store.setNewSecret(newSecret, https);
+    const oldSecrets = Sqlite3Store.oldSecrets(https);
+    Sqlite3Store.setNewSecret(newSecret, https);
     app.use(
         session({
             secret : [newSecret, ...oldSecrets],

@@ -13,12 +13,12 @@ import { User } from '../Authentication/Authentication.js';
  * Attempts to log into marker editor.
  * @param {string} password
  * @param {ExpressSession} session */
-async function login(username, password, session) {
+function login(username, password, session) {
     if (!Config.useAuth() || !User.passwordSet()) {
         throw new ServerError('Unexpected call to /login - authentication is disabled or not set up.', 400);
     }
 
-    if (!(await User.login(username, password))) {
+    if (!User.login(username, password)) {
         throw new ServerError('Incorrect username or password', 401);
     }
 
@@ -52,7 +52,7 @@ function logout(request, response) {
  * @param {string} oldPassword
  * @param {string} newPassword
  * @param {ExpressRequest} request */
-async function changePassword(username, oldPassword, newPassword, request) {
+function changePassword(username, oldPassword, newPassword, request) {
     // This can also enable auth if no password is set and oldPassword is blank.
     if (!Config.useAuth() && oldPassword !== '') {
         throw new ServerError('Unexpected call to /change_password, authentication is not enabled.', 400);
@@ -71,12 +71,12 @@ async function changePassword(username, oldPassword, newPassword, request) {
         throw new ServerError('New password cannot match old password.', 400);
     }
 
-    if (!(await User.changePassword(username, oldPassword, newPassword))) {
+    if (!(User.changePassword(username, oldPassword, newPassword))) {
         throw new ServerError('Old password does not match.', 403);
     }
 
     if (firstSet) {
-        // eslint-disable-next-line require-atomic-updates
+
         if (request.session) {
             request.session.authenticated = true;
         }

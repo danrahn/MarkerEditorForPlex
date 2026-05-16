@@ -34,20 +34,20 @@ function allPurges(sectionId) {
  * @param {{ restoreIds : number[], redeleteIds : { oldId : number, newId : number }[]}} restoreInfo
  * @param {number} sectionId
  * @param {number} resolveType
- * @returns {Promise<BulkRestoreResponse>} */
-async function restoreMarkers(restoreInfo, sectionId, resolveType) {
+ * @returns {BulkRestoreResponse} */
+function restoreMarkers(restoreInfo, sectionId, resolveType) {
     // TODO: Why does bulk overwrite keep the old markers around?
     if (Object.keys(MarkerConflictResolution).filter(k => MarkerConflictResolution[k] === resolveType).length === 0) {
         throw new ServerError(`Unexpected MarkerConflictResolution type: ${resolveType}`, 400);
     }
 
     // Handle re-added markers first - Plex-generated markers that were manually deleted, but were subsequently re-added to the database.
-    const redeleted = await BackupManager.redeleteMarkers(restoreInfo.redeleteIds, sectionId);
+    const redeleted = BackupManager.redeleteMarkers(restoreInfo.redeleteIds, sectionId);
     if (redeleted.length > 0) {
-        await reindexAfterRedelete(redeleted);
+        reindexAfterRedelete(redeleted);
     }
 
-    const restoredMarkerData = await BackupManager.restoreMarkers(restoreInfo.restoreIds, sectionId, resolveType);
+    const restoredMarkerData = BackupManager.restoreMarkers(restoreInfo.restoreIds, sectionId, resolveType);
     const restoredMarkers = restoredMarkerData.restoredMarkers;
     const deletedMarkers = restoredMarkerData.deletedMarkers.concat(redeleted);
     const modifiedMarkers = restoredMarkerData.modifiedMarkers;
@@ -101,13 +101,13 @@ function ignorePurgedMarkers(purgedIds, readdedIds, sectionId) {
  * section from the backup database, making this completely unrecoverable.
  * @param {number} sectionId
  * @param {number} deleteType */
-async function nukeSection(sectionId, deleteType) {
+function nukeSection(sectionId, deleteType) {
     if (!MarkerCache) {
         throw new ServerError('Action is not enabled due to a configuration setting.', 400);
     }
 
-    const dbDeleteCount = await PlexQueries.nukeSection(sectionId, deleteType);
-    const backupDeleteCount = await BackupManager.nukeSection(sectionId, deleteType);
+    const dbDeleteCount = PlexQueries.nukeSection(sectionId, deleteType);
+    const backupDeleteCount = BackupManager.nukeSection(sectionId, deleteType);
     const cacheRemoveCount = MarkerCache.nukeSection(sectionId, deleteType);
 
     // Don't bother doing anything special with this, just clear it out and force
@@ -124,7 +124,7 @@ async function nukeSection(sectionId, deleteType) {
  * Reindex markers after bulk deleting markers. Unlike the regular bulk delete operation,
  * we might have deleted markers from various unrelated metadata ids, which complicates things slightly.
  * @param {MarkerData[]} deletedMarkers */
-async function reindexAfterRedelete(deletedMarkers) {
+function reindexAfterRedelete(deletedMarkers) {
     // Reindex after delete. Group based on metadata id, rolling up as needed to avoid excessive DB calls.
     /** @type {{ [metadataId: number]: MarkerData[] }} */
     const reindexMovies = {};
@@ -164,18 +164,14 @@ async function reindexAfterRedelete(deletedMarkers) {
     const reindexArray = Array.from(reindexIds);
     const batches = Math.ceil(reindexArray.length / batchSize);
     for (let batch = 0; batch < batches; ++batch) {
-        /** @type {Promise<MarkersWithTypeInfo>[]} */
-        const promises = [];
         for (let reindex = 0; reindex < batchSize; ++reindex) {
             const idx = batch * batchSize + reindex;
             if (idx >= reindexArray.length) {
                 break;
             }
 
-            promises.push(PlexQueries.reindex(reindexArray[idx]));
+            PlexQueries.reindex(reindexArray[idx]);
         }
-
-        await Promise.all(promises);
     }
 }
 

@@ -74,7 +74,7 @@ class MarkerEditorConfig extends ConfigBase {
      * @param {*} testData
      * @param {string} dataRoot The root of the config file, which isn't the same as the project root in Docker.
      * @param {boolean} recreateOkay Whether to allow recreating the instance if it already exists. */
-    static async Create(testData, dataRoot, recreateOkay=false) {
+    static Create(testData, dataRoot, recreateOkay=false) {
         if (Instance && !recreateOkay) {
             // We'll still recreate it, but should be investigated if this warning shows up.
             Log.warn(`Singleton MarkerEditorConfig already exists, we shouldn't be creating it again!`);
@@ -85,7 +85,7 @@ class MarkerEditorConfig extends ConfigBase {
         // been parsed yet. Attempt to mitigate this by setting up the new instance completely before
         // destroying and replacing the old one.
         const newConfig = new MarkerEditorConfig(testData, dataRoot);
-        await newConfig.#init();
+        newConfig.#init();
         MarkerEditorConfig.Close();
         MarkerEditorConfig.#SetConfig(newConfig);
         return Instance;
@@ -186,7 +186,7 @@ class MarkerEditorConfig extends ConfigBase {
         this.#configState = configExists ? ServerConfigState.Valid : ServerConfigState.DoesNotExist;
     }
 
-    async #init() {
+    #init() {
         const configExists = this.#configState !== ServerConfigState.DoesNotExist;
         this.#logLevel = this.#getOrDefault('logLevel', 'Info');
         Log.setFromString(this.#logLevel.value());
@@ -238,7 +238,7 @@ class MarkerEditorConfig extends ConfigBase {
         }
 
         // Do anything we need to await for last, after we've done all synchronous validation.
-        await this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
+        this.#validateDatabasePath(this.#dbPath, true /*setInvalid*/);
 
         // Always override configState if we didn't have a config file.
         if (!configExists) {
@@ -286,8 +286,8 @@ class MarkerEditorConfig extends ConfigBase {
 
     /**
      * Verify the database format to ensure we don't try to write old data to a new schema. */
-    async validateDbSettings() {
-        await this.#features.validateDbSettings();
+    validateDbSettings() {
+        this.#features.validateDbSettings();
     }
 
     databasePath() { return this.#dbPath.value(); }
@@ -545,7 +545,7 @@ class MarkerEditorConfig extends ConfigBase {
                     break;
                 case ServerSettings.WriteExtraData:
                     this.#features.writeExtraData.setValue(newValue);
-                    await this.#features.validateDbSettings();
+                    this.#features.validateDbSettings();
                     break;
                 case ServerSettings.AutoSuspend:
                     this.#features.autoSuspend.setValue(newValue);
@@ -754,7 +754,7 @@ class MarkerEditorConfig extends ConfigBase {
      * @param {string} field
      * @param {TypedSetting<T>} value */
     // eslint-disable-next-line complexity
-    async validateField(field, value) {
+    validateField(field, value) {
         const setting = new Setting();
         setting.setFromSerialized(value);
         setting.setValid(true);
@@ -857,7 +857,7 @@ class MarkerEditorConfig extends ConfigBase {
                 // validation, but since we don't store the password in config.json (or in plaintext), it
                 // doesn't really belong here. Valid in this case means the correct password was entered,
                 // or no password is set (i.e. enabling auth for the first time).
-                const valid = await this.#isPasswordValid(setting);
+                const valid = this.#isPasswordValid(setting);
                 setting.setUnchanged(valid);
                 return setting.setValid(valid, `Password is incorrect.`);
             }
@@ -902,8 +902,8 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * Return whether the given password is valid (or no password is set).
      * @param {Setting<string>} setting */
-    async #isPasswordValid(setting) {
-        return !User.passwordSet() || await User.loginInternal(setting.value());
+    #isPasswordValid(setting) {
+        return !User.passwordSet() || User.loginInternal(setting.value());
     }
 
     /**
@@ -943,11 +943,11 @@ class MarkerEditorConfig extends ConfigBase {
     /**
      * Ensure the given database path exists and looks like the Plex database.
      * @param {Setting<string>} setting */
-    async #validateDatabasePath(setting, setInvalid=false) {
+    #validateDatabasePath(setting, setInvalid=false) {
         setting.setUnchanged(setting.value() === this.databasePath());
         const stats = statSync(setting.value(), { throwIfNoEntry : false });
         if (stats && stats.isFile()) {
-            if (await PlexQueryManager.SmellsLikePlexDB(setting.value())) {
+            if (PlexQueryManager.SmellsLikePlexDB(setting.value())) {
                 return setting;
             }
 

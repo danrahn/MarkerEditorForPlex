@@ -26,9 +26,9 @@ const Log = ContextualLog.Create('QueryCommands');
 /**
  * Retrieve all movies from the given library section.
  * @param {number} sectionId
- * @returns {Promise<MovieData[]>} */
-async function getMovies(sectionId) {
-    const rows = await PlexQueries.getMovies(sectionId);
+ * @returns {MovieData[]} */
+function getMovies(sectionId) {
+    const rows = PlexQueries.getMovies(sectionId);
     const movies = [];
     for (const movie of rows) {
         movie.markerBreakdown = MarkerCache?.getTopLevelStats(movie.id);
@@ -41,8 +41,8 @@ async function getMovies(sectionId) {
 /**
  * Retrieve all shows from the given library section.
  * @param {number} sectionId The section id of the library. */
-async function getShows(sectionId) {
-    const rows = await PlexQueries.getShows(sectionId);
+function getShows(sectionId) {
+    const rows = PlexQueries.getShows(sectionId);
     const shows = [];
     for (const show of rows) {
         show.markerBreakdown = MarkerCache?.getTopLevelStats(show.id);
@@ -60,7 +60,7 @@ async function getShows(sectionId) {
  * Retrieve an array of markers for all requested metadata ids.
  * Each key is expected to be the same media type (e.g. all movie ids, or all episode ids).
  * @param {number[]} keys The metadata ids to lookup. */
-async function queryIds(keys) {
+function queryIds(keys) {
     if (keys.length === 0) {
         throw new ServerError(`Marker query must have at least one metadata id to search for,`, 400);
     }
@@ -70,7 +70,7 @@ async function queryIds(keys) {
         markers[key] = [];
     }
 
-    const rawMarkers = await PlexQueries.getMarkersForItems(keys);
+    const rawMarkers = PlexQueries.getMarkersForItems(keys);
     for (const rawMarker of rawMarkers) {
         // TODO: better handing of non intros/credits (i.e. commercials)
         if (supportedMarkerType(rawMarker.marker_type)) {
@@ -83,7 +83,7 @@ async function queryIds(keys) {
 
 /**
  * Retrieve all TV libraries found in the database.
- * @returns {Promise<LibrarySection[]>} */
+ * @returns {LibrarySection[]} */
 function getLibraries() {
     return PlexQueries.getLibraries();
 }
@@ -91,8 +91,8 @@ function getLibraries() {
 /**
  * Retrieve all movies/shows from the given library section.
  * @param {number} sectionId The section id of the library. */
-async function getLibrary(sectionId) {
-    const sections = await PlexQueries.getLibraries();
+function getLibrary(sectionId) {
+    const sections = PlexQueries.getLibraries();
     const section = sections.find(s => s.id === sectionId);
     if (!section) {
         Log.error(`Section id "${sectionId}" is not a valid movie or TV library`);
@@ -112,8 +112,8 @@ async function getLibrary(sectionId) {
 /**
  * Retrieve all seasons for the show specified by the given metadataId.
  * @param {number} metadataId The metadata id of the a series. */
-async function getSeasons(metadataId) {
-    const rows = await PlexQueries.getSeasons(metadataId);
+function getSeasons(metadataId) {
+    const rows = PlexQueries.getSeasons(metadataId);
 
     const seasons = [];
     for (const season of rows) {
@@ -127,33 +127,23 @@ async function getSeasons(metadataId) {
 /**
  * Retrieve all episodes for the season specified by the given metadataId.
  * @param {number} metadataId The metadata id for the season of a show.
- * @returns {Promise<EpisodeData[]>} */
-async function getEpisodes(metadataId) {
-    const rows = await PlexQueries.getEpisodes(metadataId);
+ * @returns {EpisodeData[]} */
+function getEpisodes(metadataId) {
+    const rows = PlexQueries.getEpisodes(metadataId);
 
-    /** @type {Promise<EpisodeData>[]} */
-    const promises = [];
+    /** @type {EpisodeData[]} */
+    const episodes = [];
     const useThumbnails = Config.useThumbnails();
     rows.forEach(rawEpisode => {
-        promises.push(new Promise(resolve => {
-            const episode = new EpisodeData(rawEpisode);
-            if (!useThumbnails) {
-                resolve(episode);
-            }
+        const episode = new EpisodeData(rawEpisode);
+        if (useThumbnails) {
+            episode.hasThumbnails = Thumbnails.hasThumbnails(episode.metadataId);
+        }
 
-            Thumbnails.hasThumbnails(episode.metadataId).then(hasThumbs => {
-                episode.hasThumbnails = hasThumbs;
-                resolve(episode);
-            }).catch((err) => {
-                Log.warn(err.message, `Failed to determine if episode has thumbnails`);
-                Log.verbose(err.stack ? err.stack : '[Stack not available]');
-                episode.hasThumbnails = false;
-                resolve(episode);
-            });
-        }));
+        episodes.push(episode);
     });
 
-    return Promise.all(promises);
+    return episodes;
 }
 
 /**
@@ -167,16 +157,16 @@ function getShowEpisodes(metadataId) {
  * Check whether the item with the given metadata has thumbnails associated with it.
  * Only applicable to episode and movie ids.
  * @param {number} metadataId */
-async function checkForThumbs(metadataId) {
-    return { hasThumbnails : await Thumbnails.hasThumbnails(metadataId) };
+function checkForThumbs(metadataId) {
+    return { hasThumbnails : Thumbnails.hasThumbnails(metadataId) };
 }
 
 /**
  * Gather marker information for all episodes/movies in the given library,
  * returning the number of items that have X markers associated with it.
  * @param {number} sectionId The library section id to parse.
- * @returns {Promise<Record<number, number>>} */
-async function allStats(sectionId) {
+ * @returns {Record<number, number>} */
+function allStats(sectionId) {
     // If we have global marker data, forego the specialized markerBreakdownCache
     // and build the statistics using the cache manager.
     if (Config.extendedMarkerStats()) {
@@ -197,7 +187,7 @@ async function allStats(sectionId) {
         return LegacyMarkerBreakdown.Cache[sectionId];
     }
 
-    const rows = await PlexQueries.markerStatsForSection(sectionId);
+    const rows = PlexQueries.markerStatsForSection(sectionId);
 
     /** @type {Record<number, number>} */
     const buckets = {};
@@ -223,9 +213,6 @@ async function allStats(sectionId) {
     }
 
     ++buckets[countCur];
-    // Last update wins. This is a backup measure anyway, so in the unexpected case
-    // where we're attempting to update this in parallel, it's not the end of the world.
-    // eslint-disable-next-line require-atomic-updates
     LegacyMarkerBreakdown.Cache[sectionId] = buckets;
 
     return buckets;
@@ -237,7 +224,7 @@ async function allStats(sectionId) {
  * Only async to conform to command method signature.
  * @param {number} metadataId The metadata id of the show/movie to grab the breakdown for.
  * @param {number} includeSeasons 1 to include season data, 0 to leave it out. Ignored if metadataId is a movie.
- * @returns {Promise<TreeStats>} */
+ * @returns {TreeStats} */
 function getMarkerBreakdownTree(metadataId, includeSeasons) {
     if (!MarkerCache) {
         throw new ServerError(`We shouldn't be calling get_breakdown when extended marker stats are disabled.`, 400);
@@ -272,19 +259,11 @@ function getChapters(metadataId) {
 /**
  * Retrieve all relevant marker table query information for the given base item (episode/movie)
  * @param {number} metadataId */
-async function extendedQuery(metadataId) {
-    const queries = [
-        PlexQueries.getBaseTypeMarkers(metadataId),
-        checkForThumbs(metadataId),
-        getChapters(metadataId),
-    ];
-
-    /** @type {[RawMarkerData[], { hasThumbnails: boolean }, ChapterMap ]} */
-    const results = await Promise.all(queries);
+function extendedQuery(metadataId) {
     return {
-        markers : results[0].map(m => new MarkerData(m)),
-        hasThumbnails : results[1].hasThumbnails,
-        chapters : results[2][metadataId],
+        markers : PlexQueries.getBaseTypeMarkers(metadataId).map(m => new MarkerData(m)),
+        hasThumbnails : checkForThumbs(metadataId).hasThumbnails,
+        chapters : getChapters(metadataId)[metadataId],
     };
 }
 

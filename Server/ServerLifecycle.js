@@ -97,16 +97,13 @@ async function waitForStable() {
  * Properly close out open resources in preparation for shutting down the process.
  * @param {boolean} fullShutdown Whether we're _really_ shutting down the process, or just suspending/restarting it.
  * @param {boolean} [resetConfig=true] Whether to close the config. */
-export async function cleanupForShutdown(fullShutdown, resetConfig = true) {
+export function cleanupForShutdown(fullShutdown, resetConfig = true) {
     LegacyMarkerBreakdown.Clear();
     MarkerCacheManager.Close();
     DatabaseImportExport.Close(fullShutdown);
-
-    await Promise.all([
-        PlexQueryManager.Close(),
-        MarkerBackupManager.Close(),
-        ThumbnailManager.Close(fullShutdown),
-    ]);
+    PlexQueryManager.Close();
+    MarkerBackupManager.Close();
+    ThumbnailManager.Close(fullShutdown);
 
     // Ensure this is always last, as some classes above may rely on values here.
     // Also don't close it if we're just suspending the server, as the server itself
@@ -135,7 +132,7 @@ export async function handleClose(signal, restart = false) {
         Log.info(`${signal} detected, attempting to exit cleanly... Ctrl+Break to exit immediately`);
     }
 
-    await cleanupForShutdown(!restart);
+    cleanupForShutdown(!restart);
     const exitFn = async (error, forRestart) => {
         if (forRestart) {
             Log.info('Restarting server...');
@@ -153,7 +150,7 @@ export async function handleClose(signal, restart = false) {
 
     let anyError = false;
     const closeFn = (r, s) =>
-        async (err) => {
+        (err) => {
             if (err) {
                 anyError = true;
                 Log.error(err, `Failed to cleanly shut down ${s} server`);
@@ -163,7 +160,7 @@ export async function handleClose(signal, restart = false) {
 
             // Only close session DB after the server itself has shut down.
             if (!restart) {
-                await AuthDatabase.Close();
+                AuthDatabase.Close();
             }
 
             r();
@@ -205,7 +202,7 @@ async function userSuspend(res) {
     await waitForStable();
 
     SetServerState(ServerState.Suspended);
-    await cleanupForShutdown(false /*fullShutdown*/, false /*resetConfig*/);
+    cleanupForShutdown(false /*fullShutdown*/, false /*resetConfig*/);
     Log.info('Server successfully suspended.');
 
     // We won't have a response for auto-suspend.
@@ -240,14 +237,14 @@ function userResume(res) {
  * Restart without restarting the HTTP server. Essentially a suspend+resume.
  * @param {ExpressResponse} res
  * @param {*} [data] Optional data to return in the response. */
-async function userReload(res, data) {
+function userReload(res, data) {
     Log.verbose('Attempting to reload marker data');
     if (![ServerState.Running, ServerState.RunningWithoutConfig].includes(GetServerState())) {
         return sendJsonError(res, new ServerError('Server must be running in order to reload.', 400));
     }
 
     SetServerState(ServerState.Suspended);
-    await cleanupForShutdown(false /*fullShutdown*/);
+    cleanupForShutdown(false /*fullShutdown*/);
     if (ResumeResponse) {
         Log.verbose('userReload: Already in the middle of a user operation');
         return sendJsonSuccess(res, { message : 'Server is already resuming.' });
@@ -309,20 +306,27 @@ export const ServerActionMap = {
 };
 
 // Register event handlers for server lifecycle events
-ServerEventHandler.on(ServerEvents.HardRestart, async (response, data, resolve) => {
-    await userRestart(response, data);
+ServerEventHandler.on(ServerEvents.HardRestart, (response, data, resolve) => {
+    userRestart(response, data).catch(err => {
+        Log.error(err.message, 'Hard restart failed');
+    }).finally(() => {
+        resolve();
+    });
+});
+
+ServerEventHandler.on(ServerEvents.SoftRestart, (response, data, resolve) => {
+    userReload(response, data);
     resolve();
 });
 
-ServerEventHandler.on(ServerEvents.SoftRestart, async (response, data, resolve) => {
-    await userReload(response, data);
-    resolve();
-});
-
-ServerEventHandler.on(ServerEvents.AutoSuspend, async (resolve) => {
+ServerEventHandler.on(ServerEvents.AutoSuspend, (resolve) => {
     // It's fine to just go through the normal suspend process, we just need to set the right state afterwards.
-    await userSuspend();
-    SetServerState(ServerState.AutoSuspended);
-    Log.info('Server auto-suspended due to inactivity.');
-    resolve();
+    userSuspend().then(() => {
+        SetServerState(ServerState.AutoSuspended);
+        Log.info('Server auto-suspended due to inactivity.');
+    }).catch(err => {
+        Log.error(err.message, 'Auto-suspend failed');
+    }).finally(() => {
+        resolve();
+    });
 });

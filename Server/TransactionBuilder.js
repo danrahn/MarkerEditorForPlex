@@ -1,4 +1,4 @@
-import { ContextualLog } from '../Shared/ConsoleLog.js';
+import { ConsoleLog, ContextualLog } from '../Shared/ConsoleLog.js';
 
 /** @typedef {!import('./SqliteDatabase.js').default} SqliteDatabase */
 /** @typedef {!import('./SqliteDatabase.js').DbQueryParameters} DbQueryParameters */
@@ -58,23 +58,34 @@ class TransactionBuilder {
 
     /**
      * Executes the current transaction.*/
-    async exec() {
+    exec() {
         if (this.empty()) {
             return;
         }
 
-        Log.tmi(this.toString(), `Running transaction`);
+        if (Log.getLevel() <= ConsoleLog.Level.TMI) {
+            Log.tmi(this.toString(), `Running transaction`);
+        }
 
-        await this.#db.exec(`BEGIN TRANSACTION;`);
+        /** @type {Map<string, import('better-sqlite3').Statement>} */
+        const statementCache = new Map();
+
+        this.#db.exec(`BEGIN TRANSACTION;`);
         try {
             for (const command of this.#commands) {
-                await this.#db.run(command.statement, command.parameters);
+                let statement = statementCache.get(command.statement);
+                if (!statement) {
+                    statement = this.#db.prepare(command.statement);
+                    statementCache.set(command.statement, statement);
+                }
+
+                this.#db.runPrepared(statement, command.parameters);
             }
 
-            await this.#db.exec(`COMMIT TRANSACTION;`);
+            this.#db.exec(`COMMIT TRANSACTION;`);
         } catch (err) {
             try {
-                await this.#db.exec(`ROLLBACK TRANSACTION;`);
+                this.#db.exec(`ROLLBACK TRANSACTION;`);
             } catch (rollbackErr) {
                 Log.warn(rollbackErr.message, `Rollback failed after transaction error.`);
             }

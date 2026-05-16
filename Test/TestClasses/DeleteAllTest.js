@@ -23,7 +23,7 @@ class DeleteAllTest extends TestBase {
     /**
      * Delete all markers from library section 1 (TV shows) */
     async deleteAllMarkersTVTest() {
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyShowMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 1, deleteType : MarkerEnum.All });
@@ -36,16 +36,16 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Show1.Id, dm.Show2.Id, dm.Show3.Id);
+        this.#verifyNoMarkers(dm.Show1.Id, dm.Show2.Id, dm.Show3.Id);
 
         // Ensure the movie library was not affected
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyMovieMarkerCountPrecondition();
     }
 
     /**
      * Delete all markers from library section 2 (Movies) */
     async deleteAllMarkersMovieTest() {
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyMovieMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 2, deleteType : MarkerEnum.All });
@@ -57,16 +57,16 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Movie1.Id, dm.Movie2.Id, dm.Movie3.Id);
+        this.#verifyNoMarkers(dm.Movie1.Id, dm.Movie2.Id, dm.Movie3.Id);
 
         // Ensure the TV library was not affected
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyShowMarkerCountPrecondition();
     }
 
     /**
      * Delete intro markers from library section 1 (TV shows) */
     async deleteIntroMarkersTVTest() {
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyShowMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 1, deleteType : MarkerEnum.Intro });
@@ -79,15 +79,15 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Show1.Id, dm.Show2.Id);
-        await this.#verifyMarkerCount(dm.Show3.Id, 2, MarkerType.Credits);
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyNoMarkers(dm.Show1.Id, dm.Show2.Id);
+        this.#verifyMarkerCount(dm.Show3.Id, 2, MarkerType.Credits);
+        this.#verifyMovieMarkerCountPrecondition();
     }
 
     /**
      * Delete intro markers from library section 2 (Movies) */
     async deleteIntroMarkersMovieTest() {
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyMovieMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 2, deleteType : MarkerEnum.Intro });
@@ -99,15 +99,15 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Movie1.Id, dm.Movie3.Id);
-        await this.#verifyMarkerCount(dm.Movie2.Id, 3);
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyNoMarkers(dm.Movie1.Id, dm.Movie3.Id);
+        this.#verifyMarkerCount(dm.Movie2.Id, 3);
+        this.#verifyShowMarkerCountPrecondition();
     }
 
     /**
      * Delete credits markers from library section 1 (TV shows) */
     async deleteCreditsMarkersTVTest() {
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyShowMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 1, deleteType : MarkerEnum.Credits });
@@ -120,16 +120,16 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Show2.Id);
-        await this.#verifyMarkerCount(dm.Show1.Id, 1, MarkerType.Intro);
-        await this.#verifyMarkerCount(dm.Show3.Id, 3, MarkerType.Intro);
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyNoMarkers(dm.Show2.Id);
+        this.#verifyMarkerCount(dm.Show1.Id, 1, MarkerType.Intro);
+        this.#verifyMarkerCount(dm.Show3.Id, 3, MarkerType.Intro);
+        this.#verifyMovieMarkerCountPrecondition();
     }
 
     /**
      * Delete credits markers from library section 2 (Movies) */
     async deleteCreditsMarkersMovieTest() {
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyMovieMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 2, deleteType : MarkerEnum.Credits });
@@ -141,16 +141,16 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Movie1.Id);
-        await this.#verifyMarkerCount(dm.Movie2.Id, 2);
-        await this.#verifyMarkerCount(dm.Movie3.Id, 1, MarkerType.Intro);
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyNoMarkers(dm.Movie1.Id);
+        this.#verifyMarkerCount(dm.Movie2.Id, 2);
+        this.#verifyMarkerCount(dm.Movie3.Id, 1, MarkerType.Intro);
+        this.#verifyShowMarkerCountPrecondition();
     }
 
     /**
      * Delete ad markers from library section 2 (Movies) */
     async deleteAdMarkersTest() {
-        await this.#verifyMovieMarkerCountPrecondition();
+        this.#verifyMovieMarkerCountPrecondition();
 
         /** @type {{ deleted : number, backupDeleted : number, cacheDeleted : number }} */
         const data = await this.send('nuke_section', { sectionId : 2, deleteType : MarkerEnum.Ad });
@@ -162,10 +162,10 @@ class DeleteAllTest extends TestBase {
         TestHelpers.verify(data.backupDeleted === 0, `Didn't expect any backup markers to be deleted, got ${data.backupDeleted}`);
 
         const dm = TestBase.DefaultMetadata;
-        await this.#verifyNoMarkers(dm.Movie1.Id);
-        await this.#verifyMarkerCount(dm.Movie2.Id, 3);
-        await this.#verifyMarkerCount(dm.Movie3.Id, 1, MarkerType.Intro);
-        await this.#verifyShowMarkerCountPrecondition();
+        this.#verifyNoMarkers(dm.Movie1.Id);
+        this.#verifyMarkerCount(dm.Movie2.Id, 3);
+        this.#verifyMarkerCount(dm.Movie3.Id, 1, MarkerType.Intro);
+        this.#verifyShowMarkerCountPrecondition();
     }
 
     /**
@@ -180,26 +180,26 @@ class DeleteAllTest extends TestBase {
 
     /**
      * Quick check to ensure our TV library has the expected number of markers. */
-    async #verifyShowMarkerCountPrecondition() {
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Show1.Id, 1);
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Show2.Id, 0);
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Show3.Id, 5);
+    #verifyShowMarkerCountPrecondition() {
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Show1.Id, 1);
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Show2.Id, 0);
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Show3.Id, 5);
     }
 
     /**
      * Quick check to ensure our TV library has the expected number of markers. */
-    async #verifyMovieMarkerCountPrecondition() {
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie1.Id, 0);
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie2.Id, 4);
-        await this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie3.Id, 1);
+    #verifyMovieMarkerCountPrecondition() {
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie1.Id, 0);
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie2.Id, 4);
+        this.#verifyMarkerCount(TestBase.DefaultMetadata.Movie3.Id, 1);
     }
 
     /**
      * Verify that all the given metadata ids have no markers associated with them.
      * @param  {...number} metadataIds */
-    async #verifyNoMarkers(...metadataIds) {
+    #verifyNoMarkers(...metadataIds) {
         for (const metadataId of metadataIds) {
-            await this.#verifyMarkerCount(metadataId, 0);
+            this.#verifyMarkerCount(metadataId, 0);
         }
     }
 
@@ -208,11 +208,11 @@ class DeleteAllTest extends TestBase {
      * @param {number} metadataId
      * @param {number} expected
      * @param {string?} markerType Marker type. If not provided, marker type won't be checked */
-    async #verifyMarkerCount(metadataId, expected, markerType) {
+    #verifyMarkerCount(metadataId, expected, markerType) {
         // TODO: Are we okay reaching into the service, or should this be a generic request for all markers for a given id?
         // That endpoint doesn't exist yet, so broadly it might be worth adding an endpoint (or adjusting the query endpoint)
         // to accept an arbitrary metadata id, not locked to a leaf type.
-        const markers = await PlexQueries.getMarkersAuto(metadataId);
+        const markers = PlexQueries.getMarkersAuto(metadataId);
         TestHelpers.verify(
             markers.markers.length === expected,
             `Expected metadataId ${metadataId} to have ${expected} markers, found ${markers.markers.length}`);

@@ -108,7 +108,7 @@ export class DatabaseImportExport {
      * Exports a database of markers for the given section (or -1 for the entire library)
      * @param {ExpressResponse} response
      * @param {number} sectionId */
-    static async exportDatabase(response, sectionId) {
+    static exportDatabase(response, sectionId) {
         if (isNaN(sectionId)) {
             response.writeHead(400).end('Invalid section id');
             return;
@@ -117,7 +117,7 @@ export class DatabaseImportExport {
         let sectionName = 'Server';
         if (sectionId !== -1) {
             let valid = false;
-            const sections = await PlexQueries.getLibraries();
+            const sections = PlexQueries.getLibraries();
             for (const section of sections) {
                 if (section.id === sectionId) {
                     sectionName = `${section.name.replace(/[<>:"/\\|?*]/g, '')}[${section.id}]`;
@@ -146,9 +146,9 @@ export class DatabaseImportExport {
             rmSync(backupFullPath); // Just bubble up any errors
         }
 
-        const db = await SqliteDatabase.OpenDatabase(backupFullPath, true /*allowCreate*/);
-        await db.exec(CheckVersionTable);
-        await db.exec(ExportTable);
+        const db = SqliteDatabase.OpenDatabase(backupFullPath, true /*allowCreate*/);
+        db.exec(CheckVersionTable);
+        db.exec(ExportTable);
 
         /** @type {DbDictParameters} */
         const params = { $tagId : PlexQueries.markerTagId() };
@@ -170,7 +170,7 @@ WHERE t.tag_id=$tagId`;
         }
 
         /** @type {BackupRow[]} */
-        const markers = await PlexQueries.database().all(query, params);
+        const markers = PlexQueries.database().all(query, params);
 
         // Note: some markers might overlap with each other for the same GUID.
         //       This is okay, since our import method should handle it gracefully.
@@ -214,10 +214,10 @@ WHERE t.tag_id=$tagId`;
         }
 
         Log.info(`Adding ${txn.statementCount()} markers to database export.`);
-        await txn.exec();
+        txn.exec();
 
         // All items have been added, close the db for writing and pipe it to the user.
-        await db.close();
+        db.close();
 
         const stats = statSync(backupFullPath);
         if (!stats.isFile()) {
@@ -257,7 +257,7 @@ WHERE t.tag_id=$tagId`;
         const fullPath = join(backupDir, `Import-${database.filename}`);
         writeFileSync(fullPath, dbData);
 
-        const stats = await DatabaseImportExport.#doImport(fullPath, sectionId, resolveType);
+        const stats = DatabaseImportExport.#doImport(fullPath, sectionId, resolveType);
 
         // Try to delete the temporarily uploaded file. Not a big deal if we can't though
         try {
@@ -280,15 +280,15 @@ WHERE t.tag_id=$tagId`;
      * @param {string} importedFile Full path to the uploaded database file.
      * @param {number} sectionId Section ID to apply markers to. -1 to apply server-wide
      * @param {number} resolveType The MarkerConflictResolution type */
-    static async #doImport(importedFile, sectionId, resolveType) {
-        const db = await SqliteDatabase.OpenDatabase(importedFile, false /*allowCreate*/);
+    static #doImport(importedFile, sectionId, resolveType) {
+        const db = SqliteDatabase.OpenDatabase(importedFile, false /*allowCreate*/);
         try {
-            let row = await db.get('SELECT version FROM schema_version;');
+            let row = db.get('SELECT version FROM schema_version;');
             if (row.version > CurrentSchemaVersion) {
                 throw new ServerError('Database was created with a newer version of this application, cannot continue.', 400);
             }
 
-            row = await db.get('SELECT * from markers LIMIT 1;');
+            row = db.get('SELECT * from markers LIMIT 1;');
             if (!row) {
                 throw new ServerError('Database does not have any markers to import!', 400);
             }
@@ -304,8 +304,8 @@ WHERE t.tag_id=$tagId`;
         // We've verified our data seems correct. Now grab all of them and
         // transform them into something that bulkRestore can reason with.
         /** @type {BackupRow[]} */
-        const backupMarkers = await db.all('SELECT * FROM markers;');
-        await db.close(); // We don't need this once we've read all rows.
+        const backupMarkers = db.all('SELECT * FROM markers;');
+        db.close(); // We don't need this once we've read all rows.
 
         /** @type {{[guid: string]: BackupRow[]}} */
         const backupGuidMap = {};
@@ -368,7 +368,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
         /** @type {{[sectionId: number]: {sectionType: number, items : {[baseId: number]: MarkerAction[]}}}} */
         const sectionsToUpdate = {};
         /** @type {MinimalBaseItem[]} */
-        const plexItems = await PlexQueries.database().all(allMedia, params);
+        const plexItems = PlexQueries.database().all(allMedia, params);
         for (const item of plexItems) {
             if (!sectionsToUpdate[item.library_section_id]) {
                 sectionsToUpdate[item.library_section_id] = {
@@ -398,7 +398,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
             }
 
             Log.info(`Attempting to restore markers for ${itemsToUpdate} items in section ${sectionIdToUpdate}`);
-            const restoredMarkerData = await PlexQueries.bulkRestore(
+            const restoredMarkerData = PlexQueries.bulkRestore(
                 sectionInfo.items,
                 parseInt(sectionIdToUpdate),
                 sectionInfo.sectionType,
@@ -406,8 +406,8 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
 
             // Add changed markers to the backup database. While we'll clear out the BackupManager after this
             // action, we still want the database to know about these changes so they can be restored if needed.
-            await BackupManager.recordAdds(restoredMarkerData.newMarkers.map(x => new MarkerData(x)));
-            await BackupManager.recordDeletes(restoredMarkerData.deletedMarkers.map(x => new MarkerData(x)));
+            BackupManager.recordAdds(restoredMarkerData.newMarkers.map(x => new MarkerData(x)));
+            BackupManager.recordDeletes(restoredMarkerData.deletedMarkers.map(x => new MarkerData(x)));
             /** @type {OldMarkerTimings} */
             const oldMarkerTimings = {};
             /** @type {MarkerData[]} */
@@ -425,7 +425,7 @@ WHERE (base.metadata_type=1 OR base.metadata_type=4)`;
                 editedMarkers.push(new MarkerData(edited));
             }
 
-            await BackupManager.recordEdits(editedMarkers, oldMarkerTimings);
+            BackupManager.recordEdits(editedMarkers, oldMarkerTimings);
 
             stats.added += restoredMarkerData.newMarkers.length;
             stats.identical += restoredMarkerData.identicalMarkers.length;

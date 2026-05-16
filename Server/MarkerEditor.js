@@ -39,31 +39,31 @@ async function run() {
 
     // Initialize auth database before everything else, as it doesn't rely on Config, and
     // FirstRunConfig might need access to it.
-    await AuthDatabase.Initialize(dataRoot);
-    await UserAuthentication.Initialize();
+    AuthDatabase.Initialize(dataRoot);
+    UserAuthentication.Initialize();
 
     if (!argInfo.isTest) {
         await FirstRunConfig(dataRoot, argInfo.cliSetup);
     }
 
     // If we don't have a config file, still launch the server using some default values.
-    const config = await MarkerEditorConfig.Create(argInfo, dataRoot, GetServerState() === ServerState.Suspended);
+    const config = MarkerEditorConfig.Create(argInfo, dataRoot, GetServerState() === ServerState.Suspended);
     const configValid = config.getValid() === ServerConfigState.Valid;
 
     if (configValid) {
         // Set up the database, and make sure it's the right one.
-        const queryManager = await PlexQueryManager.CreateInstance(config.databasePath());
+        const queryManager = PlexQueryManager.CreateInstance(config.databasePath());
 
         // Some settings can only be validated once the database is up and running.
-        await config.validateDbSettings();
+        config.validateDbSettings();
 
-        await MarkerBackupManager.CreateInstance(isTestRun() ? join(dataRoot, 'Test') : dataRoot);
+        MarkerBackupManager.CreateInstance(isTestRun() ? join(dataRoot, 'Test') : dataRoot);
 
         ThumbnailManager.Create(queryManager.database(), config.metadataPath());
         if (config.extendedMarkerStats()) {
             try {
-                await MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
-                await BackupManager.buildAllPurges();
+                MarkerCacheManager.Create(queryManager.database(), queryManager.markerTagId());
+                BackupManager.buildAllPurges();
             } catch (err) {
                 Log.error(err.message, 'Failed to build marker cache');
                 Log.error('Continuing to server creation, but extended marker statistics will not be available.');
@@ -104,18 +104,23 @@ function setupTerminateHandlers() {
     }
 
     // If we encounter an unhandled exception, handle it somewhat gracefully and exit the process.
-    process.on('uncaughtException', async (err) => {
+    process.on('uncaughtException', (err) => {
         Log.critical(err.message);
         const stack = err.stack ? err.stack : '(Could not find stack trace)';
         isTestRun() ? Log.error(stack) : Log.verbose(stack);
         Log.error('The server ran into an unexpected problem, exiting...');
         writeErrorToFile(err.message + '\n' + stack);
-        await cleanupForShutdown(true /*fullShutdown*/);
+        cleanupForShutdown(true /*fullShutdown*/);
         process.exit(1);
     });
 
     // Capture Ctrl+C (and other interrupts) and cleanly exit the process
-    const signalCallback = (sig) => handleClose(sig);
+    const signalCallback = (sig) => {
+        void handleClose(sig).catch(err => {
+            Log.critical(`Failed to handle ${sig}: ${err.message}`);
+        });
+    };
+
     process.on('SIGINT', signalCallback);
     process.on('SIGQUIT', signalCallback);
     process.on('SIGTERM', signalCallback);

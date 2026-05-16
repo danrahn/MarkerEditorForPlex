@@ -170,11 +170,11 @@ class MarkerEpisodeNode extends BaseItemNode {
  * @readonly */ // Externally readonly
 let Instance;
 
-ServerEventHandler.on(ServerEvents.ReloadMarkerStats, async (enabled, db, tagId, resolve) => {
+ServerEventHandler.on(ServerEvents.ReloadMarkerStats, (enabled, db, tagId, resolve) => {
     MarkerCacheManager.Close();
     LegacyMarkerBreakdown.Clear();
     if (enabled) {
-        await MarkerCacheManager.Create(db, tagId);
+        MarkerCacheManager.Create(db, tagId);
     }
 
     resolve();
@@ -188,13 +188,13 @@ class MarkerCacheManager {
      * Instantiate the singleton MarkerCacheManager.
      * @param {SqliteDatabase} database The connection to the Plex database.
      * @param {number} tagId The tag_id in the Plex database that corresponds to markers. */
-    static async Create(database, tagId) {
+    static Create(database, tagId) {
         if (Instance) {
             Log.warn(`Marker cache already initialized, we shouldn't do it again!`);
         }
 
         Instance = new MarkerCacheManager(database, tagId);
-        await Instance.#init();
+        Instance.#init();
         return Instance;
     }
 
@@ -231,24 +231,24 @@ class MarkerCacheManager {
 
     /**
      * Clear out and rebuild the marker cache. */
-    async reinitialize() {
+    reinitialize() {
         this.#allMarkers = {};
         this.#markerHierarchy = {};
         this.#allBaseItems = new Set();
-        await this.#init();
+        this.#init();
     }
 
     /**
      * Build the marker cache for the entire Plex server. */
-    async #init() {
+    #init() {
         Log.info('Gathering markers...');
         const start = Date.now();
         // Note: Creating separate queries for relevant markers and all media items, then combining them
         //       ourselves is _significantly_ faster than combining it into a single query.
         /** @type {MarkerQueryResult[]} */
-        const markers = await this.#database.all(MarkerCacheManager.#markerOnlyQuery, [this.#tagId]);
+        const markers = this.#database.all(MarkerCacheManager.#markerOnlyQuery, [this.#tagId]);
         /** @type {MediaItemQueryResult[]} */
-        const media = await this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
+        const media = this.#database.all(MarkerCacheManager.#mediaOnlyQuery);
         const end = Date.now();
         Log.verbose(`Queried all markers (${markers.length} in ${((end - start) / 1000).toFixed(2)} seconds), analyzing...`);
         /** @type {{ [mediaId: number]: MediaItemQueryResult }} */
@@ -460,10 +460,10 @@ class MarkerCacheManager {
      * after the initial startup of this server.
      * @param {string} query The query to run on the database
      * @param {number} metadataId */
-    async #tryUpdateCache(query, metadataId) {
+    #tryUpdateCache(query, metadataId) {
         try {
             /** @type {MarkerQueryResult[]} */
-            const rows = await this.#database.all(query, [metadataId]);
+            const rows = this.#database.all(query, [metadataId]);
             if (this.#topLevelItemFromId(metadataId)) {
                 return Log.verbose('tryUpdateCache: Multiple update requests fired for this item, ignoring this one.');
             }

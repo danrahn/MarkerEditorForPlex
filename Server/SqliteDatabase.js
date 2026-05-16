@@ -7,9 +7,11 @@ import ServerError from './ServerError.js';
  * @typedef {(number|string|boolean|null)[]} DbArrayParameters
  * @typedef {{ [parameter: string]: number|string|boolean|null }} DbDictParameters
  * @typedef {DbArrayParameters|DbDictParameters|DbScalarParameter} DbQueryParameters
+ * @typedef {string|number|object|boolean|null|undefined} AnythingButAPromise
  */
 
 /** @typedef {import('better-sqlite3').Database} Database */
+/** @typedef {import('better-sqlite3').Statement} Statement */
 
 /**
  * Create and return a connection to an sqlite database.
@@ -25,17 +27,19 @@ function OpenSqliteDatabase(path, allowCreate) {
 }
 
 /**
- * A wrapper around an sqlite database that preserves an async/await API
- * for callers while using a synchronous driver internally.
+ * A wrapper around an sqlite database.
+ *
+ * Callers can still use async/await with this API, but methods now execute
+ * synchronously and return values directly.
  */
 class SqliteDatabase {
     /**
      * Return a new database wrapper for the database at the given path.
      * @param {string} path The path to the database.
      * @param {boolean} allowCreate Determines whether we're okay with create a new database if it doesn't exist.
-     * @returns {Promise<SqliteDatabase>} */
+     * @returns {SqliteDatabase} */
     static OpenDatabase(path, allowCreate) {
-        return Promise.resolve(new SqliteDatabase(OpenSqliteDatabase(path, allowCreate)));
+        return new SqliteDatabase(OpenSqliteDatabase(path, allowCreate));
     }
 
     /** @type {Database} */
@@ -52,7 +56,7 @@ class SqliteDatabase {
      * Run the given query, returning no rows.
      * @param {string} query
      * @param {DbQueryParameters} [parameters=[]]
-     * @returns {Promise<void>} */
+     * @returns {void} */
     run(query, parameters=[]) {
         return this.#action(query, parameters, 'run');
     }
@@ -61,7 +65,7 @@ class SqliteDatabase {
      * Retrieves a single row from the given query.
      * @param {string} query
      * @param {DbQueryParameters} [parameters=[]]
-     * @returns {Promise<any>} */
+     * @returns {AnythingButAPromise} */
     get(query, parameters=[]) {
         return this.#action(query, parameters, 'get');
     }
@@ -70,7 +74,7 @@ class SqliteDatabase {
      * Retrieves all rows from the given query.
      * @param {string} query
      * @param {DbQueryParameters} parameters
-     * @returns {Promise<any[]>} */
+     * @returns {AnythingButAPromise[]} */
     all(query, parameters=[]) {
         return this.#action(query, parameters, 'all');
     }
@@ -78,51 +82,69 @@ class SqliteDatabase {
     /**
      * Execute the given statement(s).
      * @param {string} query
-     * @returns {Promise<undefined>} */
+     * @returns {undefined} */
     exec(query) {
         return this.#action(query, null /*parameters*/, 'exec');
+    }
+
+    /**
+     * Prepare the given statement for repeated execution.
+     * @param {string} query
+     * @returns {Statement} */
+    prepare(query) {
+        try {
+            return this.#db.prepare(query);
+        } catch (err) {
+            throw ServerError.FromDbError(err);
+        }
+    }
+
+    /**
+     * Execute a pre-prepared statement with the given parameters.
+     * @param {Statement} statement
+     * @param {DbQueryParameters|undefined} [parameters=[]] */
+    runPrepared(statement, parameters=[]) {
+        try {
+            this.#invoke(statement.run.bind(statement), parameters);
+        } catch (err) {
+            throw ServerError.FromDbError(err);
+        }
     }
 
     /** Closes the underlying database connection. */
     close() {
         try {
             this.#db.close();
-            return Promise.resolve();
         } catch (err) {
-            return Promise.reject(ServerError.FromDbError(err));
+            throw ServerError.FromDbError(err);
         }
     }
 
     /**
-     * Perform a database action and return a Promise, which was helpful when we were
-     * using the callback-based node-sqlite, but now is just to preserve promise semantics for callers.
-     * TODO: Consider removing the promise wrapper, since better-sqlite3 is synchronous and this just adds overhead.
+     * Perform a database action.
      * @param {string} query
      * @param {DbQueryParameters|null} parameters
      * @param {'run'|'get'|'all'|'exec'} action
-     * @returns {Promise<any>} */
+     * @returns {*} */
     #action(query, parameters, action) {
-        return new Promise((resolve, reject) => {
-            try {
-                if (action === 'exec') {
-                    this.#db.exec(query);
-                    resolve(undefined);
-                    return;
-                }
-
-                const statement = this.#db.prepare(query);
-                const execute = statement[action].bind(statement);
-                const result = this.#invoke(execute, parameters);
-                resolve(action === 'run' ? undefined : result);
-            } catch (err) {
-                reject(ServerError.FromDbError(err));
+        try {
+            if (action === 'exec') {
+                this.#db.exec(query);
+                return undefined;
             }
-        });
+
+            const statement = this.#db.prepare(query);
+            const execute = statement[action].bind(statement);
+            const result = this.#invoke(execute, parameters);
+            return action === 'run' ? undefined : result;
+        } catch (err) {
+            throw ServerError.FromDbError(err);
+        }
     }
 
     /**
      * Invoke the given statement with normalized parameter input.
-     * @param {(...args: any[]) => any} fn
+     * @param {(...args: any[]) => *} fn
      * @param {DbQueryParameters|null|undefined} parameters */
     #invoke(fn, parameters) {
         if (parameters === undefined) {

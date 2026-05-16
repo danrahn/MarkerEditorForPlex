@@ -110,13 +110,13 @@ class ImportExportTest extends TestBase {
         TestHelpers.verify(episodeId in markerMap);
         const markers = markerMap[episodeId];
         TestHelpers.verify(markers.length === 3, `Expected episode to have 3 markers after import, found ${markers.length}`);
-        const vm = async (m, mType, start, end, index, final, db) => {
-            await TestHelpers.validateMarker(m, mType, episodeId, seasonId, showId, start, end, index, final, db);
+        const vm = (m, mType, start, end, index, final, db) => {
+            TestHelpers.validateMarker(m, mType, episodeId, seasonId, showId, start, end, index, final, db);
         };
 
-        await vm(markers[0], MarkerType.Intro, 0, 10000, 0, false, this.testDb);
-        await vm(markers[1], MarkerType.Credits, 500000, 550000, 1, false, this.testDb);
-        await vm(markers[2], MarkerType.Credits, 560000, 600000, 2, true, this.testDb);
+        vm(markers[0], MarkerType.Intro, 0, 10000, 0, false, this.testDb);
+        vm(markers[1], MarkerType.Credits, 500000, 550000, 1, false, this.testDb);
+        vm(markers[2], MarkerType.Credits, 560000, 600000, 2, true, this.testDb);
     }
 
     /**
@@ -211,8 +211,8 @@ class ImportExportTest extends TestBase {
         const m2 = markerMap[e2.Id];
         TestHelpers.verify(m1.length === 1, `Expected episode1 to have 1 marker after import, found ${m1.length}`);
         TestHelpers.verify(m2.length === 1, `Expected episode2 to have 1 marker after import, found ${m1.length}`);
-        await TestHelpers.validateMarker(m1[0], MarkerType.Intro, e1.Id, null, null, 15000, 45000, 0, false, this.testDb);
-        await TestHelpers.validateMarker(m2[0], MarkerType.Intro, e2.Id, null, null, 15000, 45000, 0, false, this.testDb);
+        TestHelpers.validateMarker(m1[0], MarkerType.Intro, e1.Id, null, null, 15000, 45000, 0, false, this.testDb);
+        TestHelpers.validateMarker(m2[0], MarkerType.Intro, e2.Id, null, null, 15000, 45000, 0, false, this.testDb);
     }
 
     /**
@@ -221,7 +221,7 @@ class ImportExportTest extends TestBase {
      * @param {number} sectionId
      * @param {number} resolveType */
     async #importInternal(importData, sectionId, resolveType) {
-        await this.#writeImportDb(importData);
+        this.#writeImportDb(importData);
         const form = new FormData();
         form.append('sectionId', sectionId);
         form.append('resolveType', resolveType);
@@ -266,7 +266,7 @@ class ImportExportTest extends TestBase {
         TestHelpers.verify(episodeId in markerMap, `Expected id ${episodeId} in marker query results`);
         const markers = markerMap[episodeId];
         TestHelpers.verify(markers.length === 1, `Expected episode to have 1 marker after import, found ${markers.length}`);
-        await TestHelpers.validateMarker(
+        TestHelpers.validateMarker(
             markers[0],
             MarkerType.Intro,
             episodeId,
@@ -291,10 +291,10 @@ class ImportExportTest extends TestBase {
         await new Promise((resolve, _) => { stream.on('finish', resolve); });
         await new Promise(resolve => { stream.end(() => resolve()); });
 
-        const db = await SqliteDatabase.OpenDatabase(this.#dbPath(), false /*allowCreate*/);
-        const data = await db.all('SELECT * FROM markers;');
+        const db = SqliteDatabase.OpenDatabase(this.#dbPath(), false /*allowCreate*/);
+        const data = db.all('SELECT * FROM markers;');
         this.#verifyData(data);
-        await db.close();
+        db.close();
         return data;
     }
 
@@ -330,8 +330,8 @@ class ImportExportTest extends TestBase {
     /**
      * Write the given rows to a new database to be imported
      * @param {any[][]} rows */
-    async #writeImportDb(rows) {
-        const db = await SqliteDatabase.OpenDatabase(this.#dbPath(), true /*allowCreate*/);
+    #writeImportDb(rows) {
+        const db = SqliteDatabase.OpenDatabase(this.#dbPath(), true /*allowCreate*/);
 
         // Copied from Server/ImportExport.js
         let query = new TransactionBuilder(db);
@@ -349,7 +349,7 @@ class ImportExportTest extends TestBase {
         query.addStatement(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER);`);
         query.addStatement(`
             INSERT INTO schema_version (version) SELECT 1 WHERE NOT EXISTS (SELECT * FROM schema_version);`);
-        await query.exec();
+        query.exec();
 
         query = new TransactionBuilder(db);
         for (const row of rows) {
@@ -366,8 +366,8 @@ class ImportExportTest extends TestBase {
             }
         }
 
-        await query.exec();
-        await db.close();
+        query.exec();
+        db.close();
     }
 
     /** Delete exported DB on teardown */

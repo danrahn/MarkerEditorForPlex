@@ -25,6 +25,8 @@
     "read": "^4.0.0"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
     "eslint": "^9.0.0",
     "form-data": "^4.0.0",
     "fs-extra": "^10.1.0",
@@ -32,6 +34,7 @@
     "rcedit": "^3.0.1",
     "rollup": "^4.0.0",
     "semver": "^7.6.0",
+    "typescript": "^6.0.3",
     "webpack": "^5.91.0"
   }
 }

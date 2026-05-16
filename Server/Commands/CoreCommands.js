@@ -56,7 +56,7 @@ function checkMarkerBounds(startMs, endMs, markerType) {
 /**
  * @param {BulkAddResult} addResult
  * @param {RawMarkerData[]} previousMarkers */
-async function bulkAddPostProcess(addResult, previousMarkers) {
+function bulkAddPostProcess(addResult, previousMarkers) {
     if (!addResult.applied) {
         // Nothing applied, nothing to do.
         return 0;
@@ -113,9 +113,9 @@ async function bulkAddPostProcess(addResult, previousMarkers) {
         LegacyMarkerBreakdown.Update(deleted, markerCounts[deleted.parentId]--, -1);
     }
 
-    await BackupManager.recordAdds(adds);
-    await BackupManager.recordEdits(edits, oldMarkerTimings);
-    await BackupManager.recordDeletes(deletes);
+    BackupManager.recordAdds(adds);
+    BackupManager.recordEdits(edits, oldMarkerTimings);
+    BackupManager.recordDeletes(deletes);
     return adds.length;
 }
 
@@ -165,7 +165,7 @@ function parseCustomMarkerData(markers) {
  * @param {number} endMs The end time of the marker, in milliseconds.
  * @param {number} final Whether this marker is the final marker (credits only).
  * @throws {ServerError} */
-async function addMarker(markerType, metadataId, startMs, endMs, final) {
+function addMarker(markerType, metadataId, startMs, endMs, final) {
     checkMarkerBounds(startMs, endMs, markerType);
 
     if (markerType !== MarkerType.Credits && final) {
@@ -175,13 +175,13 @@ async function addMarker(markerType, metadataId, startMs, endMs, final) {
         final = 0;
     }
 
-    const addResult = await PlexQueries.addMarker(metadataId, startMs, endMs, markerType, final);
+    const addResult = PlexQueries.addMarker(metadataId, startMs, endMs, markerType, final);
     const allMarkers = addResult.allMarkers;
     const newMarker = addResult.newMarker;
     const markerData = new MarkerData(newMarker);
     LegacyMarkerBreakdown.Update(markerData, allMarkers.length - 1, 1 /*delta*/);
     MarkerCache?.addMarkerToCache(newMarker);
-    await BackupManager.recordAdds([markerData]);
+    BackupManager.recordAdds([markerData]);
     Log.info(`Added ${markerType} marker to item ${metadataId} [${startMs}-${endMs}]`);
     return markerData;
 }
@@ -195,20 +195,20 @@ async function addMarker(markerType, metadataId, startMs, endMs, final) {
  * @param {number} userCreated Whether the original marker was user created.
  * @param {number} final Whether this Credits marker goes until the end of the episode
  * @throws {ServerError} */
-async function editMarker(markerType, markerId, startMs, endMs, final) {
+function editMarker(markerType, markerId, startMs, endMs, final) {
     checkMarkerBounds(startMs, endMs, markerType);
     if (markerType !== MarkerType.Credits && final) {
         Log.warn(`Got a request for a 'final' marker that isn't a credit marker!`);
         final = 0;
     }
 
-    const currentMarker = await PlexQueries.getSingleMarker(markerId);
+    const currentMarker = PlexQueries.getSingleMarker(markerId);
     if (!currentMarker) {
         throw new ServerError('Marker not found', 400);
     }
 
     // Get all markers to adjust indexes if necessary
-    const allMarkers = await PlexQueries.getBaseTypeMarkers(currentMarker.parent_id);
+    const allMarkers = PlexQueries.getBaseTypeMarkers(currentMarker.parent_id);
     Log.verbose(`Markers for this episode: ${allMarkers.length}`);
 
     const currentMarkerInAllMarkers = allMarkers.find(m => m.id === markerId);
@@ -232,14 +232,14 @@ async function editMarker(markerType, markerId, startMs, endMs, final) {
 
     // Make the edit, then adjust indexes
     // TODO: removeIndex: newIndex parameter shouldn't be necessary
-    await PlexQueries.editMarker(markerId, newIndex, startMs, endMs, markerType, final);
-    await PlexQueries.reindex(currentMarker.parent_id);
+    PlexQueries.editMarker(markerId, newIndex, startMs, endMs, markerType, final);
+    PlexQueries.reindex(currentMarker.parent_id);
 
-    const newMarkerRaw = await PlexQueries.getSingleMarker(markerId);
+    const newMarkerRaw = PlexQueries.getSingleMarker(markerId);
     const newMarker = new MarkerData(newMarkerRaw);
     const oldStart = currentMarker.start;
     const oldEnd = currentMarker.end;
-    await BackupManager.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
+    BackupManager.recordEdits([newMarker], { [newMarker.id] : { start : oldStart, end : oldEnd } });
     Log.info(`Edited Marker for item ${currentMarker.parent_id}, ` +
         `was [${currentMarker.start}-${currentMarker.end}], now [${startMs}-${endMs}]`);
     return newMarker;
@@ -248,13 +248,13 @@ async function editMarker(markerType, markerId, startMs, endMs, final) {
 /**
  * Removes the given marker from the database, rearranging indexes as necessary.
  * @param {number} markerId The marker id to remove from the database. */
-async function deleteMarker(markerId) {
-    const markerToDelete = await PlexQueries.getSingleMarker(markerId);
+function deleteMarker(markerId) {
+    const markerToDelete = PlexQueries.getSingleMarker(markerId);
     if (!markerToDelete) {
         throw new ServerError('Could not find marker', 400);
     }
 
-    const allMarkers = await PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);
+    const allMarkers = PlexQueries.getBaseTypeMarkers(markerToDelete.parent_id);
     let deleteIndex = 0;
     for (const marker of allMarkers) {
         if (marker.id === markerId) {
@@ -263,17 +263,17 @@ async function deleteMarker(markerId) {
     }
 
     // Now that we're done rearranging, delete the original tag.
-    await PlexQueries.deleteMarker(markerId);
+    PlexQueries.deleteMarker(markerId);
 
     // If deletion was successful, now we can check to see whether we need to rearrange indexes to keep things contiguous
     if (deleteIndex < allMarkers.length - 1) {
-        await PlexQueries.reindex(markerToDelete.parent_id);
+        PlexQueries.reindex(markerToDelete.parent_id);
     }
 
     const deletedMarker = new MarkerData(markerToDelete);
     MarkerCache?.removeMarkerFromCache(markerId);
     LegacyMarkerBreakdown.Update(deletedMarker, allMarkers.length, -1 /*delta*/);
-    await BackupManager.recordDeletes([deletedMarker]);
+    BackupManager.recordDeletes([deletedMarker]);
     Log.info(`Deleted marker from item ${markerToDelete.parent_id} [${markerToDelete.start}-${markerToDelete.end}]`);
     return deletedMarker;
 }
@@ -286,9 +286,9 @@ async function deleteMarker(markerId) {
  * @param {number} applyTo The marker type(s) to apply the shift to.
  * @param {number} applyType The ShiftApplyType
  * @param {number[]} ignoredMarkerIds Markers to ignore when shifting.
- * @returns {Promise<ShiftResult>} */
-async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType, ignoredMarkerIds) {
-    const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
+ * @returns {ShiftResult} */
+function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType, ignoredMarkerIds) {
+    const markerInfo = PlexQueries.getMarkersAuto(metadataId);
     if (markerInfo.typeInfo.metadata_type === MetadataType.Movie) {
         throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
     }
@@ -327,7 +327,7 @@ async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType
     }
 
     const episodeIds = Object.keys(seen).map(k => parseInt(k));
-    const rawEpisodeData = await PlexQueries.getEpisodesFromList(episodeIds);
+    const rawEpisodeData = PlexQueries.getEpisodesFromList(episodeIds);
     const foundOverflow = checkOverflow(seen, rawEpisodeData, startShift, endShift);
 
     if (applyType === ShiftApplyType.DontApply || foundOverflow || (applyType === ShiftApplyType.TryApply && foundConflict)) {
@@ -351,10 +351,10 @@ async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType
     }
 
     // TODO: Check if shift causes overlap with ignored markers?
-    const shifted = await PlexQueries.shiftMarkers(seen, rawEpisodeData, startShift, endShift);
+    const shifted = PlexQueries.shiftMarkers(seen, rawEpisodeData, startShift, endShift);
 
     // Now make sure all indexes are in order
-    const reindexResult = await PlexQueries.reindex(metadataId);
+    const reindexResult = PlexQueries.reindex(metadataId);
     /** @type {Record<number, RawMarkerData>} */
     const reindexMap = {};
     for (const marker of reindexResult.markers) {
@@ -374,7 +374,7 @@ async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType
         markerData.push(nonRaw);
     }
 
-    await BackupManager.recordEdits(markerData, oldMarkerMap);
+    BackupManager.recordEdits(markerData, oldMarkerMap);
     Log.info(`Shifted ${markerData.length} markers for item ${metadataId} [startShift=${startShift}, endShift=${endShift}]`);
 
     return {
@@ -391,9 +391,9 @@ async function shiftMarkers(metadataId, startShift, endShift, applyTo, applyType
  * @param {boolean} dryRun Whether we should just gather data about what we would delete.
  * @param {number} applyTo The type of marker(s) to delete.
  * @param {number[]} ignoredMarkerIds List of marker ids to not delete.
- * @returns {Promise<BulkDeleteResult>} */
-async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
-    const markerInfo = await PlexQueries.getMarkersAuto(metadataId);
+ * @returns {BulkDeleteResult} */
+function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
+    const markerInfo = PlexQueries.getMarkersAuto(metadataId);
     if (markerInfo.typeInfo.metadata_type === MetadataType.Movie) {
         throw new ServerError(`Bulk delete doesn't support movies (yet?).`, 400);
     }
@@ -428,7 +428,7 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
 
         /** @type {{ [episodeId: number]: EpisodeData }} */
         const serializedEpisodeData = {};
-        const rawEpisodeData = await PlexQueries.getEpisodesFromList(Array.from(episodeIds));
+        const rawEpisodeData = PlexQueries.getEpisodesFromList(Array.from(episodeIds));
         rawEpisodeData.forEach(e => serializedEpisodeData[e.id] = new EpisodeData(e));
         return {
             markers : serializedMarkers,
@@ -437,12 +437,12 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
         };
     }
 
-    await PlexQueries.bulkDelete(toDelete);
+    PlexQueries.bulkDelete(toDelete);
 
     // Now make sure all indexes are in order. Should only be needed if ignoredMarkerIds isn't empty,
     // but do it unconditionally since we can also get our updated marker info from it, as the return
     // value is any remaining markers associated with the id. Should line up with ignoredMarkerIds.
-    const newMarkerInfo = await PlexQueries.reindex(metadataId);
+    const newMarkerInfo = PlexQueries.reindex(metadataId);
 
     Log.assert( // Only valid when we're deleting all marker types.
         applyTo !== MarkerEnum.All || newMarkerInfo.markers.length === ignoredMarkerIds.length,
@@ -461,7 +461,7 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
         deleted.push(nonRaw);
     }
 
-    await BackupManager.recordDeletes(deleted);
+    BackupManager.recordDeletes(deleted);
     Log.info(`Deleted ${deleted.length} markers for item ${metadataId} (explicitly ignored ${ignoredMarkerIds.length})`);
     return {
         markers : serializedMarkers,
@@ -477,8 +477,8 @@ async function bulkDelete(metadataId, dryRun, applyTo, ignoredMarkerIds) {
  * @param {number} end
  * @param {number} resolveType The `BulkMarkerResolveType`
  * @param {number[]} [ignored=[]] List of episode ids to not add markers to.
- * @returns {Promise<BulkAddResult>>} */
-async function bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
+ * @returns {BulkAddResult} */
+function bulkAdd(markerType, metadataId, start, end, resolveType, ignored=[]) {
     const knownInvalid = start < 0 ? end <= start : (end > 0 && end <= start);
     if (resolveType !== BulkMarkerResolveType.DryRun && knownInvalid) {
         throw new ServerError(`Start cannot be negative or greater than end, found (start: ${start} end: ${end})`, 500);
@@ -488,9 +488,9 @@ async function bulkAdd(markerType, metadataId, start, end, resolveType, ignored=
         throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
     }
 
-    const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
-    const addResult = await PlexQueries.bulkAddSimple(currentMarkers, metadataId, start, end, markerType, resolveType, ignored);
-    const adds = await bulkAddPostProcess(addResult, currentMarkers.markers);
+    const currentMarkers = PlexQueries.getMarkersAuto(metadataId);
+    const addResult = PlexQueries.bulkAddSimple(currentMarkers, metadataId, start, end, markerType, resolveType, ignored);
+    const adds = bulkAddPostProcess(addResult, currentMarkers.markers);
 
     if (resolveType !== BulkMarkerResolveType.DryRun) {
         Log.info(`Added ${adds} markers to item ${metadataId} (explicitly ignored ${ignored.length})`);
@@ -505,14 +505,14 @@ async function bulkAdd(markerType, metadataId, start, end, resolveType, ignored=
  * @param {string} markerType
  * @param {CustomBulkAddMap} newMarkers
  * @param {number} resolveType */
-async function bulkAddCustom(metadataId, markerType, newMarkers, resolveType) {
+function bulkAddCustom(metadataId, markerType, newMarkers, resolveType) {
     if (Object.values(MarkerType).indexOf(markerType) === -1) {
         throw new ServerError(`Unknown marker type ${markerType} provided to bulkAdd`, 400);
     }
 
-    const currentMarkers = await PlexQueries.getMarkersAuto(metadataId);
-    const addResult = await PlexQueries.bulkAddCustom(currentMarkers, metadataId, markerType, resolveType, newMarkers);
-    const adds = await bulkAddPostProcess(addResult, currentMarkers.markers);
+    const currentMarkers = PlexQueries.getMarkersAuto(metadataId);
+    const addResult = PlexQueries.bulkAddCustom(currentMarkers, metadataId, markerType, resolveType, newMarkers);
+    const adds = bulkAddPostProcess(addResult, currentMarkers.markers);
 
     if (resolveType !== BulkMarkerResolveType.DryRun) {
         const ignored = addResult.ignoredEpisodes?.length || 0;

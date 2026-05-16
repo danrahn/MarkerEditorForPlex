@@ -323,8 +323,8 @@ const SchemaUpgrades = [
  * @readonly */ // Externally readonly
 let Instance;
 
-ServerEventHandler.on(ServerEvents.RebuildPurgedCache, async (resolve) => {
-    await Instance?.reinitialize();
+ServerEventHandler.on(ServerEvents.RebuildPurgedCache, (resolve) => {
+    Instance?.reinitialize();
     resolve();
 });
 
@@ -357,7 +357,7 @@ class MarkerBackupManager {
     /** @type {{[sectionId: number]: number}} */
     #sectionTypes = {};
 
-    /** @type {((callback: Function) => Promise<void>)[]} */
+    /** @type {((callback: Function) => void)[]} */
     #schemaUpgradeCallbacks = [
         async () => { },
         this.#updateSectionIdAfterUpgrade.bind(this),
@@ -374,17 +374,17 @@ class MarkerBackupManager {
      * Create a new MarkerBackupManager instance. This should always be used
      * opposed to creating a new MarkerBackupManager directly.
      * @param {string} dataRoot The root of this project, to determine where the backup database is. */
-    static async CreateInstance(dataRoot) {
+    static CreateInstance(dataRoot) {
         if (Instance) {
             Log.warn(`Backup manager already initialized, we shouldn't be trying to do this again!`);
-            await MarkerBackupManager.Close();
+            MarkerBackupManager.Close();
         }
 
         Log.info('Initializing marker backup database...');
         /** @type {{id: number, uuid: string, section_type: number}[]} */
         let sections;
         try {
-            sections = await PlexQueries.sectionUuids();
+            sections = PlexQueries.sectionUuids();
         } catch (err) {
             Log.error(`Unable to get existing library sections. Can't properly backup marker actions`);
             throw err;
@@ -414,14 +414,14 @@ class MarkerBackupManager {
         }
 
         try {
-            const db = await SqliteDatabase.OpenDatabase(fullPath, true /*allowCreate*/);
+            const db = SqliteDatabase.OpenDatabase(fullPath, true /*allowCreate*/);
             Log.tmi('Opened database, checking schema');
-            await db.exec(CheckVersionTable);
+            db.exec(CheckVersionTable);
             if (!dbExists) {
-                await db.exec(SchemaUpgrades[0]);
+                db.exec(SchemaUpgrades[0]);
             }
 
-            const row = await db.get('SELECT version FROM schema_version;');
+            const row = db.get('SELECT version FROM schema_version;');
             const version = row ? row.version : 0;
             const manager = new MarkerBackupManager(uuids, sectionTypes, db);
             if (version !== CurrentSchemaVersion) {
@@ -430,19 +430,17 @@ class MarkerBackupManager {
                     Log.info(`Old database schema detected (${version}), attempting to upgrade.`);
                 }
 
-                await manager.upgradeSchema(version);
+                manager.upgradeSchema(version);
             }
 
             // 2 -> 3 Add guids if necessary
             // TODO: Do something similar for 1 -> 2?
-            await manager.postUpgrade();
+            manager.postUpgrade();
 
             // Initialize once all of our upgrade steps have completed.
-            await manager.initialize();
+            manager.initialize();
 
             Log.info(fullPath, 'Initialized backup database');
-            // Something's gone terribly wrong if we're making multiple asynchronous calls to CreateInstance
-            // eslint-disable-next-line require-atomic-updates
             Instance = manager;
             return manager;
         } catch (err) {
@@ -452,10 +450,8 @@ class MarkerBackupManager {
     }
 
     /** Clear out the singleton backup manager instance. */
-    static async Close() {
-        await Instance?.close();
-        // Something's gone terribly wrong if there are multiple active calls to Close
-        // eslint-disable-next-line require-atomic-updates
+    static Close() {
+        Instance?.close();
         Instance = null;
     }
 
@@ -476,21 +472,21 @@ class MarkerBackupManager {
 
     /**
      * Clear out and rebuild purged marker information. */
-    async reinitialize() {
+    reinitialize() {
         MarkerEditCache.clear();
-        await this.#buildMarkerEditDataCache();
+        this.#buildMarkerEditDataCache();
         this.#purgeCache = null;
         if (Config.extendedMarkerStats()) {
-            await this.buildAllPurges();
+            this.buildAllPurges();
         }
     }
 
     /** Closes the database connection. */
-    async close() {
+    close() {
         MarkerEditCache.clear();
         Log.verbose('Shutting down backup database connection...');
         try {
-            await this.#actions?.close();
+            this.#actions?.close();
             Log.verbose('Shut down backup database connection.');
         } catch (err) {
             Log.error('Backup marker database close failed', err.message);
@@ -500,16 +496,16 @@ class MarkerBackupManager {
     /**
      * Attempts to update the database to match the current schema.
      * @param {number} oldVersion The current schema version of the backup database. */
-    async upgradeSchema(oldVersion) {
+    upgradeSchema(oldVersion) {
         const nextVersion = oldVersion + 1;
         Log.info(`Upgrading from schema version ${oldVersion} to ${nextVersion}...`);
-        await this.#actions.exec(SchemaUpgrades[oldVersion]);
-        await this.#schemaUpgradeCallbacks[oldVersion]();
+        this.#actions.exec(SchemaUpgrades[oldVersion]);
+        this.#schemaUpgradeCallbacks[oldVersion]();
         if (nextVersion === CurrentSchemaVersion) {
             Log.info('Successfully upgraded database schema.');
             Log.info('Initialized backup database');
         } else {
-            await this.upgradeSchema(nextVersion);
+            this.upgradeSchema(nextVersion);
         }
     }
 
@@ -517,7 +513,7 @@ class MarkerBackupManager {
      * Updates the backup database to set the correct section_id, which will be -1 if
      * the user performed any actions with the V1 database schema.
      * This should be a one-time operation (per server associated with this application). */
-    async #updateSectionIdAfterUpgrade() {
+    #updateSectionIdAfterUpgrade() {
         Log.verbose('Setting section_id after upgrading schema.');
 
         const transaction = new TransactionBuilder(this.#actions);
@@ -525,13 +521,13 @@ class MarkerBackupManager {
             transaction.addStatement('UPDATE actions SET section_id=? WHERE section_uuid=?;', [+section, uuid]);
         }
 
-        await transaction.exec();
+        transaction.exec();
     }
 
     /**
      * V4 schema upgrade callback, updating our hacked thumb_url entries in the Plex database
      * to be epoch timestamps like everything else, also preserving the 'userCreated' flag. */
-    async #checkBadThumbUrls() {
+    #checkBadThumbUrls() {
         // The Plex DB manager shouldn't have to know about this, so interact
         // directly with the underlying database.
         const db = PlexQueries.database();
@@ -539,7 +535,7 @@ class MarkerBackupManager {
         // First, note which markers are user-created, as we need to switch from the '*' postfix to the negative number notation
         const modifiedMarkersQuery =
             `SELECT id, thumb_url FROM taggings WHERE length(thumb_url) > 0 AND tag_id=${PlexQueries.markerTagId()};`;
-        const modifiedMarkers = await db.all(modifiedMarkersQuery);
+        const modifiedMarkers = db.all(modifiedMarkersQuery);
         const txn = new TransactionBuilder(db);
         for (const marker of modifiedMarkers) {
             const userCreated = marker.thumb_url.endsWith('*');
@@ -564,14 +560,14 @@ class MarkerBackupManager {
             txn.addStatement(`UPDATE taggings SET thumb_url=? WHERE id=?`, [date, marker.id]);
         }
 
-        await txn.exec();
+        txn.exec();
     }
 
     /**
      * Checks whether the given actions need to be updated to have the correct section id
      * @param {MarkerAction[]} actions The actions to inspect
      * @returns Whether section ids need to be updated */
-    async #verifySectionIds(actions) {
+    #verifySectionIds(actions) {
         if (actions.length <= 0 || actions[0].section_id !== -1) {
             return false;
         }
@@ -579,7 +575,7 @@ class MarkerBackupManager {
         // Remnants of schema 1 => 2 transition. The initial transition should have
         // properly updated the section_id for the current server, but this is possible
         // if the user has multiple servers that are using the same backup database.
-        await this.#updateSectionIdAfterUpgrade();
+        this.#updateSectionIdAfterUpgrade();
         return true;
     }
 
@@ -587,18 +583,18 @@ class MarkerBackupManager {
      * Check for one-time actions required after a schema upgrade.
      * Since the backup database supports multiple servers, we may need to run updates
      * outside of the immediate schema upgrade. */
-    async postUpgrade() {
-        await this.#addParentGuidAfterUpgrade();
+    postUpgrade() {
+        this.#addParentGuidAfterUpgrade();
     }
 
     /**
      * Check for relevant marker actions that don't have an episode guid set.
      * If relevant actions are found that we can't find a guid for, that means the episode is deleted
      * and can no longer be restored, so will be marked as ignored in the database. */
-    async #addParentGuidAfterUpgrade() {
+    #addParentGuidAfterUpgrade() {
         const allActionsQuery = this.#allActionsQuery(true);
         /** @type {MarkerAction[]} */
-        const allActions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+        const allActions = this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
         if (!allActions || allActions.length === 0) {
             Log.verbose('No active actions missing episode guid.');
             return;
@@ -613,7 +609,7 @@ class MarkerBackupManager {
         Log.info('Found marker actions without an episode guid. Attempting to match them now.');
         const transaction = new TransactionBuilder(this.#actions);
         for (const [sectionId, actions] of Object.entries(bySection)) {
-            const items = await PlexQueries.baseGuidsForSection(parseInt(sectionId));
+            const items = PlexQueries.baseGuidsForSection(parseInt(sectionId));
             for (const action of actions) {
                 const guid = items[action.parent_id];
                 if (!guid) {
@@ -633,7 +629,7 @@ class MarkerBackupManager {
         }
 
         Log.info(`Running ${transaction.statementCount()} queries to update guids.`);
-        await transaction.exec();
+        transaction.exec();
     }
 
     /**
@@ -737,7 +733,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
     /**
      * Records a marker that was added to the Plex database.
      * @param {MarkerData[]} markers */
-    async recordAdds(markers) {
+    recordAdds(markers) {
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
@@ -753,7 +749,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         }
 
         try {
-            await transaction.exec();
+            transaction.exec();
             Log.verbose(`${transaction.statementCount()} marker add(s) added to backup.`);
         } catch (err) {
             Log.error(err.message, 'Unable to record added marker');
@@ -764,7 +760,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * Records a marker that was edited in the Plex database.
      * @param {MarkerData[]} markers
      * @param {OldMarkerTimings} oldMarkerTimings */
-    async recordEdits(markers, oldMarkerTimings) {
+    recordEdits(markers, oldMarkerTimings) {
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
@@ -786,7 +782,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         }
 
         try {
-            await transaction.exec();
+            transaction.exec();
             Log.verbose(`Backed up ${transaction.statementCount()} marker edit(s).`);
         } catch (err) {
             Log.error(err.message, 'Unable to record edited marker');
@@ -796,7 +792,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
     /**
      * Records a marker that was deleted from the Plex database.
      * @param {MarkerData[]} markers */
-    async recordDeletes(markers) {
+    recordDeletes(markers) {
         const transaction = new TransactionBuilder(this.#actions);
         for (const marker of markers) {
             if (!(marker.sectionId in this.#uuids)) {
@@ -812,7 +808,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         }
 
         try {
-            await transaction.exec();
+            transaction.exec();
             Log.verbose(`${transaction.statementCount()} marker delete(s) added to backup.`);
         } catch (err) {
             Log.error(err.message, 'Unable to record deleted markers');
@@ -823,7 +819,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * Records a restore operation in the database.
      * @param {{marker : RawMarkerData, oldAction : MarkerAction}[]} restores The markers to record
      * @param {number} sectionId The id of the section this marker belongs to. */
-    async recordRestores(restores, sectionId) {
+    recordRestores(restores, sectionId) {
         const transaction = new TransactionBuilder(this.#actions);
 
         for (const restore of restores) {
@@ -837,7 +833,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         }
 
         try {
-            await transaction.exec();
+            transaction.exec();
         } catch (err) {
             // Swallow the error, though we should probably actually do something about this.
             Log.error(err.message, 'Unable to record restoration of marker');
@@ -847,10 +843,10 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
     /**
      * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
      * @param {number} metadataId
-     * @returns {Promise<MarkerAction[]>}
+     * @returns {MarkerAction[]}
      * @throws {ServerError} On failure. */
-    async checkForPurges(metadataId) {
-        const markerData = await PlexQueries.getMarkersAuto(metadataId);
+    checkForPurges(metadataId) {
+        const markerData = PlexQueries.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
 
@@ -862,7 +858,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         const mediaType = this.#columnFromMediaType(typeInfo.metadata_type);
         /** @type {{[parentId: number]: MarkerAction[]}} */
         const baseItemMap = {};
-        const actions = await this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
+        const actions = this.#getExpectedMarkers(metadataId, mediaType, typeInfo.section_id);
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
             if (!markerMap[action.marker_id] && action.op !== MarkerOp.Delete) {
@@ -873,9 +869,9 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         }
 
         if (typeInfo.metadata_type === MetadataType.Movie) {
-            await this.#populateMovieData(baseItemMap);
+            this.#populateMovieData(baseItemMap);
         } else {
-            await this.#populateEpisodeData(baseItemMap);
+            this.#populateEpisodeData(baseItemMap);
         }
 
         /** @type {MarkerAction[]} */
@@ -890,12 +886,12 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
     /**
      * Find and attach episode data for the given episodes.
      * @param {{ [episodeId: number]: MarkerAction[] }} episodeMap  */
-    async #populateEpisodeData(episodeMap) {
+    #populateEpisodeData(episodeMap) {
         if (Object.keys(episodeMap).length === 0) {
             return;
         }
 
-        const episodes = await PlexQueries.getEpisodesFromList(Object.keys(episodeMap).map(k => parseInt(k)));
+        const episodes = PlexQueries.getEpisodesFromList(Object.keys(episodeMap).map(k => parseInt(k)));
         for (const episode of episodes) {
             if (!episodeMap[episode.id]) {
                 Log.warn(`Couldn't find episode ${episode.id} in purge list.`);
@@ -923,12 +919,12 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * _Very_ similar to populateEpisodeData. What can be shared?
      * TODO: can markerAction.episodeData and markerAction.movieData be combined?
      * @param {{[movieId: number]: MarkerAction[] }} movieMap */
-    async #populateMovieData(movieMap) {
+    #populateMovieData(movieMap) {
         if (Object.keys(movieMap).length === 0) {
             return;
         }
 
-        const movies = await PlexQueries.getMoviesFromList(Object.keys(movieMap).map(k => parseInt(k)));
+        const movies = PlexQueries.getMoviesFromList(Object.keys(movieMap).map(k => parseInt(k)));
         for (const movie of movies) {
             if (!movieMap[movie.id]) {
                 Log.warn(`Couldn't find movie ${movie.id} in purge list.`);
@@ -978,15 +974,15 @@ ORDER BY id DESC;`;
     /**
      * Queries the backup database for markers from all sections of the server and checks
      * whether they exist in the Plex database.
-     * @returns {Promise<void>} */
-    async buildAllPurges() {
+     * @returns {void} */
+    buildAllPurges() {
         const allActionsQuery = this.#allActionsQuery();
 
         /** @type {MarkerAction[]} */
-        const actions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+        const actions = this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
 
         // If we need to update ids, hold off for now and rerun buildAllPurges once complete (schema 1 to 2).
-        if (await this.#verifySectionIds(actions)) {
+        if (this.#verifySectionIds(actions)) {
             return this.buildAllPurges();
         }
 
@@ -1010,7 +1006,7 @@ ORDER BY id DESC;`;
                     continue;
                 }
 
-                const fromGuid = await (action.show_id === -1 ?
+                const fromGuid = (action.show_id === -1 ?
                     PlexQueries.getMovieFromGuid(action.parent_guid) :
                     PlexQueries.getEpisodeFromGuid(action.parent_guid));
                 if (!fromGuid) {
@@ -1020,7 +1016,7 @@ ORDER BY id DESC;`;
 
                 // Query should guarantee that we only parse a single marker once, so we can call this here
                 // without worrying about running this multiple times for the same marker when parsing all actions.
-                await this.#updateMarkerMetadataIds(action, fromGuid.id, fromGuid.season_id, fromGuid.show_id);
+                this.#updateMarkerMetadataIds(action, fromGuid.id, fromGuid.season_id, fromGuid.show_id);
             }
 
             if (MarkerCache.baseItemExists(action.parent_id) && !MarkerCache.markerExists(action.marker_id)) {
@@ -1058,9 +1054,9 @@ ORDER BY id DESC;`;
      * @param {number} episodeId
      * @param {number} seasonId
      * @param {number} showId */
-    async #updateMarkerMetadataIds(action, episodeId, seasonId, showId) {
+    #updateMarkerMetadataIds(action, episodeId, seasonId, showId) {
         const query = `UPDATE actions SET parent_id=?, season_id=?, show_id=? WHERE marker_id=?`;
-        await this.#actions.run(query, [episodeId, seasonId, showId, action.marker_id]);
+        this.#actions.run(query, [episodeId, seasonId, showId, action.marker_id]);
     }
 
     /**
@@ -1196,7 +1192,7 @@ ORDER BY id DESC;`;
     /**
      * Retrieve purged markers for the given library section.
      * @param {number} sectionId The section to parse.
-     * @returns {Promise<PurgeMovieSection|PurgeShowSection>} Tree of purged `MarkerAction`s.
+     * @returns {PurgeMovieSection|PurgeShowSection} Tree of purged `MarkerAction`s.
      * @throws {ServerError} If the cache is not initialized or the section does not exist. */
     purgesForSection(sectionId) {
         return this.#purgesForSectionInternal(sectionId, true /*populateData*/);
@@ -1207,14 +1203,14 @@ ORDER BY id DESC;`;
      * @param {number} sectionId The section to parse.
      * @param {boolean} populateData Whether to grab movie/episode data for each marker. This will
      *        be false when we're wiping out a section, since we just want the base data to delete.
-     * @returns {Promise<PurgeMovieSection|PurgeShowSection>} */
+     * @returns {PurgeMovieSection|PurgeShowSection} */
     #purgesForSectionInternal(sectionId, populateData) {
         if (!this.#purgeCache) {
             throw new ServerError('Purge cache not initialized, cannot query for purges.', 500);
         }
 
         if (!this.#purgeCache[sectionId]) {
-            return Promise.resolve({});
+            return {};
         }
 
         if (this.#sectionTypes[sectionId] === MetadataType.Movie) {
@@ -1227,8 +1223,8 @@ ORDER BY id DESC;`;
     /**
      * @param {number} sectionId
      * @param {boolean} populateData
-     * @returns {Promise<PurgeShowSection>} */
-    async #purgesForTVSection(sectionId, populateData) {
+     * @returns {PurgeShowSection} */
+    #purgesForTVSection(sectionId, populateData) {
         const needsEpisodeData = {};
         for (const show of Object.values(this.#purgeCache[sectionId])) {
             for (const season of Object.values(show)) {
@@ -1243,7 +1239,7 @@ ORDER BY id DESC;`;
         }
 
         if (populateData) {
-            await this.#populateEpisodeData(needsEpisodeData);
+            this.#populateEpisodeData(needsEpisodeData);
         }
 
         return this.#purgeCache[sectionId];
@@ -1252,8 +1248,8 @@ ORDER BY id DESC;`;
     /**
      * Retrieve all purged markers associated with the given movie library
      * @param {number} sectionId
-     * @returns {Promise<PurgeMovieSection>} */
-    async #purgesForMovieSection(sectionId, populateData) {
+     * @returns {PurgeMovieSection} */
+    #purgesForMovieSection(sectionId, populateData) {
         const needsMovieData = {};
         for (const movie of Object.values(this.#purgeCache[sectionId])) {
             for (const markerAction of Object.values(movie)) {
@@ -1264,7 +1260,7 @@ ORDER BY id DESC;`;
         }
 
         if (populateData) {
-            await this.#populateMovieData(needsMovieData);
+            this.#populateMovieData(needsMovieData);
         }
 
         return this.#purgeCache[sectionId];
@@ -1290,8 +1286,8 @@ ORDER BY id DESC;`;
      * @param {number} metadataId
      * @param {string} mediaType The type metadataId points to (parent, season, or show)
      * @param {number} sectionId
-     * @returns {Promise<MarkerAction[]>}*/
-    async #getExpectedMarkers(metadataId, mediaType, sectionId) {
+     * @returns {MarkerAction[]}*/
+    #getExpectedMarkers(metadataId, mediaType, sectionId) {
         // Get the latest marker action for each marker associated with the given metadataId,
         // ignoring those whose last operation was a delete.
         const query = `
@@ -1302,8 +1298,8 @@ ORDER BY id DESC;`;
         const parameters = [metadataId, this.#uuids[sectionId]];
 
         /**@type {MarkerAction[]}*/
-        const actions = await this.#actions.all(query, parameters);
-        if (await this.#verifySectionIds(actions)) {
+        const actions = this.#actions.all(query, parameters);
+        if (this.#verifySectionIds(actions)) {
             return this.#getExpectedMarkers(metadataId, mediaType, sectionId);
         }
 
@@ -1314,8 +1310,8 @@ ORDER BY id DESC;`;
      * Retrieve all actions for the given marker ids.
      * @param {number[]} markerIds
      * @param {number} sectionId
-     * @returns {Promise<MarkerAction[]>} */
-    async #getActionsForIds(markerIds, sectionId) {
+     * @returns {MarkerAction[]} */
+    #getActionsForIds(markerIds, sectionId) {
         /** @type {DbArrayParameters} */
         const parameters = [];
 
@@ -1326,7 +1322,7 @@ ORDER BY id DESC;`;
             const query = `SELECT * FROM actions WHERE section_uuid=? ORDER BY id desc;`;
             parameters.push(this.#uuids[sectionId]);
             /** @type {MarkerAction[]} */
-            const rows = await this.#actions.all(query, parameters);
+            const rows = this.#actions.all(query, parameters);
             return rows.filter(m => markerSet.has(m.marker_id));
         }
 
@@ -1353,7 +1349,7 @@ ORDER BY id DESC;`;
      * @param {number[]} oldMarkerIds The ids of the old markers we're trying to restore.
      * @param {number} sectionId The id of the section the old marker belonged to.
      * @param {number} resolveType How to resolve overlapping markers. */
-    async restoreMarkers(oldMarkerIds, sectionId, resolveType) {
+    restoreMarkers(oldMarkerIds, sectionId, resolveType) {
         if (!(sectionId in this.#uuids)) {
             throw new ServerError(`Unable to restore marker - unexpected section id: ${sectionId}`, 400);
         }
@@ -1364,7 +1360,7 @@ ORDER BY id DESC;`;
         }
 
         Log.verbose(`Attempting to restore ${oldMarkerIds.length} marker(s).`);
-        const rows = await this.#getActionsForIds(oldMarkerIds, sectionId);
+        const rows = this.#getActionsForIds(oldMarkerIds, sectionId);
         if (rows.length === 0) {
             throw new ServerError(`No markers found with ids ${oldMarkerIds} to restore.`, 400);
         }
@@ -1383,12 +1379,12 @@ ORDER BY id DESC;`;
             (toRestore[markerAction.parent_id] ??= []).push(markerAction);
         }
 
-        const markerData = await PlexQueries.bulkRestore(toRestore, sectionId, this.#sectionTypes[sectionId], resolveType);
+        const markerData = PlexQueries.bulkRestore(toRestore, sectionId, this.#sectionTypes[sectionId], resolveType);
 
         // First thing to log is deletes, as we want order to indicate that they were replaced by subsequent entries.
         const deletedMarkers = markerData.deletedMarkers.map(x => new MarkerData(x));
         if (deletedMarkers.length > 0) {
-            await this.recordDeletes(deletedMarkers);
+            this.recordDeletes(deletedMarkers);
         }
 
         // Then record edits
@@ -1409,7 +1405,7 @@ ORDER BY id DESC;`;
                 editedMarkers.push(new MarkerData(edited));
             }
 
-            await this.recordEdits(editedMarkers, oldTimings);
+            this.recordEdits(editedMarkers, oldTimings);
         }
 
         // Then the ones we actually restored.
@@ -1433,7 +1429,7 @@ ORDER BY id DESC;`;
             this.#removeFromPurgeMap(firstOldAction);
         }
 
-        await this.recordRestores(restoredList, sectionId);
+        this.recordRestores(restoredList, sectionId);
 
         // Then "ignored via identical" markers, where we pretend the exiting marker is the one
         // we created to restore the purged one.
@@ -1454,11 +1450,11 @@ ORDER BY id DESC;`;
             this.#removeFromPurgeMap(oldAction);
         }
 
-        await this.recordRestores(restoredList, sectionId);
+        this.recordRestores(restoredList, sectionId);
 
         // Finally, ignore anything that we decided to ignore based on the resolution type/overlapping status.
         if (markerData.ignoredActions.length > 0) {
-            await this.ignorePurgedMarkers(markerData.ignoredActions.map(a => a.marker_id), sectionId);
+            this.ignorePurgedMarkers(markerData.ignoredActions.map(a => a.marker_id), sectionId);
         }
 
         // Return everything that might require a client-side update: restored, deleted existing, and modifiedExisting.
@@ -1477,7 +1473,7 @@ ORDER BY id DESC;`;
      * @param {number[]} purgedIds The ids of the old markers we're trying to ignore.
      * @param {number[]} readdedIds The ids of previously deleted markers that have been readded, but we want to ignore.
      * @param {number} sectionId The id of the section the old markers belonged to. */
-    async ignorePurgedMarkers(purgedIds, readdedIds, sectionId) {
+    ignorePurgedMarkers(purgedIds, readdedIds, sectionId) {
         if (!(sectionId in this.#uuids)) {
             throw new ServerError(`Unable to ignore marker - unexpected section id: ${sectionId}`, 400);
         }
@@ -1504,14 +1500,14 @@ ORDER BY id DESC;`;
         };
 
         ignoreMarkers(purgedIds, -1);
-        await transaction.exec();
+        transaction.exec();
 
         transaction.reset();
         Log.verbose(`Attempting to ignore ${readdedIds.length} readded marker(s).`);
 
         // Only difference from "regular" purged markers is the restored_id.
         ignoreMarkers(readdedIds, -2);
-        await transaction.exec();
+        transaction.exec();
 
         if (this.#purgeCache) {
             this.#removeFromPurgeCache(idSet, sectionId);
@@ -1522,7 +1518,7 @@ ORDER BY id DESC;`;
      * Delete markers that were previously deleted but have since been re-added.
      * @param {{ oldId: number, newId: number }[]} markerInfo Array of marker ID mappings
      * @param {number} sectionId */
-    async redeleteMarkers(markerInfo, sectionId) {
+    redeleteMarkers(markerInfo, sectionId) {
         if (markerInfo.length < 1) {
             return [];
         }
@@ -1545,13 +1541,13 @@ ORDER BY id DESC;`;
             toRemoveFromPurgeCache.add(readded.oldId);
         }
 
-        await transaction.exec();
+        transaction.exec();
 
         // Now delete the new markers.
-        const toDelete = await PlexQueries.getMarkersFromIds(Array.from(deleteIds));
-        await PlexQueries.bulkDelete(toDelete);
+        const toDelete = PlexQueries.getMarkersFromIds(Array.from(deleteIds));
+        PlexQueries.bulkDelete(toDelete);
         const toRecord = toDelete.map(m => new MarkerData(m));
-        await this.recordDeletes(toRecord);
+        this.recordDeletes(toRecord);
 
         if (this.#purgeCache) {
             this.#removeFromPurgeCache(toRemoveFromPurgeCache, sectionId);
@@ -1594,7 +1590,7 @@ ORDER BY id DESC;`;
      * deletes items in a completely unrecoverable way.
      * @param {number} sectionId
      * @param {number} deleteType */
-    async nukeSection(sectionId, deleteType) {
+    nukeSection(sectionId, deleteType) {
         // Note, the backup database shouldn't have unknown marker types, but still be safe by
         // explicitly only deleting intros and/or credits, not 'commercial' or other unknown types.
         if (!(sectionId in this.#uuids)) {
@@ -1614,10 +1610,10 @@ ORDER BY id DESC;`;
         whereClause += addText.substring(4) + ')';
 
         /** @type {number} */
-        const deleteCount = (await this.#actions.get(`SELECT COUNT(*) AS count FROM actions ${whereClause};`, params)).count;
+        const deleteCount = (this.#actions.get(`SELECT COUNT(*) AS count FROM actions ${whereClause};`, params)).count;
 
         Log.info(`Removing ${deleteCount} entries from the backup database.`);
-        await this.#actions.run(`DELETE FROM actions ${whereClause};`, params);
+        this.#actions.run(`DELETE FROM actions ${whereClause};`, params);
 
         // Short circuit if we don't have any purged markers to care about.
         if (!this.#purgeCache[sectionId]) {
@@ -1651,17 +1647,17 @@ ORDER BY id DESC;`;
         // Rebuild marker edit cache from scratch. Not the most efficient,
         // but usage doesn't warrant an optimized solution.
         MarkerEditCache.clear();
-        await this.#buildMarkerEditDataCache();
+        this.#buildMarkerEditDataCache();
 
         return deleteCount;
     }
 
-    async #buildMarkerEditDataCache() {
+    #buildMarkerEditDataCache() {
         // TODO: If/when extended marker stats cannot be turned off, combine with buildAllPurges
         const allActionsQuery = this.#allActionsQuery();
 
         /** @type {MarkerAction[]} */
-        const actions = await this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
+        const actions = this.#actions.all(allActionsQuery.query, allActionsQuery.parameters);
         for (const action of actions) {
             if (action.op === MarkerOp.Delete) {
                 continue; // Last action was a delete, this marker doesn't exist anymore.
