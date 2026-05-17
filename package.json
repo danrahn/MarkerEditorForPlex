@@ -1,12 +1,12 @@
 {
   "name": "marker-editor-for-plex",
   "type": "module",
-  "version": "2.9.0-beta",
+  "version": "2.9.1-beta",
   "description": "Add, edit, and delete Plex markers",
   "main": "app.js",
   "scripts": {
     "test": "node Test/Test.js --test",
-    "build": "node Build/build.js compress",
+    "build": "node Build/build.js",
     "build-all": "node Build/build.js compress win mac linux x64 arm64 pack",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix"
