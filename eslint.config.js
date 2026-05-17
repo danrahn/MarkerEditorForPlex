@@ -79,6 +79,12 @@ export default [{
             caughtErrorsIgnorePattern : '^(_|e(rr|x)?)',
         }],
         'no-use-before-define' : 'off',
+
+        // Explicit initialization helps with VS Code type inferences/intellisense, as it knows 'x' is a string via
+        // `let x = '';`, but treats "let x;" as anytype, even if we are guaranteed to set it to a string later. A
+        // simple default initialization is also cleaner than adding JSDoc to every declaration. If I ever get around
+        // to converting this project to TypeScript, this will be a non-issue and can be removed.
+        'no-useless-assignment' : 'off',
         'no-useless-call' : 'error',
         'no-useless-concat' : 'error',
         'no-useless-rename' : 'error',

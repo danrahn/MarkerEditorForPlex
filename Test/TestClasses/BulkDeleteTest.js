@@ -91,7 +91,6 @@ class BulkDeleteTest extends TestBase {
             TestHelpers.validateMarker(sorted[i++], null, null, null, show.Id, testMarker.Start, testMarker.End, testMarker.Index, null, this.testDb);
         }
 
-        i = 0;
         for (const id of [show.Season1.Episode1.Id, show.Season1.Episode2.Id, show.Season2.Episode1.Id]) {
             TestHelpers.verify(response.episodeData && response.episodeData[id], `Expected dry run to have episode data for ${id}, didn't find any.`);
         }

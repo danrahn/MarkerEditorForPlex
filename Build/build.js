@@ -469,7 +469,7 @@ async function resolveNativeBinarySource(moduleName, moduleVersion, moduleBinary
             const message = err instanceof Error ? err.message : String(err);
             throw new Error(
                 `Unable to auto-fetch native module ${moduleName} for ${targetPlatform}-${targetArch} (Node ${nodeVersion}). ` +
-                `Populate "${cacheVersion}" manually if no prebuild exists. ${message}`);
+                `Populate "${cacheVersion}" manually if no prebuild exists. ${message}`, { cause : err });
         }
     }
 

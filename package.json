@@ -19,18 +19,20 @@
   "dependencies": {
     "better-sqlite3": "^12.10.0",
     "express": "^5.0.0",
-    "express-rate-limit": "^7.4.1",
+    "express-rate-limit": "^8.5.2",
     "express-session": "^1.18.0",
-    "mime-types": "^2.1.35",
-    "open": "^8.4.0",
-    "read": "^4.0.0"
+    "mime-types": "^3.0.2",
+    "open": "^11.0.0",
+    "read": "^6.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/js": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
-    "eslint": "^9.0.0",
+    "eslint": "^10.4.0",
     "form-data": "^4.0.0",
-    "fs-extra": "^10.1.0",
+    "fs-extra": "^11.3.5",
     "html-webpack-plugin": "^5.6.7",
     "resedit": "^3.0.2",
     "rollup": "^4.0.0",
