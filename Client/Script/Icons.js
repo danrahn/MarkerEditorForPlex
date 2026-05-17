@@ -1,5 +1,5 @@
 /** All available icons. */
-const Icons = {
+const DefaultIcons = {
     /** @readonly A triangle pointing right. */
     Arrow : 'arrow',
     /** @readonly A curved arrow pointing left. */
@@ -39,6 +39,10 @@ const Icons = {
     /** @readonly A logout icon - an arrow peeking out of a rectangle. */
     Logout : 'logout',
 };
+
+// Webpack will inject __HASHED_ICONS__ at build time, which will replace the above values with hashed filenames for cache busting.
+/* global __HASHED_ICONS__ */
+const Icons = typeof __HASHED_ICONS__ === 'object' && __HASHED_ICONS__ ? __HASHED_ICONS__ : DefaultIcons;
 
 /**
  * @typedef {{

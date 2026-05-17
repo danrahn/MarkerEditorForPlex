@@ -466,16 +466,23 @@ class FfmpegThumbnailManager extends ThumbnailManager {
 
         mkdirSync(savePath, { recursive : true });
         const execStart = performance.now();
-        execFileSync('ffmpeg',
-            [   '-loglevel', 'error',        // We don't care about the output
-                '-noaccurate_seek',          // Seek quickly, it's okay if we're slightly off
-                '-ss', `${timestamp}ms`,     // NOTE: 000ms syntax requires a somewhat modern version of ffmpeg (>=4?)
-                `-i`, episodeCache.filePath, // Input file
-                '-vf', 'scale=240:-1',       // Thumbnails are displayed with a width of 240, no need to go over that.
-                '-vframes', '1',             // Grab a single frame
-                '-y',                        // Force overwrite (though we shouldn't get here if that's the case)
-                saveFile],
-            { timeout : 10000 });            // Give up if it takes more than 10 seconds.
+        try {
+            execFileSync('ffmpeg',
+                [   '-loglevel', 'error',        // We don't care about the output
+                    '-noaccurate_seek',          // Seek quickly, it's okay if we're slightly off
+                    '-ss', `${timestamp}ms`,     // NOTE: 000ms syntax requires a somewhat modern version of ffmpeg (>=4?)
+                    `-i`, episodeCache.filePath, // Input file
+                    '-vf', 'scale=240:-1',       // Thumbnails are displayed with a width of 240, no need to go over that.
+                    '-vframes', '1',             // Grab a single frame
+                    '-y',                        // Force overwrite (though we shouldn't get here if that's the case)
+                    saveFile],
+                {   timeout : 10000,             // Give up if it takes more than 10 seconds.
+                    stdio : 'ignore' }           // Don't output anything to the console, even on error, since we'll handle that ourselves.
+            );
+        } catch (err) {
+            Log.tmi(err.message, `Failed to generate thumbnail for ${metadataId}:${timestamp} with ffmpeg`);
+            throw new ThumbnailNotGeneratedError(metadataId, timestamp);
+        }
 
         // It better exist now. If it doesn't, chances are there's a discrepancy between
         // the reported duration and the real duration of the video stream. Return 404

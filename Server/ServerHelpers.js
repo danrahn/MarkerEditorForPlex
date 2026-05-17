@@ -183,8 +183,8 @@ async function testHostPortCore(host, port, ...hostsAndPorts) {
     return firstError || results[0];
 }
 
-// Binaries invoke built.cjs (keep in sync with Build.js's transpile()). Assume anything else is from source.
-const looksLikeBinary = process.argv[1]?.includes('built.cjs');
+// In packaged binaries, process.pkg is set. Keep the built.cjs check for compatibility.
+const looksLikeBinary = !!process.pkg || process.argv[1]?.includes('built.cjs');
 
 /**
  * Returns whether this application is running as a binary. Returns false if running from source. */

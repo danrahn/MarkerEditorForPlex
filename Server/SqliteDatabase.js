@@ -1,5 +1,4 @@
-import BetterSqlite3 from 'better-sqlite3';
-
+import { loadRuntimeModule } from './NativeModuleLoader.js';
 import ServerError from './ServerError.js';
 
 /**
@@ -12,6 +11,8 @@ import ServerError from './ServerError.js';
 
 /** @typedef {import('better-sqlite3').Database} Database */
 /** @typedef {import('better-sqlite3').Statement} Statement */
+
+const BetterSqlite3 = loadRuntimeModule('better-sqlite3');
 
 /**
  * Create and return a connection to an sqlite database.

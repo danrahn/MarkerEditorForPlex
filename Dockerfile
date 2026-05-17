@@ -1,9 +1,9 @@
-# LTS (as of 2024/03)
-FROM node:20
+# LTS (as of 2026/05)
+FROM node:24
 
 # Set production env
 ARG NODE_ENV=production
-ENV NODE_ENV $NODE_ENV
+ENV NODE_ENV=$NODE_ENV
 
 # Copy package[-lock].json to install dependencies
 COPY package*.json ./

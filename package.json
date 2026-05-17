@@ -6,7 +6,8 @@
   "main": "app.js",
   "scripts": {
     "test": "node Test/Test.js --test",
-    "build": "node Build/build.js",
+    "build": "node Build/build.js compress",
+    "build-all": "node Build/build.js compress win mac linux x64 arm64 pack",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix"
   },
@@ -30,11 +31,23 @@
     "eslint": "^9.0.0",
     "form-data": "^4.0.0",
     "fs-extra": "^10.1.0",
-    "nexe": "^4.0.0-rc.6",
-    "rcedit": "^3.0.1",
+    "html-webpack-plugin": "^5.6.7",
+    "resedit": "^3.0.2",
     "rollup": "^4.0.0",
     "semver": "^7.6.0",
     "typescript": "^6.0.3",
     "webpack": "^5.91.0"
+  },
+  "bin": "app.js",
+  "pkg": {
+    "assets": [
+      "package.json",
+      "dist/index.html",
+      "dist/login.html",
+      "dist/Client/Style/*.css",
+      "dist/SVG/*.svg",
+      "dist/index.*.js",
+      "dist/login.*.js"
+    ]
   }
 }

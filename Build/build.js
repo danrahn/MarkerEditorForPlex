@@ -5,25 +5,19 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
-    renameSync,
     rmSync,
     statSync,
-    symlinkSync,
     unlinkSync,
     writeFileSync } from 'fs';
+import { exec, spawn } from 'child_process';
 import { join, resolve } from 'path';
-import { compile } from 'nexe';
-import { createHash } from 'crypto';
-import { exec } from 'child_process';
-import { homedir } from 'os';
-import rcedit from 'rcedit';
 import { rollup } from 'rollup';
 import semver from 'semver';
 import webpack from 'webpack';
 
-/** @typedef {!import('nexe/lib/options').NexePatch} NexePatchFunction */
 /** @typedef {!import('webpack').Stats} Stats */
 
+import { applyWindowsResources } from './stampWindowsResources.js';
 import ReadMeGenerator from './ReadMeGenerator.cjs';
 
 /**
@@ -42,57 +36,72 @@ import ReadMeGenerator from './ReadMeGenerator.cjs';
  * }} NodeVersionInfo
  * */
 
+/** @typedef {'win32'|'linux'|'darwin'} SupportedPlatform */
+/** @typedef {'x64'|'arm64'|'ia32'} SupportedArch */
+
 const buildDir = import.meta.dirname;
 
 const packageJson = JSON.parse(readFileSync(resolve(buildDir, '../package.json')).toString('utf-8'));
 const { version, dependencies } = packageJson;
-const iconPath = resolve(buildDir, 'app.ico');
-
-const appName = 'Marker Editor for Plex';
 const binaryName = 'MarkerEditor';
 
-// Can't have -beta/-rc/etc in version name for Windows FILEVERSION
-const rcVersion = version.replace(/-(?:alpha|beta|rc)(?:\.\d+)?$/, '');
-
-const rc = {
-    CompanyName : appName,
-    ProductName : appName,
-    FileDescription : appName,
-    FileVersion : rcVersion,
-    ProductVersion : rcVersion,
-    InternalappName : appName + 'exe',
-    LegalCopyright : 'MarkerEditor.exe copyright Daniel Rahn. MIT license. node.exe copyright Node.js contributors. MIT license.'
-};
-
-const fallbackNodeVersion = '20.18.1'; // Latest v20 as of 2024/12/15
-const nodeMajorMax = 20; // nexe does not appear to support LTS 22. Stick with 20 for now.
+const fallbackNodeVersion = '24.15.0'; // Latest v24 as of 2026/05
+const nodeMajorMax = 24; // LTS as of 2026/05
 
 const args = process.argv.map(a => a.toLowerCase());
 const verbose = args.includes('verbose');
 const isWin = process.platform === 'win32';
-
-/**
-NOTE: This won't work on its own with the current version on nexe, which appears to always
-force a release build. To make this work, the nodeSrcBinPath path calculation in compiler.js
-was replaced with the following:
-
-```
-const isDebug = util_1.isWindows ? this.options.vcBuild.includes('debug') : this.options.configure.includes('--debug');
-const outFolder = isDebug ? 'Debug' : 'Release';
-this.nodeSrcBinPath = util_1.isWindows
-    ? (0, path_1.join)(this.src, outFolder, 'node.exe')
-    : (0, path_1.join)(this.src, 'out', outFolder, 'node');
-```
-*/
 const debug = args.includes('debug');
+const compress = args.includes('compress') || args.includes('brotli');
 
 /**
- * Uses rollup to transpile app.js to common-js, as nexe can't consume es6 modules. */
+ * Return whether we should print build help instead of running. */
+function showHelp() {
+    return args.includes('help') || args.includes('--help') || args.includes('-h') || args.includes('/?');
+}
+
+/**
+ * Print command line usage/help text. */
+function printHelp() {
+    console.log(`
+Marker Editor build script
+
+Usage:
+    node Build/build.js [options] [platform ...] [arch ...]
+
+Options:
+    help, --help, -h, /?    Show this help text and exit.
+    pack, zip               Create packaged archives for each target.
+    compress, brotli        Enable Brotli SEA compression.
+    debug                   Pass --debug to pkg.
+    version <x.y.z>         Override Node.js version used for pkg target.
+    verbose                 Print additional build command output.
+
+Platforms:
+    win32, win, windows
+    linux
+    darwin, macos, mac, osx
+
+Architectures:
+    x64, amd64, x86_64
+    arm64, aarch64
+    x86, ia32
+
+Examples:
+    node Build/build.js
+    node Build/build.js pack win arm64
+    node Build/build.js compress win mac linux x64 arm64 pack
+    npm run build -- help
+`);
+}
+
+/**
+ * Uses rollup to transpile app.js to common-js for packaging. */
 async function transpile() {
     await rollup({
         input : resolve(buildDir, '../app.js'),
         onwarn : (warn, def) => {
-            // We don't care about unresolved imports, nexe takes care of that.
+            // Packaging handles runtime resolution for unresolved imports.
             if (warn.code === 'UNRESOLVED_IMPORT') {
                 return;
             }
@@ -109,132 +118,13 @@ async function transpile() {
 
 import { IndexJS as IndexWebpack, LoginJS as LoginWebpack } from '../webpack.config.js';
 
-/** List of HTML files that need to be injected with cache-bustable JS/CSS */
-const htmlFiles = {
-    index : { path : resolve(buildDir, '../index.html'), js : '' },
-    login : { path : resolve(buildDir, '../Client/login.html'), js : '' }
-};
-
-import StyleSheets from '../Client/Script/StyleSheets.js';
-const hashedStyles = [];
-
-import Icons from '../Client/Script/Icons.js';
-const hashedSVGs = [];
-
 /**
- * Runs the given function and swallows any exceptions that are thrown.
- * @param {(...any) => any} fn */
-function ignoreError (fn) {
-    try {
-        fn();
-    } catch (innerErr) {
-        // Swallow inner exceptions to try and clean up as much as possible.
-        // TODO: Copy all project files to a temporary directory so we don't need all these hacks.
-        console.error(`Exception thrown during cleanup. Project directory may be broken.`);
-        console.error(innerErr);
-        // console.error(innerErr.message);
-        // console.error(innerErr.stack || 'Callstack not available.');
-        console.log();
-    }
-}
-
-/**
- * Minify client code and inject minified source into html. */
+ * Minify client code and emit production HTML/JS assets. */
 async function minifyClient() {
-    // Before minifying, replace SVG icons with cache-bustable versions. This is ~similar to the process
-    // used to modify index.html to point to the cache-bustable index.[contenthash].js. I'm sure there's
-    // a vetted library for this, but it's not too bad to do this ourselves.
-    const newIcons = {};
-    for (const [key, icon] of Object.entries(Icons)) {
-        const svgOriginal = resolve(buildDir, `../SVG/${icon}.svg`);
-        const svg = readFileSync(svgOriginal).toString('utf-8');
-        const hash = createHash('md5').update(svg).digest('hex');
-        const newSvgIcon = `${icon}.${hash}`;
-        const newSvg = join(buildDir, `../SVG/${newSvgIcon}.svg`);
-        copyFileSync(svgOriginal, newSvg);
-        hashedSVGs.push(resolve(newSvg));
-        newIcons[key] = newSvgIcon;
-    }
-
-    const iconsFile = resolve(buildDir, '../Client/Script/Icons.js');
-    const iconsFileT = join(buildDir, '../Client/Script/Icons.jsT');
-    renameSync(iconsFile, iconsFileT);
-    const newIconText = `const Icons = ${JSON.stringify(newIcons)};export default Icons;`;
-    writeFileSync(iconsFile, newIconText, { encoding : 'utf-8' });
-
-    // Like icons, we also want cache-bustable CSS.
-    const newCSS = {};
-    const styleSheetMap = {};
-    for (const [key, style] of Object.entries(StyleSheets)) {
-        const styleOriginal = resolve(buildDir, `../Client/Style/${style}.css`);
-        const styleContent = readFileSync(styleOriginal).toString('utf-8');
-        const hash = createHash('md5').update(styleContent).digest('hex');
-        const newStyle = `${style}.${hash}`;
-        const newStyleFile = join(buildDir, `../Client/Style/${newStyle}.css`);
-        copyFileSync(styleOriginal, newStyleFile);
-        hashedStyles.push(resolve(newStyleFile));
-        newCSS[key] = newStyle;
-        styleSheetMap[`${style}.css`] = `${newStyle}.css`;
-    }
-
-    const styleFile = resolve(buildDir, '../Client/Script/StyleSheets.js');
-    const styleFileT = resolve(buildDir, '../Client/Script/StyleSheets.jsT');
-    renameSync(styleFile, styleFileT);
-    const newStyleText = `const StyleSheets = ${JSON.stringify(newCSS)};export default StyleSheets;`;
-    writeFileSync(styleFile, newStyleText, { encoding : 'utf-8' });
-
-    try {
-        await Promise.all([
-            new Promise(r => { webpack(IndexWebpack).run(compileFn('index', r)); }),
-            new Promise(r => { webpack(LoginWebpack).run(compileFn('login', r)); })
-        ]);
-
-        // Now back up our original html files so we can replace "dev" JS and
-        // CSS imports with production cache-busting CSS. Note that we don't
-        // restore these until they're bundled into the exe.
-        for (const htmlFile of Object.values(htmlFiles)) {
-            copyFileSync(htmlFile.path, htmlFile.path + '_T');
-        }
-
-        for (const [htmlName, htmlInfo] of Object.entries(htmlFiles)) {
-
-            let html = readFileSync(htmlInfo.path).toString('utf-8').replace(
-                new RegExp(`(<script.*").*${htmlName}\\.js(".*?<\\/script>)`), `$1${htmlInfo.js}$2`);
-            for (const [baseStyle, newStyle] of Object.entries(styleSheetMap)) {
-                html = html.replace(new RegExp(`/${baseStyle}`), `/${newStyle}`);
-            }
-
-            writeFileSync(htmlInfo.path, html, { encoding : 'utf-8' });
-        }
-    } catch (err) {
-        // On error, we won't continue attempting to bundle, so remove all hashed files and
-        // restore HTML
-        for (const icon of hashedSVGs) {
-            ignoreError(() => rmSync(icon));
-        }
-
-        for (const style of hashedStyles) {
-            ignoreError(() => rmSync(style));
-        }
-
-        for (const htmlInfo of Object.values(htmlFiles)) {
-            ignoreError(() => {
-                rmSync(htmlInfo.path);
-                renameSync(htmlInfo.path + '_T', htmlInfo.path);
-                rmSync(resolve(buildDir, `../${htmlInfo.js}`));
-            });
-        }
-
-        throw err;
-    } finally {
-        rmSync(iconsFile);
-        renameSync(iconsFileT, iconsFile);
-
-        rmSync(styleFile);
-        renameSync(styleFileT, styleFile);
-
-        // Can't delete hashed files until they'be been bundled with nexe.
-    }
+    await Promise.all([
+        new Promise(r => { webpack(IndexWebpack).run(compileFn('index', r)); }),
+        new Promise(r => { webpack(LoginWebpack).run(compileFn('login', r)); })
+    ]);
 }
 
 /**
@@ -266,14 +156,15 @@ function compileFn (fileName, resolveFn) {
             console.warn(info.warnings);
         }
 
+        let foundBundle = false;
         for (const asset of info.assets) {
             if (new RegExp(`^${fileName}\\.[a-f0-9]+\\.js$`, 'i').test(asset.name)) {
-                htmlFiles[fileName].js = asset.name;
+                foundBundle = true;
                 break;
             }
         }
 
-        if (!htmlFiles[fileName].js) {
+        if (!foundBundle) {
             throw new Error(`Unable to find packed js name. Cannot continue.`);
         }
 
@@ -284,44 +175,72 @@ function compileFn (fileName, resolveFn) {
 }
 
 /**
- * Get the architecture to build for. In general uses the system architecture,
- * but Windows can be overridden to compile for a specific target based on input parameters. */
-function getArch() {
-
-    if (args.includes('x64') || args.includes('amd64') || args.includes('x86_64')) {
-        return 'x64';
+ * Get all target platforms requested by input arguments.
+ * Defaults to the host platform if no explicit platform argument is provided. */
+function getTargetPlatforms() {
+    /** @type {('win32'|'darwin'|'linux')[]} */
+    const targetPlatforms = [];
+    if (args.includes('win32') || args.includes('windows') || args.includes('win')) {
+        targetPlatforms.push('win32');
     }
 
-    if (args.includes('x86') || args.includes('ia32')) {
-        return 'ia32';
+    if (args.includes('darwin') || args.includes('macos') || args.includes('mac') || args.includes('osx')) {
+        targetPlatforms.push('darwin');
     }
 
-    if (args.includes('arm64') || args.includes('aarch64')) {
-        return 'arm64';
+    if (args.includes('linux')) {
+        targetPlatforms.push('linux');
     }
 
-    switch (process.arch) {
-        case 'arm64':
-        case 'ia32':
-        case 'x64':
-            return process.arch;
-        default:
-            throw new Error(`Unsupported build architecture "${process.arch}, exiting...`);
+    if (targetPlatforms.length === 0) {
+        targetPlatforms.push(process.platform);
     }
+
+    return targetPlatforms;
 }
 
 /**
- * Get the current platform as a more user-friendly value. */
-function getPlatform() {
-    switch (process.platform) {
+ * Get all target architectures requested by input arguments.
+ * Defaults to the host architecture if no explicit architecture argument is provided. */
+function getTargetArchitectures() {
+    /** @type {(SupportedArch)[]} */
+    const targetArchitectures = [];
+    if (args.includes('x64') || args.includes('amd64') || args.includes('x86_64')) {
+        targetArchitectures.push('x64');
+    }
+
+    if (args.includes('arm64') || args.includes('aarch64')) {
+        targetArchitectures.push('arm64');
+    }
+
+    if (args.includes('x86') || args.includes('ia32')) {
+        targetArchitectures.push('ia32');
+    }
+
+    if (targetArchitectures.length === 0) {
+        const supportedArchitectures = new Set(['x64', 'arm64', 'ia32']);
+        if (!supportedArchitectures.has(process.arch)) {
+            throw new Error(`Unsupported build architecture "${process.arch}", exiting...`);
+        }
+
+        targetArchitectures.push(process.arch);
+    }
+
+    return targetArchitectures;
+}
+
+/**
+ * Get the platform value expected by pkg SEA targets. */
+function getPkgPlatform(platform=process.platform) {
+    switch (platform) {
         case 'win32':
-            return 'windows';
+            return 'win';
         case 'linux':
             return 'linux';
         case 'darwin':
-            return 'mac';
+            return 'macos';
         default:
-            throw new Error(`Unsupported build platform "${process.platform}", exiting...`);
+            throw new Error(`Unsupported build platform "${platform}", exiting...`);
     }
 }
 
@@ -359,254 +278,307 @@ async function getNodeVersion() {
 }
 
 /**
- * Clears out all old output directories to allow for a full rebuild.
- * @param {string} oldOut */
-function cleanBuild(oldOut) {
-    const tryRm = out => {
-        try {
-            rmSync(out, { recursive : true, force : true });
-        } catch (_ex) {
-            console.warn(`\tUnable to clear output ${out}`);
-        }
-    };
-
-    console.log('\nCleaning existing cached output');
-    if (existsSync(oldOut)) {
-        console.log('\tClearing old output directory');
-        tryRm(oldOut);
+ * Build a stock-Node single executable with pkg's SEA mode. */
+async function toExe(targetPlatform, targetArch, nodeVersionOverride=null) {
+    const nodeVersion = nodeVersionOverride ?? await getNodeVersion();
+    const target = `node${semver.major(nodeVersion)}-${getPkgPlatform(targetPlatform)}-${targetArch}`;
+    const outPath = resolve(buildDir, `../dist/${binaryName}` + (targetPlatform === 'win32' ? '.exe' : ''));
+    const npxArgs = ['-y', '@yao-pkg/pkg', '.', '--sea', '--targets', target, '--output', outPath];
+    if (compress) {
+        npxArgs.push('--compress', 'Brotli');
     }
 
-    for (const cachedOut of ['arm64', 'ia32', 'x64', 'arm64d', 'ia32d', 'x64d']) {
-        if (existsSync(oldOut + cachedOut)) {
-            console.log(`\tClearing out ${cachedOut} cache`);
-            tryRm(oldOut + cachedOut);
-        }
+    if (debug) {
+        npxArgs.push('--debug');
     }
+
+    const childEnv = { ...process.env };
+    delete childEnv.NODE_OPTIONS;
+    delete childEnv.VSCODE_INSPECTOR_OPTIONS;
+
+    console.log(`Attempting to build ${target} with yao-pkg`);
+    await new Promise((resolveFn, rejectFn) => {
+        const child = spawn('npx', npxArgs, {
+            cwd : resolve(buildDir, '..'),
+            env : childEnv,
+            shell : isWin,
+            stdio : 'inherit',
+        });
+
+        child.on('error', err => {
+            rejectFn(new Error(`yao-pkg build failed: ${err.message}`));
+        });
+
+        child.on('close', code => {
+            if (code !== 0) {
+                rejectFn(new Error(`yao-pkg build failed with exit code ${code}.`));
+                return;
+            }
+
+            resolveFn();
+        });
+    });
+
+    return nodeVersion;
 }
 
 /**
- * Delete the existing build node binary if 'rebuild' was passed to this script.
- * @type {NexePatchFunction} */
-function deleteNodeBinaryIfRebuilding(compiler, next) {
-    if (!args.includes('rebuild')) {
-        return next();
+ * Download a target-specific native module binary and cache it for future builds.
+ * @param {string} moduleName
+ * @param {string} moduleVersion
+ * @param {string} moduleBinaryName
+ * @param {string} targetPlatform
+ * @param {string} targetArch
+ * @param {string} nodeVersion
+ * @param {string} cachePath */
+async function populateNativeModuleCache(moduleName, moduleVersion, moduleBinaryName, targetPlatform, targetArch, nodeVersion, cachePath) {
+    const nodeMajor = semver.major(nodeVersion);
+    if (!Number.isFinite(nodeMajor)) {
+        throw new Error(`Unable to determine Node major version from "${nodeVersion}".`);
     }
 
-    // If we don't delete the node binary, nexe won't rebuild anything even if
-    // the source has changed (e.g. due to new patches).
-    if (verbose) console.log(`Attempting to delete node binary due to 'rebuild' parameter`);
-    const binaryPath = compiler.getNodeExecutableLocation();
-    if (existsSync(binaryPath)) {
-        unlinkSync(binaryPath);
-        console.log(`\nDeleted "${binaryPath}" due to rebuild parameter.`);
-    }
+    const fetchRoot = resolve(buildDir, '../dist/.nativeFetch');
+    const fetchDir = resolve(fetchRoot, `${moduleName}-${moduleVersion}-${targetPlatform}-${targetArch}-node${nodeMajor}`);
+    const fetchBinary = resolve(fetchDir, `node_modules/${moduleName}/build/Release/${moduleBinaryName}`);
+    const cachedBinary = join(cachePath, moduleBinaryName);
 
-    return next();
-}
+    rmSync(fetchDir, { recursive : true, force : true });
+    mkdirSync(fetchDir, { recursive : true });
 
-/**
- * Inject custom CLI parsing logic to node source.
- * @type {NexePatchFunction} */
-async function injectCliOptions(compiler, next) {
-    // Add marker editor version to NODE_VERSION
-    await compiler.replaceInFileAsync(
-        'src/node.cc',
-        /\bNODE_VERSION\b/,
-        `"Marker Editor: v${version}\\n` +
-            `Node:          " NODE_VERSION`
+    writeFileSync(
+        resolve(fetchDir, 'package.json'),
+        JSON.stringify({
+            name : 'marker-editor-native-fetch',
+            version : '1.0.0',
+            private : true,
+        }, null, 2),
+        { encoding : 'utf-8' }
     );
 
-    // Custom command line arguments. Otherwise Node will exit early
-    // if these arguments are provided as node options.
-    await compiler.replaceInFileAsync(
-        'src/node_options.h',
-        '  bool print_version = false;',
-        '  bool print_version = false;\n' +
-        '  bool cli_setup = false;'
-    );
-    await compiler.replaceInFileAsync(
-        'src/node_options.cc',
-        '  AddAlias("-v", "--version");',
-        '  AddAlias("-v", "--version");\n' +
-        '  AddOption("--cli-setup",\n' +
-        '            "Use CLI setup for Marker Editor",\n' +
-        '            &PerProcessOptions::cli_setup);'
-    );
+    const npmArgs = [
+        'install',
+        `${moduleName}@${moduleVersion}`,
+        '--no-save',
+        '--no-package-lock',
+    ];
 
-    // Since we're really just running a slightly modified version of node, we have to
-    // use `--` to pass arguments to the actual program. Since we only ever want to run
-    // MarkerEditor though, forward node args to the script.
-    const hackyArgv = `    auto& argv = const_cast<std::vector<std::string>&>(env->argv());\n`;
-    const forwardArg = (variable, arg) =>
-        `    if (per_process::cli_options->${variable}) {\n` +
-        `      argv.push_back("${arg}");\n` +
-        `    }\n\n`;
+    const childEnv = { ...process.env };
+    delete childEnv.NODE_OPTIONS;
+    delete childEnv.VSCODE_INSPECTOR_OPTIONS;
+    childEnv.npm_config_platform = targetPlatform;
+    childEnv.npm_config_arch = targetArch;
+    childEnv.npm_config_target = nodeVersion;
+    childEnv.npm_config_runtime = 'node';
 
-    await compiler.replaceInFileAsync(
-        'src/node.cc',
-        'return StartExecution(env, "internal/main/run_main_module"); }',
-        hackyArgv +
-        forwardArg('print_help', '--help') +
-        forwardArg('cli_setup', '--cli-setup') +
-        forwardArg('print_version', '--version') +
-        `    return StartExecution(env, "internal/main/run_main_module");\n  }`);
-
-    return next();
-}
-
-/**
- * On Windows, use RCEdit to add the version and icon to the binary.
- * @type {NexePatchFunction} */
-async function editWinResources(compiler, next) {
-    if (!isWin) {
-        return next();
-    }
-
-    const binaryPath = compiler.getNodeExecutableLocation();
+    console.log(`Attempting to auto-fetch ${moduleName} for ${targetPlatform}-${targetArch} (Node ${nodeVersion})...`);
     try {
-        // RC overrides are only applied if we're doing a clean build,
-        // hack around it by using rcedit on the binary to ensure they're added.
-        if (statSync(binaryPath).size > 0) {
-            await rcedit(binaryPath, {
-                'version-string' : rc,
-                'file-version' : rcVersion,
-                'product-version' : rcVersion,
-                icon : iconPath,
+        await new Promise((resolveFn, rejectFn) => {
+            const child = spawn('npm', npmArgs, {
+                cwd : fetchDir,
+                env : childEnv,
+                shell : isWin,
+                stdio : 'inherit',
             });
-        }
-    } catch {
-        console.log('\nUnable to modify exe resources with rcedit. This is expected if we\'re doing a clean build');
-    }
 
-    return next();
-}
+            child.on('error', err => {
+                rejectFn(new Error(`Native module download failed: ${err.message}`));
+            });
 
-/**
- * Takes rollup's cjs output and writes the exe. */
-async function toExe() {
-    const platform = getPlatform();
-    const output = `../dist/${binaryName}` + (isWin ? '.exe' : '');
-    const arch = getArch();
-    const nodeVersion = await getNodeVersion();
+            child.on('close', code => {
+                if (code !== 0) {
+                    rejectFn(new Error(`Native module download failed with exit code ${code}.`));
+                    return;
+                }
 
-    // nexe doesn't appear to take into account that the currently cached build output is a different
-    // target architecture. To get around that, ignore the standard 'out' folder and check for
-    // architecture-specific output folders. If it doesn't exist, do a full build and rename the
-    // output to an architecture-specific folder, and link that to the standard 'out' folder. This
-    // relies on internal nexe behavior, but since it's dev-only, nothing user-facing should break if
-    // nexe changes, this section will just have to be updated.
-    const temp = process.env.NEXE_TEMP || join(homedir(), '.nexe');
+                resolveFn();
+            });
+        });
 
-    const oldOut = join(temp, nodeVersion, 'out');
-
-    if (args.includes('clean')) {
-        cleanBuild();
-    }
-
-    console.log(`Attempting to build ${platform}-${arch}-${nodeVersion}`);
-
-    const archOut = oldOut + arch + (debug ? 'd' : '');
-    const hadCache = existsSync(archOut);
-    if (hadCache) {
-        console.log(`Found cached output for ${arch}-${nodeVersion}, using that.`);
-
-        // Wipe out any existing out link and replace with cached out{arch} link
-        if (existsSync(oldOut)) {
-            console.log(`Removing old link to 'out'`);
-            rmSync(oldOut, { recursive : true, force : true });
+        if (!existsSync(fetchBinary)) {
+            throw new Error(`Downloaded package did not include "${moduleBinaryName}" at "${fetchBinary}".`);
         }
 
-        symlinkSync(archOut, oldOut, 'junction');
-    } else {
-        // Always clear out the build directory if we don't have the
-        // target architecture cached.
-        rmSync(oldOut, { recursive : true, force : true });
-    }
-
-    try {
-        await compile({
-            input : resolve(buildDir, '../dist/built.cjs'),
-            output : resolve(buildDir, output),
-            build : true,
-            configure : (isWin || !debug) ? [] : ['--debug'], // non-Win
-            vcBuild : isWin ? ['nosign', debug ? 'debug' : 'release'] : [], // Win-only
-            make : ['-j4'], // 4 concurrent jobs
-            targets : [ `${platform}-${arch}-${nodeVersion}` ],
-            loglevel : verbose ? 'verbose' : 'info',
-            ico : iconPath,
-            rc : {
-                PRODUCTVERSION : rcVersion,
-                FILEVERSION : rcVersion,
-                ...rc
-            },
-            resources : [
-                resolve(buildDir, '../package.json'),
-                resolve(buildDir, '../index.html'),
-                resolve(buildDir, '../Client/login.html'),
-                resolve(buildDir, '../SVG/favicon.svg'),
-                resolve(buildDir, '../index.*.js'),
-                resolve(buildDir, '../login.*.js'),
-                resolve(buildDir, '../dist/built.cjs'),
-                ...hashedSVGs,
-                ...hashedStyles,
-            ],
-            patches : [
-                deleteNodeBinaryIfRebuilding,
-                injectCliOptions,
-                editWinResources,
-            ]
-        }); // Don't catch, interrupt on failure.
+        mkdirSync(cachePath, { recursive : true });
+        copyFileSync(fetchBinary, cachedBinary);
+        if (verbose) {
+            console.log(`Cached ${moduleName} native binary at "${cachedBinary}".`);
+        }
     } finally {
-        // Only delete hashed/temp files once we've bundled them, not after webpack.
-        for (const htmlInfo of Object.values(htmlFiles)) {
-            ignoreError(() => {
-                rmSync(htmlInfo.path);
-                renameSync(htmlInfo.path + '_T', htmlInfo.path);
-                rmSync(resolve(buildDir, `../${htmlInfo.js}`));
-            });
-        }
+        rmSync(fetchDir, { recursive : true, force : true });
+    }
+}
 
-        for (const icon of hashedSVGs) {
-            ignoreError(() => rmSync(icon));
-        }
+/**
+ * @param {string} moduleName */
+function getNativeModuleVersion(moduleName) {
+    let nativeModuleVersion = dependencies[moduleName];
+    if (!nativeModuleVersion) {
+        throw new Error(`Unable to determine ${moduleName} version from package.json dependencies.`);
+    }
 
-        for (const style of hashedStyles) {
-            ignoreError(() => rmSync(style));
+    if (/^[~^]/.test(nativeModuleVersion)) {
+        // Always use the exact version listed
+        nativeModuleVersion = nativeModuleVersion.substring(1);
+    }
+
+    return nativeModuleVersion;
+}
+
+/**
+ * @param {string} path */
+function isDirectory(path) {
+    return existsSync(path) && statSync(path).isDirectory();
+}
+
+/**
+ * Resolve the source binary for a native module, auto-fetching into archCache when needed.
+ * @param {string} moduleName
+ * @param {string} moduleVersion
+ * @param {string} moduleBinaryName
+ * @param {string} targetPlatform
+ * @param {string} targetArch
+ * @param {string} nodeVersion */
+async function resolveNativeBinarySource(moduleName, moduleVersion, moduleBinaryName, targetPlatform, targetArch, nodeVersion) {
+    const localBinary = resolve(buildDir, `../node_modules/${moduleName}/build/Release/${moduleBinaryName}`);
+    if (process.arch === targetArch && process.platform === targetPlatform) {
+        return localBinary;
+    }
+
+    const cacheDir = resolve(buildDir, '../dist/archCache');
+    if (!existsSync(cacheDir)) {
+        mkdirSync(cacheDir);
+    }
+
+    const nodeMajor = semver.major(nodeVersion);
+    if (!Number.isFinite(nodeMajor)) {
+        throw new Error(`Unable to determine Node major version from "${nodeVersion}" for native module cache.`);
+    }
+
+    const cacheVersion = join(cacheDir, `${moduleName}-${moduleVersion}-${targetPlatform}-${targetArch}-node${nodeMajor}`);
+    if (!isDirectory(cacheVersion)) {
+        try {
+            await populateNativeModuleCache(
+                moduleName,
+                moduleVersion,
+                moduleBinaryName,
+                targetPlatform,
+                targetArch,
+                nodeVersion,
+                cacheVersion);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new Error(
+                `Unable to auto-fetch native module ${moduleName} for ${targetPlatform}-${targetArch} (Node ${nodeVersion}). ` +
+                `Populate "${cacheVersion}" manually if no prebuild exists. ${message}`);
         }
     }
 
-    // After everything is compiled, cache the output directory if needed.
-    if (!hadCache) {
-        renameSync(oldOut, archOut);
-        symlinkSync(archOut, oldOut, 'junction');
+    const sourceBinary = join(cacheVersion, moduleBinaryName);
+    if (!existsSync(sourceBinary)) {
+        throw new Error(`Unable to copy native module ${moduleName}, binary "${sourceBinary}" does not exist.`);
     }
+
+    return sourceBinary;
+}
+
+/**
+ * @param {{ name: string, sidecarPaths?: string[], sidecarDependencies?: string[] }} nativeModule */
+function copyNativeSidecars(nativeModule) {
+    const nativeModuleName = nativeModule.name;
+    for (const sidecarPath of nativeModule.sidecarPaths ?? []) {
+        const sidecarSource = resolve(buildDir, `../node_modules/${nativeModuleName}/${sidecarPath}`);
+        if (!existsSync(sidecarSource)) {
+            throw new Error(`Unable to copy sidecar path for ${nativeModuleName}, source "${sidecarSource}" does not exist.`);
+        }
+
+        cpSync(
+            sidecarSource,
+            resolve(buildDir, `../dist/node_modules/${nativeModuleName}/${sidecarPath}`),
+            { force : true, recursive : true }
+        );
+    }
+
+    for (const dependency of nativeModule.sidecarDependencies ?? []) {
+        const depSource = resolve(buildDir, `../node_modules/${dependency}`);
+        if (!existsSync(depSource)) {
+            throw new Error(`Unable to copy sidecar dependency "${dependency}", source "${depSource}" does not exist.`);
+        }
+
+        cpSync(
+            depSource,
+            resolve(buildDir, `../dist/node_modules/${dependency}`),
+            { force : true, recursive : true }
+        );
+    }
+}
+
+/**
+ * @param {SupportedPlatform} targetPlatform */
+function targetBinaryName(targetPlatform) {
+    return `${binaryName}${targetPlatform === 'win32' ? '.exe' : ''}`;
+}
+
+function macLauncherName() {
+    return 'start.command';
+}
+
+/**
+ * @param {string} dist
+ * @param {SupportedPlatform} targetPlatform
+ * @param {string} zipName */
+function getPackCommand(dist, targetPlatform, zipName) {
+    const targetBinary = targetBinaryName(targetPlatform);
+    const quote = isWin ? '"' : '\'';
+    const q = value => `${quote}${value}${quote}`;
+    if (targetPlatform === 'win32') {
+        if (isWin) {
+            return `powershell Compress-Archive "${dist}/node_modules", "${dist}/README.txt", ` +
+                `"${dist}/${targetBinary}" "${dist}/${zipName}.zip" -Force`;
+        }
+
+        return `zip -r ${q(`${dist}/${zipName}.zip`)} ${q(`${dist}/node_modules`)} ` +
+            `${q(`${dist}/README.txt`)} ${q(`${dist}/${targetBinary}`)}`;
+    }
+
+    if (targetPlatform === 'darwin') {
+        return `tar -C ${q(dist)} -czvf ${q(`${dist}/${zipName}.tar.gz`)} node_modules README.txt ` +
+            `${q(macLauncherName())} ${q(targetBinary)}`;
+    }
+
+    return `tar -C ${q(dist)} -czvf ${q(`${dist}/${zipName}.tar.gz`)} node_modules start.sh README.txt ${q(targetBinary)}`;
 }
 
 /**
  * Write a small README to include in the package. On Windows/Mac, simply
  * direct users to the wiki. Add a bit more information about launching
  * on Linux, as it's not "double-clickable" on all variants. */
-function writeReadme() {
+function writeReadme(targetPlatform) {
     const recipeHeader = `~\n!\n-:-MARKER EDITOR ${version}\n!\n~\n!\n`;
 
     const recipeFooter = `
-!\n${process.platform === 'linux' ? '' : '-:-'}For complete usage instructions,
+!\n${targetPlatform === 'linux' ? '' : '-:-'}For complete usage instructions,
 ||visit the wiki at https://github.com/danrahn/MarkerEditorForPlex/wiki\n!\n~`;
 
     let recipe;
-    switch (process.platform) {
+    switch (targetPlatform) {
         default:
-            console.warn(`WARN: Unknown platform '${process.platform}'. How did we get here?`);
+            console.warn(`WARN: Unknown platform '${targetPlatform}'. How did we get here?`);
             // __fallthrough
         case 'win32':
-        case 'darwin':
             recipe = `-:-Welcome to Marker Editor for Plex!`;
+            break;
+        case 'darwin':
+            recipe = `Welcome to Marker Editor for Plex! On macOS, run ${macLauncherName()} on first launch.
+||It will remove quarantine metadata and apply ad-hoc signatures before starting MarkerEditor:
+!
+   ~ $ chmod +x ./${macLauncherName()}
+   MarkerEditorForPlex $ ./${macLauncherName()}`;
             break;
         case 'linux':
             recipe = `Welcome to Marker Editor for Plex! If double-clicking MarkerEditor doesn't start
 ||the program, there are a couple ways to launch the editor:
 !
-1. Via start.sh. Depending on your system, you may have to rich-click the file and "Run as a Program",
+1. Via start.sh. Depending on your system, you may have to right-click the file and "Run as a Program",
 ||or choose to "Execute in Terminal."!!3
 2. Open a new terminal window, navigate to the folder with MarkerEditor, and execute it from there:!!3
 !
@@ -631,65 +603,192 @@ cd "\`dirname "$0"\`"
     writeFileSync(resolve(buildDir, '../dist/start.sh'), startSh, { mode : 0o755 });
 }
 
-function copyNativeModules(arch) {
+/**
+ * On macOS, launching an unsigned binary may fail until quarantine attributes are removed
+ * and ad-hoc signatures are applied. Include a helper launcher to do that first. */
+function writeMacFirstRunCommand() {
+    const targetBinary = targetBinaryName('darwin');
+    const macLauncher =
+`#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+BIN="$SCRIPT_DIR/${targetBinary}"
+
+if [[ ! -x "$BIN" ]]; then
+    chmod +x "$BIN"
+fi
+
+if command -v xattr >/dev/null 2>&1; then
+    xattr -dr com.apple.quarantine "$SCRIPT_DIR" 2>/dev/null || true
+fi
+
+if command -v codesign >/dev/null 2>&1; then
+    codesign --force --sign - --timestamp=none "$BIN" 2>/dev/null || true
+    if [[ -d "$SCRIPT_DIR/node_modules" ]]; then
+        find "$SCRIPT_DIR/node_modules" -name '*.node' -print0 2>/dev/null | while IFS= read -r -d '' addon; do
+            codesign --force --sign - --timestamp=none "$addon" 2>/dev/null || true
+        done
+    fi
+fi
+
+exec "$BIN" "$@"
+`;
+
+    writeFileSync(resolve(buildDir, `../dist/${macLauncherName()}`), macLauncher, { mode : 0o755 });
+}
+
+
+/**
+ * Remove per-target runtime output before building the next target in a matrix.
+ * @param {string} dist */
+function clearTargetRuntimeOutput(dist) {
+    for (const outputName of ['node_modules', 'README.txt', 'start.sh', macLauncherName(), binaryName, `${binaryName}.exe`]) {
+        const outputPath = resolve(dist, outputName);
+        if (!existsSync(outputPath)) {
+            continue;
+        }
+
+        if (statSync(outputPath).isDirectory()) {
+            rmSync(outputPath, { recursive : true, force : true });
+        } else {
+            unlinkSync(outputPath);
+        }
+    }
+}
+
+/**
+ * Copy current output files into a target-specific folder for matrix builds without packing.
+ * @param {string} dist
+ * @param {SupportedPlatform} targetPlatform
+ * @param {SupportedArch} targetArch */
+function persistTargetOutput(dist, targetPlatform, targetArch) {
+    const targetBinary = targetBinaryName(targetPlatform);
+    const targetDir = resolve(dist, `targets/${targetPlatform}-${targetArch}`);
+    rmSync(targetDir, { recursive : true, force : true });
+    mkdirSync(targetDir, { recursive : true });
+
+    cpSync(resolve(dist, 'node_modules'), resolve(targetDir, 'node_modules'), { recursive : true, force : true });
+    copyFileSync(resolve(dist, 'README.txt'), resolve(targetDir, 'README.txt'));
+    copyFileSync(resolve(dist, targetBinary), resolve(targetDir, targetBinary));
+
+    for (const helperScript of ['start.sh', macLauncherName()]) {
+        const helperPath = resolve(dist, helperScript);
+        if (existsSync(helperPath)) {
+            copyFileSync(helperPath, resolve(targetDir, helperScript));
+        }
+    }
+}
+
+/**
+ * Run the package/archive command for a target and wait for completion.
+ * @param {string} dist
+ * @param {SupportedPlatform} targetPlatform
+ * @param {SupportedArch} targetArch */
+async function packTarget(dist, targetPlatform, targetArch) {
+    const zipName = `${binaryName}.v${version}-${targetPlatform}-${targetArch}`;
+    const cmd = getPackCommand(dist, targetPlatform, zipName);
+
+    if (verbose) {
+        console.log(`Running "${cmd}"`);
+    }
+
+    await new Promise((resolveFn, rejectFn) => {
+        exec(cmd, { maxBuffer : 100 * 1024 * 1024 }, (err) => {
+            if (err) {
+                rejectFn(err);
+                return;
+            }
+
+            resolveFn();
+        });
+    });
+}
+
+
+/**
+ * Build executable artifacts.
+ * @param {(message: string) => void} msg
+ * @param {SupportedPlatform} targetPlatform
+ * @param {SupportedArch} targetArch
+ * @param {string?} nodeVersionOverride */
+async function buildExecutable(msg, targetPlatform, targetArch, nodeVersionOverride=null) {
+    msg('Building exe');
+    const targetNodeVersion = await toExe(targetPlatform, targetArch, nodeVersionOverride);
+
+    msg('Copying native modules');
+    await copyNativeModules(targetArch, targetPlatform, targetNodeVersion);
+
+    if (targetPlatform === 'win32') {
+        msg('Applying Windows icon/version');
+        if (isWin) {
+            applyWindowsResources(resolve(buildDir, `../dist/${targetBinaryName(targetPlatform)}`), { verbose, });
+        } else {
+            console.warn('Skipping Windows resource stamping because host is not Windows.');
+        }
+    }
+}
+
+/**
+ * Copy required native modules for the target platform/architecture.
+ * @param {SupportedArch} arch
+ * @param {SupportedPlatform} targetPlatform
+ * @param {string} nodeVersion */
+async function copyNativeModules(arch, targetPlatform, nodeVersion) {
     const nativeModules = [{
         name : 'better-sqlite3',
         binary : 'better_sqlite3.node',
+        sidecarPaths : ['lib'],
+        sidecarDependencies : ['bindings', 'file-uri-to-path'],
     }];
 
     for (const nativeModule of nativeModules) {
         const nativeModuleName = nativeModule.name;
         const nativeBinaryName = nativeModule.binary;
-        let nativeModuleVersion = dependencies[nativeModuleName];
-        if (!nativeModuleVersion) {
-            throw new Error(`Unable to determine ${nativeModuleName} version from package.json dependencies.`);
-        }
-
-        if (/^[~^]/.test(nativeModuleVersion)) {
-            // Always use the exact version listed
-            nativeModuleVersion = nativeModuleVersion.substring(1);
-        }
-
-        const cacheDir = resolve(buildDir, '../dist/archCache');
-        if (!existsSync(cacheDir)) {
-            mkdirSync(cacheDir);
-        }
+        const nativeModuleVersion = getNativeModuleVersion(nativeModuleName);
+        const sourceBinary = await resolveNativeBinarySource(
+            nativeModuleName,
+            nativeModuleVersion,
+            nativeBinaryName,
+            targetPlatform,
+            arch,
+            nodeVersion);
 
         mkdirSync(resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release`), { recursive : true });
-        if (process.arch === arch) {
-            // destination arch is the same as the system arch. Just copy the existing node_modules dir
-
-            copyFileSync(
-                resolve(buildDir, `../node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`),
-                resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`));
-        } else {
-            const cacheVersion = join(cacheDir, `${nativeModuleName}-${nativeModuleVersion}-${arch}`);
-
-            // Cross-compilation (e.g. --dest-cpu=ia32 on a 64-bit OS).
-            // Instead of creating the infra to support downloading and un-taring native module
-            // binaries, it's required to manually build the dist/archCache structure using self/pre-built
-            // binaries, using the naming outlined above in cacheVersion.
-            if (!existsSync(cacheVersion) || !statSync(cacheVersion).isDirectory()) {
-                throw new Error(`Unable to copy native module ${nativeModuleName}, archCache folder "${cacheVersion}" does not exist.`);
-            }
-
-            copyFileSync(
-                join(cacheVersion, nativeBinaryName),
-                resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`)
-            );
-        }
+        copyFileSync(
+            sourceBinary,
+            resolve(buildDir, `../dist/node_modules/${nativeModuleName}/build/Release/${nativeBinaryName}`)
+        );
 
         copyFileSync(
             resolve(buildDir, `../node_modules/${nativeModuleName}/package.json`),
             resolve(buildDir, `../dist/node_modules/${nativeModuleName}/package.json`)
         );
+
+        copyNativeSidecars(nativeModule);
     }
 }
 
 /**
  * Full pipeline to create MarkerEditor. */
 async function build() {
+    if (showHelp()) {
+        printHelp();
+        return;
+    }
+
     const msg = (m) => console.log(`\n${m}...`);
+    const targetPlatforms = getTargetPlatforms();
+    const targetArchitectures = getTargetArchitectures();
+    const packRequested = args.includes('zip') || args.includes('pack');
+    /** @type {{ targetPlatform: SupportedPlatform, targetArch: SupportedArch }[]} */
+    const buildTargets = [];
+    for (const targetPlatform of targetPlatforms) {
+        for (const targetArch of targetArchitectures) {
+            buildTargets.push({ targetPlatform, targetArch });
+        }
+    }
+
     msg('Removing Previous build output');
     const dist = resolve(buildDir, '../dist');
     if (!existsSync(dist)) {
@@ -697,13 +796,8 @@ async function build() {
     }
 
     for (const file of readdirSync(dist)) {
-        // Don't remove zip files
-        if (file.endsWith('.zip')) {
-            continue;
-        }
-
-        // Don't remove webpack TODO
-        if (file.startsWith('index')) {
+        // Don't remove previously packaged archives.
+        if (file.endsWith('.zip') || file.endsWith('.tar.gz')) {
             continue;
         }
 
@@ -723,59 +817,39 @@ async function build() {
     msg('Minifying client code with webpack');
     await minifyClient();
 
-    msg('Building exe');
-    await toExe();
+    const nodeVersion = await getNodeVersion();
+    for (const [index, buildTarget] of buildTargets.entries()) {
+        const { targetPlatform, targetArch } = buildTarget;
+        if (buildTargets.length > 1) {
+            msg(`Building target ${index + 1}/${buildTargets.length}: ${targetPlatform}-${targetArch}`);
+        }
 
-    msg('Copying native modules');
-    const arch = getArch();
-    copyNativeModules(arch);
+        clearTargetRuntimeOutput(dist);
+        await buildExecutable(msg, targetPlatform, targetArch, nodeVersion);
 
-    // nexe doesn't support ESM modules either, like `read` and `open`
-    cpSync(
-        resolve(buildDir, '../node_modules/read'),
-        resolve(buildDir, '../dist/node_modules/read'),
-        { force : true, recursive : true });
+        msg('Writing README');
+        writeReadme(targetPlatform);
 
-    cpSync(
-        resolve(buildDir, '../node_modules/open'),
-        resolve(buildDir, '../dist/node_modules/open'),
-        { force : true, recursive : true });
+        if (targetPlatform === 'linux') {
+            msg('Writing Linux Start script');
+            writeStartSh();
+        } else if (targetPlatform === 'darwin') {
+            msg('Writing macOS first-run launcher');
+            writeMacFirstRunCommand();
+        }
 
-    msg('Writing README');
-    writeReadme();
-
-    if (!isWin && process.platform !== 'darwin') {
-        msg(`Writing Linux Start script`);
-        writeStartSh();
+        if (packRequested) {
+            msg(`Packing ${targetPlatform}-${targetArch}`);
+            await packTarget(dist, targetPlatform, targetArch);
+        } else if (buildTargets.length > 1) {
+            msg(`Saving ${targetPlatform}-${targetArch} output`);
+            persistTargetOutput(dist, targetPlatform, targetArch);
+        }
     }
 
     msg('Removing transpiled output');
     unlinkSync(resolve(buildDir, '../dist/built.cjs'));
-
-    if (args.includes('zip') || args.includes('pack')) {
-        msg('Zipping everything up');
-        const zipName = `${binaryName}.v${version}-${process.platform}-${arch}`;
-        let cmd;
-        /* eslint-disable max-len */
-        if (isWin) {
-            cmd = `powershell Compress-Archive "${dist}/node_modules", "${dist}/README.txt", "${dist}/${binaryName}.exe" "${dist}/${zipName}.zip" -Force`;
-        } else if (process.platform === 'darwin') {
-            cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules README.txt '${binaryName}'`;
-        } else {
-            cmd = `tar -C '${dist}' -czvf '${dist}/${zipName}.tar.gz' node_modules start.sh README.txt '${binaryName}'`;
-        }
-        /* eslint-enable max-len */
-
-        if (verbose) {
-            console.log(`Running "${cmd}"`);
-        }
-
-        exec(cmd, (err) => {
-            if (err) { console.error(err.message); } else { console.log('Done!'); }
-        });
-    } else {
-        console.log('Done!');
-    }
+    console.log('Done!');
 }
 
 build();

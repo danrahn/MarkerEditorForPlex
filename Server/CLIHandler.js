@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
+import { AssetRoot } from './Config/MarkerEditorConfig.js';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
-import { ProjectRoot } from './Config/MarkerEditorConfig.js';
+import { isBinary } from './ServerHelpers.js';
 
 /**
  * @typedef {Object} CLIArguments
@@ -82,14 +83,19 @@ export function checkArgs() {
  * @returns {boolean} */
 export function shouldExitEarly(args) {
     if (args.version || args.help) {
-        const packagePath = join(ProjectRoot(), 'package.json');
+        const packagePath = join(AssetRoot(), 'package.json');
+
+        let version;
         if (existsSync(packagePath)) {
             try {
-                const version = JSON.parse(readFileSync(packagePath).toString()).version;
-                console.log(`Marker Editor version ${version}`);
+                version = JSON.parse(readFileSync(packagePath).toString()).version;
             } catch (_err) {
-                console.log('Error retrieving version info.');
+                // Error will be output below.
             }
+        }
+
+        if (version) {
+            console.log(`Marker Editor version ${version}`);
         } else {
             console.log('Error retrieving version info.');
         }
@@ -100,9 +106,8 @@ export function shouldExitEarly(args) {
     }
 
     if (args.help) {
-        const isBin = process.argv[1]?.includes('built.cjs');
         const isWin = process.platform === 'win32';
-        const invoke = (isBin ? (isWin ? '.\\MarkerEditor.exe' : './MarkerEditor') : 'node app.js');
+        const invoke = (isBinary() ? (isWin ? '.\\MarkerEditor.exe' : './MarkerEditor') : 'node app.js');
         console.log(`Usage: ${invoke} [options]`);
         console.log();
         console.log(`  OPTIONS`);

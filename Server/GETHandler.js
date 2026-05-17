@@ -7,7 +7,7 @@ import { readFile } from 'fs';
 
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 
-import { Config, ProjectRoot } from './Config/MarkerEditorConfig.js';
+import { AssetRoot, Config } from './Config/MarkerEditorConfig.js';
 import { GetServerState, ServerState } from './ServerState.js';
 import { isBinary, sendCompressedData } from './ServerHelpers.js';
 import { ThumbnailNotGeneratedError, Thumbnails } from './ThumbnailManager.js';
@@ -27,6 +27,19 @@ const StaticCacheAge = 86400 * 365;
 const ThumbCacheAge = 300;
 
 class GETHandler {
+
+    /**
+     * Build the canonical static file path for a request.
+     * @param {string} url
+     * @param {boolean} cacheable */
+    static #staticReadPath(url, cacheable) {
+        const relativeUrl = url.replace(/^\/+/, '');
+        if (cacheable && !relativeUrl.toLowerCase().startsWith('dist/')) {
+            return join(AssetRoot(), 'dist', relativeUrl);
+        }
+
+        return join(AssetRoot(), relativeUrl);
+    }
 
     /**
      * Regex that defines valid paths, which are currently index.html, or anything inside
@@ -78,7 +91,7 @@ class GETHandler {
                 return;
             }
 
-            GETHandler.serveWithBaseUrl(urlStripped, baseUrl, res);
+            GETHandler.serveWithBaseUrl(isBinary() ? '/dist/index.html' : urlStripped, baseUrl, res);
             return;
         }
 
@@ -88,7 +101,7 @@ class GETHandler {
                 return;
             }
 
-            url = '/Client/login.html';
+            url = isBinary() ? '/dist/login.html' : '/Client/login.html';
             GETHandler.serveWithBaseUrl(url, baseUrl, res);
             return;
         }
@@ -123,9 +136,7 @@ class GETHandler {
             return;
         }
 
-        // Avoid readFileSync to improve parallelism. Also avoid the promise version,
-        // as nexe doesn't work with fs/promise.
-        readFile(join(ProjectRoot(), url), (err, contents) => {
+        readFile(GETHandler.#staticReadPath(url, cacheable), (err, contents) => {
             if (err) {
                 Log.warn(`Unable to serve ${url}: ${err.message}`);
                 res.writeHead(404).end(`Not Found: ${err.message}`);
@@ -168,7 +179,7 @@ class GETHandler {
      * @param {ExpressResponse} res */
     static serveWithBaseUrl(url, baseUrl, res) {
         const mimetype = contentType(lookup(url));
-        readFile(join(ProjectRoot(), url), (err, contents) => {
+        readFile(join(AssetRoot(), url), (err, contents) => {
             if (err) {
                 Log.warn(`Unable to serve ${url}: ${err.message}`);
                 res.writeHead(404).end(`Not Found: ${err.message}`);
@@ -213,7 +224,11 @@ class ImageHandler {
         }
 
         const icon = parts[2];
-        readFile(join(ProjectRoot(), 'SVG', icon), { encoding : 'utf-8' }, (err, contents) => {
+        const iconReadPath = cacheable ?
+            join(AssetRoot(), 'dist', 'SVG', icon) :
+            join(AssetRoot(), 'SVG', icon);
+
+        readFile(iconReadPath, { encoding : 'utf-8' }, (err, contents) => {
             if (err) {
                 return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
             }
@@ -255,7 +270,10 @@ class ImageHandler {
             // This is an expected fallback case when we initially fail to grab a thumbnail.
             // The 'timestamp' is actually the height of the SVG we want to generate that has
             // a generic 'Error' text in the middle of it.
-            readFile(join(ProjectRoot(), 'SVG', 'badThumb.svg'), { encoding : 'utf-8' }, (err, contents) => {
+            const badThumbPath = isBinary() ?
+                join(AssetRoot(), 'dist', 'SVG', 'badThumb.svg') :
+                join(AssetRoot(), 'SVG', 'badThumb.svg');
+            readFile(badThumbPath, { encoding : 'utf-8' }, (err, contents) => {
                 if (err) {
                     return badRequest(err.message, err.code && err.code === 'ENOENT' ? 404 : 500);
                 }

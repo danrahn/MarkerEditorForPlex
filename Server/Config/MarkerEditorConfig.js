@@ -225,7 +225,7 @@ class MarkerEditorConfig extends ConfigBase {
             this.#validateDataPath(this.#dataPath);
         }
 
-        const packagePath = join(ProjectRoot(), 'package.json');
+        const packagePath = join(AssetRoot(), 'package.json');
         this.#version = new Setting(null, '0.0.0');
         if (existsSync(packagePath)) {
             try {
@@ -1143,12 +1143,51 @@ class MarkerEditorConfig extends ConfigBase {
 let globalProjectRoot = undefined;
 
 /**
+ * Cached root directory for bundled read-only assets.
+ * @type {string} */
+let globalAssetRoot = undefined;
+
+/**
+ * Search for the nearest package root from a given directory.
+ * @param {string} startDir
+ * @returns {string} */
+function findPackageRoot(startDir) {
+    let dir = startDir;
+    while (true) {
+        if (existsSync(join(dir, 'package.json'))) {
+            return dir;
+        }
+
+        const parent = dirname(dir);
+        if (parent === dir) {
+            Log.warn(`Could not find package root from starting directory ${startDir}. ` +
+                `This is unexpected and may cause issues with loading assets/config. `);
+            break;
+        }
+
+        dir = parent;
+    }
+
+    // Should never happen in real builds, but keep prior behavior as a fallback.
+    if (isBinary()) {
+        return dirname(dirname(fileURLToPath(import.meta.url)));
+    }
+
+    return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+}
+
+/**
  * Retrieve the root path of this application.
  *
  * Doesn't live in MarkerEditorConfig directly because it occasionally needs to be
  * accessed before MarkerEditorConfig is completely set up. */
-const ProjectRoot = () => (globalProjectRoot ??= isBinary() ?
-    dirname(dirname(fileURLToPath(import.meta.url))) :
-    dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+const AssetRoot = () => (globalAssetRoot ??= findPackageRoot(dirname(fileURLToPath(import.meta.url))));
 
-export { MarkerEditorConfig, Instance as Config, ProjectRoot };
+/**
+ * Retrieve the writable project root path for runtime data/config.
+ *
+ * Dev runs (node app.js) can just use AssetRoot, but AssetRoot for pkg/SEA packages is a read-only
+ * snapshot path, so use the binary's directory for writable runtime data. */
+const ProjectRoot = () => globalProjectRoot ??= process.pkg ? dirname(process.execPath) : AssetRoot();
+
+export { MarkerEditorConfig, Instance as Config, AssetRoot, ProjectRoot };
