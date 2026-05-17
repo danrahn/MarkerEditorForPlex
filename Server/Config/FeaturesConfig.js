@@ -2,7 +2,7 @@ import { ExtraData, PlexQueries } from '../PlexQueryManager.js';
 import ConfigBase from './ConfigBase.js';
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 import { MaxAutoSuspendTimeout } from '../..//Shared/ServerConfig.js';
-import { testFfmpeg } from '../ServerHelpers.js';
+import { testFfmpeg } from '../RuntimeChecks.js';
 import { validAutoSuspendTimeout } from './ConfigHelpers.js';
 
 /** @typedef {!import('./ConfigBase').ConfigBaseProtected} ConfigBaseProtected */

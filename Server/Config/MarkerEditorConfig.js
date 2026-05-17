@@ -22,7 +22,7 @@ import {
     validPort,
     validSessionTimeout } from './ConfigHelpers.js';
 import { GetServerState, ServerState } from '../ServerState.js';
-import { isBinary, testFfmpeg, testHostPort } from '../ServerHelpers.js';
+import { isBinary, testFfmpeg, testHostPort } from '../RuntimeChecks.js';
 import { ServerEvents, waitForServerEvent } from '../ServerEvents.js';
 import AuthenticationConfig from './AuthenticationConfig.js';
 import ConfigBase from './ConfigBase.js';

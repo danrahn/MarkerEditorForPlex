@@ -5,7 +5,7 @@ import { read } from 'read';
 
 import { ContextualLog } from '../../Shared/ConsoleLog.js';
 
-import { testFfmpeg, testHostPort } from '../ServerHelpers.js';
+import { testFfmpeg, testHostPort } from '../RuntimeChecks.js';
 import { getDefaultPlexDataPath } from './ConfigHelpers.js';
 import { User } from '../Authentication/Authentication.js';
 
