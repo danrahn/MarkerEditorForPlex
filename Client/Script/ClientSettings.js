@@ -22,8 +22,12 @@ import TooltipBuilder from './TooltipBuilder.js';
 
 /** @typedef {!import('/Shared/ServerConfig').SerializedConfig} SerializedConfig */
 /** @typedef {!import('./Overlay').OverlayOptions} OverlayOptions */
+/** @typedef {!import('./DetachedModeManager').DetachedModeManager} DetachedModeManager */
 
 const Log = ContextualLog.Create('ClientSettings');
+
+/** @type {DetachedModeManager|null} */
+let DetachedMode = null;
 
 /**
  * Base class for implementing a client-side setting.
@@ -518,7 +522,13 @@ class ClientSettingsUI {
             ...options
         );
 
+        const ttText = `Enable/disable Detached Mode, which allows for markers to be queued up by working on a ` +
+            `copy of Plex's database, and applying them all at once when you're done.`;
         $append(container,
+            ButtonCreator.textButton(
+                `Detached Mode`,
+                (_e, self) => DetachedMode?.showOverlay(self),
+                { class : 'launchServerSettingsButton', tooltip : ttText }),
             ButtonCreator.textButton(
                 `Server Settings`,
                 () => { LaunchServerSettingsDialog(); },
@@ -539,8 +549,8 @@ class ClientSettingsUI {
     /**
      * Transition to a confirmation UI when the user attempts to restart or shut down the server.
      * @param {string|HTMLElement} message Overlay message to display
-     * @param {string} confirmText Confirmation button text.
-     * @param {Function} confirmCallback Callback invoked when shutdown/restart is confirmed. */
+     * @param {string=} confirmText Confirmation button text.
+     * @param {Function=} confirmCallback Callback invoked when shutdown/restart is confirmed. */
     serverStateCommon(message, confirmText, confirmCallback) {
         Log.tmi(`Transitioning to ${confirmText} confirmation`);
         const container = $div({ id : 'shutdownRestartOverlay' });
@@ -551,7 +561,9 @@ class ClientSettingsUI {
                 $div({ class : 'formInput' }),
                 $divHolder({ class : 'settingsButtons' },
                     ButtonCreator.textButton('Cancel', this.#onServerStateCancel.bind(this), { id : 'srCancel' }),
-                    ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'redOnHover' })))
+                    confirmText ?
+                        ButtonCreator.textButton(confirmText, confirmCallback, { id : 'srConfirm', class : 'redOnHover' }) :
+                        null))
         );
 
         this.#transitionOverlay(container);
@@ -559,6 +571,14 @@ class ClientSettingsUI {
 
     /** Transition to a confirmation UI when the user attempts to pause/suspend the server. */
     #pauseServer() {
+        if (DetachedMode?.isActive()) {
+            this.serverStateCommon(
+                $textSpan('Cannot pause the server while Detached Mode is active.', $br(), $br(),
+                    'Marker Editor is already detached from the Plex database, so pausing the server is unnecessary.'),
+            );
+            return;
+        }
+
         this.serverStateCommon(
             $textSpan('Are you sure you want to pause the server?', $br(), $br(),
                 'This will disconnect from the Plex database to allow you to resume Plex. When you want to continue ' +
@@ -1127,4 +1147,7 @@ class SettingsManager {
     }
 }
 
-export { SettingsManager, Instance as ClientSettings };
+/** @param {DetachedModeManager} instance */
+function setDetachedMode(instance) { DetachedMode = instance; }
+
+export { SettingsManager, Instance as ClientSettings, setDetachedMode };

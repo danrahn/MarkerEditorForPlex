@@ -111,19 +111,14 @@ export class MediaAnalysisWriter {
     }
 
     /** @type {boolean} */
-    static #validated = false;
+    static #valid = false;
 
     /**
      * Checks if the database has the expected data for intros, credits, and commercials.
      * @param {SqliteDatabase} db */
     static hasExpectedData(db) {
         // Only validate once per session.
-        if (MediaAnalysisWriter.#validated) {
-            return;
-        }
-
-        MediaAnalysisWriter.#validated = true;
-        return MediaAnalysisWriter.#validateMarkerType(db, 'intros', AttributeKeys.Intro, 'pv:intros":"{')
+        return MediaAnalysisWriter.#valid ??= MediaAnalysisWriter.#validateMarkerType(db, 'intros', AttributeKeys.Intro, 'pv:intros":"{')
             && MediaAnalysisWriter.#validateMarkerType(db, 'credits', AttributeKeys.Credits, 'pv:credits":"{')
             && MediaAnalysisWriter.#validateMarkerType(db, 'commercials', AttributeKeys.Ads, 'pv:commercials":"{');
     }

@@ -15,6 +15,7 @@ import ClientTests from './TestClasses/ClientTests.js';
 import ConfigTest from './TestClasses/ConfigTest.js';
 import DateUtilTest from './TestClasses/DateUtilTest.js';
 import DeleteAllTest from './TestClasses/DeleteAllTest.js';
+import DetachedModeTest from './TestClasses/DetachedModeTest.js';
 import ImportExportTest from './TestClasses/ImportExportTest.js';
 import QueryTest from './TestClasses/QueryTest.js';
 import ShiftTest from './TestClasses/ShiftTest.js';
@@ -78,6 +79,7 @@ class TestRunner {
         BulkAddTest,
         DeleteAllTest,
         ClientTests,
+        DetachedModeTest,
         ImportExportTest,
         ChapterTest,
         DateUtilTest,

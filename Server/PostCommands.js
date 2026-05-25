@@ -11,6 +11,7 @@ import { PostCommands } from '../Shared/PostCommands.js';
 import { registerAuthCommands } from './Commands/AuthenticationCommands.js';
 import { registerConfigCommands } from './Commands/ConfigCommands.js';
 import { registerCoreCommands } from './Commands/CoreCommands.js';
+import { registerDetachedCommands } from './Commands/DetachedCommands.js';
 import { registerImportExportCommands } from './ImportExport.js';
 import { registerPurgeCommands } from './Commands/PurgeCommands.js';
 import { registerQueryCommands } from './Commands/QueryCommands.js';
@@ -63,6 +64,7 @@ export function registerPostCommands() {
 
     registerConfigCommands();
     registerCoreCommands();
+    registerDetachedCommands();
     registerImportExportCommands();
     registerPurgeCommands();
     registerQueryCommands();

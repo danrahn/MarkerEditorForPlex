@@ -9,6 +9,8 @@ import { PostCommands } from '/Shared/PostCommands.js';
 /** @typedef {!import('/Shared/PlexTypes').BulkRestoreResponse} BulkRestoreResponse */
 /** @typedef {!import('/Shared/PlexTypes').ChapterMap} ChapterMap */
 /** @typedef {!import('/Shared/PlexTypes').CustomBulkAddMap} CustomBulkAddMap */
+/** @typedef {!import('/Shared/PlexTypes').DetachedCommitPreviewResult} DetachedCommitPreviewResult */
+/** @typedef {!import('/Shared/PlexTypes').DetachedStatus} DetachedStatus */
 /** @typedef {!import('/Shared/PlexTypes').ExtendedQueryInfo} ExtendedQueryInfo */
 /** @typedef {!import('/Shared/PlexTypes').PurgeSection} PurgeSection */
 /** @typedef {!import('/Shared/PlexTypes').SerializedBulkAddResult} SerializedBulkAddResult */
@@ -326,6 +328,35 @@ export const ServerCommands = {
      * Resume a suspended Marker Editor.
      * @returns {Promise<void>} */
     resume : () => jsonRequest(PostCommands.ServerResume),
+
+    /**
+     * Retrieve detached mode status.
+     * @returns {Promise<DetachedStatus>} */
+    detachedStatus : () => jsonRequest(PostCommands.DetachedStatus),
+    /**
+     * Start detached mode.
+     * @returns {Promise<void>} */
+    detachedStart : () => jsonRequest(PostCommands.DetachedStart),
+    /**
+     * Undo a single pending detached mode change by marker id.
+     * @param {number} markerId
+     * @returns {Promise<{ markerId: number, operation: string }>} */
+    detachedUndoChange : (markerId) => jsonRequest(PostCommands.DetachedUndoChange, { markerId }),
+    /**
+     * Commit detached mode changes to the live database.
+     * @returns {Promise<void>} */
+    detachedCommit : () => jsonRequest(PostCommands.DetachedCommit),
+    /**
+     * Preview the impact of committing detached mode changes without writing.
+     * @param {boolean} [includeLiveImpact=true] Whether to query live DB for impact estimation.
+     * @returns {Promise<DetachedCommitPreviewResult>} */
+    detachedCommitPreview : (includeLiveImpact=true) => jsonRequest(
+        PostCommands.DetachedCommitPreview,
+        { includeLive : includeLiveImpact ? 1 : 0 }),
+    /**
+     * Discard detached mode changes.
+     * @returns {Promise<void>} */
+    detachedDiscard : () => jsonRequest(PostCommands.DetachedDiscard),
 
     /**
      * Upload a database file and import the markers present into the given section.

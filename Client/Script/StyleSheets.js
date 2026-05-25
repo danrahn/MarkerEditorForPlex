@@ -13,6 +13,7 @@ const DefaultStyleSheets = {
     BulkAction : 'BulkActionOverlay',
     BulkActionDark : 'BulkActionOverlayDark',
     BulkActionLight : 'BulkActionOverlayLight',
+    DetachedMode : 'DetachedMode',
 };
 
 // Webpack will inject __HASHED_STYLES__ at build time, which will replace the above values with hashed filenames for cache busting.

@@ -5,6 +5,7 @@ import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { Theme, ThemeColors } from './ThemeColors.js';
 import ButtonCreator from './ButtonCreator.js';
 import { customCheckbox } from './CommonUI.js';
+import { DetachedMode } from './DetachedModeManager.js';
 import { errorResponseOverlay } from './ErrorHandling.js';
 import { flashBackground } from './AnimationHelpers.js';
 import MarkerBreakdownChart from './MarkerBreakdownChart.js';
@@ -47,6 +48,10 @@ class SectionOptionsOverlay {
             ButtonCreator.textButton('Marker Breakdown Chart', this.#onBreakdown.bind(this), { class : 'sectionOptionsOverlayBtn' }),
             ButtonCreator.textButton('Export Markers', this.#onExport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
             ButtonCreator.textButton('Import Markers', this.#onImport.bind(this), { class : 'sectionOptionsOverlayBtn' }),
+            ButtonCreator.textButton(
+                'Detached Mode',
+                (_e, self) => DetachedMode.showOverlay(self),
+                { class : 'sectionOptionsOverlayBtn' }),
             ButtonCreator.textButton(
                 'Delete All Markers',
                 this.#onDeleteAll.bind(this),

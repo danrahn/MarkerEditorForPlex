@@ -7,6 +7,7 @@ import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { AuthDatabase } from './Authentication/AuthDatabase.js';
 import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { DatabaseImportExport } from './ImportExport.js';
+import { DetachedSession } from './DetachedSession.js';
 import { isTestRun } from './CLIHandler.js';
 import { MarkerBackupManager } from './MarkerBackupManager.js';
 import { MarkerCacheManager } from './MarkerCacheManager.js';
@@ -196,10 +197,22 @@ async function userRestart(res, data = undefined) {
 
 /**
  * Suspends the server, keeping the HTTP server running, but disconnects from the Plex database.
- * @param {ExpressResponse} [res] Optional response object (not present for auto-suspend). */
-async function userSuspend(res) {
+ * @param {ExpressResponse} [res] Optional response object (not present for auto-suspend).
+ * @param {boolean} [autoSuspend=false] Whether this request originated from auto-suspend logic.
+ * @returns {Promise<boolean>} True if server was suspended, false if skipped. */
+async function userSuspend(res, autoSuspend=false) {
     Log.verbose('Attempting to pause the server');
     await waitForStable();
+
+    if (DetachedSession.active()) {
+        const message = 'Cannot suspend server while detached mode is active.';
+        if (autoSuspend) {
+            Log.verbose(`${message} Skipping auto-suspend.`);
+            return false;
+        }
+
+        throw new ServerError(message, 409, true /*expected*/);
+    }
 
     SetServerState(ServerState.Suspended);
     cleanupForShutdown(false /*fullShutdown*/, false /*resetConfig*/);
@@ -209,6 +222,8 @@ async function userSuspend(res) {
     if (res) {
         sendJsonSuccess(res);
     }
+
+    return true;
 }
 
 /**
@@ -321,7 +336,11 @@ ServerEventHandler.on(ServerEvents.SoftRestart, (response, data, resolve) => {
 
 ServerEventHandler.on(ServerEvents.AutoSuspend, (resolve) => {
     // It's fine to just go through the normal suspend process, we just need to set the right state afterwards.
-    userSuspend().then(() => {
+    userSuspend(undefined, true /*autoSuspend*/).then((suspended) => {
+        if (!suspended) {
+            return;
+        }
+
         SetServerState(ServerState.AutoSuspended);
         Log.info('Server auto-suspended due to inactivity.');
     }).catch(err => {

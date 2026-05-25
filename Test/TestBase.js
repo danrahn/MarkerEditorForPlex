@@ -58,6 +58,12 @@ class TestBase {
             unlinkSync(TestBase.testDbPath);
         }
 
+        const detachedSessionFile = join(TestBase.root, 'Backup', 'detachedSession.json');
+        if (existsSync(detachedSessionFile)) {
+            TestLog.tmi('TestBase::Cleanup - Deleting detached session state');
+            unlinkSync(detachedSessionFile);
+        }
+
         if (existsSync(TestBase.testConfig)) {
             TestLog.tmi(`TestBase::Cleanup - Deleting old config`);
             unlinkSync(TestBase.testConfig);
@@ -657,6 +663,11 @@ class TestBase {
             DELETE FROM actions;
             VACUUM;
             UPDATE sqlite_sequence SET seq=0 WHERE name='actions';`);
+
+        const detachedSessionFile = join(TestBase.root, 'Backup', 'detachedSession.json');
+        if (existsSync(detachedSessionFile)) {
+            unlinkSync(detachedSessionFile);
+        }
     }
 }
 

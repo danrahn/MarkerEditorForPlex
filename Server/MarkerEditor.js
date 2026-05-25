@@ -11,6 +11,7 @@ import { ContextualLog } from '../Shared/ConsoleLog.js';
 import { BackupManager, MarkerBackupManager } from './MarkerBackupManager.js';
 import { checkArgs, isTestRun, shouldExitEarly } from './CLIHandler.js';
 import { cleanupForShutdown, handleClose, setRestartCallback } from './ServerLifecycle.js';
+import { DetachedSession, DetachedSessionManager } from './DetachedSession.js';
 import { GetServerState, ServerState, SetServerState } from './ServerState.js';
 import { MarkerEditorConfig, ProjectRoot } from './Config/MarkerEditorConfig.js';
 import { AuthDatabase } from './Authentication/AuthDatabase.js';
@@ -41,6 +42,11 @@ async function run() {
     // FirstRunConfig might need access to it.
     AuthDatabase.Initialize(dataRoot);
     UserAuthentication.Initialize();
+
+    // Set up the detached session manager, and set the global database path before we load the config,
+    // since if we're recovering from a detached session, we want to immediately work from the fork database.
+    DetachedSessionManager.CreateInstance(dataRoot);
+    MarkerEditorConfig.SetRuntimeDatabasePath(DetachedSession.runtimeDatabasePath());
 
     if (!argInfo.isTest) {
         await FirstRunConfig(dataRoot, argInfo.cliSetup);

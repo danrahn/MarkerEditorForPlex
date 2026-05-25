@@ -95,6 +95,14 @@ class MarkerEditorConfig extends ConfigBase {
 
     static #SetConfig(config) { Instance = config; }
 
+    /**
+     * Set a temporary runtime database path override (e.g. the fork DB used by detached mode).
+     * This does not persist to config.json.
+     * @param {string|null|undefined} databasePath */
+    static SetRuntimeDatabasePath(databasePath) {
+        globalRuntimeDatabasePath = databasePath || undefined;
+    }
+
     /** Protected members of the base class.
      * @type {ConfigBaseProtected} */
     #Base = {};
@@ -290,7 +298,9 @@ class MarkerEditorConfig extends ConfigBase {
         this.#features.validateDbSettings();
     }
 
-    databasePath() { return this.#dbPath.value(); }
+    databasePath() { return globalRuntimeDatabasePath || this.#dbPath.value(); }
+    /** Returns the configured (live) database path, ignoring any detached-mode runtime override. */
+    liveDatabasePath() { return this.#dbPath.value(); }
     host() { return this.#host.value(); }
     port() { return this.#port.value(); }
     baseUrl() { return this.#baseUrl.value(); }
@@ -944,7 +954,7 @@ class MarkerEditorConfig extends ConfigBase {
      * Ensure the given database path exists and looks like the Plex database.
      * @param {Setting<string>} setting */
     #validateDatabasePath(setting, setInvalid=false) {
-        setting.setUnchanged(setting.value() === this.databasePath());
+        setting.setUnchanged(setting.value() === this.liveDatabasePath());
         const stats = statSync(setting.value(), { throwIfNoEntry : false });
         if (stats && stats.isFile()) {
             if (PlexQueryManager.SmellsLikePlexDB(setting.value())) {
@@ -1141,6 +1151,9 @@ class MarkerEditorConfig extends ConfigBase {
  * Cached root directory.
  * @type {string} */
 let globalProjectRoot = undefined;
+
+/** Optional runtime override for the Plex database path. */
+let globalRuntimeDatabasePath = undefined;
 
 /**
  * Cached root directory for bundled read-only assets.

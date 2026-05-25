@@ -10,6 +10,7 @@
     <link rel="preload" href="Client/Style/Settings.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="preload" href="Client/Style/MarkerTable.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="preload" href="Client/Style/BulkActionOverlay.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="Client/Style/DetachedMode.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="icon" type="image/svg+xml; charset=UTF-8" href="SVG/favicon.svg">
     <title>Marker Editor</title>
     <!--
@@ -257,10 +258,10 @@
     <div id="intro">
         <h1 id="siteTitle">Marker Editor <i id="settings" class="hidden" title="Settings" tabIndex="0"><svg></svg></i></h1>
     </div>
+    <div id='status'></div>
     <form>
         <div id="libraryList"><label for="libraries" class="hidden">Library selection</label><select id="libraries" class="fancySelect"></select></div>
     </form>
-    <div id='status'></div>
     <div id='container' class='hidden'>
         <div id="searchContainer"><label for='search' class="hidden">Search</label><input type='text' id='search' name='search' placeholder='Search for a Show...' autocomplete='off' /></div>
         <br>

@@ -11,12 +11,14 @@ import { ExtraData, MetadataType, PlexQueries } from './PlexQueryManager.js';
 import { MarkerEnum, MarkerType } from '../Shared/MarkerType.js';
 import { ServerEventHandler, ServerEvents } from './ServerEvents.js';
 import { Config } from './Config/MarkerEditorConfig.js';
+import { DetachedSession } from './DetachedSession.js';
 import { MarkerCache } from './MarkerCacheManager.js';
 import MarkerEditCache from './MarkerEditCache.js';
 import ServerError from './ServerError.js';
 import SqliteDatabase from './SqliteDatabase.js';
 import TransactionBuilder from './TransactionBuilder.js';
 
+/** @typedef {!import('./DetachedSession').PendingActionSnapshot} PendingActionSnapshot */
 /** @typedef {!import('../Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../Shared/PlexTypes').OldMarkerTimings} OldMarkerTimings */
 /** @typedef {!import('../Shared/PlexTypes').PurgeMovieSection} PurgeMovieSection */
@@ -437,6 +439,10 @@ class MarkerBackupManager {
             // TODO: Do something similar for 1 -> 2?
             manager.postUpgrade();
 
+            // If a previous detached session was abandoned, we need MAX(actions.id) to bound the
+            // recovery window. DetachedSession recorded the lower bound at boot.
+            DetachedSession.finalizeRecovery(manager.latestActionId());
+
             // Initialize once all of our upgrade steps have completed.
             manager.initialize();
 
@@ -479,6 +485,35 @@ class MarkerBackupManager {
         if (Config.extendedMarkerStats()) {
             this.buildAllPurges();
         }
+    }
+
+    /**
+     * Returns the set of action ids that represent incomplete detached actions,
+     * i.e. actions that were performed during a detached session but haven't been applied yet.
+     * @returns {Set<number>} */
+    #incompleteDetachedActionIdSet() {
+        const recoveryWindow = DetachedSession.recoveryWindow();
+        if (!recoveryWindow) {
+            return new Set();
+        }
+
+        const rows = this.#actions.all(`
+SELECT MAX(id) AS id
+FROM actions
+WHERE id>? AND id<=? AND restored_id IS NULL
+GROUP BY marker_id, section_uuid
+ORDER BY id;`, [recoveryWindow.start, recoveryWindow.end]);
+
+        return new Set(rows
+            .map(row => row.id)
+            .filter(id => Number.isInteger(id) && id > 0));
+    }
+
+    /**
+     * @param {MarkerAction} action
+     * @param {Set<number>} incompleteDetachedActionIds */
+    #tagIncompleteDetachedAction(action, incompleteDetachedActionIds) {
+        action.incompleteDetached = incompleteDetachedActionIds.has(action.id);
     }
 
     /** Closes the database connection. */
@@ -841,11 +876,180 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
     }
 
     /**
+     * Retrieve the latest action id in the backup database.
+     * @returns {number} */
+    latestActionId() {
+        const row = this.#actions.get('SELECT MAX(id) AS id FROM actions;');
+        return row?.id || 0;
+    }
+
+    /**
+     * Build a query fragment that scopes to this server's known section UUIDs.
+     * @returns {{ clause: string, parameters: DbArrayParameters }} */
+    #sectionUuidQuery() {
+        const uuids = Object.values(this.#uuids);
+        if (uuids.length === 0) {
+            return {
+                clause : '(1=0)',
+                parameters : [],
+            };
+        }
+
+        return {
+            clause : `(${uuids.map(() => 'section_uuid=?').join(' OR ')})`,
+            parameters : uuids,
+        };
+    }
+
+    /**
+     * Retrieve parent metadata ids touched by actions after the given checkpoint id.
+     * @param {number} checkpointActionId
+     * @returns {number[]} */
+    touchedParentIdsSince(checkpointActionId) {
+        if (isNaN(checkpointActionId) || checkpointActionId < 0) {
+            throw new ServerError(`Invalid checkpoint id ${checkpointActionId}`, 400);
+        }
+
+        const uuidQuery = this.#sectionUuidQuery();
+
+        const rows = this.#actions.all(
+            `SELECT DISTINCT parent_id FROM actions WHERE id>? AND restored_id IS NULL AND ${uuidQuery.clause} ORDER BY parent_id;`,
+            [checkpointActionId, ...uuidQuery.parameters]);
+        return rows.map(row => row.parent_id).filter(id => !isNaN(id));
+    }
+
+    /**
+     * Retrieve grouped action snapshots since the given checkpoint, one per marker id.
+     * @param {number} checkpointActionId
+     * @returns {PendingActionSnapshot[]} */
+    pendingActionSnapshotsSince(checkpointActionId) {
+        if (isNaN(checkpointActionId) || checkpointActionId < 0) {
+            throw new ServerError(`Invalid checkpoint id ${checkpointActionId}`, 400);
+        }
+
+        const uuidQuery = this.#sectionUuidQuery();
+
+        /** @type {MarkerAction[]} */
+        const rows = this.#actions.all(
+            `SELECT * FROM actions WHERE id>? AND restored_id IS NULL AND ${uuidQuery.clause} ORDER BY id ASC;`,
+            [checkpointActionId, ...uuidQuery.parameters]);
+        if (rows.length === 0) {
+            return [];
+        }
+
+        /** @type {{[key: string]: PendingActionSnapshot}} */
+        const grouped = {};
+
+        for (const row of rows) {
+            const key = `${row.section_uuid}:${row.marker_id}`;
+            const group = grouped[key] ??= {
+                markerId : row.marker_id,
+                sectionId : row.section_id,
+                sectionUuid : row.section_uuid,
+                actions : [],
+            };
+
+            group.actions.push(row);
+        }
+
+        return Object.values(grouped).map(group => {
+            const query = `
+SELECT *
+FROM actions
+WHERE marker_id=? AND section_uuid=? AND id<=? AND restored_id IS NULL
+ORDER BY id DESC
+LIMIT 1;`;
+            /** @type {MarkerAction|null} */
+            const baselineAction = this.#actions.get(query, [group.markerId, group.sectionUuid, checkpointActionId]);
+
+            return {
+                markerId : group.markerId,
+                sectionId : group.sectionId,
+                sectionUuid : group.sectionUuid,
+                baselineAction : baselineAction || null,
+                latestAction : group.actions[group.actions.length - 1],
+                actions : group.actions,
+            };
+        });
+    }
+
+    /**
+     * Delete backup actions recorded after the given checkpoint for this server's sections.
+     * Used by detached discard so that fork-only marker ids don't linger and get reported
+     * as purged markers against the live database.
+     * @param {number} checkpointActionId */
+    clearActionsSince(checkpointActionId) {
+        if (isNaN(checkpointActionId) || checkpointActionId < 0) {
+            throw new ServerError(`Invalid checkpoint id ${checkpointActionId}`, 400);
+        }
+
+        const uuidQuery = this.#sectionUuidQuery();
+        this.#actions.run(
+            `DELETE FROM actions WHERE id>? AND ${uuidQuery.clause};`,
+            [checkpointActionId, ...uuidQuery.parameters]);
+    }
+
+    /**
+     * Delete every in-session backup action targeting the given marker id. Used by detached undo
+     * to collapse stacked operations (e.g. add+edit) on a single marker back to "no session change".
+     * @param {number} markerId
+     * @param {number} sectionId
+     * @param {number} checkpointActionId */
+    clearSessionActionsForMarker(markerId, sectionId, checkpointActionId) {
+        if (isNaN(checkpointActionId) || checkpointActionId < 0) {
+            throw new ServerError(`Invalid checkpoint id ${checkpointActionId}`, 400);
+        }
+
+        const sectionUuid = this.#uuids[sectionId];
+        if (!sectionUuid) {
+            return;
+        }
+
+        this.#actions.run(
+            `DELETE FROM actions WHERE marker_id=? AND id>? AND section_uuid=?;`,
+            [markerId, checkpointActionId, sectionUuid]);
+    }
+
+    /**
+     * Remap marker ids in backup actions after the given checkpoint.
+        * Used when marker ids from a temporary detached fork cannot be preserved in the live database.
+     * @param {number} checkpointActionId
+     * @param {{[oldId: number]: number}} markerIdMap
+     * @returns {number} Number of marker ids remapped. */
+    remapMarkerIdsSince(checkpointActionId, markerIdMap) {
+        const remapEntries = Object.entries(markerIdMap || {})
+            .map(([oldId, newId]) => [parseInt(oldId), parseInt(newId)])
+            .filter(([oldId, newId]) => !isNaN(oldId) && !isNaN(newId) && oldId !== newId);
+
+        if (remapEntries.length === 0) {
+            return 0;
+        }
+
+        const uuidQuery = this.#sectionUuidQuery();
+        const transaction = new TransactionBuilder(this.#actions);
+        for (const [oldId, newId] of remapEntries) {
+            transaction.addStatement(
+                `UPDATE actions SET marker_id=? WHERE id>? AND marker_id=? AND ${uuidQuery.clause};`,
+                [newId, checkpointActionId, oldId, ...uuidQuery.parameters]);
+            transaction.addStatement(
+                `UPDATE actions SET restored_id=? WHERE id>? AND restored_id=? AND ${uuidQuery.clause};`,
+                [newId, checkpointActionId, oldId, ...uuidQuery.parameters]);
+            transaction.addStatement(
+                `UPDATE actions SET restores_id=? WHERE id>? AND restores_id=? AND ${uuidQuery.clause};`,
+                [newId, checkpointActionId, oldId, ...uuidQuery.parameters]);
+        }
+
+        transaction.exec();
+        return remapEntries.length;
+    }
+
+    /**
      * Checks for markers that the backup database thinks should exist, but aren't in the Plex database.
      * @param {number} metadataId
      * @returns {MarkerAction[]}
      * @throws {ServerError} On failure. */
     checkForPurges(metadataId) {
+        const incompleteDetachedActionIds = this.#incompleteDetachedActionIdSet();
         const markerData = PlexQueries.getMarkersAuto(metadataId);
         const existingMarkers = markerData.markers;
         const typeInfo = markerData.typeInfo;
@@ -862,6 +1066,7 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
         for (const action of actions) {
             // Don't add markers that exist in the database, or whose last recorded action was a delete.
             if (!markerMap[action.marker_id] && action.op !== MarkerOp.Delete) {
+                this.#tagIncompleteDetachedAction(action, incompleteDetachedActionIds);
                 // Note: while this is "cleaner", it's a bit gross since it doesn't work with
                 // primitives, only objects due to reference semantics.
                 (baseItemMap[action.parent_id] ??= []).push(action);
@@ -949,25 +1154,18 @@ $extraData, $sectionUUID, $restoresId, $parentGuid, $markerType, $final, $userCr
      * Return a query that will grab the latest action for each marker associated with the current server.
      * @param {boolean} guidCheck `true` if we're checking for episode guids, in which case we don't care about ignored actions. */
     #allActionsQuery(guidCheck=false) {
-        let uuidString = '';
-        /** @type {DbArrayParameters} */
-        const parameters = [];
-        for (const uuid of Object.values(this.#uuids)) {
-            parameters.push(uuid);
-            uuidString += `section_uuid=? OR `;
-        }
-
-        uuidString = uuidString.substring(0, uuidString.length - 4);
+        const uuidQuery = this.#sectionUuidQuery();
+        const parameters = uuidQuery.parameters;
 
         const query = `
 SELECT *, MAX(id) FROM actions
-WHERE (${uuidString}) AND restored_id IS NULL ${guidCheck ? 'AND parent_guid IS NULL' : ''}
+WHERE ${uuidQuery.clause} AND restored_id IS NULL ${guidCheck ? 'AND parent_guid IS NULL' : ''}
 GROUP BY marker_id, section_uuid
 ORDER BY id DESC;`;
 
         return {
             query,
-            parameters
+            parameters,
         };
     }
 
@@ -976,6 +1174,7 @@ ORDER BY id DESC;`;
      * whether they exist in the Plex database.
      * @returns {void} */
     buildAllPurges() {
+        const incompleteDetachedActionIds = this.#incompleteDetachedActionIdSet();
         const allActionsQuery = this.#allActionsQuery();
 
         /** @type {MarkerAction[]} */
@@ -1020,11 +1219,12 @@ ORDER BY id DESC;`;
             }
 
             if (MarkerCache.baseItemExists(action.parent_id) && !MarkerCache.markerExists(action.marker_id)) {
+                this.#tagIncompleteDetachedAction(action, incompleteDetachedActionIds);
                 this.#addToPurgeMap(action);
             }
         }
 
-        const readded = this.#readdCheck(actions);
+        const readded = this.#readdCheck(actions, incompleteDetachedActionIds);
 
         if (noGuid.size > 0) {
             Log.verbose(`No episode found for ${noGuid.size} marker ids` +
@@ -1061,8 +1261,9 @@ ORDER BY id DESC;`;
 
     /**
      * Find and return Plex-generated markers that were deleted and have since been added back.
-     * @param {MarkerAction[]} markerActions All marker actions */
-    #readdCheck(markerActions) {
+     * @param {MarkerAction[]} markerActions All marker actions
+     * @param {Set<number>} incompleteDetachedActionIds */
+    #readdCheck(markerActions, incompleteDetachedActionIds) {
         /** @typedef {{ [start: number]: { [end: number]: MarkerAction } }} MarkerTimingMap */
         // showId/SeasonId == -1 for movies, and it helps keep the structure simpler versus separate mapping logic.
         /** @typedef {{ [showId: number]: { [seasonId: number]: { [baseId: number]: MarkerTimingMap  } } }} ServerMarkerTimingMap */
@@ -1098,6 +1299,7 @@ ORDER BY id DESC;`;
             if (existingId) {
                 deleted.readded = true;
                 deleted.readded_id = existingId;
+                this.#tagIncompleteDetachedAction(deleted, incompleteDetachedActionIds);
                 this.#addToPurgeMap(deleted);
                 readded.add(deleted);
             }
@@ -1668,4 +1870,4 @@ ORDER BY id DESC;`;
     }
 }
 
-export { MarkerBackupManager, Instance as BackupManager, ExtraData };
+export { MarkerBackupManager, Instance as BackupManager, ExtraData, MarkerOp };

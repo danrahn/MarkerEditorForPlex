@@ -1,6 +1,7 @@
 import { BaseLog } from '/Shared/ConsoleLog.js';
 
-import { ClientSettings, SettingsManager } from './ClientSettings.js';
+import { ClientSettings, setDetachedMode, SettingsManager } from './ClientSettings.js';
+import { DetachedMode, DetachedModeManager } from './DetachedModeManager.js';
 import { errorMessage, errorResponseOverlay } from './ErrorHandling.js';
 import { PlexUI, PlexUIManager } from './PlexUI.js';
 import ButtonCreator from './ButtonCreator.js';
@@ -57,6 +58,9 @@ async function mainSetup() {
         // Don't continue if we were given an invalid config (or we need to run first-time setup)
         return;
     }
+
+    DetachedModeManager.CreateInstance();
+    setDetachedMode(DetachedMode); // avoid circular dependencies in ClientSettings
 
     // Even if extended marker stats are blocked in the UI, we can still enable "find all purges"
     // as long as we have the extended marker data available server-side (i.e. they're not blocked).

@@ -76,6 +76,19 @@ export const PostCommands = {
     /** @readonly Reconnect to the Plex database after suspending the connection. */
     ServerResume : 'resume',
 
+    /** @readonly Return detached mode status. */
+    DetachedStatus : 'detached_status',
+    /** @readonly Start detached mode (fork marker workspace). */
+    DetachedStart : 'detached_start',
+    /** @readonly Undo a single pending detached-mode marker change. */
+    DetachedUndoChange : 'detached_undo_change',
+    /** @readonly Commit detached mode changes to the live database. */
+    DetachedCommit : 'detached_commit',
+    /** @readonly Preview the impact of committing detached mode changes without writing. */
+    DetachedCommitPreview : 'detached_commit_preview',
+    /** @readonly Discard marker changes in detached mode. */
+    DetachedDiscard : 'detached_discard',
+
     /** @readonly Log in, if auth is enabled. */
     Login : 'login',
     /** @readonly Log out of a session. */

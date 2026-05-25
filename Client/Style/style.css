@@ -194,6 +194,10 @@ input:focus-visible {
   margin: auto;
 }
 
+#status {
+  text-align: center;
+}
+
 #toplevellist,
 #seasonlist,
 #episodelist {
@@ -524,6 +528,15 @@ input:focus-visible {
 
   & #purgeResolutionDescription {
     size: 10pt;
+  }
+
+  & .purgeGroupContainer h2 svg {
+    vertical-align: text-bottom;
+    padding: 2px;
+  }
+
+  & .incompleteDetachedTag {
+    color: var(--theme-orange);
   }
 }
 
@@ -907,5 +920,29 @@ input:focus-visible {
 
   .mobileBreak {
     display: block;
+  }
+
+  .detachedModeSummaryRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .detachedModeAction {
+    min-width: 140px;
+  }
+
+  .detachedModeOverlayContainer {
+    /* Mobile uses 10vh top margin and 5px padding on #overlayContainer. */
+    max-height: calc(90vh - 10px);
+  }
+
+  .fullOverlay .detachedModeOverlayContainer {
+    /* fullOverlay swaps the 10vh top margin for 50px top + 50px bottom. */
+    max-height: calc(100vh - 110px);
+  }
+
+  .detachedDateColumn {
+    display: none;
   }
 }

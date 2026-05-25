@@ -36,6 +36,66 @@ import { MarkerType } from './MarkerType.js';
  *            episodeData?: {[episodeId: number]: EpisodeData}}} ShiftResult
  *            The result of a call to shiftMarkers. `episodeData` is only valid if `applied` is `false`.
  *
+ * @typedef {{
+ *      active: boolean,
+ *      mode: string,
+ *      startedAt: number|null,
+ *      actionCheckpoint: number,
+ *      liveDatabasePath: string|null,
+ *      forkDatabasePath: string|null,
+ *      staleForks: number,
+ *      incompleteActionIds: number
+ * }} DetachedStatus
+ *
+ * @typedef {{
+ *      parentCount: number,
+ *      deletedMarkers: number,
+ *      insertedMarkers: number,
+ *      potentialRemappedMarkerIds: number
+ * }} DetachedCommitImpact
+ *
+ * @typedef {{
+ *      actionId: number,
+ *      markerId: number,
+ *      operation: string,
+ *      markerType: string,
+ *      start: number,
+ *      end: number,
+ *      createdAt: number,
+ *      sectionId: number,
+ *      sectionName: string,
+ *      sectionType: number,
+ *      mediaId: number,
+ *      mediaTitle: string,
+ *      mediaYear: number|null,
+ *      parentId: number,
+ *      episodeIndex: number|null,
+ *      seasonIndex: number|null,
+ *      episodeTitle: string|null
+ * }} DetachedPendingChange
+ *
+ * @typedef {{
+ *      mediaId: number,
+ *      mediaTitle: string,
+ *      mediaYear: number|null,
+ *      rows: DetachedPendingChange[]
+ * }} DetachedPendingMediaGroup
+ *
+ * @typedef {{
+ *      sectionId: number,
+ *      sectionName: string,
+ *      sectionType: number,
+ *      media: DetachedPendingMediaGroup[]
+ * }} DetachedPendingSectionGroup
+ *
+ * @typedef {{
+ *      checkpointActionId: number,
+ *      touchedParentIds: number[],
+ *      pendingChanges: DetachedPendingSectionGroup[],
+ *      commit: DetachedCommitImpact,
+ *      detached: DetachedStatus
+ * }} DetachedCommitPreviewResult
+ *
  * @typedef {{ [seasonId: number] : { [episodeId: number] : { [markerId: number] : MarkerAction } } }} PurgeShow
  * @typedef {{ [showId: number]: PurgeShow }} PurgeShowSection
  * @typedef {{ [movieId: number]: { [markerId: number] : MarkerAction } }} PurgeMovieSection
@@ -101,8 +161,9 @@ import { MarkerType } from './MarkerType.js';
  * @typedef {{id: number, op: MarkerOp, marker_id: number, marker_type: string, final: number, parent_id: number,
  *            season_id: number, show_id: number, section_id: number, start: number, end: number, old_start: number?,
  *            old_end: number?, modified_at: number|null, created_at: number, recorded_at: number, extra_data: string,
- *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number, parent_guid: string?,
- *            readded: boolean?, readded_id: number?, episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
+ *            section_uuid: string, restores_id: number?, restored_id: number?, user_created: number,
+ *            parent_guid: string?, readded: boolean?, readded_id: number?, incompleteDetached: boolean?,
+ *            episodeData: EpisodeData?, movieData: MovieData? }} MarkerAction
  */
 
 /**

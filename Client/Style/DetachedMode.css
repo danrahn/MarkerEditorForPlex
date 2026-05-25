@@ -1,0 +1,194 @@
+
+
+#detachedModeIndicator {
+  border-radius: 3px;
+  font-size: 10pt;
+  margin-top: 6px;
+  margin-bottom: 16px;
+  padding: 2px 8px;
+}
+
+.detachedModeIndicator.detachedModeLoading,
+.detachedModeIndicator.detachedModeInactive {
+  opacity: 0.9;
+}
+
+.detachedModeIndicator.detachedModeActive {
+  border: 1px solid var(--theme-border);
+  background-color: var(--theme-input-background);
+}
+
+.detachedModeIndicator.detachedModeError {
+  border: 1px solid var(--error-border);
+  background-color: var(--error-background);
+}
+
+.detachedModeOverlayContainer {
+  margin: auto;
+  width: calc(min(96%, 900px));
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: calc(75vh - 40px);
+
+  & hr {
+    width: 100%;
+  }
+
+  & .detachedModeDescription,
+  & .detachedModeSummary {
+    text-align: left;
+  }
+
+  & .detachedModeSummaryRow {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+
+  & .detachedModeSummaryLabel {
+    font-weight: bold;
+  }
+
+  & .detachedModeSummaryLabelWithHelp {
+    align-items: center;
+    column-gap: 4px;
+    display: inline-flex;
+  }
+
+  & .detachedSummaryHelpIcon {
+    cursor: help;
+    display: inline-flex;
+    opacity: 0.8;
+  }
+
+  & .detachedSummaryHelpIcon:hover {
+    opacity: 1;
+  }
+  
+
+  & .detachedSummaryHelpIcon svg {
+    vertical-align: middle;
+  }
+
+  & .detachedModeSummaryValue {
+    text-align: right;
+    word-break: break-word;
+  }
+
+  & .detachedModeHint {
+    color: var(--theme-secondary);
+    margin-top: 8px;
+  }
+
+  & .detachedModeButtons {
+    clear: both;
+    float: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 12px;
+    width: 100%;
+    overflow: visible;
+  }
+
+  & .detachedModeButtons .button {
+    margin-left: 0;
+  }
+
+  & .detachedModeAction {
+    min-width: 180px;
+  }
+
+  & .button.detachedModeAction {
+    padding-bottom: 5px;
+    padding-top: 5px;
+    border: 1px solid var(--theme-border);
+  }
+
+  & .detachedPendingContainer {
+    margin-top: 12px;
+    flex: 1 1 auto;
+    min-height: 0; /* allow flex child to shrink so overflow-y can scroll */
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  & .detachedPendingEmpty {
+    margin-top: 10px;
+  }
+
+  & .detachedPendingSection {
+    margin-top: 10px;
+  }
+
+  & .detachedPendingSection h3 {
+    margin: 8px 0 4px 0;
+  }
+
+  & .detachedPendingMedia {
+    margin-top: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  & .detachedPendingMediaTitle {
+    margin: 6px 0;
+  }
+
+  & .detachedPendingTable {
+    /* Intentionally no width: 100%. With nowrap columns, extra width pools into the
+       most elastic column (Options here); let the table hug its content instead. */
+    width: auto;
+  }
+
+  & .detachedPendingTable td,
+  & .detachedPendingTable th {
+    white-space: nowrap;
+  }
+
+  & .detachedPendingEpisodeCode {
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .detachedPendingRowOptions {
+    display: flex;
+    justify-content: center;
+  }
+}
+
+.detachedModeOverlayContainer > * {
+  flex: 0 0 auto;
+}
+
+.fullOverlay .detachedModeOverlayContainer {
+  max-height: calc(100vh - 140px);
+}
+
+@media all and (max-width: 767px) { /* Probably a phone */
+  .detachedModeSummaryRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .detachedModeAction {
+    min-width: 140px;
+  }
+
+  .detachedModeOverlayContainer {
+    /* Mobile uses 10vh top margin and 5px padding on #overlayContainer. */
+    max-height: calc(90vh - 10px);
+  }
+
+  .fullOverlay .detachedModeOverlayContainer {
+    /* fullOverlay swaps the 10vh top margin for 50px top + 50px bottom. */
+    max-height: calc(100vh - 110px);
+  }
+
+  .detachedDateColumn {
+    display: none;
+  }
+}

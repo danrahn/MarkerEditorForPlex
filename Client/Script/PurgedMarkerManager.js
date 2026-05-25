@@ -1,5 +1,5 @@
 import { $, $$, $append, $br, $clear, $div, $divHolder, $h, $hr, $label, $node, $option, $select, $span, $table, $tbody,
-    $td, $textSpan, $thead, toggleClass } from './HtmlHelpers.js';
+    $td, $text, $textSpan, $thead, toggleClass } from './HtmlHelpers.js';
 import { ContextualLog } from '/Shared/ConsoleLog.js';
 import { pad0 } from './Common.js';
 
@@ -25,6 +25,7 @@ import Overlay from './Overlay.js';
 import { PlexClientState } from './PlexClientState.js';
 import { ServerCommands } from './Commands.js';
 import { TableElements } from 'MarkerTable';
+import Tooltip from './Tooltip.js';
 
 /** @typedef {!import('/Shared/PlexTypes').MarkerAction} MarkerAction */
 /** @typedef {!import('../../Server/PlexQueryManager').RawMarkerData} RawMarkerData */
@@ -323,6 +324,19 @@ class PurgeRow {
     /** Return whether this marker is a purged marker. False indicates this is an re-added marker. */
     isPurged() { return !this.#markerAction.readded; }
 
+    /** @returns {HTMLElement} */
+    markerTypeColumn() {
+        const markerType = $span(this.markerAction().marker_type);
+        if (!this.markerAction().incompleteDetached) {
+            return markerType;
+        }
+
+        const span = $span(markerType, { class : 'incompleteDetachedTag' });
+        Tooltip.setTooltip(span,
+            'This marker came from a detached session that was not committed, and may be inaccurate.');
+        return span;
+    }
+
     /** @returns {HTMLElement[]} */
     customTableColumns() { Log.error(`customTableColumns cannot be called directly on PurgeRow.`); return []; }
 
@@ -528,7 +542,7 @@ class TVPurgeRow extends PurgeRow {
     customTableColumns() {
         const ep = this.markerAction().episodeData;
         return [
-            $span(this.markerAction().marker_type),
+            this.markerTypeColumn(),
             $span(`S${pad0(ep.seasonIndex, 2)}E${pad0(ep.index, 2)}`, { title : ep.title }),
         ];
     }
@@ -563,7 +577,7 @@ class MoviePurgeRow extends PurgeRow {
      * @returns {HTMLElement} */
     customTableColumns() {
         return  [
-            $span(this.markerAction().marker_type),
+            this.markerTypeColumn(),
         ];
     }
 
@@ -727,7 +741,7 @@ class PurgeTable {
             container.appendChild($hr());
         }
 
-        container.appendChild($h(2, this.mainTitle()));
+        container.appendChild($h(2, this.#addDetachedWarning(this.mainTitle())));
         if (this.#showResolutionControl) {
             container.appendChild(PurgeConflictControl.GetControl());
         }
@@ -766,7 +780,7 @@ class PurgeTable {
         return container;
     }
 
-    /** @returns {string} */
+    /** @returns {string|HTMLSpanElement} */
     mainTitle() { Log.error(`mainTitle cannot be called on the base class.`); return ''; }
     /** @returns {HTMLElement} */
     tableHeader() { Log.error(`tableHeader cannot be called on the base class.`); return $span(); }
@@ -780,6 +794,23 @@ class PurgeTable {
 
     /** @returns {boolean} Whether this section has been removed due to successful restores/ignores. */
     removed() { return this.#removed; }
+
+    /**
+     * If any marker in this table is from an incomplete detached session,
+     * add a warning icon with a tooltip to the title.
+     * @param {string} title */
+    #addDetachedWarning(title) {
+        if (!this.markers().some(m => m.incompleteDetached)) {
+            return title;
+        }
+
+        const icon = getSvgIcon(Icons.Warn, ThemeColors.Orange, { width : '1em', height : '1em' });
+        Tooltip.setTooltip(icon, $append($span(),
+            $text('Some markers below are from an unrecoverable '),
+            $span('Detached Mode', { class : 'incompleteDetachedTag' }),
+            $text(' session.')));
+        return $append($span(title), icon);
+    }
 
     /** Callback invoked when all markers in the table have been handled.
      * @param {MarkerDataMap} newMarkers The newly restored markers, or null if the purged markers were ignored.
